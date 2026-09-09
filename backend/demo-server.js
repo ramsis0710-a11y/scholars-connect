@@ -15,7 +15,7 @@ const PORT = process.env.PORT || 3000;
 const JWT_SECRET = process.env.JWT_SECRET || 'scholars-connect-secret-2026';
 
 // ============================================================
-// BASE DE DONNÉES
+// BASE DE DONNÉES SQLITE
 // ============================================================
 const sequelize = new Sequelize({
     dialect: 'sqlite',
