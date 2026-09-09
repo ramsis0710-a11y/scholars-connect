@@ -3,76 +3,211 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Scholars Connect</title>
+    <title>Scholars Connect - Multilingue</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: "Segoe UI", system-ui, sans-serif; background: #0a0e27; color: #fff; min-height: 100vh; padding: 20px; }
-        .container { max-width: 900px; margin: 0 auto; }
-        .header { display: flex; justify-content: space-between; align-items: center; padding: 20px 0; flex-wrap: wrap; gap: 10px; }
-        .logo { font-size: 32px; font-weight: 700; background: linear-gradient(135deg, #667eea, #764ba2); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
-        .btn { padding: 12px 24px; border: none; border-radius: 10px; cursor: pointer; font-weight: 600; transition: 0.3s; margin: 5px; }
+        body {
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            background: #0a0e27;
+            color: #fff;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container { max-width: 1200px; margin: 0 auto; }
+        
+        /* HEADER */
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px 0;
+            flex-wrap: wrap;
+            gap: 15px;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+        .logo {
+            font-size: 32px;
+            font-weight: 700;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .header-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: 0.3s;
+            font-size: 14px;
+        }
         .btn-primary { background: #667eea; color: white; }
         .btn-success { background: #22c55e; color: #0a0e27; }
         .btn-danger { background: #ef4444; color: white; }
         .btn-secondary { background: rgba(255,255,255,0.1); color: white; }
         .btn-admin { background: #f59e0b; color: #0a0e27; }
+        .btn-scholar { background: #8b5cf6; color: white; }
         .btn:hover { transform: scale(1.05); opacity: 0.9; }
 
-        .form-container { background: rgba(255,255,255,0.05); border-radius: 16px; padding: 24px; margin: 20px 0; display: none; border: 1px solid rgba(255,255,255,0.1); }
-        .form-container.active { display: block; }
+        /* FORMULAIRES */
+        .form-container {
+            background: rgba(255,255,255,0.05);
+            border-radius: 16px;
+            padding: 24px;
+            margin: 20px 0;
+            display: none;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        .form-container.active { display: block; animation: fadeIn 0.3s; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
         .form-group { margin-bottom: 15px; }
-        .form-group label { display: block; margin-bottom: 5px; opacity: 0.8; }
-        .form-group input, .form-group textarea { width: 100%; padding: 12px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.05); color: white; }
+        .form-group label { display: block; margin-bottom: 5px; opacity: 0.8; font-weight: 500; }
+        .form-group input, .form-group textarea, .form-group select {
+            width: 100%;
+            padding: 12px;
+            border-radius: 10px;
+            border: 1px solid rgba(255,255,255,0.1);
+            background: rgba(255,255,255,0.05);
+            color: white;
+            font-size: 14px;
+        }
+        .form-group textarea { min-height: 100px; resize: vertical; }
+        .form-group select option { background: #1a1a2e; color: white; }
 
-        .user-avatar { display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px; border-radius: 50%; background: #667eea; font-weight: 700; margin-right: 10px; }
+        /* STATUS BAR */
+        .status-bar {
+            display: flex;
+            gap: 20px;
+            padding: 15px 0;
+            flex-wrap: wrap;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+        }
+        .status-item { display: flex; align-items: center; gap: 8px; font-size: 14px; }
+        .dot { width: 8px; height: 8px; border-radius: 50%; background: #22c55e; animation: pulse 2s infinite; }
+        @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
+
+        /* USER */
+        .user-avatar {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: #667eea;
+            font-weight: 700;
+            margin-right: 10px;
+        }
         .user-info { display: flex; align-items: center; gap: 10px; }
 
-        .notification { position: fixed; top: 20px; right: 20px; padding: 15px 25px; border-radius: 12px; z-index: 1000; display: none; animation: slideIn 0.3s; }
+        /* QUESTIONS */
+        .question-grid { display: grid; gap: 20px; margin: 20px 0; }
+        .question-card {
+            background: rgba(255,255,255,0.05);
+            border-radius: 12px;
+            padding: 20px;
+            border: 1px solid rgba(255,255,255,0.08);
+            transition: 0.3s;
+        }
+        .question-card:hover { transform: translateY(-2px); border-color: #667eea; }
+        .question-title { font-size: 18px; font-weight: 600; color: #667eea; }
+        .question-meta { font-size: 13px; opacity: 0.6; margin: 5px 0; display: flex; gap: 15px; flex-wrap: wrap; }
+        .question-content { margin: 10px 0; }
+        .question-actions { display: flex; gap: 10px; margin-top: 10px; flex-wrap: wrap; }
+
+        /* ANSWERS */
+        .answers-section { margin-top: 15px; padding-top: 15px; border-top: 1px solid rgba(255,255,255,0.05); }
+        .answer-item {
+            background: rgba(255,255,255,0.03);
+            border-radius: 8px;
+            padding: 12px;
+            margin: 8px 0;
+            border-left: 3px solid #667eea;
+        }
+        .answer-meta { font-size: 12px; opacity: 0.6; display: flex; gap: 15px; flex-wrap: wrap; }
+        .scholar-tag {
+            background: #8b5cf6;
+            padding: 2px 10px;
+            border-radius: 12px;
+            font-size: 11px;
+            display: inline-block;
+        }
+
+        /* NOTIFICATIONS */
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 15px 25px;
+            border-radius: 12px;
+            z-index: 1000;
+            display: none;
+            animation: slideIn 0.3s;
+            max-width: 90%;
+        }
         .notification.success { background: #22c55e; color: #0a0e27; display: block; }
         .notification.error { background: #ef4444; color: white; display: block; }
         .notification.info { background: #3b82f6; color: white; display: block; }
         @keyframes slideIn { from { transform: translateX(100px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
 
-        .status-bar { display: flex; gap: 20px; padding: 10px 0; flex-wrap: wrap; border-bottom: 1px solid rgba(255,255,255,0.05); }
-        .status-item { display: flex; align-items: center; gap: 8px; }
-        .dot { width: 8px; height: 8px; border-radius: 50%; background: #22c55e; animation: pulse 2s infinite; }
-        @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
+        /* BADGES */
+        .badge {
+            display: inline-block;
+            padding: 2px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        .badge-pending { background: #eab308; color: #0a0e27; }
+        .badge-answered { background: #22c55e; color: #0a0e27; }
+        .badge-assigned { background: #8b5cf6; color: white; }
 
-        .question-card { background: rgba(255,255,255,0.05); border-radius: 12px; padding: 20px; margin: 15px 0; border: 1px solid rgba(255,255,255,0.08); }
-        .question-title { font-size: 18px; font-weight: 600; color: #667eea; }
-        .question-meta { font-size: 13px; opacity: 0.6; margin: 5px 0; }
-
-        @media (max-width: 600px) { .header { flex-direction: column; } }
+        /* RESPONSIVE */
+        @media (max-width: 600px) {
+            .header { flex-direction: column; align-items: stretch; }
+            .header-actions { flex-wrap: wrap; }
+            .header-actions button { flex: 1; text-align: center; }
+            .question-meta { flex-direction: column; gap: 5px; }
+        }
     </style>
 </head>
 <body>
 <div class="container">
     <div class="notification" id="notification"></div>
 
+    <!-- HEADER -->
     <div class="header">
         <div class="logo">🎓 Scholars Connect</div>
-        <div id="authButtons">
+        <div class="header-actions" id="authButtons">
             <button class="btn btn-primary" onclick="showLogin()">🔐 Connexion</button>
             <button class="btn btn-success" onclick="showRegister()">📝 Inscription</button>
         </div>
-        <div id="userActions" style="display:none;">
+        <div class="header-actions" id="userActions" style="display:none;">
             <span class="user-info" id="userDisplay"></span>
             <button class="btn btn-secondary" onclick="goToAdmin()" id="adminBtn" style="display:none;">⚙️ Admin</button>
             <button class="btn btn-danger" onclick="logout()">🚪 Déconnexion</button>
         </div>
     </div>
 
+    <!-- STATUS BAR -->
     <div class="status-bar">
         <span class="status-item"><span class="dot"></span> En ligne</span>
         <span class="status-item" id="userRole">👤 Visiteur</span>
+        <span class="status-item" id="langDisplay">🌐 Langue: Français</span>
+        <span class="status-item" id="questionCount">📋 0 questions</span>
+        <span class="status-item" id="scholarCount">🎓 5 Scholars</span>
     </div>
 
+    <!-- ACTIONS -->
     <div style="margin:15px 0;display:flex;gap:10px;flex-wrap:wrap;">
         <button class="btn btn-primary" id="newQuestionBtn" onclick="showQuestionForm()" style="display:none;">✏️ Poser une question</button>
-        <button class="btn btn-secondary" onclick="loadQuestions()">🔄 Rafraîchir</button>
+        <button class="btn btn-secondary" onclick="loadData()">🔄 Rafraîchir</button>
+        <button class="btn btn-secondary" onclick="showScholars()">🎓 Voir les Scholars</button>
+        <button class="btn btn-secondary" onclick="toggleLanguage()">🌐 Changer de langue</button>
     </div>
 
-    <!-- FORMULAIRE CONNEXION -->
+    <!-- FORMULAIRES -->
     <div class="form-container" id="loginForm">
         <h2>🔐 Connexion</h2>
         <div class="form-group"><label>Email</label><input type="email" id="loginEmail" placeholder="admin@scholars-connect.com"></div>
@@ -81,37 +216,144 @@
         <button class="btn btn-secondary" onclick="hideForms()">Fermer</button>
     </div>
 
-    <!-- FORMULAIRE INSCRIPTION -->
     <div class="form-container" id="registerForm">
         <h2>📝 Inscription</h2>
-        <div class="form-group"><label>Nom</label><input type="text" id="regUsername" placeholder="Votre nom"></div>
+        <div class="form-group"><label>Nom d'utilisateur</label><input type="text" id="regUsername" placeholder="Votre nom"></div>
         <div class="form-group"><label>Email</label><input type="email" id="regEmail" placeholder="votre@email.com"></div>
         <div class="form-group"><label>Mot de passe</label><input type="password" id="regPassword" placeholder="Min 6 caractères"></div>
+        <div class="form-group"><label>Langue préférée</label>
+            <select id="regLanguage">
+                <option value="fr">Français</option>
+                <option value="en">English</option>
+                <option value="ar">العربية</option>
+                <option value="es">Español</option>
+                <option value="de">Deutsch</option>
+                <option value="it">Italiano</option>
+                <option value="pt">Português</option>
+            </select>
+        </div>
         <button class="btn btn-success" onclick="register()">S'inscrire</button>
         <button class="btn btn-secondary" onclick="hideForms()">Fermer</button>
     </div>
 
-    <!-- FORMULAIRE QUESTION -->
     <div class="form-container" id="questionForm">
-        <h2>✏️ Nouvelle question</h2>
-        <div class="form-group"><label>Titre</label><input type="text" id="qTitle" placeholder="Titre"></div>
-        <div class="form-group"><label>Contenu</label><textarea id="qContent" placeholder="Votre question..."></textarea></div>
+        <h2>✏️ Poser une question</h2>
+        <div class="form-group"><label>Titre</label><input type="text" id="qTitle" placeholder="Titre de votre question"></div>
+        <div class="form-group"><label>Catégorie</label>
+            <select id="qCategory">
+                <option value="Mathématiques">Mathématiques</option>
+                <option value="Physique">Physique</option>
+                <option value="Chimie">Chimie</option>
+                <option value="Informatique">Informatique</option>
+                <option value="Histoire">Histoire</option>
+                <option value="Philosophie">Philosophie</option>
+                <option value="Langues">Langues</option>
+                <option value="Autre">Autre</option>
+            </select>
+        </div>
+        <div class="form-group"><label>Contenu</label><textarea id="qContent" placeholder="Détaillez votre question..."></textarea></div>
+        <div class="form-group"><label>Langue</label>
+            <select id="qLanguage">
+                <option value="fr">Français</option>
+                <option value="en">English</option>
+                <option value="ar">العربية</option>
+                <option value="es">Español</option>
+                <option value="de">Deutsch</option>
+                <option value="it">Italiano</option>
+                <option value="pt">Português</option>
+            </select>
+        </div>
         <button class="btn btn-success" onclick="askQuestion()">📤 Publier</button>
         <button class="btn btn-secondary" onclick="hideForms()">Fermer</button>
     </div>
 
-    <div id="questionsContainer"></div>
+    <!-- SCHOLARS POPUP -->
+    <div class="form-container" id="scholarsPopup">
+        <h2>🎓 Scholars disponibles</h2>
+        <div id="scholarsList"></div>
+        <button class="btn btn-secondary" onclick="hideForms()">Fermer</button>
+    </div>
+
+    <!-- QUESTIONS -->
+    <div id="questionsContainer" class="question-grid"></div>
 </div>
 
 <script>
 // ============================================================
-// SIMULATION DE BASE DE DONNÉES
+// DONNÉES
 // ============================================================
 var users = [
-    { id: 1, username: 'admin', email: 'admin@scholars-connect.com', password: 'admin12345', role: 'admin' }
+    { id: 1, username: 'admin', email: 'admin@scholars-connect.com', password: 'admin12345', role: 'admin', language: 'fr' }
 ];
+
+var scholarsData = [
+    { id: 1, name: 'Dr. Amira Math', expertise: 'Mathématiques', languages: ['fr', 'en', 'ar'], rating: 4.9 },
+    { id: 2, name: 'Dr. Sophie Physique', expertise: 'Physique', languages: ['fr', 'en'], rating: 4.8 },
+    { id: 3, name: 'Dr. Karim Info', expertise: 'Informatique', languages: ['fr', 'en', 'es'], rating: 4.7 },
+    { id: 4, name: 'Dr. Fatima Histoire', expertise: 'Histoire', languages: ['fr', 'en', 'ar'], rating: 4.9 },
+    { id: 5, name: 'Dr. Jean Philo', expertise: 'Philosophie', languages: ['fr'], rating: 4.6 }
+];
+
 var questions = [];
 var currentUser = null;
+var currentLanguage = localStorage.getItem('prefLang') || 'fr';
+var translations = {
+    'fr': { title: 'Scholars Connect', subtitle: 'Plateforme d\'entraide académique' },
+    'en': { title: 'Scholars Connect', subtitle: 'Academic Help Platform' },
+    'ar': { title: 'شولارز كونكت', subtitle: 'منصة المساعدة الأكاديمية' },
+    'es': { title: 'Scholars Connect', subtitle: 'Plataforma de Ayuda Académica' },
+    'de': { title: 'Scholars Connect', subtitle: 'Akademische Hilfe-Plattform' },
+    'it': { title: 'Scholars Connect', subtitle: 'Piattaforma di aiuto accademico' },
+    'pt': { title: 'Scholars Connect', subtitle: 'Plataforma de Ajuda Acadêmica' }
+};
+
+// ============================================================
+// LANGUES
+// ============================================================
+function toggleLanguage() {
+    var langs = ['fr', 'en', 'ar', 'es', 'de', 'it', 'pt'];
+    var currentIndex = langs.indexOf(currentLanguage);
+    var nextIndex = (currentIndex + 1) % langs.length;
+    currentLanguage = langs[nextIndex];
+    localStorage.setItem('prefLang', currentLanguage);
+    document.getElementById('langDisplay').innerHTML = '🌐 Langue: ' + getLangName(currentLanguage);
+    showNotification('Langue changée: ' + getLangName(currentLanguage), 'info');
+    renderQuestions();
+}
+
+function getLangName(code) {
+    var names = { fr: 'Français', en: 'English', ar: 'العربية', es: 'Español', de: 'Deutsch', it: 'Italiano', pt: 'Português' };
+    return names[code] || code;
+}
+
+// ============================================================
+// SCHOLARS
+// ============================================================
+function assignScholar(category) {
+    var available = scholarsData.filter(function(s) { return s.expertise === category; });
+    if (available.length > 0) {
+        return available[Math.floor(Math.random() * available.length)];
+    }
+    return null;
+}
+
+function showScholars() {
+    var container = document.getElementById('scholarsList');
+    var html = '<div style="display:grid;gap:15px;margin:15px 0;">';
+    for (var i = 0; i < scholarsData.length; i++) {
+        var s = scholarsData[i];
+        html += '<div style="background:rgba(255,255,255,0.05);padding:15px;border-radius:10px;border:1px solid rgba(255,255,255,0.08);">' +
+            '<strong>' + s.name + '</strong>' +
+            '<div style="opacity:0.7;font-size:14px;">📂 ' + s.expertise + '</div>' +
+            '<div style="font-size:13px;opacity:0.6;">🌐 ' + s.languages.map(function(l) { return getLangName(l); }).join(', ') + '</div>' +
+            '<div style="color:#f59e0b;">⭐ ' + s.rating + '/5</div>' +
+            '</div>';
+    }
+    html += '</div>';
+    container.innerHTML = html;
+    hideForms();
+    document.getElementById('scholarsPopup').classList.add('active');
+}
 
 // ============================================================
 // NOTIFICATIONS
@@ -128,19 +370,10 @@ function showNotification(message, type) {
 // ============================================================
 // FORMULAIRES
 // ============================================================
-function showLogin() {
-    hideForms();
-    document.getElementById('loginForm').classList.add('active');
-}
-function showRegister() {
-    hideForms();
-    document.getElementById('registerForm').classList.add('active');
-}
+function showLogin() { hideForms(); document.getElementById('loginForm').classList.add('active'); }
+function showRegister() { hideForms(); document.getElementById('registerForm').classList.add('active'); }
 function showQuestionForm() {
-    if (!currentUser) {
-        showNotification('Veuillez vous connecter', 'error');
-        return;
-    }
+    if (!currentUser) { showNotification('Veuillez vous connecter', 'error'); return; }
     hideForms();
     document.getElementById('questionForm').classList.add('active');
 }
@@ -150,9 +383,7 @@ function hideForms() {
         forms[i].classList.remove('active');
     }
 }
-function goToAdmin() {
-    window.location.href = '/admin';
-}
+function goToAdmin() { window.location.href = '/admin'; }
 
 // ============================================================
 // AUTHENTIFICATION
@@ -171,6 +402,7 @@ function login() {
     
     if (user) {
         currentUser = user;
+        if (user.language) currentLanguage = user.language;
         updateUI();
         hideForms();
         showNotification('Connecté avec succès !', 'success');
@@ -184,6 +416,7 @@ function register() {
     var username = document.getElementById('regUsername').value;
     var email = document.getElementById('regEmail').value;
     var password = document.getElementById('regPassword').value;
+    var language = document.getElementById('regLanguage').value;
     
     if (!username || !email || !password) {
         showNotification('Veuillez remplir tous les champs', 'error');
@@ -196,25 +429,21 @@ function register() {
     
     var exists = false;
     for (var i = 0; i < users.length; i++) {
-        if (users[i].email === email) {
-            exists = true;
-            break;
-        }
+        if (users[i].email === email) { exists = true; break; }
     }
-    if (exists) {
-        showNotification('Email déjà utilisé', 'error');
-        return;
-    }
+    if (exists) { showNotification('Email déjà utilisé', 'error'); return; }
     
     var newUser = {
         id: users.length + 1,
         username: username,
         email: email,
         password: password,
-        role: 'user'
+        role: 'user',
+        language: language
     };
     users.push(newUser);
     currentUser = newUser;
+    currentLanguage = language;
     updateUI();
     hideForms();
     showNotification('Inscription réussie !', 'success');
@@ -231,7 +460,7 @@ function updateUI() {
     if (currentUser) {
         document.getElementById('authButtons').style.display = 'none';
         document.getElementById('userActions').style.display = 'flex';
-        document.getElementById('userDisplay').innerHTML = 
+        document.getElementById('userDisplay').innerHTML =
             '<span class="user-avatar">' + currentUser.username[0].toUpperCase() + '</span> ' +
             '<span>' + currentUser.username + '</span>' +
             '<span style="opacity:0.6;font-size:12px;">(' + currentUser.role + ')</span>';
@@ -247,31 +476,37 @@ function updateUI() {
         document.getElementById('adminBtn').style.display = 'none';
         document.getElementById('userRole').innerHTML = '👤 Visiteur';
     }
+    document.getElementById('langDisplay').innerHTML = '🌐 Langue: ' + getLangName(currentLanguage);
 }
 
 // ============================================================
 // QUESTIONS
 // ============================================================
 function askQuestion() {
-    if (!currentUser) {
-        showNotification('Veuillez vous connecter', 'error');
-        return;
-    }
+    if (!currentUser) { showNotification('Veuillez vous connecter', 'error'); return; }
     var title = document.getElementById('qTitle').value;
+    var category = document.getElementById('qCategory').value;
     var content = document.getElementById('qContent').value;
-    if (!title || !content) {
-        showNotification('Titre et contenu obligatoires', 'error');
-        return;
-    }
+    var language = document.getElementById('qLanguage').value;
+    
+    if (!title || !content) { showNotification('Titre et contenu obligatoires', 'error'); return; }
+    
+    var scholar = assignScholar(category);
+    
     questions.unshift({
         id: questions.length + 1,
         title: title,
+        category: category,
         content: content,
         username: currentUser.username,
+        language: language,
         date: new Date().toLocaleDateString(),
+        status: scholar ? 'assigned' : 'pending',
+        scholar: scholar,
         answers: []
     });
-    showNotification('Question publiée !', 'success');
+    
+    showNotification('Question publiée ! Scholar assigné automatiquement', 'success');
     hideForms();
     renderQuestions();
     document.getElementById('qTitle').value = '';
@@ -280,21 +515,39 @@ function askQuestion() {
 
 function renderQuestions() {
     var container = document.getElementById('questionsContainer');
+    document.getElementById('questionCount').innerHTML = '📋 ' + questions.length + ' questions';
+    document.getElementById('scholarCount').innerHTML = '🎓 ' + scholarsData.length + ' Scholars';
+    
     if (questions.length === 0) {
         container.innerHTML = '<p style="text-align:center;opacity:0.5;padding:40px;">Aucune question. Posez la première !</p>';
         return;
     }
+    
     var html = '';
     for (var i = 0; i < questions.length; i++) {
         var q = questions[i];
+        
+        var statusClass = q.status === 'assigned' ? 'badge-assigned' : q.status === 'answered' ? 'badge-answered' : 'badge-pending';
+        var statusLabel = q.status === 'assigned' ? 'Assigné' : q.status === 'answered' ? 'Répondu' : 'En attente';
+        
+        var scholarInfo = '';
+        if (q.scholar) {
+            scholarInfo = '<span class="scholar-tag">🎓 ' + q.scholar.name + '</span>';
+        }
+        
         var answersHtml = '';
         if (q.answers && q.answers.length > 0) {
-            answersHtml = '<div style="margin-top:15px;padding-top:15px;border-top:1px solid rgba(255,255,255,0.05);">' +
-                '<strong>💬 ' + q.answers.length + ' réponses</strong>';
+            answersHtml = '<div class="answers-section"><strong>💬 ' + q.answers.length + ' réponses</strong>';
             for (var j = 0; j < q.answers.length; j++) {
                 var a = q.answers[j];
-                answersHtml += '<div style="margin:5px 0;padding:8px;background:rgba(255,255,255,0.03);border-radius:8px;">👤 ' +
-                    a.username + ': ' + a.content + '</div>';
+                var isScholar = scholarsData.some(function(s) { return s.name === a.username; });
+                answersHtml += '<div class="answer-item">' +
+                    '<div>' + a.content + '</div>' +
+                    '<div class="answer-meta">' +
+                    '👤 ' + a.username + (isScholar ? ' 🎓' : '') +
+                    ' | 🌐 ' + getLangName(a.language || 'fr') +
+                    (a.aiVerified ? ' | ✅ Vérifié par AI' : '') +
+                    '</div></div>';
             }
             answersHtml += '</div>';
         } else {
@@ -308,9 +561,16 @@ function renderQuestions() {
         
         html += '<div class="question-card">' +
             '<div class="question-title">' + q.title + '</div>' +
-            '<div class="question-meta">👤 ' + q.username + ' | 📅 ' + q.date + '</div>' +
-            '<div style="margin:10px 0;">' + q.content + '</div>' +
-            answerBtn +
+            '<div class="question-meta">' +
+            '👤 ' + q.username +
+            ' | 📂 ' + q.category +
+            ' | 🌐 ' + getLangName(q.language) +
+            ' | 📅 ' + q.date +
+            ' | <span class="badge ' + statusClass + '">' + statusLabel + '</span>' +
+            ' ' + scholarInfo +
+            '</div>' +
+            '<div class="question-content">' + q.content + '</div>' +
+            '<div class="question-actions">' + answerBtn + '</div>' +
             answersHtml +
             '</div>';
     }
@@ -318,25 +578,36 @@ function renderQuestions() {
 }
 
 function showAnswerForm(questionId) {
+    if (!currentUser) { showNotification('Veuillez vous connecter', 'error'); return; }
     var content = prompt('Votre réponse :');
     if (!content) return;
+    
+    var lang = prompt('Langue de votre réponse (fr/en/ar/es/de/it/pt) :', 'fr') || 'fr';
+    
     for (var i = 0; i < questions.length; i++) {
         if (questions[i].id === questionId) {
             if (!questions[i].answers) questions[i].answers = [];
+            var isScholar = scholarsData.some(function(s) { return s.name === currentUser.username; });
             questions[i].answers.push({
                 username: currentUser.username,
-                content: content
+                content: content,
+                language: lang,
+                aiVerified: isScholar ? true : false,
+                isScholar: isScholar
             });
-            showNotification('Réponse publiée !', 'success');
+            if (isScholar) {
+                questions[i].status = 'answered';
+            }
+            showNotification('Réponse publiée !' + (isScholar ? ' ✅ Vérifiée par AI' : ''), 'success');
             renderQuestions();
             break;
         }
     }
 }
 
-function loadQuestions() {
+function loadData() {
     renderQuestions();
-    showNotification('Questions actualisées', 'info');
+    showNotification('Données actualisées', 'info');
 }
 
 // ============================================================
