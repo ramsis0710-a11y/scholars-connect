@@ -1,22 +1,348 @@
 ﻿<!DOCTYPE html>
-<html>
+<html lang="fr">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Scholars Connect</title>
-<style>
-body { font-family: Arial; background: #0a0e27; color: white; text-align: center; padding: 50px; }
-.btn { display: inline-block; padding: 15px 30px; margin: 10px; border: none; border-radius: 10px; cursor: pointer; font-size: 16px; text-decoration: none; }
-.btn-primary { background: #667eea; color: white; }
-.btn-admin { background: #f59e0b; color: #0a0e27; }
-</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scholars Connect</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: "Segoe UI", system-ui, sans-serif; background: #0a0e27; color: #fff; min-height: 100vh; padding: 20px; }
+        .container { max-width: 900px; margin: 0 auto; }
+        .header { display: flex; justify-content: space-between; align-items: center; padding: 20px 0; flex-wrap: wrap; gap: 10px; }
+        .logo { font-size: 32px; font-weight: 700; background: linear-gradient(135deg, #667eea, #764ba2); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .btn { padding: 12px 24px; border: none; border-radius: 10px; cursor: pointer; font-weight: 600; transition: 0.3s; margin: 5px; }
+        .btn-primary { background: #667eea; color: white; }
+        .btn-success { background: #22c55e; color: #0a0e27; }
+        .btn-danger { background: #ef4444; color: white; }
+        .btn-secondary { background: rgba(255,255,255,0.1); color: white; }
+        .btn-admin { background: #f59e0b; color: #0a0e27; }
+        .btn:hover { transform: scale(1.05); opacity: 0.9; }
+
+        .form-container { background: rgba(255,255,255,0.05); border-radius: 16px; padding: 24px; margin: 20px 0; display: none; border: 1px solid rgba(255,255,255,0.1); }
+        .form-container.active { display: block; }
+        .form-group { margin-bottom: 15px; }
+        .form-group label { display: block; margin-bottom: 5px; opacity: 0.8; }
+        .form-group input, .form-group textarea { width: 100%; padding: 12px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.05); color: white; }
+
+        .user-avatar { display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px; border-radius: 50%; background: #667eea; font-weight: 700; margin-right: 10px; }
+        .user-info { display: flex; align-items: center; gap: 10px; }
+
+        .notification { position: fixed; top: 20px; right: 20px; padding: 15px 25px; border-radius: 12px; z-index: 1000; display: none; animation: slideIn 0.3s; }
+        .notification.success { background: #22c55e; color: #0a0e27; display: block; }
+        .notification.error { background: #ef4444; color: white; display: block; }
+        .notification.info { background: #3b82f6; color: white; display: block; }
+        @keyframes slideIn { from { transform: translateX(100px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+
+        .status-bar { display: flex; gap: 20px; padding: 10px 0; flex-wrap: wrap; border-bottom: 1px solid rgba(255,255,255,0.05); }
+        .status-item { display: flex; align-items: center; gap: 8px; }
+        .dot { width: 8px; height: 8px; border-radius: 50%; background: #22c55e; animation: pulse 2s infinite; }
+        @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
+
+        .question-card { background: rgba(255,255,255,0.05); border-radius: 12px; padding: 20px; margin: 15px 0; border: 1px solid rgba(255,255,255,0.08); }
+        .question-title { font-size: 18px; font-weight: 600; color: #667eea; }
+        .question-meta { font-size: 13px; opacity: 0.6; margin: 5px 0; }
+
+        @media (max-width: 600px) { .header { flex-direction: column; } }
+    </style>
 </head>
 <body>
-<h1>🎓 Scholars Connect</h1>
-<p>Plateforme d'entraide académique</p>
-<br>
-<a href="/admin" class="btn btn-admin">⚙️ Accès Admin</a>
-<br><br>
-<p style="color:green;">✅ Application en ligne</p>
+<div class="container">
+    <div class="notification" id="notification"></div>
+
+    <div class="header">
+        <div class="logo">🎓 Scholars Connect</div>
+        <div id="authButtons">
+            <button class="btn btn-primary" onclick="showLogin()">🔐 Connexion</button>
+            <button class="btn btn-success" onclick="showRegister()">📝 Inscription</button>
+        </div>
+        <div id="userActions" style="display:none;">
+            <span class="user-info" id="userDisplay"></span>
+            <button class="btn btn-secondary" onclick="goToAdmin()" id="adminBtn" style="display:none;">⚙️ Admin</button>
+            <button class="btn btn-danger" onclick="logout()">🚪 Déconnexion</button>
+        </div>
+    </div>
+
+    <div class="status-bar">
+        <span class="status-item"><span class="dot"></span> En ligne</span>
+        <span class="status-item" id="userRole">👤 Visiteur</span>
+    </div>
+
+    <div style="margin:15px 0;display:flex;gap:10px;flex-wrap:wrap;">
+        <button class="btn btn-primary" id="newQuestionBtn" onclick="showQuestionForm()" style="display:none;">✏️ Poser une question</button>
+        <button class="btn btn-secondary" onclick="loadQuestions()">🔄 Rafraîchir</button>
+    </div>
+
+    <!-- FORMULAIRE CONNEXION -->
+    <div class="form-container" id="loginForm">
+        <h2>🔐 Connexion</h2>
+        <div class="form-group"><label>Email</label><input type="email" id="loginEmail" placeholder="admin@scholars-connect.com"></div>
+        <div class="form-group"><label>Mot de passe</label><input type="password" id="loginPassword" placeholder="admin12345"></div>
+        <button class="btn btn-primary" onclick="login()">Se connecter</button>
+        <button class="btn btn-secondary" onclick="hideForms()">Fermer</button>
+    </div>
+
+    <!-- FORMULAIRE INSCRIPTION -->
+    <div class="form-container" id="registerForm">
+        <h2>📝 Inscription</h2>
+        <div class="form-group"><label>Nom</label><input type="text" id="regUsername" placeholder="Votre nom"></div>
+        <div class="form-group"><label>Email</label><input type="email" id="regEmail" placeholder="votre@email.com"></div>
+        <div class="form-group"><label>Mot de passe</label><input type="password" id="regPassword" placeholder="Min 6 caractères"></div>
+        <button class="btn btn-success" onclick="register()">S'inscrire</button>
+        <button class="btn btn-secondary" onclick="hideForms()">Fermer</button>
+    </div>
+
+    <!-- FORMULAIRE QUESTION -->
+    <div class="form-container" id="questionForm">
+        <h2>✏️ Nouvelle question</h2>
+        <div class="form-group"><label>Titre</label><input type="text" id="qTitle" placeholder="Titre"></div>
+        <div class="form-group"><label>Contenu</label><textarea id="qContent" placeholder="Votre question..."></textarea></div>
+        <button class="btn btn-success" onclick="askQuestion()">📤 Publier</button>
+        <button class="btn btn-secondary" onclick="hideForms()">Fermer</button>
+    </div>
+
+    <div id="questionsContainer"></div>
+</div>
+
+<script>
+// ============================================================
+// SIMULATION DE BASE DE DONNÉES
+// ============================================================
+var users = [
+    { id: 1, username: 'admin', email: 'admin@scholars-connect.com', password: 'admin12345', role: 'admin' }
+];
+var questions = [];
+var currentUser = null;
+
+// ============================================================
+// NOTIFICATIONS
+// ============================================================
+function showNotification(message, type) {
+    if (type === undefined) type = 'info';
+    var el = document.getElementById('notification');
+    el.textContent = message;
+    el.className = 'notification ' + type;
+    el.style.display = 'block';
+    setTimeout(function() { el.style.display = 'none'; }, 5000);
+}
+
+// ============================================================
+// FORMULAIRES
+// ============================================================
+function showLogin() {
+    hideForms();
+    document.getElementById('loginForm').classList.add('active');
+}
+function showRegister() {
+    hideForms();
+    document.getElementById('registerForm').classList.add('active');
+}
+function showQuestionForm() {
+    if (!currentUser) {
+        showNotification('Veuillez vous connecter', 'error');
+        return;
+    }
+    hideForms();
+    document.getElementById('questionForm').classList.add('active');
+}
+function hideForms() {
+    var forms = document.querySelectorAll('.form-container');
+    for (var i = 0; i < forms.length; i++) {
+        forms[i].classList.remove('active');
+    }
+}
+function goToAdmin() {
+    window.location.href = '/admin';
+}
+
+// ============================================================
+// AUTHENTIFICATION
+// ============================================================
+function login() {
+    var email = document.getElementById('loginEmail').value;
+    var password = document.getElementById('loginPassword').value;
+    
+    var user = null;
+    for (var i = 0; i < users.length; i++) {
+        if (users[i].email === email && users[i].password === password) {
+            user = users[i];
+            break;
+        }
+    }
+    
+    if (user) {
+        currentUser = user;
+        updateUI();
+        hideForms();
+        showNotification('Connecté avec succès !', 'success');
+        renderQuestions();
+    } else {
+        showNotification('Identifiants incorrects', 'error');
+    }
+}
+
+function register() {
+    var username = document.getElementById('regUsername').value;
+    var email = document.getElementById('regEmail').value;
+    var password = document.getElementById('regPassword').value;
+    
+    if (!username || !email || !password) {
+        showNotification('Veuillez remplir tous les champs', 'error');
+        return;
+    }
+    if (password.length < 6) {
+        showNotification('Le mot de passe doit contenir au moins 6 caractères', 'error');
+        return;
+    }
+    
+    var exists = false;
+    for (var i = 0; i < users.length; i++) {
+        if (users[i].email === email) {
+            exists = true;
+            break;
+        }
+    }
+    if (exists) {
+        showNotification('Email déjà utilisé', 'error');
+        return;
+    }
+    
+    var newUser = {
+        id: users.length + 1,
+        username: username,
+        email: email,
+        password: password,
+        role: 'user'
+    };
+    users.push(newUser);
+    currentUser = newUser;
+    updateUI();
+    hideForms();
+    showNotification('Inscription réussie !', 'success');
+    renderQuestions();
+}
+
+function logout() {
+    currentUser = null;
+    updateUI();
+    showNotification('Déconnecté', 'info');
+}
+
+function updateUI() {
+    if (currentUser) {
+        document.getElementById('authButtons').style.display = 'none';
+        document.getElementById('userActions').style.display = 'flex';
+        document.getElementById('userDisplay').innerHTML = 
+            '<span class="user-avatar">' + currentUser.username[0].toUpperCase() + '</span> ' +
+            '<span>' + currentUser.username + '</span>' +
+            '<span style="opacity:0.6;font-size:12px;">(' + currentUser.role + ')</span>';
+        document.getElementById('newQuestionBtn').style.display = 'inline-block';
+        document.getElementById('userRole').innerHTML = '👤 ' + currentUser.username;
+        if (currentUser.role === 'admin') {
+            document.getElementById('adminBtn').style.display = 'inline-block';
+        }
+    } else {
+        document.getElementById('authButtons').style.display = 'flex';
+        document.getElementById('userActions').style.display = 'none';
+        document.getElementById('newQuestionBtn').style.display = 'none';
+        document.getElementById('adminBtn').style.display = 'none';
+        document.getElementById('userRole').innerHTML = '👤 Visiteur';
+    }
+}
+
+// ============================================================
+// QUESTIONS
+// ============================================================
+function askQuestion() {
+    if (!currentUser) {
+        showNotification('Veuillez vous connecter', 'error');
+        return;
+    }
+    var title = document.getElementById('qTitle').value;
+    var content = document.getElementById('qContent').value;
+    if (!title || !content) {
+        showNotification('Titre et contenu obligatoires', 'error');
+        return;
+    }
+    questions.unshift({
+        id: questions.length + 1,
+        title: title,
+        content: content,
+        username: currentUser.username,
+        date: new Date().toLocaleDateString(),
+        answers: []
+    });
+    showNotification('Question publiée !', 'success');
+    hideForms();
+    renderQuestions();
+    document.getElementById('qTitle').value = '';
+    document.getElementById('qContent').value = '';
+}
+
+function renderQuestions() {
+    var container = document.getElementById('questionsContainer');
+    if (questions.length === 0) {
+        container.innerHTML = '<p style="text-align:center;opacity:0.5;padding:40px;">Aucune question. Posez la première !</p>';
+        return;
+    }
+    var html = '';
+    for (var i = 0; i < questions.length; i++) {
+        var q = questions[i];
+        var answersHtml = '';
+        if (q.answers && q.answers.length > 0) {
+            answersHtml = '<div style="margin-top:15px;padding-top:15px;border-top:1px solid rgba(255,255,255,0.05);">' +
+                '<strong>💬 ' + q.answers.length + ' réponses</strong>';
+            for (var j = 0; j < q.answers.length; j++) {
+                var a = q.answers[j];
+                answersHtml += '<div style="margin:5px 0;padding:8px;background:rgba(255,255,255,0.03);border-radius:8px;">👤 ' +
+                    a.username + ': ' + a.content + '</div>';
+            }
+            answersHtml += '</div>';
+        } else {
+            answersHtml = '<div style="margin-top:10px;opacity:0.5;font-size:13px;">💬 Pas encore de réponse</div>';
+        }
+        
+        var answerBtn = '';
+        if (currentUser) {
+            answerBtn = '<button class="btn btn-secondary" onclick="showAnswerForm(' + q.id + ')">💬 Répondre</button>';
+        }
+        
+        html += '<div class="question-card">' +
+            '<div class="question-title">' + q.title + '</div>' +
+            '<div class="question-meta">👤 ' + q.username + ' | 📅 ' + q.date + '</div>' +
+            '<div style="margin:10px 0;">' + q.content + '</div>' +
+            answerBtn +
+            answersHtml +
+            '</div>';
+    }
+    container.innerHTML = html;
+}
+
+function showAnswerForm(questionId) {
+    var content = prompt('Votre réponse :');
+    if (!content) return;
+    for (var i = 0; i < questions.length; i++) {
+        if (questions[i].id === questionId) {
+            if (!questions[i].answers) questions[i].answers = [];
+            questions[i].answers.push({
+                username: currentUser.username,
+                content: content
+            });
+            showNotification('Réponse publiée !', 'success');
+            renderQuestions();
+            break;
+        }
+    }
+}
+
+function loadQuestions() {
+    renderQuestions();
+    showNotification('Questions actualisées', 'info');
+}
+
+// ============================================================
+// INITIALISATION
+// ============================================================
+renderQuestions();
+</script>
 </body>
 </html>

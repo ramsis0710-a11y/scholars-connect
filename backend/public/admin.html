@@ -2,20 +2,43 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Scholars Connect - Admin</title>
 <style>
-body { font-family: Arial; background: #0a0e27; color: white; text-align: center; padding: 50px; }
-.btn { display: inline-block; padding: 15px 30px; margin: 10px; border: none; border-radius: 10px; cursor: pointer; font-size: 16px; text-decoration: none; }
-.btn-primary { background: #667eea; color: white; }
-.btn-back { background: #22c55e; color: #0a0e27; }
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family:"Segoe UI",sans-serif; background:#0a0e27; color:#fff; padding:20px; }
+.container { max-width:1000px; margin:0 auto; }
+.header { display:flex; justify-content:space-between; align-items:center; padding:20px 0; border-bottom:2px solid #f59e0b; flex-wrap:wrap; gap:10px; }
+.logo { font-size:28px; font-weight:700; color:#f59e0b; }
+.btn { padding:10px 20px; border:none; border-radius:10px; cursor:pointer; font-weight:600; }
+.btn-secondary { background:rgba(255,255,255,0.1); color:white; }
+table { width:100%; border-collapse:collapse; margin-top:20px; }
+th,td { padding:12px; text-align:left; border-bottom:1px solid rgba(255,255,255,0.05); }
+th { color:#f59e0b; }
+.badge { padding:2px 12px; border-radius:20px; font-size:12px; }
+.badge-admin { background:#f59e0b; color:#0a0e27; }
+.badge-user { background:#3b82f6; color:white; }
+.stats { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:20px; margin:20px 0; }
+.stat-card { background:rgba(255,255,255,0.05); padding:20px; border-radius:12px; text-align:center; }
+.stat-number { font-size:32px; font-weight:700; color:#f59e0b; }
 </style>
 </head>
 <body>
-<h1>⚙️ Interface Admin</h1>
-<p>Bienvenue sur l'espace administrateur</p>
-<br>
-<a href="/" class="btn btn-back">🏠 Retour à l'accueil</a>
-<p style="color:#f59e0b;margin-top:20px;">🔒 Accès réservé aux administrateurs</p>
+<div class="container">
+    <div class="header">
+        <div><span class="logo">⚙️ Admin</span></div>
+        <div><button class="btn btn-secondary" onclick="window.location.href='/'">🏠 Retour</button></div>
+    </div>
+    <div class="stats">
+        <div class="stat-card"><div class="stat-number" id="totalUsers">1</div><div class="stat-label">👤 Utilisateurs</div></div>
+        <div class="stat-card"><div class="stat-number" id="totalQuestions">0</div><div class="stat-label">📋 Questions</div></div>
+    </div>
+    <div id="content"></div>
+</div>
+<script>
+document.getElementById('content').innerHTML =
+    '<table><thead><tr><th>ID</th><th>Nom</th><th>Email</th><th>Rôle</th></tr></thead><tbody>' +
+    '<tr><td>1</td><td>Administrateur</td><td>admin@scholars-connect.com</td><td><span class="badge badge-admin">admin</span></td></tr>' +
+    '</tbody></table>';
+</script>
 </body>
 </html>
