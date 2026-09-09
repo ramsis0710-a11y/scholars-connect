@@ -17,7 +17,7 @@
             padding: 20px;
         }
         .container {
-            max-width: 900px;
+            max-width: 1000px;
             width: 100%;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             border-radius: 24px;
@@ -48,7 +48,10 @@
             padding: 20px;
             border-radius: 12px;
             border: 1px solid rgba(255,255,255,0.05);
+            transition: transform 0.3s;
+            cursor: pointer;
         }
+        .feature:hover { transform: scale(1.05); }
         .feature .emoji { font-size: 32px; display: block; margin-bottom: 8px; }
         .feature h3 { font-size: 16px; margin-bottom: 4px; }
         .feature p { font-size: 13px; opacity: 0.7; }
@@ -81,8 +84,26 @@
             text-decoration: none;
             margin-top: 20px;
             transition: transform 0.3s;
+            margin: 10px;
         }
         .btn:hover { transform: scale(1.05); }
+        .btn-secondary {
+            background: rgba(255,255,255,0.1);
+            color: white;
+        }
+        .api-response {
+            background: rgba(0,0,0,0.3);
+            border-radius: 12px;
+            padding: 16px;
+            margin-top: 20px;
+            text-align: left;
+            font-family: monospace;
+            font-size: 13px;
+            max-height: 200px;
+            overflow: auto;
+            display: none;
+        }
+        .api-response.active { display: block; }
         .footer {
             margin-top: 24px;
             font-size: 12px;
@@ -105,22 +126,22 @@
         <div class="badge">🌟 Vérifié par AI Judge Claude</div>
 
         <div class="features">
-            <div class="feature">
+            <div class="feature" onclick="testAPI('/api/questions')">
                 <span class="emoji">🌐</span>
                 <h3>12 Langues</h3>
                 <p>Questions et réponses multilingues</p>
             </div>
-            <div class="feature">
+            <div class="feature" onclick="testAPI('/api/users/me')">
                 <span class="emoji">🤖</span>
                 <h3>AI Judge</h3>
                 <p>Vérification automatique des réponses</p>
             </div>
-            <div class="feature">
+            <div class="feature" onclick="testAPI('/api')">
                 <span class="emoji">📝</span>
                 <h3>Traduction</h3>
                 <p>Traduction dans 11 langues</p>
             </div>
-            <div class="feature">
+            <div class="feature" onclick="testAPI('/health')">
                 <span class="emoji">🔐</span>
                 <h3>Sécurisé</h3>
                 <p>Authentification JWT</p>
@@ -134,12 +155,41 @@
 
         <br>
         <a href="/api" class="btn">📡 Voir l'API</a>
-        <a href="https://github.com/ramsis0710-a11y/scholars-connect" class="btn" style="margin-left:12px;background:rgba(255,255,255,0.1);color:white;">💻 Code source</a>
+        <a href="https://github.com/ramsis0710-a11y/scholars-connect" class="btn btn-secondary">💻 Code source</a>
+        <br>
+        <button class="btn btn-secondary" onclick="testAPI('/api/questions')">📊 Tester l'API</button>
+
+        <div id="apiResponse" class="api-response"></div>
 
         <div class="footer">
             <p>🔗 Lien permanent : scholars-connect-app.onrender.com</p>
             <p style="margin-top:4px;">📧 admin@scholars-connect.com / admin12345</p>
+            <p style="margin-top:4px; opacity:0.6;">Cliquez sur les fonctionnalités pour tester l'API</p>
         </div>
     </div>
+
+    <script>
+        async function testAPI(endpoint) {
+            const responseDiv = document.getElementById('apiResponse');
+            responseDiv.classList.add('active');
+            responseDiv.innerHTML = '⏳ Chargement...';
+
+            try {
+                const response = await fetch(endpoint);
+                const data = await response.json();
+                responseDiv.innerHTML = '<strong>✅ Réponse de l\'API :</strong><br>' + 
+                    JSON.stringify(data, null, 2);
+            } catch (error) {
+                responseDiv.innerHTML = '❌ Erreur : ' + error.message;
+            }
+        }
+
+        // Tester automatiquement l'API au chargement
+        window.onload = function() {
+            setTimeout(() => {
+                testAPI('/api');
+            }, 1000);
+        };
+    </script>
 </body>
 </html>

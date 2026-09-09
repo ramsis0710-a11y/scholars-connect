@@ -23,12 +23,12 @@ const limiter = rateLimit({
 });
 app.use(limiter);
 
-// Servir le fichier HTML directement depuis un fichier séparé
+// Route pour l'interface graphique
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-// API Routes
+// Routes API
 app.get('/api', (req, res) => {
     res.json({
         message: 'Scholars Connect API',
@@ -38,7 +38,9 @@ app.get('/api', (req, res) => {
             health: '/health',
             api: '/api',
             questions: '/api/questions',
-            auth: '/api/auth'
+            auth: '/api/auth',
+            users: '/api/users',
+            scholars: '/api/scholars'
         }
     });
 });
@@ -52,6 +54,40 @@ app.get('/health', (req, res) => {
     });
 });
 
+// Routes de démo
+app.get('/api/questions', (req, res) => {
+    res.json({
+        questions: [
+            {
+                id: 1,
+                title: "Comment fonctionne le système JWT ?",
+                content: "J'aimerais comprendre comment fonctionne l'authentification JWT...",
+                status: "answered",
+                createdAt: new Date().toISOString()
+            },
+            {
+                id: 2,
+                title: "Qu'est-ce que la 12ème langue supportée ?",
+                content: "Quelle est la 12ème langue disponible sur la plateforme ?",
+                status: "pending",
+                createdAt: new Date().toISOString()
+            }
+        ]
+    });
+});
+
+app.get('/api/users/me', (req, res) => {
+    res.json({
+        user: {
+            id: 1,
+            email: "admin@scholars-connect.com",
+            username: "admin",
+            role: "admin",
+            createdAt: new Date().toISOString()
+        }
+    });
+});
+
 // Démarrer le serveur
 const server = app.listen(PORT, () => {
     console.log('==========================================');
@@ -61,10 +97,15 @@ const server = app.listen(PORT, () => {
     console.log('  Démo (compte admin):');
     console.log('    email: admin@scholars-connect.com');
     console.log('    mot de passe: admin12345');
+    console.log('  Endpoints disponibles:');
+    console.log('    GET / -> Interface HTML');
+    console.log('    GET /api -> API Info');
+    console.log('    GET /health -> Health Check');
+    console.log('    GET /api/questions -> Questions');
+    console.log('    GET /api/users/me -> Profil admin');
     console.log('==========================================');
 });
 
-// Gestion des erreurs
 process.on('unhandledRejection', (err) => {
     console.error('Unhandled Rejection:', err);
 });
