@@ -1,21 +1,19 @@
 ﻿<!DOCTYPE html>
-<html lang="fr">
+<html lang="ar" dir="auto">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Scholars Connect - Multilingue</title>
+    <title>شولارز كونكت - Scholars Connect</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
-            font-family: 'Segoe UI', system-ui, sans-serif;
+            font-family: 'Segoe UI', 'Arial', system-ui, sans-serif;
             background: #0a0e27;
             color: #fff;
             min-height: 100vh;
             padding: 20px;
         }
         .container { max-width: 1200px; margin: 0 auto; }
-        
-        /* HEADER */
         .header {
             display: flex;
             justify-content: space-between;
@@ -28,10 +26,11 @@
         .logo {
             font-size: 32px;
             font-weight: 700;
-            background: linear-gradient(135deg, #667eea, #764ba2);
+            background: linear-gradient(135deg, #10b981, #059669);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
         }
+        .logo-ar { font-size: 28px; font-family: 'Traditional Arabic', 'Amiri', serif; }
         .header-actions { display: flex; gap: 10px; flex-wrap: wrap; }
         .btn {
             padding: 10px 20px;
@@ -42,15 +41,16 @@
             transition: 0.3s;
             font-size: 14px;
         }
-        .btn-primary { background: #667eea; color: white; }
+        .btn-primary { background: #10b981; color: white; }
         .btn-success { background: #22c55e; color: #0a0e27; }
         .btn-danger { background: #ef4444; color: white; }
         .btn-secondary { background: rgba(255,255,255,0.1); color: white; }
         .btn-admin { background: #f59e0b; color: #0a0e27; }
         .btn-scholar { background: #8b5cf6; color: white; }
+        .btn-islam { background: #059669; color: white; }
+        .btn-arabic { background: #1a7a5a; color: white; }
         .btn:hover { transform: scale(1.05); opacity: 0.9; }
 
-        /* FORMULAIRES */
         .form-container {
             background: rgba(255,255,255,0.05);
             border-radius: 16px;
@@ -72,10 +72,42 @@
             color: white;
             font-size: 14px;
         }
+        .form-group input[type="text"]:lang(ar), .form-group textarea:lang(ar) {
+            font-family: 'Traditional Arabic', 'Amiri', 'Arial', serif;
+            font-size: 18px;
+            direction: rtl;
+        }
         .form-group textarea { min-height: 100px; resize: vertical; }
         .form-group select option { background: #1a1a2e; color: white; }
 
-        /* STATUS BAR */
+        /* Clavier arabe virtuel */
+        .keyboard-container {
+            background: rgba(255,255,255,0.05);
+            border-radius: 12px;
+            padding: 10px;
+            margin: 10px 0;
+            display: none;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        .keyboard-container.active { display: block; }
+        .keyboard-row { display: flex; gap: 4px; margin: 4px 0; justify-content: center; flex-wrap: wrap; }
+        .key-btn {
+            min-width: 40px;
+            padding: 8px 6px;
+            border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 6px;
+            background: rgba(255,255,255,0.05);
+            color: white;
+            cursor: pointer;
+            font-family: 'Traditional Arabic', 'Amiri', serif;
+            font-size: 18px;
+            transition: 0.2s;
+            text-align: center;
+        }
+        .key-btn:hover { background: rgba(16,185,129,0.3); transform: scale(1.05); }
+        .key-btn.space { min-width: 80px; }
+        .key-btn.shift { min-width: 60px; font-size: 14px; }
+
         .status-bar {
             display: flex;
             gap: 20px;
@@ -87,7 +119,6 @@
         .dot { width: 8px; height: 8px; border-radius: 50%; background: #22c55e; animation: pulse 2s infinite; }
         @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
 
-        /* USER */
         .user-avatar {
             display: inline-flex;
             align-items: center;
@@ -95,13 +126,12 @@
             width: 40px;
             height: 40px;
             border-radius: 50%;
-            background: #667eea;
+            background: #10b981;
             font-weight: 700;
             margin-right: 10px;
         }
         .user-info { display: flex; align-items: center; gap: 10px; }
 
-        /* QUESTIONS */
         .question-grid { display: grid; gap: 20px; margin: 20px 0; }
         .question-card {
             background: rgba(255,255,255,0.05);
@@ -110,20 +140,19 @@
             border: 1px solid rgba(255,255,255,0.08);
             transition: 0.3s;
         }
-        .question-card:hover { transform: translateY(-2px); border-color: #667eea; }
-        .question-title { font-size: 18px; font-weight: 600; color: #667eea; }
+        .question-card:hover { transform: translateY(-2px); border-color: #10b981; }
+        .question-title { font-size: 18px; font-weight: 600; color: #10b981; }
         .question-meta { font-size: 13px; opacity: 0.6; margin: 5px 0; display: flex; gap: 15px; flex-wrap: wrap; }
         .question-content { margin: 10px 0; }
         .question-actions { display: flex; gap: 10px; margin-top: 10px; flex-wrap: wrap; }
 
-        /* ANSWERS */
         .answers-section { margin-top: 15px; padding-top: 15px; border-top: 1px solid rgba(255,255,255,0.05); }
         .answer-item {
             background: rgba(255,255,255,0.03);
             border-radius: 8px;
             padding: 12px;
             margin: 8px 0;
-            border-left: 3px solid #667eea;
+            border-left: 3px solid #10b981;
         }
         .answer-meta { font-size: 12px; opacity: 0.6; display: flex; gap: 15px; flex-wrap: wrap; }
         .scholar-tag {
@@ -133,8 +162,15 @@
             font-size: 11px;
             display: inline-block;
         }
+        .islam-tag {
+            background: #059669;
+            padding: 2px 10px;
+            border-radius: 12px;
+            font-size: 11px;
+            display: inline-block;
+        }
+        .arabic-text { font-family: 'Traditional Arabic', 'Amiri', serif; font-size: 18px; direction: rtl; }
 
-        /* NOTIFICATIONS */
         .notification {
             position: fixed;
             top: 20px;
@@ -151,7 +187,6 @@
         .notification.info { background: #3b82f6; color: white; display: block; }
         @keyframes slideIn { from { transform: translateX(100px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
 
-        /* BADGES */
         .badge {
             display: inline-block;
             padding: 2px 12px;
@@ -162,13 +197,17 @@
         .badge-pending { background: #eab308; color: #0a0e27; }
         .badge-answered { background: #22c55e; color: #0a0e27; }
         .badge-assigned { background: #8b5cf6; color: white; }
+        .badge-islam { background: #059669; color: white; }
 
-        /* RESPONSIVE */
+        .dir-ltr { direction: ltr; }
+        .dir-rtl { direction: rtl; font-family: 'Traditional Arabic', 'Amiri', serif; }
+        .text-center { text-align: center; }
+
         @media (max-width: 600px) {
             .header { flex-direction: column; align-items: stretch; }
             .header-actions { flex-wrap: wrap; }
             .header-actions button { flex: 1; text-align: center; }
-            .question-meta { flex-direction: column; gap: 5px; }
+            .key-btn { min-width: 32px; padding: 6px 4px; font-size: 14px; }
         }
     </style>
 </head>
@@ -176,102 +215,169 @@
 <div class="container">
     <div class="notification" id="notification"></div>
 
-    <!-- HEADER -->
     <div class="header">
-        <div class="logo">🎓 Scholars Connect</div>
+        <div class="logo">🕌 Scholars Connect <span class="logo-ar">شولارز كونكت</span></div>
         <div class="header-actions" id="authButtons">
-            <button class="btn btn-primary" onclick="showLogin()">🔐 Connexion</button>
-            <button class="btn btn-success" onclick="showRegister()">📝 Inscription</button>
+            <button class="btn btn-primary" onclick="showLogin()">🔐 تسجيل الدخول</button>
+            <button class="btn btn-success" onclick="showRegister()">📝 إنشاء حساب</button>
         </div>
         <div class="header-actions" id="userActions" style="display:none;">
             <span class="user-info" id="userDisplay"></span>
-            <button class="btn btn-secondary" onclick="goToAdmin()" id="adminBtn" style="display:none;">⚙️ Admin</button>
-            <button class="btn btn-danger" onclick="logout()">🚪 Déconnexion</button>
+            <button class="btn btn-secondary" onclick="goToAdmin()" id="adminBtn" style="display:none;">⚙️ لوحة التحكم</button>
+            <button class="btn btn-danger" onclick="logout()">🚪 تسجيل الخروج</button>
         </div>
     </div>
 
-    <!-- STATUS BAR -->
     <div class="status-bar">
-        <span class="status-item"><span class="dot"></span> En ligne</span>
-        <span class="status-item" id="userRole">👤 Visiteur</span>
-        <span class="status-item" id="langDisplay">🌐 Langue: Français</span>
-        <span class="status-item" id="questionCount">📋 0 questions</span>
-        <span class="status-item" id="scholarCount">🎓 5 Scholars</span>
+        <span class="status-item"><span class="dot"></span> <span id="statusText">متصل</span></span>
+        <span class="status-item" id="userRole">👤 زائر</span>
+        <span class="status-item" id="langDisplay">🌐 اللغة: العربية</span>
+        <span class="status-item" id="questionCount">📋 0 سؤال</span>
+        <span class="status-item" id="scholarCount">🎓 9 علماء</span>
     </div>
 
-    <!-- ACTIONS -->
     <div style="margin:15px 0;display:flex;gap:10px;flex-wrap:wrap;">
-        <button class="btn btn-primary" id="newQuestionBtn" onclick="showQuestionForm()" style="display:none;">✏️ Poser une question</button>
-        <button class="btn btn-secondary" onclick="loadData()">🔄 Rafraîchir</button>
-        <button class="btn btn-secondary" onclick="showScholars()">🎓 Voir les Scholars</button>
-        <button class="btn btn-secondary" onclick="toggleLanguage()">🌐 Changer de langue</button>
+        <button class="btn btn-primary" id="newQuestionBtn" onclick="showQuestionForm()" style="display:none;">✏️ طرح سؤال</button>
+        <button class="btn btn-secondary" onclick="loadData()">🔄 تحديث</button>
+        <button class="btn btn-secondary" onclick="showScholars()">🎓 عرض العلماء</button>
+        <button class="btn btn-islam" onclick="toggleLanguage()">🌐 تبديل اللغة</button>
+        <button class="btn btn-arabic" onclick="toggleKeyboard()">⌨️ لوحة المفاتيح العربية</button>
     </div>
 
     <!-- FORMULAIRES -->
     <div class="form-container" id="loginForm">
-        <h2>🔐 Connexion</h2>
-        <div class="form-group"><label>Email</label><input type="email" id="loginEmail" placeholder="admin@scholars-connect.com"></div>
-        <div class="form-group"><label>Mot de passe</label><input type="password" id="loginPassword" placeholder="admin12345"></div>
-        <button class="btn btn-primary" onclick="login()">Se connecter</button>
-        <button class="btn btn-secondary" onclick="hideForms()">Fermer</button>
+        <h2>🔐 تسجيل الدخول</h2>
+        <div class="form-group"><label>البريد الإلكتروني</label><input type="email" id="loginEmail" placeholder="admin@scholars-connect.com"></div>
+        <div class="form-group"><label>كلمة المرور</label><input type="password" id="loginPassword" placeholder="admin12345"></div>
+        <button class="btn btn-primary" onclick="login()">تسجيل الدخول</button>
+        <button class="btn btn-secondary" onclick="hideForms()">إغلاق</button>
     </div>
 
     <div class="form-container" id="registerForm">
-        <h2>📝 Inscription</h2>
-        <div class="form-group"><label>Nom d'utilisateur</label><input type="text" id="regUsername" placeholder="Votre nom"></div>
-        <div class="form-group"><label>Email</label><input type="email" id="regEmail" placeholder="votre@email.com"></div>
-        <div class="form-group"><label>Mot de passe</label><input type="password" id="regPassword" placeholder="Min 6 caractères"></div>
-        <div class="form-group"><label>Langue préférée</label>
+        <h2>📝 إنشاء حساب جديد</h2>
+        <div class="form-group"><label>اسم المستخدم</label><input type="text" id="regUsername" placeholder="اسمك"></div>
+        <div class="form-group"><label>البريد الإلكتروني</label><input type="email" id="regEmail" placeholder="votre@email.com"></div>
+        <div class="form-group"><label>كلمة المرور</label><input type="password" id="regPassword" placeholder="6 أحرف على الأقل"></div>
+        <div class="form-group"><label>الديانة / الاهتمام</label>
+            <select id="regReligion">
+                <option value="Islam">🕌 الإسلام</option>
+                <option value="Chrétien">✝️ المسيحية</option>
+                <option value="Juif">✡️ اليهودية</option>
+                <option value="Autre">🌍 أخرى</option>
+            </select>
+        </div>
+        <div class="form-group"><label>اللغة المفضلة</label>
             <select id="regLanguage">
+                <option value="ar">العربية</option>
                 <option value="fr">Français</option>
                 <option value="en">English</option>
-                <option value="ar">العربية</option>
                 <option value="es">Español</option>
                 <option value="de">Deutsch</option>
                 <option value="it">Italiano</option>
                 <option value="pt">Português</option>
             </select>
         </div>
-        <button class="btn btn-success" onclick="register()">S'inscrire</button>
-        <button class="btn btn-secondary" onclick="hideForms()">Fermer</button>
+        <button class="btn btn-success" onclick="register()">إنشاء حساب</button>
+        <button class="btn btn-secondary" onclick="hideForms()">إغلاق</button>
     </div>
 
     <div class="form-container" id="questionForm">
-        <h2>✏️ Poser une question</h2>
-        <div class="form-group"><label>Titre</label><input type="text" id="qTitle" placeholder="Titre de votre question"></div>
-        <div class="form-group"><label>Catégorie</label>
+        <h2>✏️ طرح سؤال جديد</h2>
+        <div class="form-group"><label>العنوان</label><input type="text" id="qTitle" placeholder="عنوان سؤالك"></div>
+        <div class="form-group"><label>التصنيف</label>
             <select id="qCategory">
-                <option value="Mathématiques">Mathématiques</option>
-                <option value="Physique">Physique</option>
-                <option value="Chimie">Chimie</option>
-                <option value="Informatique">Informatique</option>
-                <option value="Histoire">Histoire</option>
-                <option value="Philosophie">Philosophie</option>
-                <option value="Langues">Langues</option>
-                <option value="Autre">Autre</option>
+                <optgroup label="🕌 العلوم الإسلامية">
+                    <option value="Fiqh (الفقه)">الفقه (Fiqh)</option>
+                    <option value="Aqida (العقيدة)">العقيدة (Aqida)</option>
+                    <option value="Hadith (الحديث)">الحديث (Hadith)</option>
+                    <option value="Tafsir (التفسير)">التفسير (Tafsir)</option>
+                    <option value="Sira (السيرة)">السيرة (Sira)</option>
+                    <option value="Soufisme (التصوف)">التصوف (Soufisme)</option>
+                </optgroup>
+                <optgroup label="📚 العلوم العامة">
+                    <option value="Mathématiques">الرياضيات</option>
+                    <option value="Physique">الفيزياء</option>
+                    <option value="Informatique">المعلوماتية</option>
+                    <option value="Histoire">التاريخ</option>
+                </optgroup>
             </select>
         </div>
-        <div class="form-group"><label>Contenu</label><textarea id="qContent" placeholder="Détaillez votre question..."></textarea></div>
-        <div class="form-group"><label>Langue</label>
+        <div class="form-group"><label>المحتوى</label>
+            <textarea id="qContent" placeholder="فصل سؤالك بالتفصيل..."></textarea>
+        </div>
+        <div class="form-group"><label>اللغة</label>
             <select id="qLanguage">
+                <option value="ar">العربية</option>
                 <option value="fr">Français</option>
                 <option value="en">English</option>
-                <option value="ar">العربية</option>
                 <option value="es">Español</option>
                 <option value="de">Deutsch</option>
                 <option value="it">Italiano</option>
                 <option value="pt">Português</option>
             </select>
         </div>
-        <button class="btn btn-success" onclick="askQuestion()">📤 Publier</button>
-        <button class="btn btn-secondary" onclick="hideForms()">Fermer</button>
+        <!-- Clavier arabe virtuel -->
+        <div class="keyboard-container" id="arabicKeyboard">
+            <div class="keyboard-row">
+                <button class="key-btn" onclick="insertChar('ض')">ض</button>
+                <button class="key-btn" onclick="insertChar('ص')">ص</button>
+                <button class="key-btn" onclick="insertChar('ث')">ث</button>
+                <button class="key-btn" onclick="insertChar('ق')">ق</button>
+                <button class="key-btn" onclick="insertChar('ف')">ف</button>
+                <button class="key-btn" onclick="insertChar('غ')">غ</button>
+                <button class="key-btn" onclick="insertChar('ع')">ع</button>
+                <button class="key-btn" onclick="insertChar('ه')">ه</button>
+                <button class="key-btn" onclick="insertChar('خ')">خ</button>
+                <button class="key-btn" onclick="insertChar('ح')">ح</button>
+                <button class="key-btn" onclick="insertChar('ج')">ج</button>
+                <button class="key-btn" onclick="insertChar('د')">د</button>
+            </div>
+            <div class="keyboard-row">
+                <button class="key-btn" onclick="insertChar('ذ')">ذ</button>
+                <button class="key-btn" onclick="insertChar('ش')">ش</button>
+                <button class="key-btn" onclick="insertChar('س')">س</button>
+                <button class="key-btn" onclick="insertChar('ي')">ي</button>
+                <button class="key-btn" onclick="insertChar('ب')">ب</button>
+                <button class="key-btn" onclick="insertChar('ل')">ل</button>
+                <button class="key-btn" onclick="insertChar('ا')">ا</button>
+                <button class="key-btn" onclick="insertChar('ت')">ت</button>
+                <button class="key-btn" onclick="insertChar('ن')">ن</button>
+                <button class="key-btn" onclick="insertChar('م')">م</button>
+                <button class="key-btn" onclick="insertChar('ك')">ك</button>
+                <button class="key-btn" onclick="insertChar('ظ')">ظ</button>
+            </div>
+            <div class="keyboard-row">
+                <button class="key-btn" onclick="insertChar('ط')">ط</button>
+                <button class="key-btn" onclick="insertChar('ز')">ز</button>
+                <button class="key-btn" onclick="insertChar('ر')">ر</button>
+                <button class="key-btn" onclick="insertChar('و')">و</button>
+                <button class="key-btn" onclick="insertChar('ء')">ء</button>
+                <button class="key-btn" onclick="insertChar('ئ')">ئ</button>
+                <button class="key-btn" onclick="insertChar('ؤ')">ؤ</button>
+                <button class="key-btn" onclick="insertChar('إ')">إ</button>
+                <button class="key-btn" onclick="insertChar('أ')">أ</button>
+                <button class="key-btn" onclick="insertChar('آ')">آ</button>
+                <button class="key-btn" onclick="insertChar('ة')">ة</button>
+                <button class="key-btn" onclick="insertChar('ى')">ى</button>
+            </div>
+            <div class="keyboard-row">
+                <button class="key-btn space" onclick="insertChar(' ')">مسافة</button>
+                <button class="key-btn shift" onclick="insertChar('؟')">؟</button>
+                <button class="key-btn shift" onclick="insertChar('،')">،</button>
+                <button class="key-btn shift" onclick="insertChar('؛')">؛</button>
+                <button class="key-btn shift" onclick="insertChar('!')">!</button>
+                <button class="key-btn" onclick="clearText()">⌫ مسح</button>
+            </div>
+        </div>
+        <button class="btn btn-success" onclick="askQuestion()">📤 نشر</button>
+        <button class="btn btn-secondary" onclick="hideForms()">إغلاق</button>
     </div>
 
     <!-- SCHOLARS POPUP -->
     <div class="form-container" id="scholarsPopup">
-        <h2>🎓 Scholars disponibles</h2>
+        <h2>🎓 العلماء المتاحون</h2>
         <div id="scholarsList"></div>
-        <button class="btn btn-secondary" onclick="hideForms()">Fermer</button>
+        <button class="btn btn-secondary" onclick="hideForms()">إغلاق</button>
     </div>
 
     <!-- QUESTIONS -->
@@ -283,67 +389,177 @@
 // DONNÉES
 // ============================================================
 var users = [
-    { id: 1, username: 'admin', email: 'admin@scholars-connect.com', password: 'admin12345', role: 'admin', language: 'fr' }
+    { id: 1, username: 'مدير', email: 'admin@scholars-connect.com', password: 'admin12345', role: 'admin', language: 'ar', religion: 'Islam' }
 ];
 
 var scholarsData = [
-    { id: 1, name: 'Dr. Amira Math', expertise: 'Mathématiques', languages: ['fr', 'en', 'ar'], rating: 4.9 },
-    { id: 2, name: 'Dr. Sophie Physique', expertise: 'Physique', languages: ['fr', 'en'], rating: 4.8 },
-    { id: 3, name: 'Dr. Karim Info', expertise: 'Informatique', languages: ['fr', 'en', 'es'], rating: 4.7 },
-    { id: 4, name: 'Dr. Fatima Histoire', expertise: 'Histoire', languages: ['fr', 'en', 'ar'], rating: 4.9 },
-    { id: 5, name: 'Dr. Jean Philo', expertise: 'Philosophie', languages: ['fr'], rating: 4.6 }
+    { id: 1, name: 'د. أحمد الفقيه', expertise: 'Fiqh (الفقه)', languages: ['ar', 'fr', 'en'], rating: 4.9, speciality: 'Islam' },
+    { id: 2, name: 'د. فاطمة العقيدة', expertise: 'Aqida (العقيدة)', languages: ['ar', 'fr', 'en'], rating: 4.8, speciality: 'Islam' },
+    { id: 3, name: 'د. عمر الحديث', expertise: 'Hadith (الحديث)', languages: ['ar', 'en', 'fr'], rating: 4.9, speciality: 'Islam' },
+    { id: 4, name: 'د. ليلى التفسير', expertise: 'Tafsir (التفسير)', languages: ['ar', 'fr', 'en'], rating: 4.7, speciality: 'Islam' },
+    { id: 5, name: 'د. يوسف السيرة', expertise: 'Sira (السيرة)', languages: ['ar', 'en', 'fr'], rating: 4.6, speciality: 'Islam' },
+    { id: 6, name: 'د. خديجة التصوف', expertise: 'Soufisme (التصوف)', languages: ['ar', 'fr', 'en'], rating: 4.5, speciality: 'Islam' },
+    { id: 7, name: 'د. أميرة الرياضيات', expertise: 'Mathématiques', languages: ['ar', 'fr', 'en'], rating: 4.9, speciality: 'Général' },
+    { id: 8, name: 'د. صوفي الفيزياء', expertise: 'Physique', languages: ['ar', 'fr', 'en'], rating: 4.8, speciality: 'Général' },
+    { id: 9, name: 'د. كريم المعلوماتية', expertise: 'Informatique', languages: ['ar', 'fr', 'en', 'es'], rating: 4.7, speciality: 'Général' }
 ];
 
 var questions = [];
 var currentUser = null;
-var currentLanguage = localStorage.getItem('prefLang') || 'fr';
+var currentLanguage = localStorage.getItem('prefLang') || 'ar';
+var isKeyboardActive = false;
+
 var translations = {
-    'fr': { title: 'Scholars Connect', subtitle: 'Plateforme d\'entraide académique' },
-    'en': { title: 'Scholars Connect', subtitle: 'Academic Help Platform' },
-    'ar': { title: 'شولارز كونكت', subtitle: 'منصة المساعدة الأكاديمية' },
-    'es': { title: 'Scholars Connect', subtitle: 'Plataforma de Ayuda Académica' },
-    'de': { title: 'Scholars Connect', subtitle: 'Akademische Hilfe-Plattform' },
-    'it': { title: 'Scholars Connect', subtitle: 'Piattaforma di aiuto accademico' },
-    'pt': { title: 'Scholars Connect', subtitle: 'Plataforma de Ajuda Acadêmica' }
+    'ar': {
+        title: 'شولارز كونكت',
+        subtitle: 'منصة المساعدة الأكاديمية',
+        login: 'تسجيل الدخول',
+        register: 'إنشاء حساب',
+        ask: 'طرح سؤال',
+        refresh: 'تحديث',
+        scholars: 'العلماء',
+        language: 'اللغة',
+        keyboard: 'لوحة المفاتيح العربية',
+        online: 'متصل',
+        visitor: 'زائر',
+        questions: 'سؤال',
+        scholarsLabel: 'علماء'
+    },
+    'fr': {
+        title: 'Scholars Connect',
+        subtitle: 'Plateforme d\'entraide académique',
+        login: 'Connexion',
+        register: 'Inscription',
+        ask: 'Poser une question',
+        refresh: 'Rafraîchir',
+        scholars: 'Scholars',
+        language: 'Langue',
+        keyboard: 'Clavier arabe',
+        online: 'En ligne',
+        visitor: 'Visiteur',
+        questions: 'questions',
+        scholarsLabel: 'Scholars'
+    },
+    'en': {
+        title: 'Scholars Connect',
+        subtitle: 'Academic Help Platform',
+        login: 'Login',
+        register: 'Register',
+        ask: 'Ask a question',
+        refresh: 'Refresh',
+        scholars: 'Scholars',
+        language: 'Language',
+        keyboard: 'Arabic Keyboard',
+        online: 'Online',
+        visitor: 'Visitor',
+        questions: 'questions',
+        scholarsLabel: 'Scholars'
+    }
 };
+
+// ============================================================
+// CLAVIER ARABE
+// ============================================================
+function toggleKeyboard() {
+    var keyboard = document.getElementById('arabicKeyboard');
+    isKeyboardActive = !isKeyboardActive;
+    if (isKeyboardActive) {
+        keyboard.classList.add('active');
+        showNotification('⌨️ Clavier arabe activé', 'info');
+    } else {
+        keyboard.classList.remove('active');
+        showNotification('⌨️ Clavier arabe désactivé', 'info');
+    }
+}
+
+function insertChar(char) {
+    var activeElement = document.activeElement;
+    if (activeElement && (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA')) {
+        var start = activeElement.selectionStart;
+        var end = activeElement.selectionEnd;
+        var value = activeElement.value;
+        activeElement.value = value.substring(0, start) + char + value.substring(end);
+        activeElement.selectionStart = activeElement.selectionEnd = start + char.length;
+        activeElement.focus();
+    } else {
+        // Si aucun champ n'est actif, ajouter au champ de question
+        var contentField = document.getElementById('qContent');
+        if (contentField) {
+            contentField.value += char;
+            contentField.focus();
+        }
+    }
+}
+
+function clearText() {
+    var activeElement = document.activeElement;
+    if (activeElement && (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA')) {
+        var value = activeElement.value;
+        activeElement.value = value.substring(0, value.length - 1);
+        activeElement.focus();
+    }
+}
 
 // ============================================================
 // LANGUES
 // ============================================================
 function toggleLanguage() {
-    var langs = ['fr', 'en', 'ar', 'es', 'de', 'it', 'pt'];
+    var langs = ['ar', 'fr', 'en', 'es', 'de', 'it', 'pt'];
     var currentIndex = langs.indexOf(currentLanguage);
     var nextIndex = (currentIndex + 1) % langs.length;
     currentLanguage = langs[nextIndex];
     localStorage.setItem('prefLang', currentLanguage);
-    document.getElementById('langDisplay').innerHTML = '🌐 Langue: ' + getLangName(currentLanguage);
+    document.getElementById('langDisplay').innerHTML = '🌐 اللغة: ' + getLangName(currentLanguage);
+    updateLanguageUI();
     showNotification('Langue changée: ' + getLangName(currentLanguage), 'info');
     renderQuestions();
 }
 
 function getLangName(code) {
-    var names = { fr: 'Français', en: 'English', ar: 'العربية', es: 'Español', de: 'Deutsch', it: 'Italiano', pt: 'Português' };
+    var names = { ar: 'العربية', fr: 'Français', en: 'English', es: 'Español', de: 'Deutsch', it: 'Italiano', pt: 'Português' };
     return names[code] || code;
+}
+
+function updateLanguageUI() {
+    var t = translations[currentLanguage] || translations['ar'];
+    document.getElementById('statusText').textContent = t.online;
+    document.getElementById('userRole').textContent = currentUser ? '👤 ' + currentUser.username : '👤 ' + t.visitor;
+    document.getElementById('questionCount').textContent = '📋 ' + questions.length + ' ' + t.questions;
+    document.getElementById('scholarCount').textContent = '🎓 ' + scholarsData.length + ' ' + t.scholarsLabel;
 }
 
 // ============================================================
 // SCHOLARS
 // ============================================================
 function assignScholar(category) {
-    var available = scholarsData.filter(function(s) { return s.expertise === category; });
+    var islamicCategories = ['Fiqh (الفقه)', 'Aqida (العقيدة)', 'Hadith (الحديث)', 'Tafsir (التفسير)', 'Sira (السيرة)', 'Soufisme (التصوف)'];
+    var isIslamic = islamicCategories.indexOf(category) !== -1;
+    
+    var available = scholarsData.filter(function(s) {
+        if (isIslamic) {
+            return s.speciality === 'Islam' && s.expertise === category;
+        }
+        return s.speciality === 'Général' && s.expertise === category;
+    });
+    
     if (available.length > 0) {
         return available[Math.floor(Math.random() * available.length)];
     }
+    var fallback = scholarsData.filter(function(s) { return s.expertise === category; });
+    if (fallback.length > 0) return fallback[0];
     return null;
 }
 
 function showScholars() {
     var container = document.getElementById('scholarsList');
-    var html = '<div style="display:grid;gap:15px;margin:15px 0;">';
+    var html = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:15px;margin:15px 0;">';
     for (var i = 0; i < scholarsData.length; i++) {
         var s = scholarsData[i];
-        html += '<div style="background:rgba(255,255,255,0.05);padding:15px;border-radius:10px;border:1px solid rgba(255,255,255,0.08);">' +
-            '<strong>' + s.name + '</strong>' +
+        var isIslamic = s.speciality === 'Islam';
+        var borderColor = isIslamic ? '#059669' : '#667eea';
+        var tag = isIslamic ? '<span class="islam-tag">🕌 إسلام</span>' : '<span class="scholar-tag">📚 عام</span>';
+        html += '<div style="background:rgba(255,255,255,0.05);padding:15px;border-radius:10px;border:1px solid ' + borderColor + ';">' +
+            '<strong>' + s.name + '</strong> ' + tag +
             '<div style="opacity:0.7;font-size:14px;">📂 ' + s.expertise + '</div>' +
             '<div style="font-size:13px;opacity:0.6;">🌐 ' + s.languages.map(function(l) { return getLangName(l); }).join(', ') + '</div>' +
             '<div style="color:#f59e0b;">⭐ ' + s.rating + '/5</div>' +
@@ -376,12 +592,14 @@ function showQuestionForm() {
     if (!currentUser) { showNotification('Veuillez vous connecter', 'error'); return; }
     hideForms();
     document.getElementById('questionForm').classList.add('active');
+    if (isKeyboardActive) document.getElementById('arabicKeyboard').classList.add('active');
 }
 function hideForms() {
     var forms = document.querySelectorAll('.form-container');
     for (var i = 0; i < forms.length; i++) {
         forms[i].classList.remove('active');
     }
+    document.getElementById('arabicKeyboard').classList.remove('active');
 }
 function goToAdmin() { window.location.href = '/admin'; }
 
@@ -405,10 +623,10 @@ function login() {
         if (user.language) currentLanguage = user.language;
         updateUI();
         hideForms();
-        showNotification('Connecté avec succès !', 'success');
+        showNotification('✅ تم تسجيل الدخول بنجاح !', 'success');
         renderQuestions();
     } else {
-        showNotification('Identifiants incorrects', 'error');
+        showNotification('❌ البريد الإلكتروني أو كلمة المرور غير صحيحة', 'error');
     }
 }
 
@@ -417,13 +635,14 @@ function register() {
     var email = document.getElementById('regEmail').value;
     var password = document.getElementById('regPassword').value;
     var language = document.getElementById('regLanguage').value;
+    var religion = document.getElementById('regReligion').value;
     
     if (!username || !email || !password) {
-        showNotification('Veuillez remplir tous les champs', 'error');
+        showNotification('❌ الرجاء ملء جميع الحقول', 'error');
         return;
     }
     if (password.length < 6) {
-        showNotification('Le mot de passe doit contenir au moins 6 caractères', 'error');
+        showNotification('❌ كلمة المرور يجب أن تكون 6 أحرف على الأقل', 'error');
         return;
     }
     
@@ -431,7 +650,7 @@ function register() {
     for (var i = 0; i < users.length; i++) {
         if (users[i].email === email) { exists = true; break; }
     }
-    if (exists) { showNotification('Email déjà utilisé', 'error'); return; }
+    if (exists) { showNotification('❌ هذا البريد الإلكتروني مستخدم بالفعل', 'error'); return; }
     
     var newUser = {
         id: users.length + 1,
@@ -439,33 +658,35 @@ function register() {
         email: email,
         password: password,
         role: 'user',
-        language: language
+        language: language,
+        religion: religion
     };
     users.push(newUser);
     currentUser = newUser;
     currentLanguage = language;
     updateUI();
     hideForms();
-    showNotification('Inscription réussie !', 'success');
+    showNotification('✅ تم إنشاء الحساب بنجاح !', 'success');
     renderQuestions();
 }
 
 function logout() {
     currentUser = null;
     updateUI();
-    showNotification('Déconnecté', 'info');
+    showNotification('تم تسجيل الخروج', 'info');
 }
 
 function updateUI() {
     if (currentUser) {
         document.getElementById('authButtons').style.display = 'none';
         document.getElementById('userActions').style.display = 'flex';
+        var religionIcon = { 'Islam': '🕌', 'Chrétien': '✝️', 'Juif': '✡️', 'Autre': '🌍' };
+        var icon = religionIcon[currentUser.religion] || '👤';
         document.getElementById('userDisplay').innerHTML =
             '<span class="user-avatar">' + currentUser.username[0].toUpperCase() + '</span> ' +
             '<span>' + currentUser.username + '</span>' +
-            '<span style="opacity:0.6;font-size:12px;">(' + currentUser.role + ')</span>';
+            '<span style="opacity:0.6;font-size:12px;">(' + currentUser.role + ' ' + icon + ')</span>';
         document.getElementById('newQuestionBtn').style.display = 'inline-block';
-        document.getElementById('userRole').innerHTML = '👤 ' + currentUser.username;
         if (currentUser.role === 'admin') {
             document.getElementById('adminBtn').style.display = 'inline-block';
         }
@@ -474,24 +695,25 @@ function updateUI() {
         document.getElementById('userActions').style.display = 'none';
         document.getElementById('newQuestionBtn').style.display = 'none';
         document.getElementById('adminBtn').style.display = 'none';
-        document.getElementById('userRole').innerHTML = '👤 Visiteur';
     }
-    document.getElementById('langDisplay').innerHTML = '🌐 Langue: ' + getLangName(currentLanguage);
+    updateLanguageUI();
+    document.getElementById('langDisplay').innerHTML = '🌐 اللغة: ' + getLangName(currentLanguage);
 }
 
 // ============================================================
 // QUESTIONS
 // ============================================================
 function askQuestion() {
-    if (!currentUser) { showNotification('Veuillez vous connecter', 'error'); return; }
+    if (!currentUser) { showNotification('❌ الرجاء تسجيل الدخول أولاً', 'error'); return; }
     var title = document.getElementById('qTitle').value;
     var category = document.getElementById('qCategory').value;
     var content = document.getElementById('qContent').value;
     var language = document.getElementById('qLanguage').value;
     
-    if (!title || !content) { showNotification('Titre et contenu obligatoires', 'error'); return; }
+    if (!title || !content) { showNotification('❌ العنوان والمحتوى مطلوبان', 'error'); return; }
     
     var scholar = assignScholar(category);
+    var isIslamic = ['Fiqh (الفقه)', 'Aqida (العقيدة)', 'Hadith (الحديث)', 'Tafsir (التفسير)', 'Sira (السيرة)', 'Soufisme (التصوف)'].indexOf(category) !== -1;
     
     questions.unshift({
         id: questions.length + 1,
@@ -503,10 +725,18 @@ function askQuestion() {
         date: new Date().toLocaleDateString(),
         status: scholar ? 'assigned' : 'pending',
         scholar: scholar,
+        isIslamic: isIslamic,
         answers: []
     });
     
-    showNotification('Question publiée ! Scholar assigné automatiquement', 'success');
+    var message = '✅ تم نشر السؤال ! ';
+    if (scholar) {
+        message += 'تم تعيين العالم: ' + scholar.name;
+        if (isIslamic) message += ' 🕌 (إسلام)';
+    } else {
+        message += 'في انتظار عالم متاح';
+    }
+    showNotification(message, 'success');
     hideForms();
     renderQuestions();
     document.getElementById('qTitle').value = '';
@@ -515,52 +745,65 @@ function askQuestion() {
 
 function renderQuestions() {
     var container = document.getElementById('questionsContainer');
-    document.getElementById('questionCount').innerHTML = '📋 ' + questions.length + ' questions';
-    document.getElementById('scholarCount').innerHTML = '🎓 ' + scholarsData.length + ' Scholars';
+    document.getElementById('questionCount').textContent = '📋 ' + questions.length + ' ' + (currentLanguage === 'ar' ? 'سؤال' : 'questions');
+    document.getElementById('scholarCount').textContent = '🎓 ' + scholarsData.length + ' ' + (currentLanguage === 'ar' ? 'علماء' : 'Scholars');
     
     if (questions.length === 0) {
-        container.innerHTML = '<p style="text-align:center;opacity:0.5;padding:40px;">Aucune question. Posez la première !</p>';
+        container.innerHTML = '<p style="text-align:center;opacity:0.5;padding:40px;">' + 
+            (currentLanguage === 'ar' ? 'لا توجد أسئلة. كن أول من يطرح سؤالاً !' : 'Aucune question. Posez la première !') + '</p>';
         return;
     }
     
     var html = '';
     for (var i = 0; i < questions.length; i++) {
         var q = questions[i];
+        var isArabic = q.language === 'ar';
+        var dirClass = isArabic ? 'dir-rtl' : 'dir-ltr';
         
         var statusClass = q.status === 'assigned' ? 'badge-assigned' : q.status === 'answered' ? 'badge-answered' : 'badge-pending';
-        var statusLabel = q.status === 'assigned' ? 'Assigné' : q.status === 'answered' ? 'Répondu' : 'En attente';
+        var statusLabel = q.status === 'assigned' ? (currentLanguage === 'ar' ? 'تم التعيين' : 'Assigné') : 
+                          q.status === 'answered' ? (currentLanguage === 'ar' ? 'تم الرد' : 'Répondu') : 
+                          (currentLanguage === 'ar' ? 'قيد الانتظار' : 'En attente');
         
         var scholarInfo = '';
         if (q.scholar) {
-            scholarInfo = '<span class="scholar-tag">🎓 ' + q.scholar.name + '</span>';
+            var tag = q.isIslamic ? '<span class="islam-tag">🕌 إسلام</span>' : '<span class="scholar-tag">📚 عام</span>';
+            scholarInfo = '<span class="scholar-tag">🎓 ' + q.scholar.name + '</span> ' + tag;
         }
+        
+        var islamicBadge = q.isIslamic ? '<span class="badge badge-islam">🕌 إسلام</span>' : '';
         
         var answersHtml = '';
         if (q.answers && q.answers.length > 0) {
-            answersHtml = '<div class="answers-section"><strong>💬 ' + q.answers.length + ' réponses</strong>';
+            answersHtml = '<div class="answers-section"><strong>💬 ' + q.answers.length + ' ' + 
+                (currentLanguage === 'ar' ? 'ردود' : 'réponses') + '</strong>';
             for (var j = 0; j < q.answers.length; j++) {
                 var a = q.answers[j];
                 var isScholar = scholarsData.some(function(s) { return s.name === a.username; });
-                answersHtml += '<div class="answer-item">' +
+                var aIsArabic = a.language === 'ar';
+                var aDir = aIsArabic ? 'dir-rtl' : 'dir-ltr';
+                answersHtml += '<div class="answer-item ' + aDir + '">' +
                     '<div>' + a.content + '</div>' +
                     '<div class="answer-meta">' +
                     '👤 ' + a.username + (isScholar ? ' 🎓' : '') +
                     ' | 🌐 ' + getLangName(a.language || 'fr') +
-                    (a.aiVerified ? ' | ✅ Vérifié par AI' : '') +
+                    (a.aiVerified ? ' | ✅ ' + (currentLanguage === 'ar' ? 'تم التحقق بواسطة AI' : 'Vérifié par AI') : '') +
                     '</div></div>';
             }
             answersHtml += '</div>';
         } else {
-            answersHtml = '<div style="margin-top:10px;opacity:0.5;font-size:13px;">💬 Pas encore de réponse</div>';
+            answersHtml = '<div style="margin-top:10px;opacity:0.5;font-size:13px;">💬 ' + 
+                (currentLanguage === 'ar' ? 'لا يوجد ردود حتى الآن' : 'Pas encore de réponse') + '</div>';
         }
         
         var answerBtn = '';
         if (currentUser) {
-            answerBtn = '<button class="btn btn-secondary" onclick="showAnswerForm(' + q.id + ')">💬 Répondre</button>';
+            answerBtn = '<button class="btn btn-secondary" onclick="showAnswerForm(' + q.id + ')">💬 ' + 
+                (currentLanguage === 'ar' ? 'رد' : 'Répondre') + '</button>';
         }
         
         html += '<div class="question-card">' +
-            '<div class="question-title">' + q.title + '</div>' +
+            '<div class="question-title ' + dirClass + '">' + q.title + ' ' + islamicBadge + '</div>' +
             '<div class="question-meta">' +
             '👤 ' + q.username +
             ' | 📂 ' + q.category +
@@ -569,7 +812,7 @@ function renderQuestions() {
             ' | <span class="badge ' + statusClass + '">' + statusLabel + '</span>' +
             ' ' + scholarInfo +
             '</div>' +
-            '<div class="question-content">' + q.content + '</div>' +
+            '<div class="question-content ' + dirClass + '">' + q.content + '</div>' +
             '<div class="question-actions">' + answerBtn + '</div>' +
             answersHtml +
             '</div>';
@@ -582,7 +825,7 @@ function showAnswerForm(questionId) {
     var content = prompt('Votre réponse :');
     if (!content) return;
     
-    var lang = prompt('Langue de votre réponse (fr/en/ar/es/de/it/pt) :', 'fr') || 'fr';
+    var lang = prompt('Langue (fr/en/ar/es/de/it/pt) :', currentLanguage || 'ar') || currentLanguage || 'fr';
     
     for (var i = 0; i < questions.length; i++) {
         if (questions[i].id === questionId) {
@@ -598,7 +841,7 @@ function showAnswerForm(questionId) {
             if (isScholar) {
                 questions[i].status = 'answered';
             }
-            showNotification('Réponse publiée !' + (isScholar ? ' ✅ Vérifiée par AI' : ''), 'success');
+            showNotification('✅ Réponse publiée !' + (isScholar ? ' ✅ Vérifiée par AI' : ''), 'success');
             renderQuestions();
             break;
         }
@@ -607,13 +850,14 @@ function showAnswerForm(questionId) {
 
 function loadData() {
     renderQuestions();
-    showNotification('Données actualisées', 'info');
+    showNotification('✅ Données actualisées', 'info');
 }
 
 // ============================================================
 // INITIALISATION
 // ============================================================
 renderQuestions();
+updateLanguageUI();
 </script>
 </body>
 </html>
