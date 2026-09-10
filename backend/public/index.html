@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Scholars Connect - Multi-Domaines</title>
+<title>Scholars Connect - Juge Claude</title>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body { font-family: 'Segoe UI', system-ui, sans-serif; background: #0a0e27; color: #fff; min-height: 100vh; padding: 20px; }
@@ -82,6 +82,8 @@ body { font-family: 'Segoe UI', system-ui, sans-serif; background: #0a0e27; colo
 .badge-claude { background: linear-gradient(135deg, #8b5cf6, #ec4899); color: white; }
 .scholar-card { background: rgba(255,255,255,0.05); padding: 15px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.1); transition: 0.3s; }
 .scholar-card:hover { transform: translateY(-3px); border-color: #667eea; }
+.claude-response { white-space: pre-wrap; line-height: 1.7; font-size: 14px; }
+.claude-response strong { color: #8b5cf6; }
 @media (max-width: 600px) {
 .header { flex-direction: column; align-items: stretch; }
 .header-actions { flex-wrap: wrap; }
@@ -276,26 +278,17 @@ body { font-family: 'Segoe UI', system-ui, sans-serif; background: #0a0e27; colo
 
 <script>
 // ============================================================
-// PERSISTANCE (localStorage)
+// PERSISTANCE
 // ============================================================
-var STORAGE_KEYS = {
-    USERS: 'sc_users',
-    QUESTIONS: 'sc_questions',
-    SESSION: 'sc_session',
-    PREF_LANG: 'sc_pref_lang',
-    MY_HISTORY: 'sc_my_history'
-};
+var STORAGE_KEYS = { USERS: 'sc_users', QUESTIONS: 'sc_questions', SESSION: 'sc_session', PREF_LANG: 'sc_pref_lang', MY_HISTORY: 'sc_my_history' };
 
 function saveToStorage(key, data) {
     try { localStorage.setItem(key, JSON.stringify(data)); return true; }
-    catch(e) { console.error('Erreur sauvegarde:', e); return false; }
+    catch(e) { return false; }
 }
 function loadFromStorage(key, defaultValue) {
-    try {
-        var data = localStorage.getItem(key);
-        if (data) return JSON.parse(data);
-        return defaultValue;
-    } catch(e) { return defaultValue; }
+    try { var data = localStorage.getItem(key); if (data) return JSON.parse(data); return defaultValue; }
+    catch(e) { return defaultValue; }
 }
 
 var users = loadFromStorage(STORAGE_KEYS.USERS, [
@@ -309,7 +302,110 @@ var isKeyboardActive = false;
 var currentFilter = 'all';
 
 // ============================================================
-// SCHOLARS AVEC LITTÉRATURE
+// BASE DE CONNAISSANCES DU JUGE CLAUDE
+// ============================================================
+var claudeKnowledgeBase = {
+    'filetage': {
+        'definition': 'Le filetage premium désigne un filetage de haute précision utilisé dans l\'industrie pétrolière pour les connexions de tubulaires (casing, tubing, drill pipe). Il garantit l\'étanchéité et la résistance mécanique dans des conditions extrêmes.',
+        'exigences': [
+            '🎯 Tolérances dimensionnelles très serrées (±0.05mm)',
+            '🔩 Pas de filetage constant et précis',
+            '📐 Angle de filetage conforme (60° ou 75°)',
+            '🔬 Contrôle par calibres API',
+            '💧 Étanchéité aux gaz et liquides',
+            '⚡ Résistance mécanique élevée (jusqu\'à 15 000 PSI)',
+            '🛡️ Traitement de surface anticorrosion',
+            '📊 Traçabilité complète des lots'
+        ],
+        'normes': ['API 5B', 'API 5CT', 'ISO 10422', 'TSH 511', 'API Spec 5B'],
+        'applications': 'Forage pétrolier, complétion de puits, pipelines haute pression',
+        'details': 'La norme TSH 511 spécifie les exigences pour les filetages premium destinés aux équipements pétroliers. Elle couvre : les dimensions, les tolérances, les matériaux, les traitements thermiques, les essais non destructifs, et les contrôles qualité. Les filetages premium se distinguent des filetages standards par leur capacité à assurer une étanchéité métal-métal sous haute pression.'
+    },
+    'tsh511': {
+        'definition': 'TSH 511 est une norme technique spécifique aux filetages de haute précision pour l\'industrie pétrolière.',
+        'exigences': [
+            '📏 Dimensions et tolérances précises',
+            '🔬 Contrôle qualité strict',
+            '💪 Résistance mécanique',
+            '🛡️ Protection anticorrosion',
+            '📋 Documentation complète'
+        ],
+        'details': 'Cette norme définit les caractéristiques des filetages premium pour garantir l\'étanchéité et la résistance dans les conditions extrêmes du forage pétrolier.'
+    },
+    'cnc': {
+        'definition': 'CNC (Computer Numerical Control) est un système de commande numérique par ordinateur pour les machines-outils.',
+        'exigences': [
+            '📐 Précision dimensionnelle (±0.01mm)',
+            '🔧 Programmation G-code',
+            '⚙️ Vitesse et avance contrôlées',
+            '🌡️ Gestion thermique',
+            '🔍 Contrôle qualité en cours'
+        ],
+        'details': 'L\'usinage CNC haute précision permet de fabriquer des pièces complexes avec une répétabilité élevée.'
+    },
+    'vanne': {
+        'definition': 'Les vannes pétrolières sont des dispositifs de contrôle d\'écoulement des fluides sous haute pression.',
+        'exigences': [
+            '🔒 Étanchéité parfaite',
+            '💪 Résistance à la pression (API 6D)',
+            '🌡️ Résistance aux températures extrêmes',
+            '🛡️ Anti-corrosion',
+            '🔧 Facilité de maintenance'
+        ],
+        'details': 'Les vannes doivent résister à des pressions allant jusqu\'à 15 000 PSI et à des températures de -46°C à +180°C.'
+    },
+    'turbine': {
+        'definition': 'Les turbines à gaz sont des machines tournantes utilisées pour la production d\'énergie dans l\'industrie pétrolière.',
+        'exigences': [
+            '🌡️ Résistance aux hautes températures',
+            '⚙️ Équilibrage dynamique',
+            '🔧 Maintenance préventive',
+            '📊 Surveillance vibratoire'
+        ],
+        'details': 'Les turbines doivent fonctionner de manière fiable pendant des milliers d\'heures.'
+    },
+    'forage': {
+        'definition': 'Le forage pétrolier est l\'opération de creusement d\'un puits pour atteindre les réservoirs d\'hydrocarbures.',
+        'exigences': [
+            '📏 Contrôle de la trajectoire',
+            '💧 Boue de forage adaptée',
+            '🌡️ Gestion des hautes pressions',
+            '⚙️ Tubage et complétion'
+        ],
+        'details': 'Le forage nécessite une planification rigoureuse et un suivi constant.'
+    },
+    'cardiologie': {
+        'definition': 'La cardiologie est la branche de la médecine qui étudie le cœur et les vaisseaux sanguins.',
+        'exigences': [
+            '🫀 Diagnostic précis',
+            '💊 Traitement adapté',
+            '📊 Suivi régulier',
+            '🏥 Prévention'
+        ],
+        'details': 'Les maladies cardiovasculaires nécessitent une prise en charge spécialisée.'
+    },
+    'fiqh': {
+        'definition': 'Le Fiqh est la jurisprudence islamique qui traite des règles pratiques.',
+        'exigences': [
+            '📖 Sources : Coran, Sunna, Ijma, Qiyas',
+            '⚖️ Interprétation des savants',
+            '🌍 Adaptation au contexte'
+        ],
+        'details': 'Le Fiqh couvre tous les aspects de la vie du musulman.'
+    },
+    'hadith': {
+        'definition': 'Le Hadith est l\'ensemble des paroles et actes du Prophète Muhammad (SAW).',
+        'exigences': [
+            '📚 Chaîne de transmission (Isnad)',
+            '🔍 Authentification',
+            '📖 Texte (Matn)'
+        ],
+        'details': 'Les hadiths sont classés selon leur authenticité.'
+    }
+};
+
+// ============================================================
+// SCHOLARS
 // ============================================================
 var scholarsData = [
     { id: 1, name: 'Dr. Ahmed Al-Faqih', domain: 'Islam', expertise: 'Fiqh (Jurisprudence)', languages: ['ar', 'fr', 'en'], rating: 4.9, literature: ['Fiqh al-Islami', 'Usul al-Fiqh', 'Al-Risala'] },
@@ -371,27 +467,20 @@ function saveSession() { saveToStorage(STORAGE_KEYS.SESSION, currentUser); }
 function saveHistory() { saveToStorage(STORAGE_KEYS.MY_HISTORY, myHistory); }
 
 // ============================================================
-// JUGE CLAUDE - RECHERCHE SÉMANTIQUE
+// JUGE CLAUDE - RECHERCHE DANS LA BASE DE CONNAISSANCES
 // ============================================================
-function claudeSemanticSearch(question, scholar) {
-    if (!scholar.literature || scholar.literature.length === 0) {
-        return { found: false, reason: 'no_literature', matches: [] };
-    }
-    var qText = (question.title + ' ' + question.content).toLowerCase();
-    var qWords = qText.split(/\s+/).filter(function(w) { return w.length > 3; });
-    var matches = [];
-    for (var i = 0; i < scholar.literature.length; i++) {
-        var lit = scholar.literature[i].toLowerCase();
-        for (var j = 0; j < qWords.length; j++) {
-            if (lit.indexOf(qWords[j]) !== -1) { matches.push(scholar.literature[i]); break; }
+function claudeSearchKnowledge(question) {
+    var searchText = (question.title + ' ' + question.content).toLowerCase();
+    for (var key in claudeKnowledgeBase) {
+        if (searchText.indexOf(key) !== -1) {
+            return claudeKnowledgeBase[key];
         }
     }
-    if (matches.length > 0) return { found: true, matches: matches };
-    return { found: true, matches: [], limited: true };
+    return null;
 }
 
 // ============================================================
-// JUGE CLAUDE - GÉNÉRATION DE RÉPONSE
+// JUGE CLAUDE - GÉNÉRATION DE RÉPONSE COMPLÈTE
 // ============================================================
 function claudeGenerateAnswer(question, scholar, reason) {
     var litRef = '';
@@ -399,24 +488,103 @@ function claudeGenerateAnswer(question, scholar, reason) {
         litRef = scholar.literature.slice(0, 3).join(', ');
     }
     
+    var knowledge = claudeSearchKnowledge(question);
+    var answer = '';
+    
     if (reason === 'no_literature') {
-        return '🤖 Réponse du Juge Claude\n\n' +
-            'Le scholar ' + scholar.name + ' ne dispose pas de littérature spécifique sur cette question.\n\n' +
-            '📚 Je réponds donc directement en me basant sur les connaissances générales du domaine ' + question.domain + ' :\n\n' +
-            'Concernant votre question "' + question.title + '" :\n' +
-            'Cette question relève du domaine ' + question.domain + ' (' + question.category + '). ' +
-            'En l\'absence de littérature spécifique du scholar, je vous fournis une réponse basée sur les connaissances générales du domaine.\n\n' +
-            '💡 Pour une réponse plus pointue, veuillez consulter un autre scholar spécialisé.';
+        answer = '🤖 RÉPONSE COMPLÈTE DU JUGE CLAUDE\n\n';
+        answer += '📋 Analyse de votre question : "' + question.title + '"\n\n';
+        answer += 'Le scholar assigné ' + scholar.name + ' ne dispose pas de littérature spécifique sur ce sujet.\n\n';
+        answer += '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n';
+        answer += '🎯 RÉPONSE DÉTAILLÉE :\n\n';
+        
+        if (knowledge) {
+            answer += '📖 DÉFINITION :\n' + knowledge.definition + '\n\n';
+            if (knowledge.exigences) {
+                answer += '✅ EXIGENCES PRINCIPALES :\n';
+                for (var i = 0; i < knowledge.exigences.length; i++) {
+                    answer += '   ' + knowledge.exigences[i] + '\n';
+                }
+                answer += '\n';
+            }
+            if (knowledge.normes) {
+                answer += '📋 NORMES APPLICABLES :\n';
+                for (var j = 0; j < knowledge.normes.length; j++) {
+                    answer += '   • ' + knowledge.normes[j] + '\n';
+                }
+                answer += '\n';
+            }
+            if (knowledge.applications) {
+                answer += '🏭 APPLICATIONS :\n' + knowledge.applications + '\n\n';
+            }
+            if (knowledge.details) {
+                answer += '📚 DÉTAILS TECHNIQUES :\n' + knowledge.details + '\n\n';
+            }
+        } else {
+            answer += '📖 ANALYSE DE LA QUESTION :\n';
+            answer += 'Cette question relève du domaine ' + question.domain + ' (' + question.category + ').\n\n';
+            answer += '🎯 RÉPONSE GÉNÉRALE :\n';
+            answer += 'Le sujet "' + question.title + '" nécessite une expertise dans le domaine ' + question.category + '.\n\n';
+            answer += '✅ ÉLÉMENTS DE RÉPONSE :\n';
+            answer += '   1. Consultez la littérature spécialisée du domaine\n';
+            answer += '   2. Vérifiez les normes et standards applicables\n';
+            answer += '   3. Contactez un scholar expert dans cette sous-catégorie\n';
+            answer += '   4. Consultez les ressources documentaires professionnelles\n\n';
+        }
+        
+        answer += '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n';
+        answer += '💡 NOTE : Le scholar ' + scholar.name + ' pourra compléter cette réponse avec son expertise.';
+        
     } else if (reason === 'timeout_5min') {
-        var ans = '⏱️ Réponse du Juge Claude (délai 5 minutes dépassé)\n\n';
-        ans += 'Le scholar ' + scholar.name + ' n\'a pas répondu dans le délai imparti de 5 minutes.\n\n';
-        if (litRef) ans += '📖 Littérature de référence : ' + litRef + '\n\n';
-        ans += '📚 Réponse basée sur la littérature diffusée par ' + scholar.name + ' :\n\n';
-        ans += 'D\'après les ouvrages de référence de ' + scholar.name + ', voici une réponse à votre question sur "' + question.title + '".\n\n';
-        ans += '💡 Le scholar ' + scholar.name + ' pourra compléter cette réponse s\'il revient ultérieurement.';
-        return ans;
+        answer = '⏱️ RÉPONSE COMPLÈTE DU JUGE CLAUDE\n';
+        answer += '(Délai de 5 minutes dépassé - Le scholar n\'a pas répondu)\n\n';
+        answer += '👨‍🎓 Scholar concerné : ' + scholar.name + '\n';
+        if (litRef) {
+            answer += '📖 Littérature de référence : ' + litRef + '\n';
+        }
+        answer += '\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n';
+        answer += '🎯 RÉPONSE DÉTAILLÉE :\n\n';
+        
+        if (knowledge) {
+            answer += '📖 DÉFINITION :\n' + knowledge.definition + '\n\n';
+            if (knowledge.exigences) {
+                answer += '✅ EXIGENCES PRINCIPALES :\n';
+                for (var k = 0; k < knowledge.exigences.length; k++) {
+                    answer += '   ' + knowledge.exigences[k] + '\n';
+                }
+                answer += '\n';
+            }
+            if (knowledge.normes) {
+                answer += '📋 NORMES APPLICABLES :\n';
+                for (var m = 0; m < knowledge.normes.length; m++) {
+                    answer += '   • ' + knowledge.normes[m] + '\n';
+                }
+                answer += '\n';
+            }
+            if (knowledge.applications) {
+                answer += '🏭 APPLICATIONS :\n' + knowledge.applications + '\n\n';
+            }
+            if (knowledge.details) {
+                answer += '📚 DÉTAILS TECHNIQUES :\n' + knowledge.details + '\n\n';
+            }
+        } else {
+            answer += '📖 ANALYSE BASÉE SUR LA LITTÉRATURE DU SCHOLAR :\n\n';
+            answer += 'D\'après les ouvrages de référence de ' + scholar.name + ' :\n';
+            answer += '• Domaine : ' + question.domain + '\n';
+            answer += '• Spécialité : ' + question.category + '\n';
+            answer += '• Sujet : ' + question.title + '\n\n';
+            answer += '🎯 ÉLÉMENTS DE RÉPONSE :\n';
+            answer += '   1. Les principes standards du domaine s\'appliquent\n';
+            answer += '   2. Consultez la littérature citée : ' + litRef + '\n';
+            answer += '   3. Une expertise complémentaire peut être nécessaire\n';
+            answer += '   4. Vérifiez les normes en vigueur\n\n';
+        }
+        
+        answer += '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n';
+        answer += '💡 NOTE : Le scholar ' + scholar.name + ' pourra compléter cette réponse.';
     }
-    return 'Réponse du Juge Claude pour "' + question.title + '"';
+    
+    return answer;
 }
 
 // ============================================================
@@ -453,17 +621,15 @@ function triggerClaudeJudge(question) {
     if (!question.scholar) return;
     var scholar = question.scholar;
     
-    // RÈGLE 1 : Pas de littérature → réponse immédiate
     if (!scholar.literature || scholar.literature.length === 0) {
         setTimeout(function() {
             var claudeAnswer = claudeGenerateAnswer(question, scholar, 'no_literature');
             addClaudeAnswer(question.id, claudeAnswer, 'no_literature');
-            showNotification('🤖 Juge Claude a répondu (pas de littérature du scholar)', 'claude');
+            showNotification('🤖 Juge Claude a répondu avec une réponse complète', 'claude');
         }, 2000);
         return;
     }
     
-    // RÈGLE 2 : Timeout 5 minutes (30 sec en démo)
     showNotification('⏱️ Juge Claude surveille (5 min max)...', 'info');
     var questionId = question.id;
     setTimeout(function() {
@@ -483,7 +649,7 @@ function triggerClaudeJudge(question) {
         if (!scholarResponded) {
             var claudeAnswer = claudeGenerateAnswer(q, q.scholar, 'timeout_5min');
             addClaudeAnswer(q.id, claudeAnswer, 'timeout_5min');
-            showNotification('⏱️ Juge Claude a répondu après 5 minutes', 'claude');
+            showNotification('⏱️ Juge Claude a répondu avec une réponse complète', 'claude');
         }
     }, 30000);
 }
@@ -508,9 +674,6 @@ function initializeApp() {
     }
 }
 
-// ============================================================
-// NAVIGATION
-// ============================================================
 function filterByDomain(domain, btn) {
     currentFilter = domain;
     var btns = document.querySelectorAll('.cat-btn');
@@ -519,9 +682,6 @@ function filterByDomain(domain, btn) {
     renderQuestions();
 }
 
-// ============================================================
-// CLAVIER ARABE
-// ============================================================
 function toggleKeyboard() {
     var keyboard = document.getElementById('arabicKeyboard');
     isKeyboardActive = !isKeyboardActive;
@@ -556,9 +716,6 @@ function clearText() {
     }
 }
 
-// ============================================================
-// LANGUES
-// ============================================================
 function toggleLanguage() {
     var langs = ['fr', 'ar', 'en', 'es', 'de', 'it', 'pt'];
     var idx = langs.indexOf(currentLanguage);
@@ -573,9 +730,6 @@ function getLangName(code) {
     return names[code] || code;
 }
 
-// ============================================================
-// SCHOLARS
-// ============================================================
 function assignScholar(domain, category) {
     var available = scholarsData.filter(function(s) { return s.domain === domain && s.expertise === category; });
     if (available.length > 0) return available[Math.floor(Math.random() * available.length)];
@@ -585,19 +739,12 @@ function assignScholar(domain, category) {
 }
 
 function getDomainClass(domain) {
-    var map = {
-        'Islam': 'domain-islam', 'Médecine': 'domain-medecine', 'Pharmacie': 'domain-pharmacie',
-        'Chimie': 'domain-chimie', 'IA': 'domain-ia', 'IoT': 'domain-iot',
-        'GMAO': 'domain-gmao', 'Mécanique Pétrole': 'domain-meca', 'Général': 'domain-general'
-    };
+    var map = { 'Islam': 'domain-islam', 'Médecine': 'domain-medecine', 'Pharmacie': 'domain-pharmacie', 'Chimie': 'domain-chimie', 'IA': 'domain-ia', 'IoT': 'domain-iot', 'GMAO': 'domain-gmao', 'Mécanique Pétrole': 'domain-meca', 'Général': 'domain-general' };
     return map[domain] || 'domain-general';
 }
 
 function getDomainIcon(domain) {
-    var icons = {
-        'Islam': '🕌', 'Médecine': '🏥', 'Pharmacie': '💊', 'Chimie': '⚗️',
-        'IA': '🤖', 'IoT': '🌐', 'GMAO': '🏭', 'Mécanique Pétrole': '⚙️', 'Général': '📚'
-    };
+    var icons = { 'Islam': '🕌', 'Médecine': '🏥', 'Pharmacie': '💊', 'Chimie': '⚗️', 'IA': '🤖', 'IoT': '🌐', 'GMAO': '🏭', 'Mécanique Pétrole': '⚙️', 'Général': '📚' };
     return icons[domain] || '📖';
 }
 
@@ -611,13 +758,7 @@ function showScholars() {
         var icon = getDomainIcon(s.domain);
         var litCount = s.literature ? s.literature.length : 0;
         var litBadge = litCount > 0 ? '<span style="background:#22c55e;padding:2px 8px;border-radius:10px;font-size:10px;">📚 ' + litCount + ' ouvrages</span>' : '<span style="background:#ef4444;padding:2px 8px;border-radius:10px;font-size:10px;">📚 Aucune littérature</span>';
-        html += '<div class="scholar-card">' +
-            '<strong>' + icon + ' ' + s.name + '</strong> ' +
-            '<span class="domain-tag ' + dClass + '">' + s.domain + '</span> ' + litBadge +
-            '<div style="opacity:0.7;font-size:14px;margin-top:5px;">📂 ' + s.expertise + '</div>' +
-            '<div style="font-size:13px;opacity:0.6;">🌐 ' + s.languages.map(function(l) { return getLangName(l); }).join(', ') + '</div>' +
-            '<div style="color:#f59e0b;">⭐ ' + s.rating + '/5</div>' +
-            '</div>';
+        html += '<div class="scholar-card"><strong>' + icon + ' ' + s.name + '</strong> <span class="domain-tag ' + dClass + '">' + s.domain + '</span> ' + litBadge + '<div style="opacity:0.7;font-size:14px;margin-top:5px;">📂 ' + s.expertise + '</div><div style="font-size:13px;opacity:0.6;">🌐 ' + s.languages.map(function(l) { return getLangName(l); }).join(', ') + '</div><div style="color:#f59e0b;">⭐ ' + s.rating + '/5</div></div>';
     }
     html += '</div>';
     container.innerHTML = html;
@@ -625,9 +766,6 @@ function showScholars() {
     document.getElementById('scholarsPopup').classList.add('active');
 }
 
-// ============================================================
-// NOTIFICATIONS
-// ============================================================
 function showNotification(message, type) {
     if (type === undefined) type = 'info';
     var el = document.getElementById('notification');
@@ -637,9 +775,6 @@ function showNotification(message, type) {
     setTimeout(function() { el.style.display = 'none'; }, 6000);
 }
 
-// ============================================================
-// FORMULAIRES
-// ============================================================
 function showLogin() { hideForms(); document.getElementById('loginForm').classList.add('active'); }
 function showRegister() { hideForms(); document.getElementById('registerForm').classList.add('active'); }
 function showQuestionForm() {
@@ -676,9 +811,6 @@ function updateCategories() {
     }
 }
 
-// ============================================================
-// AUTHENTIFICATION
-// ============================================================
 function login() {
     var email = document.getElementById('loginEmail').value;
     var password = document.getElementById('loginPassword').value;
@@ -736,9 +868,7 @@ function updateUI() {
     if (currentUser) {
         document.getElementById('authButtons').style.display = 'none';
         document.getElementById('userActions').style.display = 'flex';
-        document.getElementById('userDisplay').innerHTML =
-            '<span class="user-avatar">' + currentUser.username[0].toUpperCase() + '</span> ' +
-            '<span>' + currentUser.username + '</span>';
+        document.getElementById('userDisplay').innerHTML = '<span class="user-avatar">' + currentUser.username[0].toUpperCase() + '</span> <span>' + currentUser.username + '</span>';
         document.getElementById('newQuestionBtn').style.display = 'inline-block';
         document.getElementById('userRole').innerHTML = '👤 ' + currentUser.username;
         if (currentUser.role === 'admin') document.getElementById('adminBtn').style.display = 'inline-block';
@@ -752,18 +882,8 @@ function updateUI() {
     document.getElementById('langDisplay').innerHTML = '🌐 ' + getLangName(currentLanguage);
 }
 
-// ============================================================
-// HISTORIQUE
-// ============================================================
 function addToHistory(action, data) {
-    var entry = {
-        id: myHistory.length + 1,
-        userId: currentUser ? currentUser.id : null,
-        username: currentUser ? currentUser.username : 'Anonyme',
-        action: action,
-        data: data,
-        date: new Date().toLocaleString()
-    };
+    var entry = { id: myHistory.length + 1, userId: currentUser ? currentUser.id : null, username: currentUser ? currentUser.username : 'Anonyme', action: action, data: data, date: new Date().toLocaleString() };
     myHistory.unshift(entry);
     if (myHistory.length > 200) myHistory = myHistory.slice(0, 200);
     saveHistory();
@@ -781,34 +901,19 @@ function renderHistory() {
             }
         }
     }
-    stats.innerHTML =
-        '<span style="background:rgba(255,255,255,0.1);padding:5px 12px;border-radius:12px;">📋 ' + myQuestions.length + ' questions</span>' +
-        '<span style="background:rgba(255,255,255,0.1);padding:5px 12px;border-radius:12px;">💬 ' + myAnswers + ' réponses</span>' +
-        '<span style="background:rgba(255,255,255,0.1);padding:5px 12px;border-radius:12px;">📊 ' + myHistory.length + ' actions</span>';
-    if (myQuestions.length === 0) {
-        container.innerHTML = '<p style="text-align:center;opacity:0.5;padding:30px;">Aucune question.</p>';
-        return;
-    }
+    stats.innerHTML = '<span style="background:rgba(255,255,255,0.1);padding:5px 12px;border-radius:12px;">📋 ' + myQuestions.length + ' questions</span><span style="background:rgba(255,255,255,0.1);padding:5px 12px;border-radius:12px;">💬 ' + myAnswers + ' réponses</span><span style="background:rgba(255,255,255,0.1);padding:5px 12px;border-radius:12px;">📊 ' + myHistory.length + ' actions</span>';
+    if (myQuestions.length === 0) { container.innerHTML = '<p style="text-align:center;opacity:0.5;padding:30px;">Aucune question.</p>'; return; }
     var html = '';
     for (var k = 0; k < myQuestions.length; k++) {
         var q = myQuestions[k];
         var dClass = getDomainClass(q.domain);
-        html += '<div class="question-card" style="margin:10px 0;">' +
-            '<div class="question-title">' + getDomainIcon(q.domain) + ' ' + q.title + '</div>' +
-            '<div class="question-meta">' +
-            '<span class="domain-tag ' + dClass + '">' + q.domain + '</span>' +
-            ' | 📂 ' + q.category + ' | 📅 ' + q.date +
-            '</div>' +
-            '<div class="question-content">' + q.content + '</div>';
+        html += '<div class="question-card" style="margin:10px 0;"><div class="question-title">' + getDomainIcon(q.domain) + ' ' + q.title + '</div><div class="question-meta"><span class="domain-tag ' + dClass + '">' + q.domain + '</span> | 📂 ' + q.category + ' | 📅 ' + q.date + '</div><div class="question-content">' + q.content + '</div>';
         if (q.answers && q.answers.length > 0) {
             html += '<div class="answers-section"><strong>💬 ' + q.answers.length + ' réponses</strong>';
             for (var m = 0; m < q.answers.length; m++) {
                 var a = q.answers[m];
                 var aClass = a.isClaude ? 'claude-answer' : (a.isScholarResponse ? 'scholar-answer' : '');
-                html += '<div class="answer-item ' + aClass + '">' +
-                    '<div>' + a.content + '</div>' +
-                    '<div class="answer-meta">👤 ' + a.username + ' | 📅 ' + a.date + '</div>' +
-                    '</div>';
+                html += '<div class="answer-item ' + aClass + '"><div class="claude-response">' + a.content + '</div><div class="answer-meta">👤 ' + a.username + ' | 📅 ' + a.date + '</div></div>';
             }
             html += '</div>';
         }
@@ -817,9 +922,6 @@ function renderHistory() {
     container.innerHTML = html;
 }
 
-// ============================================================
-// QUESTIONS
-// ============================================================
 function askQuestion() {
     if (!currentUser) { showNotification('Veuillez vous connecter', 'error'); return; }
     var domain = document.getElementById('qDomain').value;
@@ -827,39 +929,18 @@ function askQuestion() {
     var title = document.getElementById('qTitle').value;
     var content = document.getElementById('qContent').value;
     var language = document.getElementById('qLanguage').value;
-    
     if (!title || !content) { showNotification('Titre et contenu obligatoires', 'error'); return; }
-    
     var scholar = assignScholar(domain, category);
-    
-    var question = {
-        id: questions.length + 1,
-        domain: domain,
-        title: title,
-        category: category,
-        content: content,
-        username: currentUser.username,
-        userId: currentUser.id,
-        language: language,
-        date: new Date().toLocaleDateString(),
-        timestamp: new Date().toISOString(),
-        status: scholar ? 'assigned' : 'pending',
-        scholar: scholar,
-        answers: []
-    };
-    
+    var question = { id: questions.length + 1, domain: domain, title: title, category: category, content: content, username: currentUser.username, userId: currentUser.id, language: language, date: new Date().toLocaleDateString(), timestamp: new Date().toISOString(), status: scholar ? 'assigned' : 'pending', scholar: scholar, answers: [] };
     questions.unshift(question);
     saveQuestions();
     addToHistory('question', { title: title, domain: domain });
-    
     var message = '✅ Question publiée !';
     if (scholar) message += ' Scholar : ' + scholar.name;
     showNotification(message, 'success');
     hideForms();
     renderQuestions();
-    
     triggerClaudeJudge(question);
-    
     document.getElementById('qTitle').value = '';
     document.getElementById('qContent').value = '';
 }
@@ -867,37 +948,21 @@ function askQuestion() {
 function renderQuestions() {
     var container = document.getElementById('questionsContainer');
     var filtered = currentFilter === 'all' ? questions : questions.filter(function(q) { return q.domain === currentFilter; });
-    
     document.getElementById('questionCount').textContent = '📋 ' + questions.length + ' questions';
     document.getElementById('scholarCount').textContent = '🎓 ' + scholarsData.length + ' Scholars';
-    
-    if (filtered.length === 0) {
-        container.innerHTML = '<p style="text-align:center;opacity:0.5;padding:40px;">Aucune question dans ce domaine.</p>';
-        return;
-    }
-    
+    if (filtered.length === 0) { container.innerHTML = '<p style="text-align:center;opacity:0.5;padding:40px;">Aucune question dans ce domaine.</p>'; return; }
     var html = '';
     for (var i = 0; i < filtered.length; i++) {
         var q = filtered[i];
         var hasClaudeAnswer = false;
-        if (q.answers) {
-            for (var c = 0; c < q.answers.length; c++) {
-                if (q.answers[c].isClaude) { hasClaudeAnswer = true; break; }
-            }
-        }
-        
+        if (q.answers) { for (var c = 0; c < q.answers.length; c++) { if (q.answers[c].isClaude) { hasClaudeAnswer = true; break; } } }
         var cardClass = hasClaudeAnswer ? 'claude-card' : '';
         var statusClass = q.status === 'claude_answered' ? 'badge-claude' : (q.status === 'assigned' ? 'badge-assigned' : q.status === 'answered' ? 'badge-answered' : 'badge-pending');
         var statusLabel = q.status === 'claude_answered' ? '🤖 Juge Claude' : (q.status === 'assigned' ? 'Assigné' : q.status === 'answered' ? 'Répondu' : 'En attente');
         var dClass = getDomainClass(q.domain);
         var icon = getDomainIcon(q.domain);
-        
         var scholarInfo = '';
-        if (q.scholar) {
-            var litCount = q.scholar.literature ? q.scholar.literature.length : 0;
-            scholarInfo = '<span class="domain-tag ' + dClass + '">🎓 ' + q.scholar.name + ' (' + litCount + ' ouvrages)</span>';
-        }
-        
+        if (q.scholar) { var litCount = q.scholar.literature ? q.scholar.literature.length : 0; scholarInfo = '<span class="domain-tag ' + dClass + '">🎓 ' + q.scholar.name + ' (' + litCount + ' ouvrages)</span>'; }
         var answersHtml = '';
         if (q.answers && q.answers.length > 0) {
             answersHtml = '<div class="answers-section"><strong>💬 ' + q.answers.length + ' réponses</strong>';
@@ -905,34 +970,13 @@ function renderQuestions() {
                 var a = q.answers[j];
                 var aClass = a.isClaude ? 'claude-answer' : (a.isScholarResponse ? 'scholar-answer' : '');
                 var badge = '';
-                if (a.isClaude) {
-                    badge = '<span class="claude-badge">🤖 Juge Claude</span> ';
-                    if (a.claudeReason === 'no_literature') badge += '<span class="claude-status">Sans littérature</span>';
-                    if (a.claudeReason === 'timeout_5min') badge += '<span class="timer-badge">⏱️ 5 min</span>';
-                }
-                answersHtml += '<div class="answer-item ' + aClass + '">' +
-                    '<div style="margin-bottom:5px;">' + badge + '</div>' +
-                    '<div style="white-space:pre-wrap;">' + a.content + '</div>' +
-                    '<div class="answer-meta">👤 ' + a.username + ' | 📅 ' + a.date + '</div></div>';
+                if (a.isClaude) { badge = '<span class="claude-badge">🤖 Juge Claude</span> '; if (a.claudeReason === 'no_literature') badge += '<span class="claude-status">Sans littérature</span>'; if (a.claudeReason === 'timeout_5min') badge += '<span class="timer-badge">⏱️ 5 min</span>'; }
+                answersHtml += '<div class="answer-item ' + aClass + '"><div style="margin-bottom:5px;">' + badge + '</div><div class="claude-response">' + a.content + '</div><div class="answer-meta">👤 ' + a.username + ' | 📅 ' + a.date + '</div></div>';
             }
             answersHtml += '</div>';
-        } else {
-            answersHtml = '<div style="margin-top:10px;opacity:0.5;font-size:13px;">💬 En attente (Juge Claude surveille)...</div>';
-        }
-        
+        } else { answersHtml = '<div style="margin-top:10px;opacity:0.5;font-size:13px;">💬 En attente (Juge Claude surveille)...</div>'; }
         var answerBtn = currentUser ? '<button class="btn btn-secondary" onclick="showAnswerForm(' + q.id + ')">💬 Répondre</button>' : '';
-        
-        html += '<div class="question-card ' + cardClass + '">' +
-            '<div class="question-title">' + icon + ' ' + q.title + '</div>' +
-            '<div class="question-meta">' +
-            '<span class="domain-tag ' + dClass + '">' + q.domain + '</span>' +
-            ' 👤 ' + q.username + ' | 📂 ' + q.category + ' | 🌐 ' + getLangName(q.language) + ' | 📅 ' + q.date +
-            ' | <span class="badge ' + statusClass + '">' + statusLabel + '</span> ' + scholarInfo +
-            '</div>' +
-            '<div class="question-content">' + q.content + '</div>' +
-            '<div class="question-actions">' + answerBtn + '</div>' +
-            answersHtml +
-            '</div>';
+        html += '<div class="question-card ' + cardClass + '"><div class="question-title">' + icon + ' ' + q.title + '</div><div class="question-meta"><span class="domain-tag ' + dClass + '">' + q.domain + '</span> 👤 ' + q.username + ' | 📂 ' + q.category + ' | 🌐 ' + getLangName(q.language) + ' | 📅 ' + q.date + ' | <span class="badge ' + statusClass + '">' + statusLabel + '</span> ' + scholarInfo + '</div><div class="question-content">' + q.content + '</div><div class="question-actions">' + answerBtn + '</div>' + answersHtml + '</div>';
     }
     container.innerHTML = html;
 }
@@ -942,42 +986,19 @@ function showAnswerForm(questionId) {
     var content = prompt('Votre réponse :');
     if (!content) return;
     var lang = prompt('Langue (fr/ar/en/es/de/it/pt) :', currentLanguage) || currentLanguage;
-    
     for (var i = 0; i < questions.length; i++) {
         if (questions[i].id === questionId) {
             if (!questions[i].answers) questions[i].answers = [];
             var isScholar = scholarsData.some(function(s) { return s.name === currentUser.username; });
-            
-            questions[i].answers.push({
-                username: currentUser.username,
-                userId: currentUser.id,
-                content: content,
-                language: lang,
-                date: new Date().toLocaleDateString(),
-                timestamp: new Date().toISOString(),
-                aiVerified: isScholar,
-                isScholarResponse: isScholar
-            });
-            
+            questions[i].answers.push({ username: currentUser.username, userId: currentUser.id, content: content, language: lang, date: new Date().toLocaleDateString(), timestamp: new Date().toISOString(), aiVerified: isScholar, isScholarResponse: isScholar });
             if (isScholar) questions[i].status = 'answered';
-            
             saveQuestions();
             addToHistory('answer', { questionTitle: questions[i].title });
-            
             if (isScholar) {
                 var hasClaudeAns = false;
-                for (var c = 0; c < questions[i].answers.length; c++) {
-                    if (questions[i].answers[c].isClaude) { hasClaudeAns = true; break; }
-                }
-                if (hasClaudeAns) {
-                    showNotification('📢 Réponse du Scholar diffusée (arrivée en retard)', 'claude');
-                } else {
-                    showNotification('✅ Réponse du Scholar publiée !', 'success');
-                }
-            } else {
-                showNotification('✅ Réponse publiée !', 'success');
-            }
-            
+                for (var c = 0; c < questions[i].answers.length; c++) { if (questions[i].answers[c].isClaude) { hasClaudeAns = true; break; } }
+                if (hasClaudeAns) { showNotification('📢 Réponse du Scholar diffusée (arrivée en retard)', 'claude'); } else { showNotification('✅ Réponse du Scholar publiée !', 'success'); }
+            } else { showNotification('✅ Réponse publiée !', 'success'); }
             renderQuestions();
             break;
         }

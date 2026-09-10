@@ -96,11 +96,7 @@ var scholars = [
     { name: 'Dr. Fatima Histoire', domain: 'Général', expertise: 'Histoire', rating: 4.9, litCount: 1 }
 ];
 
-var domainClass = {
-    'Islam': 'badge-islam', 'Médecine': 'badge-medecine', 'Pharmacie': 'badge-pharmacie',
-    'Chimie': 'badge-chimie', 'IA': 'badge-ia', 'IoT': 'badge-iot',
-    'GMAO': 'badge-gmao', 'Mécanique Pétrole': 'badge-meca', 'Général': 'badge-general'
-};
+var domainClass = { 'Islam': 'badge-islam', 'Médecine': 'badge-medecine', 'Pharmacie': 'badge-pharmacie', 'Chimie': 'badge-chimie', 'IA': 'badge-ia', 'IoT': 'badge-iot', 'GMAO': 'badge-gmao', 'Mécanique Pétrole': 'badge-meca', 'Général': 'badge-general' };
 
 function updateStats() {
     var totalAnswers = 0, claudeAnswers = 0;
@@ -124,8 +120,7 @@ function updateStats() {
 function showTab(tab) {
     var content = document.getElementById('content');
     if (tab === 'scholars') {
-        var html = '<h3>🎓 Tous les Scholars (' + scholars.length + ')</h3>' +
-            '<table><thead><tr><th>Nom</th><th>Domaine</th><th>Expertise</th><th>Littérature</th><th>Note</th></tr></thead><tbody>';
+        var html = '<h3>🎓 Tous les Scholars (' + scholars.length + ')</h3><table><thead><tr><th>Nom</th><th>Domaine</th><th>Expertise</th><th>Littérature</th><th>Note</th></tr></thead><tbody>';
         for (var i = 0; i < scholars.length; i++) {
             var s = scholars[i];
             var cls = domainClass[s.domain] || 'badge-general';
@@ -136,16 +131,13 @@ function showTab(tab) {
         content.innerHTML = html;
     } else if (tab === 'questions') {
         if (questions.length === 0) { content.innerHTML = '<p style="text-align:center;padding:30px;opacity:0.5;">Aucune question.</p>'; return; }
-        var html = '<h3>📋 Questions (' + questions.length + ')</h3>' +
-            '<table><thead><tr><th>ID</th><th>Domaine</th><th>Titre</th><th>Auteur</th><th>Scholar</th><th>Statut</th><th>Réponses</th></tr></thead><tbody>';
+        var html = '<h3>📋 Questions (' + questions.length + ')</h3><table><thead><tr><th>ID</th><th>Domaine</th><th>Titre</th><th>Auteur</th><th>Scholar</th><th>Statut</th><th>Réponses</th></tr></thead><tbody>';
         for (var j = 0; j < questions.length; j++) {
             var q = questions[j];
             var cls = domainClass[q.domain] || 'badge-general';
             var ansCount = q.answers ? q.answers.length : 0;
             var scholarName = q.scholar ? q.scholar.name : 'Non assigné';
-            html += '<tr><td>' + q.id + '</td><td><span class="badge ' + cls + '">' + q.domain + '</span></td>' +
-                '<td>' + q.title + '</td><td>' + q.username + '</td><td>' + scholarName + '</td>' +
-                '<td>' + q.status + '</td><td>' + ansCount + '</td></tr>';
+            html += '<tr><td>' + q.id + '</td><td><span class="badge ' + cls + '">' + q.domain + '</span></td><td>' + q.title + '</td><td>' + q.username + '</td><td>' + scholarName + '</td><td>' + q.status + '</td><td>' + ansCount + '</td></tr>';
         }
         html += '</tbody></table>';
         content.innerHTML = html;
@@ -154,31 +146,22 @@ function showTab(tab) {
         for (var k = 0; k < questions.length; k++) {
             if (questions[k].answers) {
                 for (var m = 0; m < questions[k].answers.length; m++) {
-                    if (questions[k].answers[m].isClaude) {
-                        claudeAnswersList.push({ question: questions[k], answer: questions[k].answers[m] });
-                    }
+                    if (questions[k].answers[m].isClaude) { claudeAnswersList.push({ question: questions[k], answer: questions[k].answers[m] }); }
                 }
             }
         }
         var html = '<h3>🤖 Réponses du Juge Claude (' + claudeAnswersList.length + ')</h3>';
-        if (claudeAnswersList.length === 0) {
-            html += '<p style="text-align:center;padding:30px;opacity:0.5;">Aucune réponse Claude.</p>';
-        } else {
+        if (claudeAnswersList.length === 0) { html += '<p style="text-align:center;padding:30px;opacity:0.5;">Aucune réponse Claude.</p>'; }
+        else {
             for (var n = 0; n < claudeAnswersList.length; n++) {
                 var item = claudeAnswersList[n];
                 var reason = item.answer.claudeReason === 'no_literature' ? '❌ Sans littérature' : '⏱️ Timeout 5 min';
-                html += '<div style="background:linear-gradient(135deg,rgba(139,92,246,0.1),rgba(236,72,153,0.05));padding:15px;border-radius:10px;margin:10px 0;border-left:4px solid #8b5cf6;">' +
-                    '<strong>Q#' + item.question.id + ' : ' + item.question.title + '</strong> ' +
-                    '<span class="badge badge-claude">' + reason + '</span>' +
-                    '<div style="margin-top:10px;white-space:pre-wrap;font-size:13px;">' + item.answer.content + '</div>' +
-                    '<div style="margin-top:10px;opacity:0.6;font-size:12px;">📅 ' + item.answer.date + '</div>' +
-                    '</div>';
+                html += '<div style="background:linear-gradient(135deg,rgba(139,92,246,0.1),rgba(236,72,153,0.05));padding:15px;border-radius:10px;margin:10px 0;border-left:4px solid #8b5cf6;"><strong>Q#' + item.question.id + ' : ' + item.question.title + '</strong> <span class="badge badge-claude">' + reason + '</span><div style="margin-top:10px;white-space:pre-wrap;font-size:13px;">' + item.answer.content + '</div><div style="margin-top:10px;opacity:0.6;font-size:12px;">📅 ' + item.answer.date + '</div></div>';
             }
         }
         content.innerHTML = html;
     } else if (tab === 'users') {
-        var html = '<h3>👤 Utilisateurs (' + users.length + ')</h3>' +
-            '<table><thead><tr><th>ID</th><th>Nom</th><th>Email</th><th>Rôle</th></tr></thead><tbody>';
+        var html = '<h3>👤 Utilisateurs (' + users.length + ')</h3><table><thead><tr><th>ID</th><th>Nom</th><th>Email</th><th>Rôle</th></tr></thead><tbody>';
         for (var p = 0; p < users.length; p++) {
             var u = users[p];
             html += '<tr><td>' + u.id + '</td><td>' + u.username + '</td><td>' + u.email + '</td><td>' + (u.role || 'user') + '</td></tr>';
