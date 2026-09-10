@@ -1,5 +1,5 @@
 ﻿<!DOCTYPE html>
-<html lang="fr" dir="auto">
+<html lang="fr">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -7,7 +7,7 @@
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
-            font-family: 'Segoe UI', 'Arial', system-ui, sans-serif;
+            font-family: 'Segoe UI', system-ui, sans-serif;
             background: #0a0e27;
             color: #fff;
             min-height: 100vh;
@@ -48,18 +48,9 @@
         .btn-danger { background: #ef4444; color: white; }
         .btn-secondary { background: rgba(255,255,255,0.1); color: white; }
         .btn-admin { background: #f59e0b; color: #0a0e27; }
-        .btn-islam { background: #059669; color: white; }
-        .btn-medical { background: #ef4444; color: white; }
-        .btn-pharma { background: #f472b6; color: white; }
-        .btn-chimie { background: #06b6d4; color: white; }
-        .btn-ia { background: #8b5cf6; color: white; }
-        .btn-iot { background: #14b8a6; color: white; }
-        .btn-gmao { background: #f59e0b; color: #0a0e27; }
-        .btn-meca { background: #78716c; color: white; }
         .btn-arabic { background: #1a7a5a; color: white; }
         .btn:hover { transform: scale(1.05); opacity: 0.9; }
 
-        /* CATEGORIES NAV */
         .categories-nav {
             display: flex;
             gap: 10px;
@@ -90,8 +81,7 @@
             display: none;
             border: 1px solid rgba(255,255,255,0.1);
         }
-        .form-container.active { display: block; animation: fadeIn 0.3s; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+        .form-container.active { display: block; }
         .form-group { margin-bottom: 15px; }
         .form-group label { display: block; margin-bottom: 5px; opacity: 0.8; font-weight: 500; }
         .form-group input, .form-group textarea, .form-group select {
@@ -106,7 +96,6 @@
         .form-group textarea { min-height: 100px; resize: vertical; }
         .form-group select option, .form-group select optgroup { background: #1a1a2e; color: white; }
 
-        /* Clavier arabe */
         .keyboard-container {
             background: rgba(255,255,255,0.05);
             border-radius: 12px;
@@ -227,9 +216,6 @@
         .badge-answered { background: #22c55e; color: #0a0e27; }
         .badge-assigned { background: #8b5cf6; color: white; }
 
-        .dir-ltr { direction: ltr; }
-        .dir-rtl { direction: rtl; font-family: 'Traditional Arabic', 'Amiri', serif; }
-
         .scholar-card {
             background: rgba(255,255,255,0.05);
             padding: 15px;
@@ -238,6 +224,21 @@
             transition: 0.3s;
         }
         .scholar-card:hover { transform: translateY(-3px); border-color: #667eea; }
+
+        .history-stats {
+            display: flex;
+            gap: 15px;
+            padding: 10px 0;
+            flex-wrap: wrap;
+            font-size: 13px;
+            opacity: 0.8;
+        }
+        .history-stat {
+            background: rgba(255,255,255,0.05);
+            padding: 5px 12px;
+            border-radius: 12px;
+            border: 1px solid rgba(255,255,255,0.08);
+        }
 
         @media (max-width: 600px) {
             .header { flex-direction: column; align-items: stretch; }
@@ -255,7 +256,7 @@
     <div class="header">
         <div>
             <div class="logo">🎓 Scholars Connect</div>
-            <span class="logo-sub">🌍 8 domaines · 36 Scholars · 7 langues</span>
+            <span class="logo-sub">🌍 9 domaines · 36 Scholars · 7 langues · 💾 Historique persistant</span>
         </div>
         <div class="header-actions" id="authButtons">
             <button class="btn btn-primary" onclick="showLogin()">🔐 Connexion</button>
@@ -274,9 +275,9 @@
         <span class="status-item" id="langDisplay">🌐 Français</span>
         <span class="status-item" id="questionCount">📋 0 questions</span>
         <span class="status-item" id="scholarCount">🎓 36 Scholars</span>
+        <span class="status-item" id="sessionInfo">💾 Session active</span>
     </div>
 
-    <!-- NAVIGATION PAR DOMAINE -->
     <div class="categories-nav">
         <button class="cat-btn active" onclick="filterByDomain('all', this)">🌍 Tous</button>
         <button class="cat-btn" onclick="filterByDomain('Islam', this)">🕌 Islam</button>
@@ -294,8 +295,17 @@
         <button class="btn btn-primary" id="newQuestionBtn" onclick="showQuestionForm()" style="display:none;">✏️ Poser une question</button>
         <button class="btn btn-secondary" onclick="loadData()">🔄 Rafraîchir</button>
         <button class="btn btn-secondary" onclick="showScholars()">🎓 Voir les Scholars</button>
-        <button class="btn btn-arabic" onclick="toggleLanguage()">🌐 Changer de langue</button>
+        <button class="btn btn-secondary" onclick="showHistory()">📜 Mon historique</button>
+        <button class="btn btn-arabic" onclick="toggleLanguage()">🌐 Langue</button>
         <button class="btn btn-arabic" onclick="toggleKeyboard()">⌨️ Clavier arabe</button>
+    </div>
+
+    <!-- HISTORIQUE PERSO -->
+    <div class="form-container" id="historyForm">
+        <h2>📜 Mon historique</h2>
+        <div class="history-stats" id="historyStats"></div>
+        <div id="historyList"></div>
+        <button class="btn btn-secondary" onclick="hideForms()">Fermer</button>
     </div>
 
     <!-- FORMULAIRES -->
@@ -318,14 +328,14 @@
                 <option value="Médecine">🏥 Médecine</option>
                 <option value="Pharmacie">💊 Pharmacie</option>
                 <option value="Chimie">⚗️ Chimie</option>
-                <option value="IA">🤖 Intelligence Artificielle</option>
-                <option value="IoT">🌐 Internet des Objets</option>
+                <option value="IA">🤖 IA</option>
+                <option value="IoT">🌐 IoT</option>
                 <option value="GMAO">🏭 GMAO/GPAO</option>
                 <option value="Mécanique Pétrole">⚙️ Mécanique Pétrole</option>
                 <option value="Général">📚 Général</option>
             </select>
         </div>
-        <div class="form-group"><label>Langue préférée</label>
+        <div class="form-group"><label>Langue</label>
             <select id="regLanguage">
                 <option value="fr">Français</option>
                 <option value="ar">العربية</option>
@@ -348,8 +358,8 @@
                 <option value="Médecine">🏥 Médecine</option>
                 <option value="Pharmacie">💊 Pharmacie</option>
                 <option value="Chimie">⚗️ Chimie</option>
-                <option value="IA">🤖 Intelligence Artificielle</option>
-                <option value="IoT">🌐 Internet des Objets</option>
+                <option value="IA">🤖 IA</option>
+                <option value="IoT">🌐 IoT</option>
                 <option value="GMAO">🏭 GMAO/GPAO</option>
                 <option value="Mécanique Pétrole">⚙️ Mécanique Pétrole</option>
                 <option value="Général">📚 Général</option>
@@ -358,7 +368,7 @@
         <div class="form-group"><label>Spécialité</label>
             <select id="qCategory"></select>
         </div>
-        <div class="form-group"><label>Titre</label><input type="text" id="qTitle" placeholder="Titre de votre question"></div>
+        <div class="form-group"><label>Titre</label><input type="text" id="qTitle" placeholder="Titre"></div>
         <div class="form-group"><label>Contenu</label><textarea id="qContent" placeholder="Détaillez votre question..."></textarea></div>
         <div class="form-group"><label>Langue</label>
             <select id="qLanguage">
@@ -371,7 +381,6 @@
                 <option value="pt">Português</option>
             </select>
         </div>
-        <!-- Clavier arabe -->
         <div class="keyboard-container" id="arabicKeyboard">
             <div class="keyboard-row">
                 <button class="key-btn" onclick="insertChar('ض')">ض</button>
@@ -419,75 +428,102 @@
                 <button class="key-btn space" onclick="insertChar(' ')">مسافة</button>
                 <button class="key-btn" onclick="insertChar('؟')">؟</button>
                 <button class="key-btn" onclick="insertChar('،')">،</button>
-                <button class="key-btn" onclick="insertChar('؛')">؛</button>
-                <button class="key-btn" onclick="clearText()">⌫ مسح</button>
+                <button class="key-btn" onclick="clearText()">⌫</button>
             </div>
         </div>
         <button class="btn btn-success" onclick="askQuestion()">📤 Publier</button>
         <button class="btn btn-secondary" onclick="hideForms()">Fermer</button>
     </div>
 
-    <!-- SCHOLARS POPUP -->
     <div class="form-container" id="scholarsPopup">
         <h2>🎓 Scholars disponibles</h2>
         <div id="scholarsList"></div>
         <button class="btn btn-secondary" onclick="hideForms()">Fermer</button>
     </div>
 
-    <!-- QUESTIONS -->
     <div id="questionsContainer" class="question-grid"></div>
 </div>
 
 <script>
 // ============================================================
-// DONNÉES COMPLÈTES
+// SYSTÈME DE PERSISTANCE (localStorage)
 // ============================================================
-var users = [
+const STORAGE_KEYS = {
+    USERS: 'sc_users',
+    QUESTIONS: 'sc_questions',
+    SESSION: 'sc_session',
+    PREF_LANG: 'sc_pref_lang',
+    MY_HISTORY: 'sc_my_history'
+};
+
+function saveToStorage(key, data) {
+    try {
+        localStorage.setItem(key, JSON.stringify(data));
+        return true;
+    } catch(e) {
+        console.error('Erreur sauvegarde:', e);
+        return false;
+    }
+}
+
+function loadFromStorage(key, defaultValue) {
+    try {
+        var data = localStorage.getItem(key);
+        if (data) return JSON.parse(data);
+        return defaultValue;
+    } catch(e) {
+        console.error('Erreur chargement:', e);
+        return defaultValue;
+    }
+}
+
+// ============================================================
+// DONNÉES PERSISTANTES
+// ============================================================
+var users = loadFromStorage(STORAGE_KEYS.USERS, [
     { id: 1, username: 'admin', email: 'admin@scholars-connect.com', password: 'admin12345', role: 'admin', language: 'fr', domain: 'Général' }
-];
+]);
+
+var questions = loadFromStorage(STORAGE_KEYS.QUESTIONS, []);
+var myHistory = loadFromStorage(STORAGE_KEYS.MY_HISTORY, []);
+var currentUser = loadFromStorage(STORAGE_KEYS.SESSION, null);
+var currentLanguage = loadFromStorage(STORAGE_KEYS.PREF_LANG, 'fr');
+var isKeyboardActive = false;
+var currentFilter = 'all';
 
 var scholarsData = [
-    // ISLAM
     { id: 1, name: 'Dr. Ahmed Al-Faqih', domain: 'Islam', expertise: 'Fiqh (Jurisprudence)', languages: ['ar', 'fr', 'en'], rating: 4.9 },
     { id: 2, name: 'Dr. Fatima Al-Aqida', domain: 'Islam', expertise: 'Aqida (Croyance)', languages: ['ar', 'fr', 'en'], rating: 4.8 },
     { id: 3, name: 'Dr. Omar Al-Hadith', domain: 'Islam', expertise: 'Hadith (Prophétique)', languages: ['ar', 'en', 'fr'], rating: 4.9 },
     { id: 4, name: 'Dr. Layla Tafsir', domain: 'Islam', expertise: 'Tafsir (Exégèse)', languages: ['ar', 'fr', 'en'], rating: 4.7 },
     { id: 5, name: 'Dr. Youssef Sira', domain: 'Islam', expertise: 'Sira (Biographie)', languages: ['ar', 'en', 'fr'], rating: 4.6 },
     { id: 6, name: 'Dr. Khadija Soufisme', domain: 'Islam', expertise: 'Soufisme (Spiritualité)', languages: ['ar', 'fr', 'en'], rating: 4.5 },
-    // MÉDECINE
     { id: 7, name: 'Dr. Marie Dupont', domain: 'Médecine', expertise: 'Cardiologie', languages: ['fr', 'en', 'ar'], rating: 4.9 },
     { id: 8, name: 'Dr. Ahmed Benali', domain: 'Médecine', expertise: 'Neurologie', languages: ['fr', 'ar', 'en'], rating: 4.8 },
     { id: 9, name: 'Dr. Sophie Martin', domain: 'Médecine', expertise: 'Pédiatrie', languages: ['fr', 'en'], rating: 4.9 },
     { id: 10, name: 'Dr. Karim Haddad', domain: 'Médecine', expertise: 'Chirurgie orthopédique', languages: ['fr', 'ar', 'en'], rating: 4.7 },
     { id: 11, name: 'Dr. Leila Mansouri', domain: 'Médecine', expertise: 'Oncologie', languages: ['fr', 'ar', 'en'], rating: 4.8 },
-    // PHARMACIE
     { id: 12, name: 'Dr. Isabelle Rousseau', domain: 'Pharmacie', expertise: 'Pharmacologie clinique', languages: ['fr', 'en'], rating: 4.8 },
     { id: 13, name: 'Dr. Mohamed Trabelsi', domain: 'Pharmacie', expertise: 'Pharmacie galénique', languages: ['fr', 'ar', 'en'], rating: 4.7 },
     { id: 14, name: 'Dr. Claire Petit', domain: 'Pharmacie', expertise: 'Pharmacovigilance', languages: ['fr', 'en'], rating: 4.9 },
-    // CHIMIE
     { id: 15, name: 'Dr. Pierre Laurent', domain: 'Chimie', expertise: 'Chimie organique', languages: ['fr', 'en'], rating: 4.8 },
     { id: 16, name: 'Dr. Nadia Bouazizi', domain: 'Chimie', expertise: 'Chimie analytique', languages: ['fr', 'ar', 'en'], rating: 4.7 },
     { id: 17, name: 'Dr. Hassan Rifai', domain: 'Chimie', expertise: 'Chimie industrielle', languages: ['fr', 'ar', 'en'], rating: 4.8 },
-    // IA
     { id: 18, name: 'Dr. Yann LeCun Jr.', domain: 'IA', expertise: 'Deep Learning', languages: ['fr', 'en'], rating: 5.0 },
     { id: 19, name: 'Dr. Amina Khalil', domain: 'IA', expertise: 'NLP & Traitement du langage', languages: ['fr', 'ar', 'en'], rating: 4.9 },
     { id: 20, name: 'Dr. Thomas Bernard', domain: 'IA', expertise: 'Computer Vision', languages: ['fr', 'en'], rating: 4.8 },
     { id: 21, name: 'Dr. Sara El Amrani', domain: 'IA', expertise: 'Reinforcement Learning', languages: ['fr', 'ar', 'en'], rating: 4.7 },
-    // IoT
     { id: 22, name: 'Dr. Julien Moreau', domain: 'IoT', expertise: 'Architecture IoT', languages: ['fr', 'en'], rating: 4.8 },
     { id: 23, name: 'Dr. Rania Hamdi', domain: 'IoT', expertise: 'Sécurité IoT', languages: ['fr', 'ar', 'en'], rating: 4.7 },
     { id: 24, name: 'Dr. Marc Lefebvre', domain: 'IoT', expertise: 'Protocoles MQTT/CoAP', languages: ['fr', 'en'], rating: 4.6 },
-    // GMAO
     { id: 25, name: 'Dr. Olivier Dubois', domain: 'GMAO', expertise: 'GMAO (Maintenance Assistée)', languages: ['fr', 'en'], rating: 4.9 },
     { id: 26, name: 'Dr. Karim Bouzid', domain: 'GMAO', expertise: 'GPAO (Production Assistée)', languages: ['fr', 'ar', 'en'], rating: 4.8 },
     { id: 27, name: 'Dr. Hélène Girard', domain: 'GMAO', expertise: 'Planification industrielle', languages: ['fr', 'en'], rating: 4.7 },
-    // MÉCANIQUE PÉTROLE
     { id: 28, name: 'Dr. Jean-Pierre Durand', domain: 'Mécanique Pétrole', expertise: 'Usinage CNC haute précision', languages: ['fr', 'en'], rating: 5.0 },
     { id: 29, name: 'Dr. Abdelkader Ziani', domain: 'Mécanique Pétrole', expertise: 'Vannes et équipements pétroliers', languages: ['fr', 'ar', 'en'], rating: 4.9 },
     { id: 30, name: 'Dr. Sarah Cohen', domain: 'Mécanique Pétrole', expertise: 'Turbines et compresseurs', languages: ['fr', 'en'], rating: 4.8 },
     { id: 31, name: 'Dr. Rachid Benmoussa', domain: 'Mécanique Pétrole', expertise: 'Forage et complétion', languages: ['fr', 'ar', 'en'], rating: 4.9 },
     { id: 32, name: 'Dr. Philippe Roux', domain: 'Mécanique Pétrole', expertise: 'Contrôle qualité et métrologie', languages: ['fr', 'en'], rating: 4.8 },
-    // GÉNÉRAL
     { id: 33, name: 'Dr. Amira Math', domain: 'Général', expertise: 'Mathématiques', languages: ['fr', 'en', 'ar'], rating: 4.9 },
     { id: 34, name: 'Dr. Sophie Physique', domain: 'Général', expertise: 'Physique', languages: ['fr', 'en'], rating: 4.8 },
     { id: 35, name: 'Dr. Karim Info', domain: 'Général', expertise: 'Informatique', languages: ['fr', 'en', 'es'], rating: 4.7 },
@@ -506,14 +542,57 @@ var categoriesByDomain = {
     'Général': ['Mathématiques', 'Physique', 'Informatique', 'Histoire', 'Philosophie']
 };
 
-var questions = [];
-var currentUser = null;
-var currentLanguage = localStorage.getItem('prefLang') || 'fr';
-var isKeyboardActive = false;
-var currentFilter = 'all';
+// ============================================================
+// SAUVEGARDE AUTOMATIQUE
+// ============================================================
+function saveAll() {
+    saveToStorage(STORAGE_KEYS.USERS, users);
+    saveToStorage(STORAGE_KEYS.QUESTIONS, questions);
+    saveToStorage(STORAGE_KEYS.SESSION, currentUser);
+    saveToStorage(STORAGE_KEYS.PREF_LANG, currentLanguage);
+    saveToStorage(STORAGE_KEYS.MY_HISTORY, myHistory);
+}
+
+function saveUsers() { saveToStorage(STORAGE_KEYS.USERS, users); }
+function saveQuestions() { saveToStorage(STORAGE_KEYS.QUESTIONS, questions); }
+function saveSession() { saveToStorage(STORAGE_KEYS.SESSION, currentUser); }
+function saveHistory() { saveToStorage(STORAGE_KEYS.MY_HISTORY, myHistory); }
 
 // ============================================================
-// NAVIGATION PAR DOMAINE
+// INITIALISATION - Restaure la session
+// ============================================================
+function initializeApp() {
+    // Restaurer la session
+    if (currentUser) {
+        // Vérifier que l'utilisateur existe toujours
+        var found = false;
+        for (var i = 0; i < users.length; i++) {
+            if (users[i].id === currentUser.id) {
+                currentUser = users[i];
+                found = true;
+                break;
+            }
+        }
+        if (!found) {
+            currentUser = null;
+            saveSession();
+        }
+    }
+    
+    // Mettre à jour l'UI
+    updateUI();
+    renderQuestions();
+    
+    // Notification de session restaurée
+    if (currentUser) {
+        setTimeout(function() {
+            showNotification('💾 Session restaurée : ' + currentUser.username, 'info');
+        }, 500);
+    }
+}
+
+// ============================================================
+// NAVIGATION
 // ============================================================
 function filterByDomain(domain, btn) {
     currentFilter = domain;
@@ -571,7 +650,7 @@ function toggleLanguage() {
     var langs = ['fr', 'ar', 'en', 'es', 'de', 'it', 'pt'];
     var idx = langs.indexOf(currentLanguage);
     currentLanguage = langs[(idx + 1) % langs.length];
-    localStorage.setItem('prefLang', currentLanguage);
+    saveToStorage(STORAGE_KEYS.PREF_LANG, currentLanguage);
     document.getElementById('langDisplay').innerHTML = '🌐 ' + getLangName(currentLanguage);
     showNotification('Langue: ' + getLangName(currentLanguage), 'info');
 }
@@ -598,30 +677,17 @@ function assignScholar(domain, category) {
 
 function getDomainClass(domain) {
     var map = {
-        'Islam': 'domain-islam',
-        'Médecine': 'domain-medecine',
-        'Pharmacie': 'domain-pharmacie',
-        'Chimie': 'domain-chimie',
-        'IA': 'domain-ia',
-        'IoT': 'domain-iot',
-        'GMAO': 'domain-gmao',
-        'Mécanique Pétrole': 'domain-meca',
-        'Général': 'domain-general'
+        'Islam': 'domain-islam', 'Médecine': 'domain-medecine', 'Pharmacie': 'domain-pharmacie',
+        'Chimie': 'domain-chimie', 'IA': 'domain-ia', 'IoT': 'domain-iot',
+        'GMAO': 'domain-gmao', 'Mécanique Pétrole': 'domain-meca', 'Général': 'domain-general'
     };
     return map[domain] || 'domain-general';
 }
 
 function getDomainIcon(domain) {
     var icons = {
-        'Islam': '🕌',
-        'Médecine': '🏥',
-        'Pharmacie': '💊',
-        'Chimie': '⚗️',
-        'IA': '🤖',
-        'IoT': '🌐',
-        'GMAO': '🏭',
-        'Mécanique Pétrole': '⚙️',
-        'Général': '📚'
+        'Islam': '🕌', 'Médecine': '🏥', 'Pharmacie': '💊', 'Chimie': '⚗️',
+        'IA': '🤖', 'IoT': '🌐', 'GMAO': '🏭', 'Mécanique Pétrole': '⚙️', 'Général': '📚'
     };
     return icons[domain] || '📖';
 }
@@ -674,6 +740,12 @@ function showQuestionForm() {
     updateCategories();
     if (isKeyboardActive) document.getElementById('arabicKeyboard').classList.add('active');
 }
+function showHistory() {
+    if (!currentUser) { showNotification('Veuillez vous connecter', 'error'); return; }
+    hideForms();
+    renderHistory();
+    document.getElementById('historyForm').classList.add('active');
+}
 function hideForms() {
     var forms = document.querySelectorAll('.form-container');
     for (var i = 0; i < forms.length; i++) forms[i].classList.remove('active');
@@ -696,7 +768,7 @@ function updateCategories() {
 }
 
 // ============================================================
-// AUTHENTIFICATION
+// AUTHENTIFICATION (SESSION PERSISTANTE)
 // ============================================================
 function login() {
     var email = document.getElementById('loginEmail').value;
@@ -708,9 +780,11 @@ function login() {
     if (user) {
         currentUser = user;
         if (user.language) currentLanguage = user.language;
+        saveSession();
+        saveToStorage(STORAGE_KEYS.PREF_LANG, currentLanguage);
         updateUI();
         hideForms();
-        showNotification('✅ Connecté !', 'success');
+        showNotification('✅ Connecté ! Session sauvegardée', 'success');
         renderQuestions();
     } else {
         showNotification('❌ Identifiants incorrects', 'error');
@@ -730,18 +804,23 @@ function register() {
     }
     var newUser = { id: users.length + 1, username: username, email: email, password: password, role: 'user', language: language, domain: domain };
     users.push(newUser);
+    saveUsers();
     currentUser = newUser;
     currentLanguage = language;
+    saveSession();
+    saveToStorage(STORAGE_KEYS.PREF_LANG, currentLanguage);
     updateUI();
     hideForms();
-    showNotification('✅ Inscription réussie !', 'success');
+    showNotification('✅ Inscription réussie ! Session sauvegardée', 'success');
     renderQuestions();
 }
 
 function logout() {
+    if (!confirm('Voulez-vous vraiment vous déconnecter ?')) return;
     currentUser = null;
+    saveSession();
     updateUI();
-    showNotification('Déconnecté', 'info');
+    showNotification('🚪 Déconnecté', 'info');
 }
 
 function updateUI() {
@@ -753,6 +832,7 @@ function updateUI() {
             '<span>' + currentUser.username + '</span>';
         document.getElementById('newQuestionBtn').style.display = 'inline-block';
         document.getElementById('userRole').innerHTML = '👤 ' + currentUser.username;
+        document.getElementById('sessionInfo').innerHTML = '💾 Session active';
         if (currentUser.role === 'admin') {
             document.getElementById('adminBtn').style.display = 'inline-block';
         }
@@ -762,8 +842,79 @@ function updateUI() {
         document.getElementById('newQuestionBtn').style.display = 'none';
         document.getElementById('adminBtn').style.display = 'none';
         document.getElementById('userRole').innerHTML = '👤 Visiteur';
+        document.getElementById('sessionInfo').innerHTML = '💾 Non connecté';
     }
     document.getElementById('langDisplay').innerHTML = '🌐 ' + getLangName(currentLanguage);
+}
+
+// ============================================================
+// HISTORIQUE
+// ============================================================
+function addToHistory(action, data) {
+    var entry = {
+        id: myHistory.length + 1,
+        userId: currentUser ? currentUser.id : null,
+        username: currentUser ? currentUser.username : 'Anonyme',
+        action: action,
+        data: data,
+        timestamp: new Date().toISOString(),
+        date: new Date().toLocaleString()
+    };
+    myHistory.unshift(entry);
+    if (myHistory.length > 200) myHistory = myHistory.slice(0, 200);
+    saveHistory();
+}
+
+function renderHistory() {
+    var container = document.getElementById('historyList');
+    var stats = document.getElementById('historyStats');
+    
+    var myQuestions = questions.filter(function(q) { return q.username === currentUser.username; });
+    var myAnswers = 0;
+    for (var i = 0; i < questions.length; i++) {
+        if (questions[i].answers) {
+            for (var j = 0; j < questions[i].answers.length; j++) {
+                if (questions[i].answers[j].username === currentUser.username) myAnswers++;
+            }
+        }
+    }
+    
+    stats.innerHTML = 
+        '<span class="history-stat">📋 ' + myQuestions.length + ' questions posées</span>' +
+        '<span class="history-stat">💬 ' + myAnswers + ' réponses données</span>' +
+        '<span class="history-stat">📊 ' + myHistory.length + ' actions enregistrées</span>';
+    
+    if (myQuestions.length === 0) {
+        container.innerHTML = '<p style="text-align:center;opacity:0.5;padding:30px;">Aucune question posée pour le moment.</p>';
+        return;
+    }
+    
+    var html = '<h3 style="margin:15px 0;">📋 Mes questions (' + myQuestions.length + ')</h3>';
+    for (var k = 0; k < myQuestions.length; k++) {
+        var q = myQuestions[k];
+        var dClass = getDomainClass(q.domain);
+        html += '<div class="question-card" style="margin:10px 0;">' +
+            '<div class="question-title">' + getDomainIcon(q.domain) + ' ' + q.title + '</div>' +
+            '<div class="question-meta">' +
+            '<span class="domain-tag ' + dClass + '">' + q.domain + '</span>' +
+            ' | 📂 ' + q.category + ' | 📅 ' + q.date +
+            ' | <span class="badge badge-' + q.status + '">' + q.status + '</span>' +
+            '</div>' +
+            '<div class="question-content">' + q.content + '</div>';
+        if (q.answers && q.answers.length > 0) {
+            html += '<div class="answers-section"><strong>💬 ' + q.answers.length + ' réponses</strong>';
+            for (var m = 0; m < q.answers.length; m++) {
+                var a = q.answers[m];
+                html += '<div class="answer-item">' +
+                    '<div>' + a.content + '</div>' +
+                    '<div class="answer-meta">👤 ' + a.username + ' | 🌐 ' + getLangName(a.language) + ' | 📅 ' + a.date + '</div>' +
+                    '</div>';
+            }
+            html += '</div>';
+        }
+        html += '</div>';
+    }
+    container.innerHTML = html;
 }
 
 // ============================================================
@@ -781,22 +932,29 @@ function askQuestion() {
     
     var scholar = assignScholar(domain, category);
     
-    questions.unshift({
+    var question = {
         id: questions.length + 1,
         domain: domain,
         title: title,
         category: category,
         content: content,
         username: currentUser.username,
+        userId: currentUser.id,
         language: language,
         date: new Date().toLocaleDateString(),
+        timestamp: new Date().toISOString(),
         status: scholar ? 'assigned' : 'pending',
         scholar: scholar,
         answers: []
-    });
+    };
     
-    var message = '✅ Question publiée !';
-    if (scholar) message += ' Scholar assigné : ' + scholar.name;
+    questions.unshift(question);
+    saveQuestions();
+    
+    addToHistory('question', { title: title, domain: domain, category: category });
+    
+    var message = '✅ Question publiée et sauvegardée !';
+    if (scholar) message += ' Scholar : ' + scholar.name;
     showNotification(message, 'success');
     hideForms();
     renderQuestions();
@@ -824,10 +982,7 @@ function renderQuestions() {
         var dClass = getDomainClass(q.domain);
         var icon = getDomainIcon(q.domain);
         
-        var scholarInfo = '';
-        if (q.scholar) {
-            scholarInfo = '<span class="domain-tag ' + dClass + '">🎓 ' + q.scholar.name + '</span>';
-        }
+        var scholarInfo = q.scholar ? '<span class="domain-tag ' + dClass + '">🎓 ' + q.scholar.name + '</span>' : '';
         
         var answersHtml = '';
         if (q.answers && q.answers.length > 0) {
@@ -837,7 +992,7 @@ function renderQuestions() {
                 answersHtml += '<div class="answer-item">' +
                     '<div>' + a.content + '</div>' +
                     '<div class="answer-meta">👤 ' + a.username + ' | 🌐 ' + getLangName(a.language) +
-                    (a.aiVerified ? ' | ✅ Vérifié par AI' : '') + '</div></div>';
+                    ' | 📅 ' + a.date + (a.aiVerified ? ' | ✅ AI' : '') + '</div></div>';
             }
             answersHtml += '</div>';
         } else {
@@ -872,12 +1027,17 @@ function showAnswerForm(questionId) {
             var isScholar = scholarsData.some(function(s) { return s.name === currentUser.username; });
             questions[i].answers.push({
                 username: currentUser.username,
+                userId: currentUser.id,
                 content: content,
                 language: lang,
+                date: new Date().toLocaleDateString(),
+                timestamp: new Date().toISOString(),
                 aiVerified: isScholar
             });
             if (isScholar) questions[i].status = 'answered';
-            showNotification('✅ Réponse publiée !', 'success');
+            saveQuestions();
+            addToHistory('answer', { questionTitle: questions[i].title, content: content.substring(0, 50) });
+            showNotification('✅ Réponse publiée et sauvegardée !', 'success');
             renderQuestions();
             break;
         }
@@ -886,12 +1046,13 @@ function showAnswerForm(questionId) {
 
 function loadData() {
     renderQuestions();
-    showNotification('Données actualisées', 'info');
+    showNotification('✅ Données actualisées', 'info');
 }
 
-// INIT
-renderQuestions();
-updateUI();
+// ============================================================
+// INITIALISATION
+// ============================================================
+initializeApp();
 </script>
 </body>
 </html>
