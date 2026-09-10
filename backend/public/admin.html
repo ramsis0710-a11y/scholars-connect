@@ -1,64 +1,110 @@
 ﻿<!DOCTYPE html>
-<html lang="ar" dir="rtl">
+<html lang="fr">
 <head>
 <meta charset="UTF-8">
-<title>شولارز كونكت - لوحة التحكم</title>
+<title>Scholars Connect - Admin</title>
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
-body { font-family:"Segoe UI","Traditional Arabic",sans-serif; background:#0a0e27; color:#fff; padding:20px; }
-.container { max-width:1000px; margin:0 auto; }
-.header { display:flex; justify-content:space-between; align-items:center; padding:20px 0; border-bottom:2px solid #059669; flex-wrap:wrap; gap:10px; }
-.logo { font-size:28px; font-weight:700; color:#059669; }
+body { font-family:"Segoe UI",sans-serif; background:#0a0e27; color:#fff; padding:20px; }
+.container { max-width:1400px; margin:0 auto; }
+.header { display:flex; justify-content:space-between; align-items:center; padding:20px 0; border-bottom:2px solid #667eea; flex-wrap:wrap; gap:10px; }
+.logo { font-size:28px; font-weight:700; color:#667eea; }
 .btn { padding:10px 20px; border:none; border-radius:10px; cursor:pointer; font-weight:600; }
 .btn-secondary { background:rgba(255,255,255,0.1); color:white; }
-table { width:100%; border-collapse:collapse; margin-top:20px; }
-th,td { padding:12px; text-align:right; border-bottom:1px solid rgba(255,255,255,0.05); }
-th { color:#059669; }
-.badge { padding:2px 12px; border-radius:20px; font-size:12px; }
-.badge-admin { background:#f59e0b; color:#0a0e27; }
-.badge-user { background:#3b82f6; color:white; }
-.badge-scholar { background:#8b5cf6; color:white; }
+table { width:100%; border-collapse:collapse; margin-top:20px; font-size:13px; }
+th,td { padding:10px 12px; text-align:left; border-bottom:1px solid rgba(255,255,255,0.05); }
+th { color:#667eea; font-size:12px; text-transform:uppercase; }
+.badge { padding:2px 10px; border-radius:20px; font-size:11px; font-weight:600; }
 .badge-islam { background:#059669; color:white; }
-.stats { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:20px; margin:20px 0; }
-.stat-card { background:rgba(255,255,255,0.05); padding:20px; border-radius:12px; text-align:center; }
-.stat-number { font-size:32px; font-weight:700; color:#059669; }
+.badge-medecine { background:#ef4444; color:white; }
+.badge-pharmacie { background:#f472b6; color:white; }
+.badge-chimie { background:#06b6d4; color:white; }
+.badge-ia { background:#8b5cf6; color:white; }
+.badge-iot { background:#14b8a6; color:white; }
+.badge-gmao { background:#f59e0b; color:#0a0e27; }
+.badge-meca { background:#78716c; color:white; }
+.badge-general { background:#667eea; color:white; }
+.stats { display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:15px; margin:20px 0; }
+.stat-card { background:rgba(255,255,255,0.05); padding:20px; border-radius:12px; text-align:center; border:1px solid rgba(255,255,255,0.08); }
+.stat-number { font-size:32px; font-weight:700; color:#667eea; }
+.stat-label { opacity:0.7; margin-top:5px; font-size:12px; }
 </style>
 </head>
 <body>
 <div class="container">
     <div class="header">
-        <div><span class="logo">🕌 شولارز كونكت</span></div>
-        <div><button class="btn btn-secondary" onclick="window.location.href='/'">🏠 العودة</button></div>
+        <div><span class="logo">⚙️ Admin - Scholars Connect</span></div>
+        <div><button class="btn btn-secondary" onclick="window.location.href='/'">🏠 Retour</button></div>
     </div>
     <div class="stats">
-        <div class="stat-card"><div class="stat-number">1</div><div class="stat-label">👤 المستخدمين</div></div>
-        <div class="stat-card"><div class="stat-number">6</div><div class="stat-label">🕌 علماء الإسلام</div></div>
-        <div class="stat-card"><div class="stat-number">3</div><div class="stat-label">📚 علماء عام</div></div>
-        <div class="stat-card"><div class="stat-number">0</div><div class="stat-label">📋 الأسئلة</div></div>
+        <div class="stat-card"><div class="stat-number">36</div><div class="stat-label">🎓 Scholars</div></div>
+        <div class="stat-card"><div class="stat-number">9</div><div class="stat-label">🌍 Domaines</div></div>
+        <div class="stat-card"><div class="stat-number">7</div><div class="stat-label">🌐 Langues</div></div>
+        <div class="stat-card"><div class="stat-number">0</div><div class="stat-label">📋 Questions</div></div>
     </div>
     <div id="content"></div>
 </div>
 <script>
-document.getElementById('content').innerHTML =
-    '<h3>👤 المستخدمين</h3>' +
-    '<table><thead><tr><th>المعرف</th><th>الاسم</th><th>البريد الإلكتروني</th><th>الدور</th><th>الديانة</th></tr></thead><tbody>' +
-    '<tr><td>1</td><td>مدير النظام</td><td>admin@scholars-connect.com</td><td><span class="badge badge-admin">مدير</span></td><td>🕌 إسلام</td></tr>' +
-    '</tbody></table>' +
-    '<h3 style="margin-top:20px;">🕌 علماء الإسلام (6)</h3>' +
-    '<table><thead><tr><th>الاسم</th><th>التخصص</th><th>اللغات</th><th>التقييم</th></tr></thead><tbody>' +
-    '<tr><td>د. أحمد الفقيه</td><td>الفقه</td><td>العربية, Français, English</td><td>⭐ 4.9</td></tr>' +
-    '<tr><td>د. فاطمة العقيدة</td><td>العقيدة</td><td>العربية, Français, English</td><td>⭐ 4.8</td></tr>' +
-    '<tr><td>د. عمر الحديث</td><td>الحديث</td><td>العربية, English, Français</td><td>⭐ 4.9</td></tr>' +
-    '<tr><td>د. ليلى التفسير</td><td>التفسير</td><td>العربية, Français, English</td><td>⭐ 4.7</td></tr>' +
-    '<tr><td>د. يوسف السيرة</td><td>السيرة</td><td>العربية, English, Français</td><td>⭐ 4.6</td></tr>' +
-    '<tr><td>د. خديجة التصوف</td><td>التصوف</td><td>العربية, Français, English</td><td>⭐ 4.5</td></tr>' +
-    '</tbody></table>' +
-    '<h3 style="margin-top:20px;">📚 علماء عام (3)</h3>' +
-    '<table><thead><tr><th>الاسم</th><th>التخصص</th><th>اللغات</th><th>التقييم</th></tr></thead><tbody>' +
-    '<tr><td>د. أميرة الرياضيات</td><td>الرياضيات</td><td>العربية, Français, English</td><td>⭐ 4.9</td></tr>' +
-    '<tr><td>د. صوفي الفيزياء</td><td>الفيزياء</td><td>العربية, Français, English</td><td>⭐ 4.8</td></tr>' +
-    '<tr><td>د. كريم المعلوماتية</td><td>المعلوماتية</td><td>العربية, Français, English, Español</td><td>⭐ 4.7</td></tr>' +
-    '</tbody></table>';
+var scholars = [
+    { name: 'Dr. Ahmed Al-Faqih', domain: 'Islam', expertise: 'Fiqh', rating: 4.9 },
+    { name: 'Dr. Fatima Al-Aqida', domain: 'Islam', expertise: 'Aqida', rating: 4.8 },
+    { name: 'Dr. Omar Al-Hadith', domain: 'Islam', expertise: 'Hadith', rating: 4.9 },
+    { name: 'Dr. Layla Tafsir', domain: 'Islam', expertise: 'Tafsir', rating: 4.7 },
+    { name: 'Dr. Youssef Sira', domain: 'Islam', expertise: 'Sira', rating: 4.6 },
+    { name: 'Dr. Khadija Soufisme', domain: 'Islam', expertise: 'Soufisme', rating: 4.5 },
+    { name: 'Dr. Marie Dupont', domain: 'Médecine', expertise: 'Cardiologie', rating: 4.9 },
+    { name: 'Dr. Ahmed Benali', domain: 'Médecine', expertise: 'Neurologie', rating: 4.8 },
+    { name: 'Dr. Sophie Martin', domain: 'Médecine', expertise: 'Pédiatrie', rating: 4.9 },
+    { name: 'Dr. Karim Haddad', domain: 'Médecine', expertise: 'Chirurgie', rating: 4.7 },
+    { name: 'Dr. Leila Mansouri', domain: 'Médecine', expertise: 'Oncologie', rating: 4.8 },
+    { name: 'Dr. Isabelle Rousseau', domain: 'Pharmacie', expertise: 'Pharmacologie', rating: 4.8 },
+    { name: 'Dr. Mohamed Trabelsi', domain: 'Pharmacie', expertise: 'Galénique', rating: 4.7 },
+    { name: 'Dr. Claire Petit', domain: 'Pharmacie', expertise: 'Pharmacovigilance', rating: 4.9 },
+    { name: 'Dr. Pierre Laurent', domain: 'Chimie', expertise: 'Organique', rating: 4.8 },
+    { name: 'Dr. Nadia Bouazizi', domain: 'Chimie', expertise: 'Analytique', rating: 4.7 },
+    { name: 'Dr. Hassan Rifai', domain: 'Chimie', expertise: 'Industrielle', rating: 4.8 },
+    { name: 'Dr. Yann LeCun Jr.', domain: 'IA', expertise: 'Deep Learning', rating: 5.0 },
+    { name: 'Dr. Amina Khalil', domain: 'IA', expertise: 'NLP', rating: 4.9 },
+    { name: 'Dr. Thomas Bernard', domain: 'IA', expertise: 'Computer Vision', rating: 4.8 },
+    { name: 'Dr. Sara El Amrani', domain: 'IA', expertise: 'RL', rating: 4.7 },
+    { name: 'Dr. Julien Moreau', domain: 'IoT', expertise: 'Architecture', rating: 4.8 },
+    { name: 'Dr. Rania Hamdi', domain: 'IoT', expertise: 'Sécurité', rating: 4.7 },
+    { name: 'Dr. Marc Lefebvre', domain: 'IoT', expertise: 'MQTT/CoAP', rating: 4.6 },
+    { name: 'Dr. Olivier Dubois', domain: 'GMAO', expertise: 'GMAO', rating: 4.9 },
+    { name: 'Dr. Karim Bouzid', domain: 'GMAO', expertise: 'GPAO', rating: 4.8 },
+    { name: 'Dr. Hélène Girard', domain: 'GMAO', expertise: 'Planification', rating: 4.7 },
+    { name: 'Dr. Jean-Pierre Durand', domain: 'Mécanique Pétrole', expertise: 'Usinage CNC', rating: 5.0 },
+    { name: 'Dr. Abdelkader Ziani', domain: 'Mécanique Pétrole', expertise: 'Vannes', rating: 4.9 },
+    { name: 'Dr. Sarah Cohen', domain: 'Mécanique Pétrole', expertise: 'Turbines', rating: 4.8 },
+    { name: 'Dr. Rachid Benmoussa', domain: 'Mécanique Pétrole', expertise: 'Forage', rating: 4.9 },
+    { name: 'Dr. Philippe Roux', domain: 'Mécanique Pétrole', expertise: 'Métrologie', rating: 4.8 },
+    { name: 'Dr. Amira Math', domain: 'Général', expertise: 'Mathématiques', rating: 4.9 },
+    { name: 'Dr. Sophie Physique', domain: 'Général', expertise: 'Physique', rating: 4.8 },
+    { name: 'Dr. Karim Info', domain: 'Général', expertise: 'Informatique', rating: 4.7 },
+    { name: 'Dr. Fatima Histoire', domain: 'Général', expertise: 'Histoire', rating: 4.9 }
+];
+
+var domainClass = {
+    'Islam': 'badge-islam',
+    'Médecine': 'badge-medecine',
+    'Pharmacie': 'badge-pharmacie',
+    'Chimie': 'badge-chimie',
+    'IA': 'badge-ia',
+    'IoT': 'badge-iot',
+    'GMAO': 'badge-gmao',
+    'Mécanique Pétrole': 'badge-meca',
+    'Général': 'badge-general'
+};
+
+var html = '<h3>🎓 Tous les Scholars (' + scholars.length + ')</h3>' +
+    '<table><thead><tr><th>Nom</th><th>Domaine</th><th>Expertise</th><th>Note</th></tr></thead><tbody>';
+for (var i = 0; i < scholars.length; i++) {
+    var s = scholars[i];
+    var cls = domainClass[s.domain] || 'badge-general';
+    html += '<tr><td>' + s.name + '</td><td><span class="badge ' + cls + '">' + s.domain + '</span></td><td>' + s.expertise + '</td><td>⭐ ' + s.rating + '</td></tr>';
+}
+html += '</tbody></table>';
+document.getElementById('content').innerHTML = html;
 </script>
 </body>
 </html>
