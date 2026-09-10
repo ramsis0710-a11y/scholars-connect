@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Scholars Connect - Multi-Domaines</title>
+    <title>Scholars Connect - Juge Claude</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -48,6 +48,7 @@
         .btn-danger { background: #ef4444; color: white; }
         .btn-secondary { background: rgba(255,255,255,0.1); color: white; }
         .btn-admin { background: #f59e0b; color: #0a0e27; }
+        .btn-claude { background: linear-gradient(135deg, #8b5cf6, #ec4899); color: white; }
         .btn-arabic { background: #1a7a5a; color: white; }
         .btn:hover { transform: scale(1.05); opacity: 0.9; }
 
@@ -156,6 +157,7 @@
             transition: 0.3s;
         }
         .question-card:hover { transform: translateY(-2px); border-color: #667eea; }
+        .question-card.claude-card { border-color: #8b5cf6; box-shadow: 0 0 20px rgba(139,92,246,0.2); }
         .question-title { font-size: 18px; font-weight: 600; color: #667eea; }
         .question-meta { font-size: 13px; opacity: 0.6; margin: 5px 0; display: flex; gap: 15px; flex-wrap: wrap; }
         .question-content { margin: 10px 0; }
@@ -169,7 +171,43 @@
             margin: 8px 0;
             border-left: 3px solid #667eea;
         }
+        .answer-item.claude-answer {
+            border-left: 4px solid #8b5cf6;
+            background: linear-gradient(135deg, rgba(139,92,246,0.1), rgba(236,72,153,0.05));
+        }
+        .answer-item.scholar-answer {
+            border-left: 4px solid #10b981;
+        }
         .answer-meta { font-size: 12px; opacity: 0.6; display: flex; gap: 15px; flex-wrap: wrap; }
+
+        .claude-badge {
+            display: inline-block;
+            padding: 3px 12px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+            background: linear-gradient(135deg, #8b5cf6, #ec4899);
+            color: white;
+            animation: pulse 2s infinite;
+        }
+        .claude-status {
+            display: inline-block;
+            padding: 3px 12px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+            background: #f59e0b;
+            color: #0a0e27;
+        }
+        .timer-badge {
+            display: inline-block;
+            padding: 3px 12px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+            background: #3b82f6;
+            color: white;
+        }
 
         .domain-tag {
             display: inline-block;
@@ -203,6 +241,7 @@
         .notification.success { background: #22c55e; color: #0a0e27; display: block; }
         .notification.error { background: #ef4444; color: white; display: block; }
         .notification.info { background: #3b82f6; color: white; display: block; }
+        .notification.claude { background: linear-gradient(135deg, #8b5cf6, #ec4899); color: white; display: block; }
         @keyframes slideIn { from { transform: translateX(100px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
 
         .badge {
@@ -215,6 +254,7 @@
         .badge-pending { background: #eab308; color: #0a0e27; }
         .badge-answered { background: #22c55e; color: #0a0e27; }
         .badge-assigned { background: #8b5cf6; color: white; }
+        .badge-claude { background: linear-gradient(135deg, #8b5cf6, #ec4899); color: white; }
 
         .scholar-card {
             background: rgba(255,255,255,0.05);
@@ -224,21 +264,6 @@
             transition: 0.3s;
         }
         .scholar-card:hover { transform: translateY(-3px); border-color: #667eea; }
-
-        .history-stats {
-            display: flex;
-            gap: 15px;
-            padding: 10px 0;
-            flex-wrap: wrap;
-            font-size: 13px;
-            opacity: 0.8;
-        }
-        .history-stat {
-            background: rgba(255,255,255,0.05);
-            padding: 5px 12px;
-            border-radius: 12px;
-            border: 1px solid rgba(255,255,255,0.08);
-        }
 
         @media (max-width: 600px) {
             .header { flex-direction: column; align-items: stretch; }
@@ -256,7 +281,7 @@
     <div class="header">
         <div>
             <div class="logo">🎓 Scholars Connect</div>
-            <span class="logo-sub">🌍 9 domaines · 36 Scholars · 7 langues · 💾 Historique persistant</span>
+            <span class="logo-sub">🤖 Juge Claude actif · ⏱️ Réponse auto sous 5 min · 🌍 9 domaines</span>
         </div>
         <div class="header-actions" id="authButtons">
             <button class="btn btn-primary" onclick="showLogin()">🔐 Connexion</button>
@@ -275,7 +300,7 @@
         <span class="status-item" id="langDisplay">🌐 Français</span>
         <span class="status-item" id="questionCount">📋 0 questions</span>
         <span class="status-item" id="scholarCount">🎓 36 Scholars</span>
-        <span class="status-item" id="sessionInfo">💾 Session active</span>
+        <span class="status-item">🤖 <span class="claude-badge">Juge Claude actif</span></span>
     </div>
 
     <div class="categories-nav">
@@ -300,15 +325,13 @@
         <button class="btn btn-arabic" onclick="toggleKeyboard()">⌨️ Clavier arabe</button>
     </div>
 
-    <!-- HISTORIQUE PERSO -->
     <div class="form-container" id="historyForm">
         <h2>📜 Mon historique</h2>
-        <div class="history-stats" id="historyStats"></div>
+        <div id="historyStats" style="display:flex;gap:15px;padding:10px 0;flex-wrap:wrap;"></div>
         <div id="historyList"></div>
         <button class="btn btn-secondary" onclick="hideForms()">Fermer</button>
     </div>
 
-    <!-- FORMULAIRES -->
     <div class="form-container" id="loginForm">
         <h2>🔐 Connexion</h2>
         <div class="form-group"><label>Email</label><input type="email" id="loginEmail" placeholder="admin@scholars-connect.com"></div>
@@ -446,7 +469,7 @@
 
 <script>
 // ============================================================
-// SYSTÈME DE PERSISTANCE (localStorage)
+// PERSISTANCE
 // ============================================================
 const STORAGE_KEYS = {
     USERS: 'sc_users',
@@ -457,77 +480,104 @@ const STORAGE_KEYS = {
 };
 
 function saveToStorage(key, data) {
-    try {
-        localStorage.setItem(key, JSON.stringify(data));
-        return true;
-    } catch(e) {
-        console.error('Erreur sauvegarde:', e);
-        return false;
-    }
+    try { localStorage.setItem(key, JSON.stringify(data)); return true; }
+    catch(e) { return false; }
 }
-
 function loadFromStorage(key, defaultValue) {
     try {
         var data = localStorage.getItem(key);
         if (data) return JSON.parse(data);
         return defaultValue;
-    } catch(e) {
-        console.error('Erreur chargement:', e);
-        return defaultValue;
-    }
+    } catch(e) { return defaultValue; }
 }
 
-// ============================================================
-// DONNÉES PERSISTANTES
-// ============================================================
 var users = loadFromStorage(STORAGE_KEYS.USERS, [
     { id: 1, username: 'admin', email: 'admin@scholars-connect.com', password: 'admin12345', role: 'admin', language: 'fr', domain: 'Général' }
 ]);
-
 var questions = loadFromStorage(STORAGE_KEYS.QUESTIONS, []);
 var myHistory = loadFromStorage(STORAGE_KEYS.MY_HISTORY, []);
 var currentUser = loadFromStorage(STORAGE_KEYS.SESSION, null);
 var currentLanguage = loadFromStorage(STORAGE_KEYS.PREF_LANG, 'fr');
 var isKeyboardActive = false;
 var currentFilter = 'all';
+var activeTimers = {}; // Timers pour les réponses Claude
 
+// ============================================================
+// SCHOLARS AVEC LITTÉRATURE
+// ============================================================
 var scholarsData = [
-    { id: 1, name: 'Dr. Ahmed Al-Faqih', domain: 'Islam', expertise: 'Fiqh (Jurisprudence)', languages: ['ar', 'fr', 'en'], rating: 4.9 },
-    { id: 2, name: 'Dr. Fatima Al-Aqida', domain: 'Islam', expertise: 'Aqida (Croyance)', languages: ['ar', 'fr', 'en'], rating: 4.8 },
-    { id: 3, name: 'Dr. Omar Al-Hadith', domain: 'Islam', expertise: 'Hadith (Prophétique)', languages: ['ar', 'en', 'fr'], rating: 4.9 },
-    { id: 4, name: 'Dr. Layla Tafsir', domain: 'Islam', expertise: 'Tafsir (Exégèse)', languages: ['ar', 'fr', 'en'], rating: 4.7 },
-    { id: 5, name: 'Dr. Youssef Sira', domain: 'Islam', expertise: 'Sira (Biographie)', languages: ['ar', 'en', 'fr'], rating: 4.6 },
-    { id: 6, name: 'Dr. Khadija Soufisme', domain: 'Islam', expertise: 'Soufisme (Spiritualité)', languages: ['ar', 'fr', 'en'], rating: 4.5 },
-    { id: 7, name: 'Dr. Marie Dupont', domain: 'Médecine', expertise: 'Cardiologie', languages: ['fr', 'en', 'ar'], rating: 4.9 },
-    { id: 8, name: 'Dr. Ahmed Benali', domain: 'Médecine', expertise: 'Neurologie', languages: ['fr', 'ar', 'en'], rating: 4.8 },
-    { id: 9, name: 'Dr. Sophie Martin', domain: 'Médecine', expertise: 'Pédiatrie', languages: ['fr', 'en'], rating: 4.9 },
-    { id: 10, name: 'Dr. Karim Haddad', domain: 'Médecine', expertise: 'Chirurgie orthopédique', languages: ['fr', 'ar', 'en'], rating: 4.7 },
-    { id: 11, name: 'Dr. Leila Mansouri', domain: 'Médecine', expertise: 'Oncologie', languages: ['fr', 'ar', 'en'], rating: 4.8 },
-    { id: 12, name: 'Dr. Isabelle Rousseau', domain: 'Pharmacie', expertise: 'Pharmacologie clinique', languages: ['fr', 'en'], rating: 4.8 },
-    { id: 13, name: 'Dr. Mohamed Trabelsi', domain: 'Pharmacie', expertise: 'Pharmacie galénique', languages: ['fr', 'ar', 'en'], rating: 4.7 },
-    { id: 14, name: 'Dr. Claire Petit', domain: 'Pharmacie', expertise: 'Pharmacovigilance', languages: ['fr', 'en'], rating: 4.9 },
-    { id: 15, name: 'Dr. Pierre Laurent', domain: 'Chimie', expertise: 'Chimie organique', languages: ['fr', 'en'], rating: 4.8 },
-    { id: 16, name: 'Dr. Nadia Bouazizi', domain: 'Chimie', expertise: 'Chimie analytique', languages: ['fr', 'ar', 'en'], rating: 4.7 },
-    { id: 17, name: 'Dr. Hassan Rifai', domain: 'Chimie', expertise: 'Chimie industrielle', languages: ['fr', 'ar', 'en'], rating: 4.8 },
-    { id: 18, name: 'Dr. Yann LeCun Jr.', domain: 'IA', expertise: 'Deep Learning', languages: ['fr', 'en'], rating: 5.0 },
-    { id: 19, name: 'Dr. Amina Khalil', domain: 'IA', expertise: 'NLP & Traitement du langage', languages: ['fr', 'ar', 'en'], rating: 4.9 },
-    { id: 20, name: 'Dr. Thomas Bernard', domain: 'IA', expertise: 'Computer Vision', languages: ['fr', 'en'], rating: 4.8 },
-    { id: 21, name: 'Dr. Sara El Amrani', domain: 'IA', expertise: 'Reinforcement Learning', languages: ['fr', 'ar', 'en'], rating: 4.7 },
-    { id: 22, name: 'Dr. Julien Moreau', domain: 'IoT', expertise: 'Architecture IoT', languages: ['fr', 'en'], rating: 4.8 },
-    { id: 23, name: 'Dr. Rania Hamdi', domain: 'IoT', expertise: 'Sécurité IoT', languages: ['fr', 'ar', 'en'], rating: 4.7 },
-    { id: 24, name: 'Dr. Marc Lefebvre', domain: 'IoT', expertise: 'Protocoles MQTT/CoAP', languages: ['fr', 'en'], rating: 4.6 },
-    { id: 25, name: 'Dr. Olivier Dubois', domain: 'GMAO', expertise: 'GMAO (Maintenance Assistée)', languages: ['fr', 'en'], rating: 4.9 },
-    { id: 26, name: 'Dr. Karim Bouzid', domain: 'GMAO', expertise: 'GPAO (Production Assistée)', languages: ['fr', 'ar', 'en'], rating: 4.8 },
-    { id: 27, name: 'Dr. Hélène Girard', domain: 'GMAO', expertise: 'Planification industrielle', languages: ['fr', 'en'], rating: 4.7 },
-    { id: 28, name: 'Dr. Jean-Pierre Durand', domain: 'Mécanique Pétrole', expertise: 'Usinage CNC haute précision', languages: ['fr', 'en'], rating: 5.0 },
-    { id: 29, name: 'Dr. Abdelkader Ziani', domain: 'Mécanique Pétrole', expertise: 'Vannes et équipements pétroliers', languages: ['fr', 'ar', 'en'], rating: 4.9 },
-    { id: 30, name: 'Dr. Sarah Cohen', domain: 'Mécanique Pétrole', expertise: 'Turbines et compresseurs', languages: ['fr', 'en'], rating: 4.8 },
-    { id: 31, name: 'Dr. Rachid Benmoussa', domain: 'Mécanique Pétrole', expertise: 'Forage et complétion', languages: ['fr', 'ar', 'en'], rating: 4.9 },
-    { id: 32, name: 'Dr. Philippe Roux', domain: 'Mécanique Pétrole', expertise: 'Contrôle qualité et métrologie', languages: ['fr', 'en'], rating: 4.8 },
-    { id: 33, name: 'Dr. Amira Math', domain: 'Général', expertise: 'Mathématiques', languages: ['fr', 'en', 'ar'], rating: 4.9 },
-    { id: 34, name: 'Dr. Sophie Physique', domain: 'Général', expertise: 'Physique', languages: ['fr', 'en'], rating: 4.8 },
-    { id: 35, name: 'Dr. Karim Info', domain: 'Général', expertise: 'Informatique', languages: ['fr', 'en', 'es'], rating: 4.7 },
-    { id: 36, name: 'Dr. Fatima Histoire', domain: 'Général', expertise: 'Histoire', languages: ['fr', 'en', 'ar'], rating: 4.9 }
+    { id: 1, name: 'Dr. Ahmed Al-Faqih', domain: 'Islam', expertise: 'Fiqh (Jurisprudence)', languages: ['ar', 'fr', 'en'], rating: 4.9,
+      literature: ['Fiqh al-Islami', 'Usul al-Fiqh', 'Al-Risala', 'Bidayat al-Mujtahid'] },
+    { id: 2, name: 'Dr. Fatima Al-Aqida', domain: 'Islam', expertise: 'Aqida (Croyance)', languages: ['ar', 'fr', 'en'], rating: 4.8,
+      literature: ['Aqida Tahawiyya', 'Kitab al-Tawhid', 'Al-Ibana'] },
+    { id: 3, name: 'Dr. Omar Al-Hadith', domain: 'Islam', expertise: 'Hadith (Prophétique)', languages: ['ar', 'en', 'fr'], rating: 4.9,
+      literature: ['Sahih Bukhari', 'Sahih Muslim', 'Sunan Abi Dawud'] },
+    { id: 4, name: 'Dr. Layla Tafsir', domain: 'Islam', expertise: 'Tafsir (Exégèse)', languages: ['ar', 'fr', 'en'], rating: 4.7,
+      literature: ['Tafsir Ibn Kathir', 'Tafsir al-Tabari', 'Tafsir al-Qurtubi'] },
+    { id: 5, name: 'Dr. Youssef Sira', domain: 'Islam', expertise: 'Sira (Biographie)', languages: ['ar', 'en', 'fr'], rating: 4.6,
+      literature: ['Sira Ibn Hisham', 'Al-Rahiq al-Makhtum'] },
+    { id: 6, name: 'Dr. Khadija Soufisme', domain: 'Islam', expertise: 'Soufisme (Spiritualité)', languages: ['ar', 'fr', 'en'], rating: 4.5,
+      literature: ['Ihya Ulum al-Din', 'Al-Risala al-Qushayriyya'] },
+    { id: 7, name: 'Dr. Marie Dupont', domain: 'Médecine', expertise: 'Cardiologie', languages: ['fr', 'en', 'ar'], rating: 4.9,
+      literature: ['Harrison Cardiology', 'Braunwald Heart Disease'] },
+    { id: 8, name: 'Dr. Ahmed Benali', domain: 'Médecine', expertise: 'Neurologie', languages: ['fr', 'ar', 'en'], rating: 4.8,
+      literature: ['Adams Neurology', 'Bradley Neurology'] },
+    { id: 9, name: 'Dr. Sophie Martin', domain: 'Médecine', expertise: 'Pédiatrie', languages: ['fr', 'en'], rating: 4.9,
+      literature: ['Nelson Pediatrics'] },
+    { id: 10, name: 'Dr. Karim Haddad', domain: 'Médecine', expertise: 'Chirurgie orthopédique', languages: ['fr', 'ar', 'en'], rating: 4.7,
+      literature: [] }, // PAS DE LITTÉRATURE - Test Règle 1
+    { id: 11, name: 'Dr. Leila Mansouri', domain: 'Médecine', expertise: 'Oncologie', languages: ['fr', 'ar', 'en'], rating: 4.8,
+      literature: ['Devita Oncology'] },
+    { id: 12, name: 'Dr. Isabelle Rousseau', domain: 'Pharmacie', expertise: 'Pharmacologie clinique', languages: ['fr', 'en'], rating: 4.8,
+      literature: ['Goodman & Gilman'] },
+    { id: 13, name: 'Dr. Mohamed Trabelsi', domain: 'Pharmacie', expertise: 'Pharmacie galénique', languages: ['fr', 'ar', 'en'], rating: 4.7,
+      literature: [] }, // PAS DE LITTÉRATURE
+    { id: 14, name: 'Dr. Claire Petit', domain: 'Pharmacie', expertise: 'Pharmacovigilance', languages: ['fr', 'en'], rating: 4.9,
+      literature: ['Meyler Pharmacovigilance'] },
+    { id: 15, name: 'Dr. Pierre Laurent', domain: 'Chimie', expertise: 'Chimie organique', languages: ['fr', 'en'], rating: 4.8,
+      literature: ['Clayden Organic Chemistry'] },
+    { id: 16, name: 'Dr. Nadia Bouazizi', domain: 'Chimie', expertise: 'Chimie analytique', languages: ['fr', 'ar', 'en'], rating: 4.7,
+      literature: ['Skoog Analytical Chemistry'] },
+    { id: 17, name: 'Dr. Hassan Rifai', domain: 'Chimie', expertise: 'Chimie industrielle', languages: ['fr', 'ar', 'en'], rating: 4.8,
+      literature: [] },
+    { id: 18, name: 'Dr. Yann LeCun Jr.', domain: 'IA', expertise: 'Deep Learning', languages: ['fr', 'en'], rating: 5.0,
+      literature: ['Deep Learning (Goodfellow)', 'Neural Networks (Bishop)'] },
+    { id: 19, name: 'Dr. Amina Khalil', domain: 'IA', expertise: 'NLP & Traitement du langage', languages: ['fr', 'ar', 'en'], rating: 4.9,
+      literature: ['Speech and Language Processing (Jurafsky)'] },
+    { id: 20, name: 'Dr. Thomas Bernard', domain: 'IA', expertise: 'Computer Vision', languages: ['fr', 'en'], rating: 4.8,
+      literature: ['Computer Vision (Szeliski)'] },
+    { id: 21, name: 'Dr. Sara El Amrani', domain: 'IA', expertise: 'Reinforcement Learning', languages: ['fr', 'ar', 'en'], rating: 4.7,
+      literature: ['Reinforcement Learning (Sutton & Barto)'] },
+    { id: 22, name: 'Dr. Julien Moreau', domain: 'IoT', expertise: 'Architecture IoT', languages: ['fr', 'en'], rating: 4.8,
+      literature: ['IoT Architecture (Borgia)'] },
+    { id: 23, name: 'Dr. Rania Hamdi', domain: 'IoT', expertise: 'Sécurité IoT', languages: ['fr', 'ar', 'en'], rating: 4.7,
+      literature: ['IoT Security (Russell)'] },
+    { id: 24, name: 'Dr. Marc Lefebvre', domain: 'IoT', expertise: 'Protocoles MQTT/CoAP', languages: ['fr', 'en'], rating: 4.6,
+      literature: ['MQTT Essentials'] },
+    { id: 25, name: 'Dr. Olivier Dubois', domain: 'GMAO', expertise: 'GMAO (Maintenance Assistée)', languages: ['fr', 'en'], rating: 4.9,
+      literature: ['Maintenance Industrielle (AFNOR)'] },
+    { id: 26, name: 'Dr. Karim Bouzid', domain: 'GMAO', expertise: 'GPAO (Production Assistée)', languages: ['fr', 'ar', 'en'], rating: 4.8,
+      literature: ['GPAO - Gestion de Production'] },
+    { id: 27, name: 'Dr. Hélène Girard', domain: 'GMAO', expertise: 'Planification industrielle', languages: ['fr', 'en'], rating: 4.7,
+      literature: [] },
+    { id: 28, name: 'Dr. Jean-Pierre Durand', domain: 'Mécanique Pétrole', expertise: 'Usinage CNC haute précision', languages: ['fr', 'en'], rating: 5.0,
+      literature: ['CNC Programming Handbook', 'Machining Fundamentals'] },
+    { id: 29, name: 'Dr. Abdelkader Ziani', domain: 'Mécanique Pétrole', expertise: 'Vannes et équipements pétroliers', languages: ['fr', 'ar', 'en'], rating: 4.9,
+      literature: ['Valve Handbook (Skousen)', 'API 6D Standard'] },
+    { id: 30, name: 'Dr. Sarah Cohen', domain: 'Mécanique Pétrole', expertise: 'Turbines et compresseurs', languages: ['fr', 'en'], rating: 4.8,
+      literature: ['Gas Turbine Theory (Saravanamuttoo)'] },
+    { id: 31, name: 'Dr. Rachid Benmoussa', domain: 'Mécanique Pétrole', expertise: 'Forage et complétion', languages: ['fr', 'ar', 'en'], rating: 4.9,
+      literature: ['Drilling Engineering (Bourgoyne)'] },
+    { id: 32, name: 'Dr. Philippe Roux', domain: 'Mécanique Pétrole', expertise: 'Contrôle qualité et métrologie', languages: ['fr', 'en'], rating: 4.8,
+      literature: ['Metrology Handbook'] },
+    { id: 33, name: 'Dr. Amira Math', domain: 'Général', expertise: 'Mathématiques', languages: ['fr', 'en', 'ar'], rating: 4.9,
+      literature: ['Calculus (Stewart)', 'Linear Algebra (Strang)'] },
+    { id: 34, name: 'Dr. Sophie Physique', domain: 'Général', expertise: 'Physique', languages: ['fr', 'en'], rating: 4.8,
+      literature: ['Feynman Lectures'] },
+    { id: 35, name: 'Dr. Karim Info', domain: 'Général', expertise: 'Informatique', languages: ['fr', 'en', 'es'], rating: 4.7,
+      literature: ['Clean Code', 'Introduction to Algorithms'] },
+    { id: 36, name: 'Dr. Fatima Histoire', domain: 'Général', expertise: 'Histoire', languages: ['fr', 'en', 'ar'], rating: 4.9,
+      literature: ['Histoire Universelle'] }
 ];
 
 var categoriesByDomain = {
@@ -543,47 +593,219 @@ var categoriesByDomain = {
 };
 
 // ============================================================
-// SAUVEGARDE AUTOMATIQUE
+// JUGE CLAUDE - RECHERCHE SÉMANTIQUE
 // ============================================================
-function saveAll() {
-    saveToStorage(STORAGE_KEYS.USERS, users);
-    saveToStorage(STORAGE_KEYS.QUESTIONS, questions);
-    saveToStorage(STORAGE_KEYS.SESSION, currentUser);
-    saveToStorage(STORAGE_KEYS.PREF_LANG, currentLanguage);
-    saveToStorage(STORAGE_KEYS.MY_HISTORY, myHistory);
+function claudeSemanticSearch(question, scholar) {
+    // Simulation d'une recherche sémantique dans la littérature du scholar
+    if (!scholar.literature || scholar.literature.length === 0) {
+        return { found: false, reason: 'no_literature', matches: [] };
+    }
+    
+    // Recherche par mots-clés dans les titres de littérature
+    var questionLower = (question.title + ' ' + question.content).toLowerCase();
+    var questionWords = questionLower.split(/\s+/).filter(function(w) { return w.length > 3; });
+    
+    var matches = [];
+    for (var i = 0; i < scholar.literature.length; i++) {
+        var lit = scholar.literature[i].toLowerCase();
+        for (var j = 0; j < questionWords.length; j++) {
+            if (lit.indexOf(questionWords[j]) !== -1 || questionWords[j].indexOf(lit.split(' ')[0]) !== -1) {
+                matches.push(scholar.literature[i]);
+                break;
+            }
+        }
+    }
+    
+    // Si plus de 50% des mots-clés trouvés → littérature suffisante
+    var matchRatio = matches.length / scholar.literature.length;
+    if (matches.length > 0 || matchRatio > 0.3) {
+        return { found: true, matches: matches };
+    }
+    
+    return { found: false, reason: 'no_semantic_match', matches: [] };
 }
 
+// ============================================================
+// JUGE CLAUDE - GÉNÉRATION DE RÉPONSE
+// ============================================================
+function claudeGenerateAnswer(question, scholar, reason) {
+    var answer = '';
+    var literatureRef = '';
+    
+    if (scholar.literature && scholar.literature.length > 0) {
+        literatureRef = scholar.literature.slice(0, 3).join(', ');
+    }
+    
+    if (reason === 'no_literature') {
+        answer = '🤖 Réponse du Juge Claude\n\n';
+        answer += 'Le scholar assigné ' + scholar.name + ' ne dispose pas de littérature spécifique sur cette question.\n\n';
+        answer += '📚 Je réponds donc directement en me basant sur les connaissances générales du domaine ' + question.domain + ' :\n\n';
+        answer += 'Concernant votre question "' + question.title + '" :\n';
+        answer += 'Cette question relève du domaine ' + question.domain + ' (' + question.category + '). ';
+        answer += 'En l\'absence de littérature spécifique du scholar, je vous fournis une réponse basée sur les connaissances générales et standards du domaine.\n\n';
+        answer += '💡 Pour une réponse plus pointue, veuillez consulter un autre scholar spécialisé dans cette sous-catégorie.';
+    } else if (reason === 'timeout_5min') {
+        answer = '🤖 Réponse du Juge Claude (délai de 5 minutes dépassé)\n\n';
+        answer += 'Le scholar ' + scholar.name + ' n\'a pas répondu dans le délai imparti (5 minutes).\n\n';
+        answer += '📚 Je réponds en me référant à sa littérature diffusée :\n';
+        if (literatureRef) {
+            answer += '📖 Références : ' + literatureRef + '\n\n';
+        }
+        answer += 'Concernant votre question "' + question.title + '" :\n';
+        answer += 'Voici une réponse basée sur les ouvrages de référence du scholar ' + scholar.name + '.\n\n';
+        answer += '💡 Le scholar ' + scholar.name + ' pourra compléter cette réponse s\'il revient ultérieurement.';
+    } else if (reason === 'late_scholar_response') {
+        answer = '📢 Diffusion de la réponse du Scholar ' + scholar.name + '\n\n';
+        answer += 'Le scholar a finalement répondu (avec un léger retard) :\n\n';
+        answer += '⏱️ Note : Le Juge Claude avait déjà fourni une réponse temporaire en attendant.';
+    }
+    
+    return answer;
+}
+
+// ============================================================
+// JUGE CLAUDE - TRAITEMENT D'UNE QUESTION
+// ============================================================
+function claudeJudge(question) {
+    if (!question.scholar) return;
+    
+    var scholar = question.scholar;
+    
+    // RÈGLE 1 : Vérifier si le scholar a de la littérature pertinente
+    var searchResult = claudeSemanticSearch(question, scholar);
+    
+    if (!searchResult.found) {
+        // Pas de littérature → Claude répond immédiatement
+        setTimeout(function() {
+            var claudeAnswer = claudeGenerateAnswer(question, scholar, 'no_literature');
+            addClaudeAnswer(question.id, claudeAnswer, 'no_literature');
+            showNotification('🤖 Juge Claude a répondu (pas de littérature du scholar)', 'claude');
+        }, 2000);
+        return;
+    }
+    
+    // RÈGLE 2 : Attendre 5 minutes (300 000 ms) que le scholar réponde
+    // Pour la démo, on utilise 30 secondes au lieu de 5 minutes
+    var TIMEOUT_DEMO = 30000; // 30 secondes pour la démo
+    
+    question.claudeTimer = setTimeout(function() {
+        // Vérifier si le scholar a répondu entre-temps
+        var stillNoAnswer = true;
+        for (var i = 0; i < questions.length; i++) {
+            if (questions[i].id === question.id && questions[i].answers) {
+                for (var j = 0; j < questions[i].answers.length; j++) {
+                    if (questions[i].answers[j].isScholarResponse) {
+                        stillNoAnswer = false;
+                        break;
+                    }
+                }
+            }
+        }
+        
+        if (stillNoAnswer) {
+            var claudeAnswer = claudeGenerateAnswer(question, scholar, 'timeout_5min');
+            addClaudeAnswer(question.id, claudeAnswer, 'timeout_5min');
+            showNotification('⏱️ Juge Claude a répondu (délai de 5 min dépassé)', 'claude');
+        }
+    }, TIMEOUT_DEMO);
+    
+    saveQuestions();
+}
+
+function addClaudeAnswer(questionId, content, reason) {
+    for (var i = 0; i < questions.length; i++) {
+        if (questions[i].id === questionId) {
+            if (!questions[i].answers) questions[i].answers = [];
+            questions[i].answers.push({
+                username: 'Juge Claude',
+                userId: 0,
+                content: content,
+                language: currentLanguage,
+                date: new Date().toLocaleDateString(),
+                timestamp: new Date().toISOString(),
+                isClaude: true,
+                claudeReason: reason
+            });
+            if (questions[i].status === 'pending' || questions[i].status === 'assigned') {
+                questions[i].status = 'claude_answered';
+            }
+            saveQuestions();
+            renderQuestions();
+            break;
+        }
+    }
+}
+
+// ============================================================
+// RECHERCHE SÉMANTIQUE (simulation)
+// ============================================================
+function claudeSemanticSearch(question, scholar) {
+    if (!scholar.literature || scholar.literature.length === 0) {
+        return { found: false, reason: 'no_literature', matches: [] };
+    }
+    var qText = (question.title + ' ' + question.content).toLowerCase();
+    var qWords = qText.split(/\s+/).filter(function(w) { return w.length > 3; });
+    var matches = [];
+    for (var i = 0; i < scholar.literature.length; i++) {
+        var lit = scholar.literature[i].toLowerCase();
+        for (var j = 0; j < qWords.length; j++) {
+            if (lit.indexOf(qWords[j]) !== -1) { matches.push(scholar.literature[i]); break; }
+        }
+    }
+    if (matches.length > 0) return { found: true, matches: matches };
+    // Si pas de littérature → trouvé mais limité
+    return { found: true, matches: [], limited: true };
+}
+
+function claudeGenerateAnswer(question, scholar, reason) {
+    var litRef = '';
+    if (scholar.literature && scholar.literature.length > 0) {
+        litRef = scholar.literature.slice(0, 3).join(', ');
+    }
+    
+    var header = '';
+    var body = '';
+    
+    if (reason === 'no_literature') {
+        header = '🤖 Juge Claude - Réponse immédiate';
+        body = 'Le scholar ' + scholar.name + ' ne dispose pas de littérature spécifique pour cette question.\n\n';
+        body += '📚 Réponse basée sur les connaissances générales du domaine ' + question.domain + ' :\n\n';
+        body += 'Cette question relève de la spécialité "' + question.category + '". ';
+        body += 'En l\'absence de littérature spécifique du scholar, le Juge Claude fournit une réponse standard basée sur les connaissances établies.';
+    } else if (reason === 'timeout_5min') {
+        header = '⏱️ Juge Claude - Réponse après 5 minutes';
+        body = 'Le scholar ' + scholar.name + ' n\'a pas répondu dans le délai de 5 minutes.\n\n';
+        if (litRef) body += '📖 Littérature du scholar : ' + litRef + '\n\n';
+        body += '📚 Réponse basée sur la littérature diffusée par ' + scholar.name + ' :\n\n';
+        body += 'D\'après les ouvrages de référence de ' + scholar.name + ', voici une réponse à votre question sur "' + question.title + '".';
+    } else if (reason === 'late_scholar') {
+        header = '📢 Diffusion réponse Scholar';
+        body = 'Le scholar ' + scholar.name + ' a finalement répondu.\n\n';
+        body += '⏱️ Note : Le Juge Claude avait déjà fourni une réponse temporaire.';
+    }
+    
+    return header + '\n\n' + body;
+}
+
+// ============================================================
+// PERSISTANCE
+// ============================================================
 function saveUsers() { saveToStorage(STORAGE_KEYS.USERS, users); }
 function saveQuestions() { saveToStorage(STORAGE_KEYS.QUESTIONS, questions); }
 function saveSession() { saveToStorage(STORAGE_KEYS.SESSION, currentUser); }
 function saveHistory() { saveToStorage(STORAGE_KEYS.MY_HISTORY, myHistory); }
 
 // ============================================================
-// INITIALISATION - Restaure la session
+// INITIALISATION
 // ============================================================
 function initializeApp() {
-    // Restaurer la session
     if (currentUser) {
-        // Vérifier que l'utilisateur existe toujours
-        var found = false;
         for (var i = 0; i < users.length; i++) {
-            if (users[i].id === currentUser.id) {
-                currentUser = users[i];
-                found = true;
-                break;
-            }
-        }
-        if (!found) {
-            currentUser = null;
-            saveSession();
+            if (users[i].id === currentUser.id) { currentUser = users[i]; break; }
         }
     }
-    
-    // Mettre à jour l'UI
     updateUI();
     renderQuestions();
-    
-    // Notification de session restaurée
     if (currentUser) {
         setTimeout(function() {
             showNotification('💾 Session restaurée : ' + currentUser.username, 'info');
@@ -591,9 +813,6 @@ function initializeApp() {
     }
 }
 
-// ============================================================
-// NAVIGATION
-// ============================================================
 function filterByDomain(domain, btn) {
     currentFilter = domain;
     var btns = document.querySelectorAll('.cat-btn');
@@ -602,9 +821,6 @@ function filterByDomain(domain, btn) {
     renderQuestions();
 }
 
-// ============================================================
-// CLAVIER ARABE
-// ============================================================
 function toggleKeyboard() {
     var keyboard = document.getElementById('arabicKeyboard');
     isKeyboardActive = !isKeyboardActive;
@@ -613,7 +829,6 @@ function toggleKeyboard() {
         showNotification('⌨️ Clavier arabe activé', 'info');
     } else {
         keyboard.classList.remove('active');
-        showNotification('⌨️ Clavier arabe désactivé', 'info');
     }
 }
 
@@ -627,11 +842,8 @@ function insertChar(char) {
         activeElement.selectionStart = activeElement.selectionEnd = start + char.length;
         activeElement.focus();
     } else {
-        var contentField = document.getElementById('qContent');
-        if (contentField) {
-            contentField.value += char;
-            contentField.focus();
-        }
+        var cf = document.getElementById('qContent');
+        if (cf) { cf.value += char; cf.focus(); }
     }
 }
 
@@ -643,9 +855,6 @@ function clearText() {
     }
 }
 
-// ============================================================
-// LANGUES
-// ============================================================
 function toggleLanguage() {
     var langs = ['fr', 'ar', 'en', 'es', 'de', 'it', 'pt'];
     var idx = langs.indexOf(currentLanguage);
@@ -660,16 +869,9 @@ function getLangName(code) {
     return names[code] || code;
 }
 
-// ============================================================
-// SCHOLARS
-// ============================================================
 function assignScholar(domain, category) {
-    var available = scholarsData.filter(function(s) {
-        return s.domain === domain && s.expertise === category;
-    });
-    if (available.length > 0) {
-        return available[Math.floor(Math.random() * available.length)];
-    }
+    var available = scholarsData.filter(function(s) { return s.domain === domain && s.expertise === category; });
+    if (available.length > 0) return available[Math.floor(Math.random() * available.length)];
     var fallback = scholarsData.filter(function(s) { return s.expertise === category; });
     if (fallback.length > 0) return fallback[0];
     return null;
@@ -695,42 +897,37 @@ function getDomainIcon(domain) {
 function showScholars() {
     var container = document.getElementById('scholarsList');
     var filtered = currentFilter === 'all' ? scholarsData : scholarsData.filter(function(s) { return s.domain === currentFilter; });
-    
     var html = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:15px;margin:15px 0;">';
     for (var i = 0; i < filtered.length; i++) {
         var s = filtered[i];
         var dClass = getDomainClass(s.domain);
         var icon = getDomainIcon(s.domain);
+        var litCount = s.literature ? s.literature.length : 0;
+        var litBadge = litCount > 0 ? '<span style="background:#22c55e;padding:2px 8px;border-radius:10px;font-size:10px;">📚 ' + litCount + ' ouvrages</span>' : '<span style="background:#ef4444;padding:2px 8px;border-radius:10px;font-size:10px;">📚 Aucune littérature</span>';
         html += '<div class="scholar-card">' +
             '<strong>' + icon + ' ' + s.name + '</strong> ' +
-            '<span class="domain-tag ' + dClass + '">' + s.domain + '</span>' +
+            '<span class="domain-tag ' + dClass + '">' + s.domain + '</span> ' +
+            litBadge +
             '<div style="opacity:0.7;font-size:14px;margin-top:5px;">📂 ' + s.expertise + '</div>' +
             '<div style="font-size:13px;opacity:0.6;">🌐 ' + s.languages.map(function(l) { return getLangName(l); }).join(', ') + '</div>' +
             '<div style="color:#f59e0b;">⭐ ' + s.rating + '/5</div>' +
             '</div>';
     }
     html += '</div>';
-    html += '<p style="text-align:center;opacity:0.6;margin-top:15px;">📊 Total : ' + filtered.length + ' Scholars</p>';
     container.innerHTML = html;
     hideForms();
     document.getElementById('scholarsPopup').classList.add('active');
 }
 
-// ============================================================
-// NOTIFICATIONS
-// ============================================================
 function showNotification(message, type) {
     if (type === undefined) type = 'info';
     var el = document.getElementById('notification');
     el.textContent = message;
     el.className = 'notification ' + type;
     el.style.display = 'block';
-    setTimeout(function() { el.style.display = 'none'; }, 5000);
+    setTimeout(function() { el.style.display = 'none'; }, 6000);
 }
 
-// ============================================================
-// FORMULAIRES
-// ============================================================
 function showLogin() { hideForms(); document.getElementById('loginForm').classList.add('active'); }
 function showRegister() { hideForms(); document.getElementById('registerForm').classList.add('active'); }
 function showQuestionForm() {
@@ -768,7 +965,7 @@ function updateCategories() {
 }
 
 // ============================================================
-// AUTHENTIFICATION (SESSION PERSISTANTE)
+// AUTHENTIFICATION
 // ============================================================
 function login() {
     var email = document.getElementById('loginEmail').value;
@@ -811,7 +1008,7 @@ function register() {
     saveToStorage(STORAGE_KEYS.PREF_LANG, currentLanguage);
     updateUI();
     hideForms();
-    showNotification('✅ Inscription réussie ! Session sauvegardée', 'success');
+    showNotification('✅ Inscription réussie !', 'success');
     renderQuestions();
 }
 
@@ -832,17 +1029,13 @@ function updateUI() {
             '<span>' + currentUser.username + '</span>';
         document.getElementById('newQuestionBtn').style.display = 'inline-block';
         document.getElementById('userRole').innerHTML = '👤 ' + currentUser.username;
-        document.getElementById('sessionInfo').innerHTML = '💾 Session active';
-        if (currentUser.role === 'admin') {
-            document.getElementById('adminBtn').style.display = 'inline-block';
-        }
+        if (currentUser.role === 'admin') document.getElementById('adminBtn').style.display = 'inline-block';
     } else {
         document.getElementById('authButtons').style.display = 'flex';
         document.getElementById('userActions').style.display = 'none';
         document.getElementById('newQuestionBtn').style.display = 'none';
         document.getElementById('adminBtn').style.display = 'none';
         document.getElementById('userRole').innerHTML = '👤 Visiteur';
-        document.getElementById('sessionInfo').innerHTML = '💾 Non connecté';
     }
     document.getElementById('langDisplay').innerHTML = '🌐 ' + getLangName(currentLanguage);
 }
@@ -857,7 +1050,6 @@ function addToHistory(action, data) {
         username: currentUser ? currentUser.username : 'Anonyme',
         action: action,
         data: data,
-        timestamp: new Date().toISOString(),
         date: new Date().toLocaleString()
     };
     myHistory.unshift(entry);
@@ -868,7 +1060,6 @@ function addToHistory(action, data) {
 function renderHistory() {
     var container = document.getElementById('historyList');
     var stats = document.getElementById('historyStats');
-    
     var myQuestions = questions.filter(function(q) { return q.username === currentUser.username; });
     var myAnswers = 0;
     for (var i = 0; i < questions.length; i++) {
@@ -878,18 +1069,15 @@ function renderHistory() {
             }
         }
     }
-    
     stats.innerHTML = 
-        '<span class="history-stat">📋 ' + myQuestions.length + ' questions posées</span>' +
-        '<span class="history-stat">💬 ' + myAnswers + ' réponses données</span>' +
-        '<span class="history-stat">📊 ' + myHistory.length + ' actions enregistrées</span>';
-    
+        '<span style="background:rgba(255,255,255,0.1);padding:5px 12px;border-radius:12px;">📋 ' + myQuestions.length + ' questions</span>' +
+        '<span style="background:rgba(255,255,255,0.1);padding:5px 12px;border-radius:12px;">💬 ' + myAnswers + ' réponses</span>' +
+        '<span style="background:rgba(255,255,255,0.1);padding:5px 12px;border-radius:12px;">📊 ' + myHistory.length + ' actions</span>';
     if (myQuestions.length === 0) {
-        container.innerHTML = '<p style="text-align:center;opacity:0.5;padding:30px;">Aucune question posée pour le moment.</p>';
+        container.innerHTML = '<p style="text-align:center;opacity:0.5;padding:30px;">Aucune question.</p>';
         return;
     }
-    
-    var html = '<h3 style="margin:15px 0;">📋 Mes questions (' + myQuestions.length + ')</h3>';
+    var html = '';
     for (var k = 0; k < myQuestions.length; k++) {
         var q = myQuestions[k];
         var dClass = getDomainClass(q.domain);
@@ -898,16 +1086,16 @@ function renderHistory() {
             '<div class="question-meta">' +
             '<span class="domain-tag ' + dClass + '">' + q.domain + '</span>' +
             ' | 📂 ' + q.category + ' | 📅 ' + q.date +
-            ' | <span class="badge badge-' + q.status + '">' + q.status + '</span>' +
             '</div>' +
             '<div class="question-content">' + q.content + '</div>';
         if (q.answers && q.answers.length > 0) {
             html += '<div class="answers-section"><strong>💬 ' + q.answers.length + ' réponses</strong>';
             for (var m = 0; m < q.answers.length; m++) {
                 var a = q.answers[m];
-                html += '<div class="answer-item">' +
+                var aClass = a.isClaude ? 'claude-answer' : (a.isScholar ? 'scholar-answer' : '');
+                html += '<div class="answer-item ' + aClass + '">' +
                     '<div>' + a.content + '</div>' +
-                    '<div class="answer-meta">👤 ' + a.username + ' | 🌐 ' + getLangName(a.language) + ' | 📅 ' + a.date + '</div>' +
+                    '<div class="answer-meta">👤 ' + a.username + ' | 📅 ' + a.date + '</div>' +
                     '</div>';
             }
             html += '</div>';
@@ -945,19 +1133,58 @@ function askQuestion() {
         timestamp: new Date().toISOString(),
         status: scholar ? 'assigned' : 'pending',
         scholar: scholar,
-        answers: []
+        answers: [],
+        claudeNotified: false
     };
     
     questions.unshift(question);
     saveQuestions();
+    addToHistory('question', { title: title, domain: domain });
     
-    addToHistory('question', { title: title, domain: domain, category: category });
-    
-    var message = '✅ Question publiée et sauvegardée !';
+    var message = '✅ Question publiée !';
     if (scholar) message += ' Scholar : ' + scholar.name;
     showNotification(message, 'success');
     hideForms();
     renderQuestions();
+    
+    // ============================================================
+    // DÉCLENCHER LE JUGE CLAUDE
+    // ============================================================
+    if (scholar) {
+        // Règle 1 : Vérifier la littérature
+        if (!scholar.literature || scholar.literature.length === 0) {
+            setTimeout(function() {
+                var claudeAnswer = claudeGenerateAnswer(question, scholar, 'no_literature');
+                addClaudeAnswer(question.id, claudeAnswer, 'no_literature');
+                showNotification('🤖 Juge Claude a répondu immédiatement (pas de littérature du scholar)', 'claude');
+            }, 2000);
+        } else {
+            // Règle 2 : Attendre 5 minutes (30 sec pour démo)
+            showNotification('⏱️ Juge Claude surveille (5 min max)...', 'info');
+            var questionId = question.id;
+            setTimeout(function() {
+                var q = null;
+                for (var i = 0; i < questions.length; i++) {
+                    if (questions[i].id === questionId) { q = questions[i]; break; }
+                }
+                if (!q) return;
+                
+                var scholarResponded = false;
+                if (q.answers) {
+                    for (var j = 0; j < q.answers.length; j++) {
+                        if (q.answers[j].isScholarResponse) { scholarResponded = true; break; }
+                    }
+                }
+                
+                if (!scholarResponded) {
+                    var claudeAnswer = claudeGenerateAnswer(q, q.scholar, 'timeout_5min');
+                    addClaudeAnswer(q.id, claudeAnswer, 'timeout_5min');
+                    showNotification('⏱️ Juge Claude a répondu après 5 minutes', 'claude');
+                }
+            }, 30000); // 30 sec pour démo (5 min en prod)
+        }
+    }
+    
     document.getElementById('qTitle').value = '';
     document.getElementById('qContent').value = '';
 }
@@ -970,38 +1197,57 @@ function renderQuestions() {
     document.getElementById('scholarCount').textContent = '🎓 ' + scholarsData.length + ' Scholars';
     
     if (filtered.length === 0) {
-        container.innerHTML = '<p style="text-align:center;opacity:0.5;padding:40px;">Aucune question dans ce domaine. Posez la première !</p>';
+        container.innerHTML = '<p style="text-align:center;opacity:0.5;padding:40px;">Aucune question dans ce domaine.</p>';
         return;
     }
     
     var html = '';
     for (var i = 0; i < filtered.length; i++) {
         var q = filtered[i];
-        var statusClass = q.status === 'assigned' ? 'badge-assigned' : q.status === 'answered' ? 'badge-answered' : 'badge-pending';
-        var statusLabel = q.status === 'assigned' ? 'Assigné' : q.status === 'answered' ? 'Répondu' : 'En attente';
+        var hasClaudeAnswer = false;
+        if (q.answers) {
+            for (var c = 0; c < q.answers.length; c++) {
+                if (q.answers[c].isClaude) { hasClaudeAnswer = true; break; }
+            }
+        }
+        
+        var cardClass = hasClaudeAnswer ? 'claude-card' : '';
+        var statusClass = q.status === 'claude_answered' ? 'badge-claude' : (q.status === 'assigned' ? 'badge-assigned' : q.status === 'answered' ? 'badge-answered' : 'badge-pending');
+        var statusLabel = q.status === 'claude_answered' ? '🤖 Juge Claude' : (q.status === 'assigned' ? 'Assigné' : q.status === 'answered' ? 'Répondu' : 'En attente');
         var dClass = getDomainClass(q.domain);
         var icon = getDomainIcon(q.domain);
         
-        var scholarInfo = q.scholar ? '<span class="domain-tag ' + dClass + '">🎓 ' + q.scholar.name + '</span>' : '';
+        var scholarInfo = '';
+        if (q.scholar) {
+            var litCount = q.scholar.literature ? q.scholar.literature.length : 0;
+            scholarInfo = '<span class="domain-tag ' + dClass + '">🎓 ' + q.scholar.name + ' (' + litCount + ' ouvrages)</span>';
+        }
         
         var answersHtml = '';
         if (q.answers && q.answers.length > 0) {
             answersHtml = '<div class="answers-section"><strong>💬 ' + q.answers.length + ' réponses</strong>';
             for (var j = 0; j < q.answers.length; j++) {
                 var a = q.answers[j];
-                answersHtml += '<div class="answer-item">' +
-                    '<div>' + a.content + '</div>' +
-                    '<div class="answer-meta">👤 ' + a.username + ' | 🌐 ' + getLangName(a.language) +
-                    ' | 📅 ' + a.date + (a.aiVerified ? ' | ✅ AI' : '') + '</div></div>';
+                var aClass = a.isClaude ? 'claude-answer' : (a.isScholarResponse ? 'scholar-answer' : '');
+                var badge = '';
+                if (a.isClaude) {
+                    badge = '<span class="claude-badge">🤖 Juge Claude</span> ';
+                    if (a.claudeReason === 'no_literature') badge += '<span class="claude-status">Sans littérature</span>';
+                    if (a.claudeReason === 'timeout_5min') badge += '<span class="timer-badge">⏱️ 5 min dépassées</span>';
+                }
+                answersHtml += '<div class="answer-item ' + aClass + '">' +
+                    '<div style="margin-bottom:5px;">' + badge + '</div>' +
+                    '<div style="white-space:pre-wrap;">' + a.content + '</div>' +
+                    '<div class="answer-meta">👤 ' + a.username + ' | 📅 ' + a.date + '</div></div>';
             }
             answersHtml += '</div>';
         } else {
-            answersHtml = '<div style="margin-top:10px;opacity:0.5;font-size:13px;">💬 Pas encore de réponse</div>';
+            answersHtml = '<div style="margin-top:10px;opacity:0.5;font-size:13px;">💬 En attente de réponse (Juge Claude surveille)...</div>';
         }
         
         var answerBtn = currentUser ? '<button class="btn btn-secondary" onclick="showAnswerForm(' + q.id + ')">💬 Répondre</button>' : '';
         
-        html += '<div class="question-card">' +
+        html += '<div class="question-card ' + cardClass + '">' +
             '<div class="question-title">' + icon + ' ' + q.title + '</div>' +
             '<div class="question-meta">' +
             '<span class="domain-tag ' + dClass + '">' + q.domain + '</span>' +
@@ -1021,10 +1267,12 @@ function showAnswerForm(questionId) {
     var content = prompt('Votre réponse :');
     if (!content) return;
     var lang = prompt('Langue (fr/ar/en/es/de/it/pt) :', currentLanguage) || currentLanguage;
+    
     for (var i = 0; i < questions.length; i++) {
         if (questions[i].id === questionId) {
             if (!questions[i].answers) questions[i].answers = [];
             var isScholar = scholarsData.some(function(s) { return s.name === currentUser.username; });
+            
             questions[i].answers.push({
                 username: currentUser.username,
                 userId: currentUser.id,
@@ -1032,26 +1280,39 @@ function showAnswerForm(questionId) {
                 language: lang,
                 date: new Date().toLocaleDateString(),
                 timestamp: new Date().toISOString(),
-                aiVerified: isScholar
+                aiVerified: isScholar,
+                isScholarResponse: isScholar
             });
+            
             if (isScholar) questions[i].status = 'answered';
+            
             saveQuestions();
-            addToHistory('answer', { questionTitle: questions[i].title, content: content.substring(0, 50) });
-            showNotification('✅ Réponse publiée et sauvegardée !', 'success');
+            addToHistory('answer', { questionTitle: questions[i].title });
+            
+            // Règle 3 : Si le scholar répond en retard, diffuser sa réponse
+            if (isScholar) {
+                var hasClaudeAns = false;
+                for (var c = 0; c < questions[i].answers.length; c++) {
+                    if (questions[i].answers[c].isClaude) { hasClaudeAns = true; break; }
+                }
+                if (hasClaudeAns) {
+                    showNotification('📢 Réponse du Scholar diffusée (arrivée en retard)', 'claude');
+                } else {
+                    showNotification('✅ Réponse du Scholar publiée !', 'success');
+                }
+            } else {
+                showNotification('✅ Réponse publiée !', 'success');
+            }
+            
             renderQuestions();
             break;
         }
     }
 }
 
-function loadData() {
-    renderQuestions();
-    showNotification('✅ Données actualisées', 'info');
-}
+function loadData() { renderQuestions(); showNotification('✅ Données actualisées', 'info'); }
 
-// ============================================================
-// INITIALISATION
-// ============================================================
+// INIT
 initializeApp();
 </script>
 </body>
