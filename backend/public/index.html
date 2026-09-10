@@ -1,477 +1,284 @@
 ﻿<!DOCTYPE html>
 <html lang="fr">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Scholars Connect - Juge Claude</title>
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body {
-            font-family: 'Segoe UI', system-ui, sans-serif;
-            background: #0a0e27;
-            color: #fff;
-            min-height: 100vh;
-            padding: 20px;
-        }
-        .container { max-width: 1400px; margin: 0 auto; }
-        
-        .header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 20px 0;
-            flex-wrap: wrap;
-            gap: 15px;
-            border-bottom: 2px solid #667eea;
-        }
-        .logo {
-            font-size: 32px;
-            font-weight: 700;
-            background: linear-gradient(135deg, #667eea, #10b981, #f59e0b);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-        }
-        .logo-sub { font-size: 14px; opacity: 0.6; display: block; font-weight: 400; }
-        
-        .header-actions { display: flex; gap: 10px; flex-wrap: wrap; }
-        .btn {
-            padding: 10px 20px;
-            border: none;
-            border-radius: 10px;
-            cursor: pointer;
-            font-weight: 600;
-            transition: 0.3s;
-            font-size: 13px;
-        }
-        .btn-primary { background: #667eea; color: white; }
-        .btn-success { background: #22c55e; color: #0a0e27; }
-        .btn-danger { background: #ef4444; color: white; }
-        .btn-secondary { background: rgba(255,255,255,0.1); color: white; }
-        .btn-admin { background: #f59e0b; color: #0a0e27; }
-        .btn-claude { background: linear-gradient(135deg, #8b5cf6, #ec4899); color: white; }
-        .btn-arabic { background: #1a7a5a; color: white; }
-        .btn:hover { transform: scale(1.05); opacity: 0.9; }
-
-        .categories-nav {
-            display: flex;
-            gap: 10px;
-            padding: 15px 0;
-            flex-wrap: wrap;
-            border-bottom: 1px solid rgba(255,255,255,0.05);
-            overflow-x: auto;
-        }
-        .cat-btn {
-            padding: 8px 16px;
-            border-radius: 20px;
-            border: 1px solid rgba(255,255,255,0.15);
-            background: transparent;
-            color: white;
-            cursor: pointer;
-            font-size: 13px;
-            transition: 0.3s;
-            white-space: nowrap;
-        }
-        .cat-btn:hover { background: rgba(255,255,255,0.1); }
-        .cat-btn.active { background: #667eea; border-color: #667eea; }
-
-        .form-container {
-            background: rgba(255,255,255,0.05);
-            border-radius: 16px;
-            padding: 24px;
-            margin: 20px 0;
-            display: none;
-            border: 1px solid rgba(255,255,255,0.1);
-        }
-        .form-container.active { display: block; }
-        .form-group { margin-bottom: 15px; }
-        .form-group label { display: block; margin-bottom: 5px; opacity: 0.8; font-weight: 500; }
-        .form-group input, .form-group textarea, .form-group select {
-            width: 100%;
-            padding: 12px;
-            border-radius: 10px;
-            border: 1px solid rgba(255,255,255,0.1);
-            background: rgba(255,255,255,0.05);
-            color: white;
-            font-size: 14px;
-        }
-        .form-group textarea { min-height: 100px; resize: vertical; }
-        .form-group select option, .form-group select optgroup { background: #1a1a2e; color: white; }
-
-        .keyboard-container {
-            background: rgba(255,255,255,0.05);
-            border-radius: 12px;
-            padding: 10px;
-            margin: 10px 0;
-            display: none;
-            border: 1px solid rgba(255,255,255,0.1);
-        }
-        .keyboard-container.active { display: block; }
-        .keyboard-row { display: flex; gap: 4px; margin: 4px 0; justify-content: center; flex-wrap: wrap; }
-        .key-btn {
-            min-width: 40px;
-            padding: 8px 6px;
-            border: 1px solid rgba(255,255,255,0.2);
-            border-radius: 6px;
-            background: rgba(255,255,255,0.05);
-            color: white;
-            cursor: pointer;
-            font-family: 'Traditional Arabic', 'Amiri', serif;
-            font-size: 18px;
-            transition: 0.2s;
-            text-align: center;
-        }
-        .key-btn:hover { background: rgba(16,185,129,0.3); transform: scale(1.05); }
-        .key-btn.space { min-width: 80px; }
-        .key-btn.shift { min-width: 60px; font-size: 14px; }
-
-        .status-bar {
-            display: flex;
-            gap: 20px;
-            padding: 15px 0;
-            flex-wrap: wrap;
-            border-bottom: 1px solid rgba(255,255,255,0.05);
-        }
-        .status-item { display: flex; align-items: center; gap: 8px; font-size: 13px; }
-        .dot { width: 8px; height: 8px; border-radius: 50%; background: #22c55e; animation: pulse 2s infinite; }
-        @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
-
-        .user-avatar {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            width: 40px;
-            height: 40px;
-            border-radius: 50%;
-            background: linear-gradient(135deg, #667eea, #764ba2);
-            font-weight: 700;
-            margin-right: 10px;
-        }
-        .user-info { display: flex; align-items: center; gap: 10px; }
-
-        .question-grid { display: grid; gap: 20px; margin: 20px 0; }
-        .question-card {
-            background: rgba(255,255,255,0.05);
-            border-radius: 12px;
-            padding: 20px;
-            border: 1px solid rgba(255,255,255,0.08);
-            transition: 0.3s;
-        }
-        .question-card:hover { transform: translateY(-2px); border-color: #667eea; }
-        .question-card.claude-card { border-color: #8b5cf6; box-shadow: 0 0 20px rgba(139,92,246,0.2); }
-        .question-title { font-size: 18px; font-weight: 600; color: #667eea; }
-        .question-meta { font-size: 13px; opacity: 0.6; margin: 5px 0; display: flex; gap: 15px; flex-wrap: wrap; }
-        .question-content { margin: 10px 0; }
-        .question-actions { display: flex; gap: 10px; margin-top: 10px; flex-wrap: wrap; }
-
-        .answers-section { margin-top: 15px; padding-top: 15px; border-top: 1px solid rgba(255,255,255,0.05); }
-        .answer-item {
-            background: rgba(255,255,255,0.03);
-            border-radius: 8px;
-            padding: 12px;
-            margin: 8px 0;
-            border-left: 3px solid #667eea;
-        }
-        .answer-item.claude-answer {
-            border-left: 4px solid #8b5cf6;
-            background: linear-gradient(135deg, rgba(139,92,246,0.1), rgba(236,72,153,0.05));
-        }
-        .answer-item.scholar-answer {
-            border-left: 4px solid #10b981;
-        }
-        .answer-meta { font-size: 12px; opacity: 0.6; display: flex; gap: 15px; flex-wrap: wrap; }
-
-        .claude-badge {
-            display: inline-block;
-            padding: 3px 12px;
-            border-radius: 12px;
-            font-size: 11px;
-            font-weight: 600;
-            background: linear-gradient(135deg, #8b5cf6, #ec4899);
-            color: white;
-            animation: pulse 2s infinite;
-        }
-        .claude-status {
-            display: inline-block;
-            padding: 3px 12px;
-            border-radius: 12px;
-            font-size: 11px;
-            font-weight: 600;
-            background: #f59e0b;
-            color: #0a0e27;
-        }
-        .timer-badge {
-            display: inline-block;
-            padding: 3px 12px;
-            border-radius: 12px;
-            font-size: 11px;
-            font-weight: 600;
-            background: #3b82f6;
-            color: white;
-        }
-
-        .domain-tag {
-            display: inline-block;
-            padding: 2px 10px;
-            border-radius: 12px;
-            font-size: 11px;
-            font-weight: 600;
-            margin-left: 5px;
-        }
-        .domain-islam { background: #059669; color: white; }
-        .domain-medecine { background: #ef4444; color: white; }
-        .domain-pharmacie { background: #f472b6; color: white; }
-        .domain-chimie { background: #06b6d4; color: white; }
-        .domain-ia { background: #8b5cf6; color: white; }
-        .domain-iot { background: #14b8a6; color: white; }
-        .domain-gmao { background: #f59e0b; color: #0a0e27; }
-        .domain-meca { background: #78716c; color: white; }
-        .domain-general { background: #667eea; color: white; }
-
-        .notification {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            padding: 15px 25px;
-            border-radius: 12px;
-            z-index: 1000;
-            display: none;
-            animation: slideIn 0.3s;
-            max-width: 90%;
-        }
-        .notification.success { background: #22c55e; color: #0a0e27; display: block; }
-        .notification.error { background: #ef4444; color: white; display: block; }
-        .notification.info { background: #3b82f6; color: white; display: block; }
-        .notification.claude { background: linear-gradient(135deg, #8b5cf6, #ec4899); color: white; display: block; }
-        @keyframes slideIn { from { transform: translateX(100px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
-
-        .badge {
-            display: inline-block;
-            padding: 2px 12px;
-            border-radius: 20px;
-            font-size: 11px;
-            font-weight: 600;
-        }
-        .badge-pending { background: #eab308; color: #0a0e27; }
-        .badge-answered { background: #22c55e; color: #0a0e27; }
-        .badge-assigned { background: #8b5cf6; color: white; }
-        .badge-claude { background: linear-gradient(135deg, #8b5cf6, #ec4899); color: white; }
-
-        .scholar-card {
-            background: rgba(255,255,255,0.05);
-            padding: 15px;
-            border-radius: 10px;
-            border: 1px solid rgba(255,255,255,0.1);
-            transition: 0.3s;
-        }
-        .scholar-card:hover { transform: translateY(-3px); border-color: #667eea; }
-
-        @media (max-width: 600px) {
-            .header { flex-direction: column; align-items: stretch; }
-            .header-actions { flex-wrap: wrap; }
-            .header-actions button { flex: 1; text-align: center; font-size: 11px; padding: 8px 12px; }
-            .key-btn { min-width: 32px; padding: 6px 4px; font-size: 14px; }
-            .cat-btn { font-size: 11px; padding: 6px 12px; }
-        }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Scholars Connect - Multi-Domaines</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: 'Segoe UI', system-ui, sans-serif; background: #0a0e27; color: #fff; min-height: 100vh; padding: 20px; }
+.container { max-width: 1400px; margin: 0 auto; }
+.header { display: flex; justify-content: space-between; align-items: center; padding: 20px 0; flex-wrap: wrap; gap: 15px; border-bottom: 2px solid #667eea; }
+.logo { font-size: 32px; font-weight: 700; background: linear-gradient(135deg, #667eea, #10b981, #f59e0b); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+.logo-sub { font-size: 14px; opacity: 0.6; display: block; font-weight: 400; }
+.header-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+.btn { padding: 10px 20px; border: none; border-radius: 10px; cursor: pointer; font-weight: 600; transition: 0.3s; font-size: 13px; }
+.btn-primary { background: #667eea; color: white; }
+.btn-success { background: #22c55e; color: #0a0e27; }
+.btn-danger { background: #ef4444; color: white; }
+.btn-secondary { background: rgba(255,255,255,0.1); color: white; }
+.btn-admin { background: #f59e0b; color: #0a0e27; }
+.btn-arabic { background: #1a7a5a; color: white; }
+.btn:hover { transform: scale(1.05); opacity: 0.9; }
+.categories-nav { display: flex; gap: 10px; padding: 15px 0; flex-wrap: wrap; border-bottom: 1px solid rgba(255,255,255,0.05); overflow-x: auto; }
+.cat-btn { padding: 8px 16px; border-radius: 20px; border: 1px solid rgba(255,255,255,0.15); background: transparent; color: white; cursor: pointer; font-size: 13px; transition: 0.3s; white-space: nowrap; }
+.cat-btn:hover { background: rgba(255,255,255,0.1); }
+.cat-btn.active { background: #667eea; border-color: #667eea; }
+.form-container { background: rgba(255,255,255,0.05); border-radius: 16px; padding: 24px; margin: 20px 0; display: none; border: 1px solid rgba(255,255,255,0.1); }
+.form-container.active { display: block; }
+.form-group { margin-bottom: 15px; }
+.form-group label { display: block; margin-bottom: 5px; opacity: 0.8; font-weight: 500; }
+.form-group input, .form-group textarea, .form-group select { width: 100%; padding: 12px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.05); color: white; font-size: 14px; }
+.form-group textarea { min-height: 100px; resize: vertical; }
+.form-group select option { background: #1a1a2e; color: white; }
+.keyboard-container { background: rgba(255,255,255,0.05); border-radius: 12px; padding: 10px; margin: 10px 0; display: none; border: 1px solid rgba(255,255,255,0.1); }
+.keyboard-container.active { display: block; }
+.keyboard-row { display: flex; gap: 4px; margin: 4px 0; justify-content: center; flex-wrap: wrap; }
+.key-btn { min-width: 40px; padding: 8px 6px; border: 1px solid rgba(255,255,255,0.2); border-radius: 6px; background: rgba(255,255,255,0.05); color: white; cursor: pointer; font-family: 'Traditional Arabic', 'Amiri', serif; font-size: 18px; transition: 0.2s; text-align: center; }
+.key-btn:hover { background: rgba(16,185,129,0.3); transform: scale(1.05); }
+.key-btn.space { min-width: 80px; }
+.status-bar { display: flex; gap: 20px; padding: 15px 0; flex-wrap: wrap; border-bottom: 1px solid rgba(255,255,255,0.05); }
+.status-item { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: #22c55e; animation: pulse 2s infinite; }
+@keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
+.user-avatar { display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px; border-radius: 50%; background: linear-gradient(135deg, #667eea, #764ba2); font-weight: 700; margin-right: 10px; }
+.user-info { display: flex; align-items: center; gap: 10px; }
+.question-grid { display: grid; gap: 20px; margin: 20px 0; }
+.question-card { background: rgba(255,255,255,0.05); border-radius: 12px; padding: 20px; border: 1px solid rgba(255,255,255,0.08); transition: 0.3s; }
+.question-card:hover { transform: translateY(-2px); border-color: #667eea; }
+.question-card.claude-card { border-color: #8b5cf6; box-shadow: 0 0 20px rgba(139,92,246,0.2); }
+.question-title { font-size: 18px; font-weight: 600; color: #667eea; }
+.question-meta { font-size: 13px; opacity: 0.6; margin: 5px 0; display: flex; gap: 15px; flex-wrap: wrap; }
+.question-content { margin: 10px 0; }
+.question-actions { display: flex; gap: 10px; margin-top: 10px; flex-wrap: wrap; }
+.answers-section { margin-top: 15px; padding-top: 15px; border-top: 1px solid rgba(255,255,255,0.05); }
+.answer-item { background: rgba(255,255,255,0.03); border-radius: 8px; padding: 12px; margin: 8px 0; border-left: 3px solid #667eea; }
+.answer-item.claude-answer { border-left: 4px solid #8b5cf6; background: linear-gradient(135deg, rgba(139,92,246,0.1), rgba(236,72,153,0.05)); }
+.answer-item.scholar-answer { border-left: 4px solid #10b981; }
+.answer-meta { font-size: 12px; opacity: 0.6; display: flex; gap: 15px; flex-wrap: wrap; }
+.claude-badge { display: inline-block; padding: 3px 12px; border-radius: 12px; font-size: 11px; font-weight: 600; background: linear-gradient(135deg, #8b5cf6, #ec4899); color: white; }
+.claude-status { display: inline-block; padding: 3px 12px; border-radius: 12px; font-size: 11px; font-weight: 600; background: #f59e0b; color: #0a0e27; }
+.timer-badge { display: inline-block; padding: 3px 12px; border-radius: 12px; font-size: 11px; font-weight: 600; background: #3b82f6; color: white; }
+.domain-tag { display: inline-block; padding: 2px 10px; border-radius: 12px; font-size: 11px; font-weight: 600; margin-left: 5px; }
+.domain-islam { background: #059669; color: white; }
+.domain-medecine { background: #ef4444; color: white; }
+.domain-pharmacie { background: #f472b6; color: white; }
+.domain-chimie { background: #06b6d4; color: white; }
+.domain-ia { background: #8b5cf6; color: white; }
+.domain-iot { background: #14b8a6; color: white; }
+.domain-gmao { background: #f59e0b; color: #0a0e27; }
+.domain-meca { background: #78716c; color: white; }
+.domain-general { background: #667eea; color: white; }
+.notification { position: fixed; top: 20px; right: 20px; padding: 15px 25px; border-radius: 12px; z-index: 1000; display: none; animation: slideIn 0.3s; max-width: 90%; }
+.notification.success { background: #22c55e; color: #0a0e27; display: block; }
+.notification.error { background: #ef4444; color: white; display: block; }
+.notification.info { background: #3b82f6; color: white; display: block; }
+.notification.claude { background: linear-gradient(135deg, #8b5cf6, #ec4899); color: white; display: block; }
+@keyframes slideIn { from { transform: translateX(100px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+.badge { display: inline-block; padding: 2px 12px; border-radius: 20px; font-size: 11px; font-weight: 600; }
+.badge-pending { background: #eab308; color: #0a0e27; }
+.badge-answered { background: #22c55e; color: #0a0e27; }
+.badge-assigned { background: #8b5cf6; color: white; }
+.badge-claude { background: linear-gradient(135deg, #8b5cf6, #ec4899); color: white; }
+.scholar-card { background: rgba(255,255,255,0.05); padding: 15px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.1); transition: 0.3s; }
+.scholar-card:hover { transform: translateY(-3px); border-color: #667eea; }
+@media (max-width: 600px) {
+.header { flex-direction: column; align-items: stretch; }
+.header-actions { flex-wrap: wrap; }
+.header-actions button { flex: 1; text-align: center; font-size: 11px; padding: 8px 12px; }
+.key-btn { min-width: 32px; padding: 6px 4px; font-size: 14px; }
+.cat-btn { font-size: 11px; padding: 6px 12px; }
+}
+</style>
 </head>
 <body>
 <div class="container">
-    <div class="notification" id="notification"></div>
-
-    <div class="header">
-        <div>
-            <div class="logo">🎓 Scholars Connect</div>
-            <span class="logo-sub">🤖 Juge Claude actif · ⏱️ Réponse auto sous 5 min · 🌍 9 domaines</span>
-        </div>
-        <div class="header-actions" id="authButtons">
-            <button class="btn btn-primary" onclick="showLogin()">🔐 Connexion</button>
-            <button class="btn btn-success" onclick="showRegister()">📝 Inscription</button>
-        </div>
-        <div class="header-actions" id="userActions" style="display:none;">
-            <span class="user-info" id="userDisplay"></span>
-            <button class="btn btn-admin" onclick="goToAdmin()" id="adminBtn" style="display:none;">⚙️ Admin</button>
-            <button class="btn btn-danger" onclick="logout()">🚪 Déconnexion</button>
-        </div>
-    </div>
-
-    <div class="status-bar">
-        <span class="status-item"><span class="dot"></span> En ligne</span>
-        <span class="status-item" id="userRole">👤 Visiteur</span>
-        <span class="status-item" id="langDisplay">🌐 Français</span>
-        <span class="status-item" id="questionCount">📋 0 questions</span>
-        <span class="status-item" id="scholarCount">🎓 36 Scholars</span>
-        <span class="status-item">🤖 <span class="claude-badge">Juge Claude actif</span></span>
-    </div>
-
-    <div class="categories-nav">
-        <button class="cat-btn active" onclick="filterByDomain('all', this)">🌍 Tous</button>
-        <button class="cat-btn" onclick="filterByDomain('Islam', this)">🕌 Islam</button>
-        <button class="cat-btn" onclick="filterByDomain('Médecine', this)">🏥 Médecine</button>
-        <button class="cat-btn" onclick="filterByDomain('Pharmacie', this)">💊 Pharmacie</button>
-        <button class="cat-btn" onclick="filterByDomain('Chimie', this)">⚗️ Chimie</button>
-        <button class="cat-btn" onclick="filterByDomain('IA', this)">🤖 IA</button>
-        <button class="cat-btn" onclick="filterByDomain('IoT', this)">🌐 IoT</button>
-        <button class="cat-btn" onclick="filterByDomain('GMAO', this)">🏭 GMAO/GPAO</button>
-        <button class="cat-btn" onclick="filterByDomain('Mécanique Pétrole', this)">⚙️ Méca Pétrole</button>
-        <button class="cat-btn" onclick="filterByDomain('Général', this)">📚 Général</button>
-    </div>
-
-    <div style="margin:15px 0;display:flex;gap:10px;flex-wrap:wrap;">
-        <button class="btn btn-primary" id="newQuestionBtn" onclick="showQuestionForm()" style="display:none;">✏️ Poser une question</button>
-        <button class="btn btn-secondary" onclick="loadData()">🔄 Rafraîchir</button>
-        <button class="btn btn-secondary" onclick="showScholars()">🎓 Voir les Scholars</button>
-        <button class="btn btn-secondary" onclick="showHistory()">📜 Mon historique</button>
-        <button class="btn btn-arabic" onclick="toggleLanguage()">🌐 Langue</button>
-        <button class="btn btn-arabic" onclick="toggleKeyboard()">⌨️ Clavier arabe</button>
-    </div>
-
-    <div class="form-container" id="historyForm">
-        <h2>📜 Mon historique</h2>
-        <div id="historyStats" style="display:flex;gap:15px;padding:10px 0;flex-wrap:wrap;"></div>
-        <div id="historyList"></div>
-        <button class="btn btn-secondary" onclick="hideForms()">Fermer</button>
-    </div>
-
-    <div class="form-container" id="loginForm">
-        <h2>🔐 Connexion</h2>
-        <div class="form-group"><label>Email</label><input type="email" id="loginEmail" placeholder="admin@scholars-connect.com"></div>
-        <div class="form-group"><label>Mot de passe</label><input type="password" id="loginPassword" placeholder="admin12345"></div>
-        <button class="btn btn-primary" onclick="login()">Se connecter</button>
-        <button class="btn btn-secondary" onclick="hideForms()">Fermer</button>
-    </div>
-
-    <div class="form-container" id="registerForm">
-        <h2>📝 Inscription</h2>
-        <div class="form-group"><label>Nom d'utilisateur</label><input type="text" id="regUsername" placeholder="Votre nom"></div>
-        <div class="form-group"><label>Email</label><input type="email" id="regEmail" placeholder="votre@email.com"></div>
-        <div class="form-group"><label>Mot de passe</label><input type="password" id="regPassword" placeholder="Min 6 caractères"></div>
-        <div class="form-group"><label>Domaine d'intérêt</label>
-            <select id="regDomain">
-                <option value="Islam">🕌 Islam</option>
-                <option value="Médecine">🏥 Médecine</option>
-                <option value="Pharmacie">💊 Pharmacie</option>
-                <option value="Chimie">⚗️ Chimie</option>
-                <option value="IA">🤖 IA</option>
-                <option value="IoT">🌐 IoT</option>
-                <option value="GMAO">🏭 GMAO/GPAO</option>
-                <option value="Mécanique Pétrole">⚙️ Mécanique Pétrole</option>
-                <option value="Général">📚 Général</option>
-            </select>
-        </div>
-        <div class="form-group"><label>Langue</label>
-            <select id="regLanguage">
-                <option value="fr">Français</option>
-                <option value="ar">العربية</option>
-                <option value="en">English</option>
-                <option value="es">Español</option>
-                <option value="de">Deutsch</option>
-                <option value="it">Italiano</option>
-                <option value="pt">Português</option>
-            </select>
-        </div>
-        <button class="btn btn-success" onclick="register()">S'inscrire</button>
-        <button class="btn btn-secondary" onclick="hideForms()">Fermer</button>
-    </div>
-
-    <div class="form-container" id="questionForm">
-        <h2>✏️ Poser une question</h2>
-        <div class="form-group"><label>Domaine</label>
-            <select id="qDomain" onchange="updateCategories()">
-                <option value="Islam">🕌 Islam</option>
-                <option value="Médecine">🏥 Médecine</option>
-                <option value="Pharmacie">💊 Pharmacie</option>
-                <option value="Chimie">⚗️ Chimie</option>
-                <option value="IA">🤖 IA</option>
-                <option value="IoT">🌐 IoT</option>
-                <option value="GMAO">🏭 GMAO/GPAO</option>
-                <option value="Mécanique Pétrole">⚙️ Mécanique Pétrole</option>
-                <option value="Général">📚 Général</option>
-            </select>
-        </div>
-        <div class="form-group"><label>Spécialité</label>
-            <select id="qCategory"></select>
-        </div>
-        <div class="form-group"><label>Titre</label><input type="text" id="qTitle" placeholder="Titre"></div>
-        <div class="form-group"><label>Contenu</label><textarea id="qContent" placeholder="Détaillez votre question..."></textarea></div>
-        <div class="form-group"><label>Langue</label>
-            <select id="qLanguage">
-                <option value="fr">Français</option>
-                <option value="ar">العربية</option>
-                <option value="en">English</option>
-                <option value="es">Español</option>
-                <option value="de">Deutsch</option>
-                <option value="it">Italiano</option>
-                <option value="pt">Português</option>
-            </select>
-        </div>
-        <div class="keyboard-container" id="arabicKeyboard">
-            <div class="keyboard-row">
-                <button class="key-btn" onclick="insertChar('ض')">ض</button>
-                <button class="key-btn" onclick="insertChar('ص')">ص</button>
-                <button class="key-btn" onclick="insertChar('ث')">ث</button>
-                <button class="key-btn" onclick="insertChar('ق')">ق</button>
-                <button class="key-btn" onclick="insertChar('ف')">ف</button>
-                <button class="key-btn" onclick="insertChar('غ')">غ</button>
-                <button class="key-btn" onclick="insertChar('ع')">ع</button>
-                <button class="key-btn" onclick="insertChar('ه')">ه</button>
-                <button class="key-btn" onclick="insertChar('خ')">خ</button>
-                <button class="key-btn" onclick="insertChar('ح')">ح</button>
-                <button class="key-btn" onclick="insertChar('ج')">ج</button>
-                <button class="key-btn" onclick="insertChar('د')">د</button>
-            </div>
-            <div class="keyboard-row">
-                <button class="key-btn" onclick="insertChar('ذ')">ذ</button>
-                <button class="key-btn" onclick="insertChar('ش')">ش</button>
-                <button class="key-btn" onclick="insertChar('س')">س</button>
-                <button class="key-btn" onclick="insertChar('ي')">ي</button>
-                <button class="key-btn" onclick="insertChar('ب')">ب</button>
-                <button class="key-btn" onclick="insertChar('ل')">ل</button>
-                <button class="key-btn" onclick="insertChar('ا')">ا</button>
-                <button class="key-btn" onclick="insertChar('ت')">ت</button>
-                <button class="key-btn" onclick="insertChar('ن')">ن</button>
-                <button class="key-btn" onclick="insertChar('م')">م</button>
-                <button class="key-btn" onclick="insertChar('ك')">ك</button>
-                <button class="key-btn" onclick="insertChar('ظ')">ظ</button>
-            </div>
-            <div class="keyboard-row">
-                <button class="key-btn" onclick="insertChar('ط')">ط</button>
-                <button class="key-btn" onclick="insertChar('ز')">ز</button>
-                <button class="key-btn" onclick="insertChar('ر')">ر</button>
-                <button class="key-btn" onclick="insertChar('و')">و</button>
-                <button class="key-btn" onclick="insertChar('ء')">ء</button>
-                <button class="key-btn" onclick="insertChar('ئ')">ئ</button>
-                <button class="key-btn" onclick="insertChar('ؤ')">ؤ</button>
-                <button class="key-btn" onclick="insertChar('إ')">إ</button>
-                <button class="key-btn" onclick="insertChar('أ')">أ</button>
-                <button class="key-btn" onclick="insertChar('آ')">آ</button>
-                <button class="key-btn" onclick="insertChar('ة')">ة</button>
-                <button class="key-btn" onclick="insertChar('ى')">ى</button>
-            </div>
-            <div class="keyboard-row">
-                <button class="key-btn space" onclick="insertChar(' ')">مسافة</button>
-                <button class="key-btn" onclick="insertChar('؟')">؟</button>
-                <button class="key-btn" onclick="insertChar('،')">،</button>
-                <button class="key-btn" onclick="clearText()">⌫</button>
-            </div>
-        </div>
-        <button class="btn btn-success" onclick="askQuestion()">📤 Publier</button>
-        <button class="btn btn-secondary" onclick="hideForms()">Fermer</button>
-    </div>
-
-    <div class="form-container" id="scholarsPopup">
-        <h2>🎓 Scholars disponibles</h2>
-        <div id="scholarsList"></div>
-        <button class="btn btn-secondary" onclick="hideForms()">Fermer</button>
-    </div>
-
-    <div id="questionsContainer" class="question-grid"></div>
+<div class="notification" id="notification"></div>
+<div class="header">
+<div>
+<div class="logo">🎓 Scholars Connect</div>
+<span class="logo-sub">🤖 Juge Claude actif · ⏱️ Réponse auto sous 5 min · 🌍 9 domaines</span>
+</div>
+<div class="header-actions" id="authButtons">
+<button class="btn btn-primary" onclick="showLogin()">🔐 Connexion</button>
+<button class="btn btn-success" onclick="showRegister()">📝 Inscription</button>
+</div>
+<div class="header-actions" id="userActions" style="display:none;">
+<span class="user-info" id="userDisplay"></span>
+<button class="btn btn-admin" onclick="goToAdmin()" id="adminBtn" style="display:none;">⚙️ Admin</button>
+<button class="btn btn-danger" onclick="logout()">🚪 Déconnexion</button>
+</div>
+</div>
+<div class="status-bar">
+<span class="status-item"><span class="dot"></span> En ligne</span>
+<span class="status-item" id="userRole">👤 Visiteur</span>
+<span class="status-item" id="langDisplay">🌐 Français</span>
+<span class="status-item" id="questionCount">📋 0 questions</span>
+<span class="status-item" id="scholarCount">🎓 36 Scholars</span>
+<span class="status-item">🤖 <span class="claude-badge">Juge Claude actif</span></span>
+</div>
+<div class="categories-nav">
+<button class="cat-btn active" onclick="filterByDomain('all', this)">🌍 Tous</button>
+<button class="cat-btn" onclick="filterByDomain('Islam', this)">🕌 Islam</button>
+<button class="cat-btn" onclick="filterByDomain('Médecine', this)">🏥 Médecine</button>
+<button class="cat-btn" onclick="filterByDomain('Pharmacie', this)">💊 Pharmacie</button>
+<button class="cat-btn" onclick="filterByDomain('Chimie', this)">⚗️ Chimie</button>
+<button class="cat-btn" onclick="filterByDomain('IA', this)">🤖 IA</button>
+<button class="cat-btn" onclick="filterByDomain('IoT', this)">🌐 IoT</button>
+<button class="cat-btn" onclick="filterByDomain('GMAO', this)">🏭 GMAO/GPAO</button>
+<button class="cat-btn" onclick="filterByDomain('Mécanique Pétrole', this)">⚙️ Méca Pétrole</button>
+<button class="cat-btn" onclick="filterByDomain('Général', this)">📚 Général</button>
+</div>
+<div style="margin:15px 0;display:flex;gap:10px;flex-wrap:wrap;">
+<button class="btn btn-primary" id="newQuestionBtn" onclick="showQuestionForm()" style="display:none;">✏️ Poser une question</button>
+<button class="btn btn-secondary" onclick="loadData()">🔄 Rafraîchir</button>
+<button class="btn btn-secondary" onclick="showScholars()">🎓 Voir les Scholars</button>
+<button class="btn btn-secondary" onclick="showHistory()">📜 Mon historique</button>
+<button class="btn btn-arabic" onclick="toggleLanguage()">🌐 Langue</button>
+<button class="btn btn-arabic" onclick="toggleKeyboard()">⌨️ Clavier arabe</button>
+</div>
+<div class="form-container" id="historyForm">
+<h2>📜 Mon historique</h2>
+<div id="historyStats" style="display:flex;gap:15px;padding:10px 0;flex-wrap:wrap;"></div>
+<div id="historyList"></div>
+<button class="btn btn-secondary" onclick="hideForms()">Fermer</button>
+</div>
+<div class="form-container" id="loginForm">
+<h2>🔐 Connexion</h2>
+<div class="form-group"><label>Email</label><input type="email" id="loginEmail" placeholder="admin@scholars-connect.com"></div>
+<div class="form-group"><label>Mot de passe</label><input type="password" id="loginPassword" placeholder="admin12345"></div>
+<button class="btn btn-primary" onclick="login()">Se connecter</button>
+<button class="btn btn-secondary" onclick="hideForms()">Fermer</button>
+</div>
+<div class="form-container" id="registerForm">
+<h2>📝 Inscription</h2>
+<div class="form-group"><label>Nom d'utilisateur</label><input type="text" id="regUsername" placeholder="Votre nom"></div>
+<div class="form-group"><label>Email</label><input type="email" id="regEmail" placeholder="votre@email.com"></div>
+<div class="form-group"><label>Mot de passe</label><input type="password" id="regPassword" placeholder="Min 6 caractères"></div>
+<div class="form-group"><label>Domaine d'intérêt</label>
+<select id="regDomain">
+<option value="Islam">🕌 Islam</option>
+<option value="Médecine">🏥 Médecine</option>
+<option value="Pharmacie">💊 Pharmacie</option>
+<option value="Chimie">⚗️ Chimie</option>
+<option value="IA">🤖 IA</option>
+<option value="IoT">🌐 IoT</option>
+<option value="GMAO">🏭 GMAO/GPAO</option>
+<option value="Mécanique Pétrole">⚙️ Mécanique Pétrole</option>
+<option value="Général">📚 Général</option>
+</select>
+</div>
+<div class="form-group"><label>Langue</label>
+<select id="regLanguage">
+<option value="fr">Français</option>
+<option value="ar">العربية</option>
+<option value="en">English</option>
+<option value="es">Español</option>
+<option value="de">Deutsch</option>
+<option value="it">Italiano</option>
+<option value="pt">Português</option>
+</select>
+</div>
+<button class="btn btn-success" onclick="register()">S'inscrire</button>
+<button class="btn btn-secondary" onclick="hideForms()">Fermer</button>
+</div>
+<div class="form-container" id="questionForm">
+<h2>✏️ Poser une question</h2>
+<div class="form-group"><label>Domaine</label>
+<select id="qDomain" onchange="updateCategories()">
+<option value="Islam">🕌 Islam</option>
+<option value="Médecine">🏥 Médecine</option>
+<option value="Pharmacie">💊 Pharmacie</option>
+<option value="Chimie">⚗️ Chimie</option>
+<option value="IA">🤖 IA</option>
+<option value="IoT">🌐 IoT</option>
+<option value="GMAO">🏭 GMAO/GPAO</option>
+<option value="Mécanique Pétrole">⚙️ Mécanique Pétrole</option>
+<option value="Général">📚 Général</option>
+</select>
+</div>
+<div class="form-group"><label>Spécialité</label>
+<select id="qCategory"></select>
+</div>
+<div class="form-group"><label>Titre</label><input type="text" id="qTitle" placeholder="Titre"></div>
+<div class="form-group"><label>Contenu</label><textarea id="qContent" placeholder="Détaillez votre question..."></textarea></div>
+<div class="form-group"><label>Langue</label>
+<select id="qLanguage">
+<option value="fr">Français</option>
+<option value="ar">العربية</option>
+<option value="en">English</option>
+<option value="es">Español</option>
+<option value="de">Deutsch</option>
+<option value="it">Italiano</option>
+<option value="pt">Português</option>
+</select>
+</div>
+<div class="keyboard-container" id="arabicKeyboard">
+<div class="keyboard-row">
+<button class="key-btn" onclick="insertChar('ض')">ض</button>
+<button class="key-btn" onclick="insertChar('ص')">ص</button>
+<button class="key-btn" onclick="insertChar('ث')">ث</button>
+<button class="key-btn" onclick="insertChar('ق')">ق</button>
+<button class="key-btn" onclick="insertChar('ف')">ف</button>
+<button class="key-btn" onclick="insertChar('غ')">غ</button>
+<button class="key-btn" onclick="insertChar('ع')">ع</button>
+<button class="key-btn" onclick="insertChar('ه')">ه</button>
+<button class="key-btn" onclick="insertChar('خ')">خ</button>
+<button class="key-btn" onclick="insertChar('ح')">ح</button>
+<button class="key-btn" onclick="insertChar('ج')">ج</button>
+<button class="key-btn" onclick="insertChar('د')">د</button>
+</div>
+<div class="keyboard-row">
+<button class="key-btn" onclick="insertChar('ذ')">ذ</button>
+<button class="key-btn" onclick="insertChar('ش')">ش</button>
+<button class="key-btn" onclick="insertChar('س')">س</button>
+<button class="key-btn" onclick="insertChar('ي')">ي</button>
+<button class="key-btn" onclick="insertChar('ب')">ب</button>
+<button class="key-btn" onclick="insertChar('ل')">ل</button>
+<button class="key-btn" onclick="insertChar('ا')">ا</button>
+<button class="key-btn" onclick="insertChar('ت')">ت</button>
+<button class="key-btn" onclick="insertChar('ن')">ن</button>
+<button class="key-btn" onclick="insertChar('م')">م</button>
+<button class="key-btn" onclick="insertChar('ك')">ك</button>
+<button class="key-btn" onclick="insertChar('ظ')">ظ</button>
+</div>
+<div class="keyboard-row">
+<button class="key-btn" onclick="insertChar('ط')">ط</button>
+<button class="key-btn" onclick="insertChar('ز')">ز</button>
+<button class="key-btn" onclick="insertChar('ر')">ر</button>
+<button class="key-btn" onclick="insertChar('و')">و</button>
+<button class="key-btn" onclick="insertChar('ء')">ء</button>
+<button class="key-btn" onclick="insertChar('ئ')">ئ</button>
+<button class="key-btn" onclick="insertChar('ؤ')">ؤ</button>
+<button class="key-btn" onclick="insertChar('إ')">إ</button>
+<button class="key-btn" onclick="insertChar('أ')">أ</button>
+<button class="key-btn" onclick="insertChar('آ')">آ</button>
+<button class="key-btn" onclick="insertChar('ة')">ة</button>
+<button class="key-btn" onclick="insertChar('ى')">ى</button>
+</div>
+<div class="keyboard-row">
+<button class="key-btn space" onclick="insertChar(' ')">مسافة</button>
+<button class="key-btn" onclick="insertChar('؟')">؟</button>
+<button class="key-btn" onclick="insertChar('،')">،</button>
+<button class="key-btn" onclick="clearText()">⌫</button>
+</div>
+</div>
+<button class="btn btn-success" onclick="askQuestion()">📤 Publier</button>
+<button class="btn btn-secondary" onclick="hideForms()">Fermer</button>
+</div>
+<div class="form-container" id="scholarsPopup">
+<h2>🎓 Scholars disponibles</h2>
+<div id="scholarsList"></div>
+<button class="btn btn-secondary" onclick="hideForms()">Fermer</button>
+</div>
+<div id="questionsContainer" class="question-grid"></div>
 </div>
 
 <script>
 // ============================================================
-// PERSISTANCE
+// PERSISTANCE (localStorage)
 // ============================================================
-const STORAGE_KEYS = {
+var STORAGE_KEYS = {
     USERS: 'sc_users',
     QUESTIONS: 'sc_questions',
     SESSION: 'sc_session',
@@ -481,7 +288,7 @@ const STORAGE_KEYS = {
 
 function saveToStorage(key, data) {
     try { localStorage.setItem(key, JSON.stringify(data)); return true; }
-    catch(e) { return false; }
+    catch(e) { console.error('Erreur sauvegarde:', e); return false; }
 }
 function loadFromStorage(key, defaultValue) {
     try {
@@ -500,84 +307,47 @@ var currentUser = loadFromStorage(STORAGE_KEYS.SESSION, null);
 var currentLanguage = loadFromStorage(STORAGE_KEYS.PREF_LANG, 'fr');
 var isKeyboardActive = false;
 var currentFilter = 'all';
-var activeTimers = {}; // Timers pour les réponses Claude
 
 // ============================================================
 // SCHOLARS AVEC LITTÉRATURE
 // ============================================================
 var scholarsData = [
-    { id: 1, name: 'Dr. Ahmed Al-Faqih', domain: 'Islam', expertise: 'Fiqh (Jurisprudence)', languages: ['ar', 'fr', 'en'], rating: 4.9,
-      literature: ['Fiqh al-Islami', 'Usul al-Fiqh', 'Al-Risala', 'Bidayat al-Mujtahid'] },
-    { id: 2, name: 'Dr. Fatima Al-Aqida', domain: 'Islam', expertise: 'Aqida (Croyance)', languages: ['ar', 'fr', 'en'], rating: 4.8,
-      literature: ['Aqida Tahawiyya', 'Kitab al-Tawhid', 'Al-Ibana'] },
-    { id: 3, name: 'Dr. Omar Al-Hadith', domain: 'Islam', expertise: 'Hadith (Prophétique)', languages: ['ar', 'en', 'fr'], rating: 4.9,
-      literature: ['Sahih Bukhari', 'Sahih Muslim', 'Sunan Abi Dawud'] },
-    { id: 4, name: 'Dr. Layla Tafsir', domain: 'Islam', expertise: 'Tafsir (Exégèse)', languages: ['ar', 'fr', 'en'], rating: 4.7,
-      literature: ['Tafsir Ibn Kathir', 'Tafsir al-Tabari', 'Tafsir al-Qurtubi'] },
-    { id: 5, name: 'Dr. Youssef Sira', domain: 'Islam', expertise: 'Sira (Biographie)', languages: ['ar', 'en', 'fr'], rating: 4.6,
-      literature: ['Sira Ibn Hisham', 'Al-Rahiq al-Makhtum'] },
-    { id: 6, name: 'Dr. Khadija Soufisme', domain: 'Islam', expertise: 'Soufisme (Spiritualité)', languages: ['ar', 'fr', 'en'], rating: 4.5,
-      literature: ['Ihya Ulum al-Din', 'Al-Risala al-Qushayriyya'] },
-    { id: 7, name: 'Dr. Marie Dupont', domain: 'Médecine', expertise: 'Cardiologie', languages: ['fr', 'en', 'ar'], rating: 4.9,
-      literature: ['Harrison Cardiology', 'Braunwald Heart Disease'] },
-    { id: 8, name: 'Dr. Ahmed Benali', domain: 'Médecine', expertise: 'Neurologie', languages: ['fr', 'ar', 'en'], rating: 4.8,
-      literature: ['Adams Neurology', 'Bradley Neurology'] },
-    { id: 9, name: 'Dr. Sophie Martin', domain: 'Médecine', expertise: 'Pédiatrie', languages: ['fr', 'en'], rating: 4.9,
-      literature: ['Nelson Pediatrics'] },
-    { id: 10, name: 'Dr. Karim Haddad', domain: 'Médecine', expertise: 'Chirurgie orthopédique', languages: ['fr', 'ar', 'en'], rating: 4.7,
-      literature: [] }, // PAS DE LITTÉRATURE - Test Règle 1
-    { id: 11, name: 'Dr. Leila Mansouri', domain: 'Médecine', expertise: 'Oncologie', languages: ['fr', 'ar', 'en'], rating: 4.8,
-      literature: ['Devita Oncology'] },
-    { id: 12, name: 'Dr. Isabelle Rousseau', domain: 'Pharmacie', expertise: 'Pharmacologie clinique', languages: ['fr', 'en'], rating: 4.8,
-      literature: ['Goodman & Gilman'] },
-    { id: 13, name: 'Dr. Mohamed Trabelsi', domain: 'Pharmacie', expertise: 'Pharmacie galénique', languages: ['fr', 'ar', 'en'], rating: 4.7,
-      literature: [] }, // PAS DE LITTÉRATURE
-    { id: 14, name: 'Dr. Claire Petit', domain: 'Pharmacie', expertise: 'Pharmacovigilance', languages: ['fr', 'en'], rating: 4.9,
-      literature: ['Meyler Pharmacovigilance'] },
-    { id: 15, name: 'Dr. Pierre Laurent', domain: 'Chimie', expertise: 'Chimie organique', languages: ['fr', 'en'], rating: 4.8,
-      literature: ['Clayden Organic Chemistry'] },
-    { id: 16, name: 'Dr. Nadia Bouazizi', domain: 'Chimie', expertise: 'Chimie analytique', languages: ['fr', 'ar', 'en'], rating: 4.7,
-      literature: ['Skoog Analytical Chemistry'] },
-    { id: 17, name: 'Dr. Hassan Rifai', domain: 'Chimie', expertise: 'Chimie industrielle', languages: ['fr', 'ar', 'en'], rating: 4.8,
-      literature: [] },
-    { id: 18, name: 'Dr. Yann LeCun Jr.', domain: 'IA', expertise: 'Deep Learning', languages: ['fr', 'en'], rating: 5.0,
-      literature: ['Deep Learning (Goodfellow)', 'Neural Networks (Bishop)'] },
-    { id: 19, name: 'Dr. Amina Khalil', domain: 'IA', expertise: 'NLP & Traitement du langage', languages: ['fr', 'ar', 'en'], rating: 4.9,
-      literature: ['Speech and Language Processing (Jurafsky)'] },
-    { id: 20, name: 'Dr. Thomas Bernard', domain: 'IA', expertise: 'Computer Vision', languages: ['fr', 'en'], rating: 4.8,
-      literature: ['Computer Vision (Szeliski)'] },
-    { id: 21, name: 'Dr. Sara El Amrani', domain: 'IA', expertise: 'Reinforcement Learning', languages: ['fr', 'ar', 'en'], rating: 4.7,
-      literature: ['Reinforcement Learning (Sutton & Barto)'] },
-    { id: 22, name: 'Dr. Julien Moreau', domain: 'IoT', expertise: 'Architecture IoT', languages: ['fr', 'en'], rating: 4.8,
-      literature: ['IoT Architecture (Borgia)'] },
-    { id: 23, name: 'Dr. Rania Hamdi', domain: 'IoT', expertise: 'Sécurité IoT', languages: ['fr', 'ar', 'en'], rating: 4.7,
-      literature: ['IoT Security (Russell)'] },
-    { id: 24, name: 'Dr. Marc Lefebvre', domain: 'IoT', expertise: 'Protocoles MQTT/CoAP', languages: ['fr', 'en'], rating: 4.6,
-      literature: ['MQTT Essentials'] },
-    { id: 25, name: 'Dr. Olivier Dubois', domain: 'GMAO', expertise: 'GMAO (Maintenance Assistée)', languages: ['fr', 'en'], rating: 4.9,
-      literature: ['Maintenance Industrielle (AFNOR)'] },
-    { id: 26, name: 'Dr. Karim Bouzid', domain: 'GMAO', expertise: 'GPAO (Production Assistée)', languages: ['fr', 'ar', 'en'], rating: 4.8,
-      literature: ['GPAO - Gestion de Production'] },
-    { id: 27, name: 'Dr. Hélène Girard', domain: 'GMAO', expertise: 'Planification industrielle', languages: ['fr', 'en'], rating: 4.7,
-      literature: [] },
-    { id: 28, name: 'Dr. Jean-Pierre Durand', domain: 'Mécanique Pétrole', expertise: 'Usinage CNC haute précision', languages: ['fr', 'en'], rating: 5.0,
-      literature: ['CNC Programming Handbook', 'Machining Fundamentals'] },
-    { id: 29, name: 'Dr. Abdelkader Ziani', domain: 'Mécanique Pétrole', expertise: 'Vannes et équipements pétroliers', languages: ['fr', 'ar', 'en'], rating: 4.9,
-      literature: ['Valve Handbook (Skousen)', 'API 6D Standard'] },
-    { id: 30, name: 'Dr. Sarah Cohen', domain: 'Mécanique Pétrole', expertise: 'Turbines et compresseurs', languages: ['fr', 'en'], rating: 4.8,
-      literature: ['Gas Turbine Theory (Saravanamuttoo)'] },
-    { id: 31, name: 'Dr. Rachid Benmoussa', domain: 'Mécanique Pétrole', expertise: 'Forage et complétion', languages: ['fr', 'ar', 'en'], rating: 4.9,
-      literature: ['Drilling Engineering (Bourgoyne)'] },
-    { id: 32, name: 'Dr. Philippe Roux', domain: 'Mécanique Pétrole', expertise: 'Contrôle qualité et métrologie', languages: ['fr', 'en'], rating: 4.8,
-      literature: ['Metrology Handbook'] },
-    { id: 33, name: 'Dr. Amira Math', domain: 'Général', expertise: 'Mathématiques', languages: ['fr', 'en', 'ar'], rating: 4.9,
-      literature: ['Calculus (Stewart)', 'Linear Algebra (Strang)'] },
-    { id: 34, name: 'Dr. Sophie Physique', domain: 'Général', expertise: 'Physique', languages: ['fr', 'en'], rating: 4.8,
-      literature: ['Feynman Lectures'] },
-    { id: 35, name: 'Dr. Karim Info', domain: 'Général', expertise: 'Informatique', languages: ['fr', 'en', 'es'], rating: 4.7,
-      literature: ['Clean Code', 'Introduction to Algorithms'] },
-    { id: 36, name: 'Dr. Fatima Histoire', domain: 'Général', expertise: 'Histoire', languages: ['fr', 'en', 'ar'], rating: 4.9,
-      literature: ['Histoire Universelle'] }
+    { id: 1, name: 'Dr. Ahmed Al-Faqih', domain: 'Islam', expertise: 'Fiqh (Jurisprudence)', languages: ['ar', 'fr', 'en'], rating: 4.9, literature: ['Fiqh al-Islami', 'Usul al-Fiqh', 'Al-Risala'] },
+    { id: 2, name: 'Dr. Fatima Al-Aqida', domain: 'Islam', expertise: 'Aqida (Croyance)', languages: ['ar', 'fr', 'en'], rating: 4.8, literature: ['Aqida Tahawiyya', 'Kitab al-Tawhid'] },
+    { id: 3, name: 'Dr. Omar Al-Hadith', domain: 'Islam', expertise: 'Hadith (Prophétique)', languages: ['ar', 'en', 'fr'], rating: 4.9, literature: ['Sahih Bukhari', 'Sahih Muslim'] },
+    { id: 4, name: 'Dr. Layla Tafsir', domain: 'Islam', expertise: 'Tafsir (Exégèse)', languages: ['ar', 'fr', 'en'], rating: 4.7, literature: ['Tafsir Ibn Kathir', 'Tafsir al-Tabari'] },
+    { id: 5, name: 'Dr. Youssef Sira', domain: 'Islam', expertise: 'Sira (Biographie)', languages: ['ar', 'en', 'fr'], rating: 4.6, literature: ['Sira Ibn Hisham'] },
+    { id: 6, name: 'Dr. Khadija Soufisme', domain: 'Islam', expertise: 'Soufisme (Spiritualité)', languages: ['ar', 'fr', 'en'], rating: 4.5, literature: ['Ihya Ulum al-Din'] },
+    { id: 7, name: 'Dr. Marie Dupont', domain: 'Médecine', expertise: 'Cardiologie', languages: ['fr', 'en', 'ar'], rating: 4.9, literature: ['Harrison Cardiology', 'Braunwald Heart Disease'] },
+    { id: 8, name: 'Dr. Ahmed Benali', domain: 'Médecine', expertise: 'Neurologie', languages: ['fr', 'ar', 'en'], rating: 4.8, literature: ['Adams Neurology'] },
+    { id: 9, name: 'Dr. Sophie Martin', domain: 'Médecine', expertise: 'Pédiatrie', languages: ['fr', 'en'], rating: 4.9, literature: ['Nelson Pediatrics'] },
+    { id: 10, name: 'Dr. Karim Haddad', domain: 'Médecine', expertise: 'Chirurgie orthopédique', languages: ['fr', 'ar', 'en'], rating: 4.7, literature: [] },
+    { id: 11, name: 'Dr. Leila Mansouri', domain: 'Médecine', expertise: 'Oncologie', languages: ['fr', 'ar', 'en'], rating: 4.8, literature: ['Devita Oncology'] },
+    { id: 12, name: 'Dr. Isabelle Rousseau', domain: 'Pharmacie', expertise: 'Pharmacologie clinique', languages: ['fr', 'en'], rating: 4.8, literature: ['Goodman & Gilman'] },
+    { id: 13, name: 'Dr. Mohamed Trabelsi', domain: 'Pharmacie', expertise: 'Pharmacie galénique', languages: ['fr', 'ar', 'en'], rating: 4.7, literature: [] },
+    { id: 14, name: 'Dr. Claire Petit', domain: 'Pharmacie', expertise: 'Pharmacovigilance', languages: ['fr', 'en'], rating: 4.9, literature: ['Meyler Pharmacovigilance'] },
+    { id: 15, name: 'Dr. Pierre Laurent', domain: 'Chimie', expertise: 'Chimie organique', languages: ['fr', 'en'], rating: 4.8, literature: ['Clayden Organic Chemistry'] },
+    { id: 16, name: 'Dr. Nadia Bouazizi', domain: 'Chimie', expertise: 'Chimie analytique', languages: ['fr', 'ar', 'en'], rating: 4.7, literature: ['Skoog Analytical Chemistry'] },
+    { id: 17, name: 'Dr. Hassan Rifai', domain: 'Chimie', expertise: 'Chimie industrielle', languages: ['fr', 'ar', 'en'], rating: 4.8, literature: [] },
+    { id: 18, name: 'Dr. Yann LeCun Jr.', domain: 'IA', expertise: 'Deep Learning', languages: ['fr', 'en'], rating: 5.0, literature: ['Deep Learning (Goodfellow)', 'Neural Networks (Bishop)'] },
+    { id: 19, name: 'Dr. Amina Khalil', domain: 'IA', expertise: 'NLP & Traitement du langage', languages: ['fr', 'ar', 'en'], rating: 4.9, literature: ['Speech and Language Processing'] },
+    { id: 20, name: 'Dr. Thomas Bernard', domain: 'IA', expertise: 'Computer Vision', languages: ['fr', 'en'], rating: 4.8, literature: ['Computer Vision (Szeliski)'] },
+    { id: 21, name: 'Dr. Sara El Amrani', domain: 'IA', expertise: 'Reinforcement Learning', languages: ['fr', 'ar', 'en'], rating: 4.7, literature: ['Reinforcement Learning (Sutton)'] },
+    { id: 22, name: 'Dr. Julien Moreau', domain: 'IoT', expertise: 'Architecture IoT', languages: ['fr', 'en'], rating: 4.8, literature: ['IoT Architecture (Borgia)'] },
+    { id: 23, name: 'Dr. Rania Hamdi', domain: 'IoT', expertise: 'Sécurité IoT', languages: ['fr', 'ar', 'en'], rating: 4.7, literature: ['IoT Security (Russell)'] },
+    { id: 24, name: 'Dr. Marc Lefebvre', domain: 'IoT', expertise: 'Protocoles MQTT/CoAP', languages: ['fr', 'en'], rating: 4.6, literature: ['MQTT Essentials'] },
+    { id: 25, name: 'Dr. Olivier Dubois', domain: 'GMAO', expertise: 'GMAO (Maintenance Assistée)', languages: ['fr', 'en'], rating: 4.9, literature: ['Maintenance Industrielle (AFNOR)'] },
+    { id: 26, name: 'Dr. Karim Bouzid', domain: 'GMAO', expertise: 'GPAO (Production Assistée)', languages: ['fr', 'ar', 'en'], rating: 4.8, literature: ['GPAO - Gestion de Production'] },
+    { id: 27, name: 'Dr. Hélène Girard', domain: 'GMAO', expertise: 'Planification industrielle', languages: ['fr', 'en'], rating: 4.7, literature: [] },
+    { id: 28, name: 'Dr. Jean-Pierre Durand', domain: 'Mécanique Pétrole', expertise: 'Usinage CNC haute précision', languages: ['fr', 'en'], rating: 5.0, literature: ['CNC Programming Handbook'] },
+    { id: 29, name: 'Dr. Abdelkader Ziani', domain: 'Mécanique Pétrole', expertise: 'Vannes et équipements pétroliers', languages: ['fr', 'ar', 'en'], rating: 4.9, literature: ['Valve Handbook', 'API 6D Standard'] },
+    { id: 30, name: 'Dr. Sarah Cohen', domain: 'Mécanique Pétrole', expertise: 'Turbines et compresseurs', languages: ['fr', 'en'], rating: 4.8, literature: ['Gas Turbine Theory'] },
+    { id: 31, name: 'Dr. Rachid Benmoussa', domain: 'Mécanique Pétrole', expertise: 'Forage et complétion', languages: ['fr', 'ar', 'en'], rating: 4.9, literature: ['Drilling Engineering'] },
+    { id: 32, name: 'Dr. Philippe Roux', domain: 'Mécanique Pétrole', expertise: 'Contrôle qualité et métrologie', languages: ['fr', 'en'], rating: 4.8, literature: ['Metrology Handbook'] },
+    { id: 33, name: 'Dr. Amira Math', domain: 'Général', expertise: 'Mathématiques', languages: ['fr', 'en', 'ar'], rating: 4.9, literature: ['Calculus (Stewart)'] },
+    { id: 34, name: 'Dr. Sophie Physique', domain: 'Général', expertise: 'Physique', languages: ['fr', 'en'], rating: 4.8, literature: ['Feynman Lectures'] },
+    { id: 35, name: 'Dr. Karim Info', domain: 'Général', expertise: 'Informatique', languages: ['fr', 'en', 'es'], rating: 4.7, literature: ['Clean Code'] },
+    { id: 36, name: 'Dr. Fatima Histoire', domain: 'Général', expertise: 'Histoire', languages: ['fr', 'en', 'ar'], rating: 4.9, literature: ['Histoire Universelle'] }
 ];
 
 var categoriesByDomain = {
@@ -593,125 +363,65 @@ var categoriesByDomain = {
 };
 
 // ============================================================
+// SAUVEGARDE
+// ============================================================
+function saveUsers() { saveToStorage(STORAGE_KEYS.USERS, users); }
+function saveQuestions() { saveToStorage(STORAGE_KEYS.QUESTIONS, questions); }
+function saveSession() { saveToStorage(STORAGE_KEYS.SESSION, currentUser); }
+function saveHistory() { saveToStorage(STORAGE_KEYS.MY_HISTORY, myHistory); }
+
+// ============================================================
 // JUGE CLAUDE - RECHERCHE SÉMANTIQUE
 // ============================================================
 function claudeSemanticSearch(question, scholar) {
-    // Simulation d'une recherche sémantique dans la littérature du scholar
     if (!scholar.literature || scholar.literature.length === 0) {
         return { found: false, reason: 'no_literature', matches: [] };
     }
-    
-    // Recherche par mots-clés dans les titres de littérature
-    var questionLower = (question.title + ' ' + question.content).toLowerCase();
-    var questionWords = questionLower.split(/\s+/).filter(function(w) { return w.length > 3; });
-    
+    var qText = (question.title + ' ' + question.content).toLowerCase();
+    var qWords = qText.split(/\s+/).filter(function(w) { return w.length > 3; });
     var matches = [];
     for (var i = 0; i < scholar.literature.length; i++) {
         var lit = scholar.literature[i].toLowerCase();
-        for (var j = 0; j < questionWords.length; j++) {
-            if (lit.indexOf(questionWords[j]) !== -1 || questionWords[j].indexOf(lit.split(' ')[0]) !== -1) {
-                matches.push(scholar.literature[i]);
-                break;
-            }
+        for (var j = 0; j < qWords.length; j++) {
+            if (lit.indexOf(qWords[j]) !== -1) { matches.push(scholar.literature[i]); break; }
         }
     }
-    
-    // Si plus de 50% des mots-clés trouvés → littérature suffisante
-    var matchRatio = matches.length / scholar.literature.length;
-    if (matches.length > 0 || matchRatio > 0.3) {
-        return { found: true, matches: matches };
-    }
-    
-    return { found: false, reason: 'no_semantic_match', matches: [] };
+    if (matches.length > 0) return { found: true, matches: matches };
+    return { found: true, matches: [], limited: true };
 }
 
 // ============================================================
 // JUGE CLAUDE - GÉNÉRATION DE RÉPONSE
 // ============================================================
 function claudeGenerateAnswer(question, scholar, reason) {
-    var answer = '';
-    var literatureRef = '';
-    
+    var litRef = '';
     if (scholar.literature && scholar.literature.length > 0) {
-        literatureRef = scholar.literature.slice(0, 3).join(', ');
+        litRef = scholar.literature.slice(0, 3).join(', ');
     }
     
     if (reason === 'no_literature') {
-        answer = '🤖 Réponse du Juge Claude\n\n';
-        answer += 'Le scholar assigné ' + scholar.name + ' ne dispose pas de littérature spécifique sur cette question.\n\n';
-        answer += '📚 Je réponds donc directement en me basant sur les connaissances générales du domaine ' + question.domain + ' :\n\n';
-        answer += 'Concernant votre question "' + question.title + '" :\n';
-        answer += 'Cette question relève du domaine ' + question.domain + ' (' + question.category + '). ';
-        answer += 'En l\'absence de littérature spécifique du scholar, je vous fournis une réponse basée sur les connaissances générales et standards du domaine.\n\n';
-        answer += '💡 Pour une réponse plus pointue, veuillez consulter un autre scholar spécialisé dans cette sous-catégorie.';
+        return '🤖 Réponse du Juge Claude\n\n' +
+            'Le scholar ' + scholar.name + ' ne dispose pas de littérature spécifique sur cette question.\n\n' +
+            '📚 Je réponds donc directement en me basant sur les connaissances générales du domaine ' + question.domain + ' :\n\n' +
+            'Concernant votre question "' + question.title + '" :\n' +
+            'Cette question relève du domaine ' + question.domain + ' (' + question.category + '). ' +
+            'En l\'absence de littérature spécifique du scholar, je vous fournis une réponse basée sur les connaissances générales du domaine.\n\n' +
+            '💡 Pour une réponse plus pointue, veuillez consulter un autre scholar spécialisé.';
     } else if (reason === 'timeout_5min') {
-        answer = '🤖 Réponse du Juge Claude (délai de 5 minutes dépassé)\n\n';
-        answer += 'Le scholar ' + scholar.name + ' n\'a pas répondu dans le délai imparti (5 minutes).\n\n';
-        answer += '📚 Je réponds en me référant à sa littérature diffusée :\n';
-        if (literatureRef) {
-            answer += '📖 Références : ' + literatureRef + '\n\n';
-        }
-        answer += 'Concernant votre question "' + question.title + '" :\n';
-        answer += 'Voici une réponse basée sur les ouvrages de référence du scholar ' + scholar.name + '.\n\n';
-        answer += '💡 Le scholar ' + scholar.name + ' pourra compléter cette réponse s\'il revient ultérieurement.';
-    } else if (reason === 'late_scholar_response') {
-        answer = '📢 Diffusion de la réponse du Scholar ' + scholar.name + '\n\n';
-        answer += 'Le scholar a finalement répondu (avec un léger retard) :\n\n';
-        answer += '⏱️ Note : Le Juge Claude avait déjà fourni une réponse temporaire en attendant.';
+        var ans = '⏱️ Réponse du Juge Claude (délai 5 minutes dépassé)\n\n';
+        ans += 'Le scholar ' + scholar.name + ' n\'a pas répondu dans le délai imparti de 5 minutes.\n\n';
+        if (litRef) ans += '📖 Littérature de référence : ' + litRef + '\n\n';
+        ans += '📚 Réponse basée sur la littérature diffusée par ' + scholar.name + ' :\n\n';
+        ans += 'D\'après les ouvrages de référence de ' + scholar.name + ', voici une réponse à votre question sur "' + question.title + '".\n\n';
+        ans += '💡 Le scholar ' + scholar.name + ' pourra compléter cette réponse s\'il revient ultérieurement.';
+        return ans;
     }
-    
-    return answer;
+    return 'Réponse du Juge Claude pour "' + question.title + '"';
 }
 
 // ============================================================
-// JUGE CLAUDE - TRAITEMENT D'UNE QUESTION
+// JUGE CLAUDE - AJOUT DE RÉPONSE
 // ============================================================
-function claudeJudge(question) {
-    if (!question.scholar) return;
-    
-    var scholar = question.scholar;
-    
-    // RÈGLE 1 : Vérifier si le scholar a de la littérature pertinente
-    var searchResult = claudeSemanticSearch(question, scholar);
-    
-    if (!searchResult.found) {
-        // Pas de littérature → Claude répond immédiatement
-        setTimeout(function() {
-            var claudeAnswer = claudeGenerateAnswer(question, scholar, 'no_literature');
-            addClaudeAnswer(question.id, claudeAnswer, 'no_literature');
-            showNotification('🤖 Juge Claude a répondu (pas de littérature du scholar)', 'claude');
-        }, 2000);
-        return;
-    }
-    
-    // RÈGLE 2 : Attendre 5 minutes (300 000 ms) que le scholar réponde
-    // Pour la démo, on utilise 30 secondes au lieu de 5 minutes
-    var TIMEOUT_DEMO = 30000; // 30 secondes pour la démo
-    
-    question.claudeTimer = setTimeout(function() {
-        // Vérifier si le scholar a répondu entre-temps
-        var stillNoAnswer = true;
-        for (var i = 0; i < questions.length; i++) {
-            if (questions[i].id === question.id && questions[i].answers) {
-                for (var j = 0; j < questions[i].answers.length; j++) {
-                    if (questions[i].answers[j].isScholarResponse) {
-                        stillNoAnswer = false;
-                        break;
-                    }
-                }
-            }
-        }
-        
-        if (stillNoAnswer) {
-            var claudeAnswer = claudeGenerateAnswer(question, scholar, 'timeout_5min');
-            addClaudeAnswer(question.id, claudeAnswer, 'timeout_5min');
-            showNotification('⏱️ Juge Claude a répondu (délai de 5 min dépassé)', 'claude');
-        }
-    }, TIMEOUT_DEMO);
-    
-    saveQuestions();
-}
-
 function addClaudeAnswer(questionId, content, reason) {
     for (var i = 0; i < questions.length; i++) {
         if (questions[i].id === questionId) {
@@ -737,72 +447,57 @@ function addClaudeAnswer(questionId, content, reason) {
 }
 
 // ============================================================
-// RECHERCHE SÉMANTIQUE (simulation)
+// TRAITEMENT JUGE CLAUDE
 // ============================================================
-function claudeSemanticSearch(question, scholar) {
+function triggerClaudeJudge(question) {
+    if (!question.scholar) return;
+    var scholar = question.scholar;
+    
+    // RÈGLE 1 : Pas de littérature → réponse immédiate
     if (!scholar.literature || scholar.literature.length === 0) {
-        return { found: false, reason: 'no_literature', matches: [] };
+        setTimeout(function() {
+            var claudeAnswer = claudeGenerateAnswer(question, scholar, 'no_literature');
+            addClaudeAnswer(question.id, claudeAnswer, 'no_literature');
+            showNotification('🤖 Juge Claude a répondu (pas de littérature du scholar)', 'claude');
+        }, 2000);
+        return;
     }
-    var qText = (question.title + ' ' + question.content).toLowerCase();
-    var qWords = qText.split(/\s+/).filter(function(w) { return w.length > 3; });
-    var matches = [];
-    for (var i = 0; i < scholar.literature.length; i++) {
-        var lit = scholar.literature[i].toLowerCase();
-        for (var j = 0; j < qWords.length; j++) {
-            if (lit.indexOf(qWords[j]) !== -1) { matches.push(scholar.literature[i]); break; }
+    
+    // RÈGLE 2 : Timeout 5 minutes (30 sec en démo)
+    showNotification('⏱️ Juge Claude surveille (5 min max)...', 'info');
+    var questionId = question.id;
+    setTimeout(function() {
+        var q = null;
+        for (var i = 0; i < questions.length; i++) {
+            if (questions[i].id === questionId) { q = questions[i]; break; }
         }
-    }
-    if (matches.length > 0) return { found: true, matches: matches };
-    // Si pas de littérature → trouvé mais limité
-    return { found: true, matches: [], limited: true };
+        if (!q) return;
+        
+        var scholarResponded = false;
+        if (q.answers) {
+            for (var j = 0; j < q.answers.length; j++) {
+                if (q.answers[j].isScholarResponse) { scholarResponded = true; break; }
+            }
+        }
+        
+        if (!scholarResponded) {
+            var claudeAnswer = claudeGenerateAnswer(q, q.scholar, 'timeout_5min');
+            addClaudeAnswer(q.id, claudeAnswer, 'timeout_5min');
+            showNotification('⏱️ Juge Claude a répondu après 5 minutes', 'claude');
+        }
+    }, 30000);
 }
-
-function claudeGenerateAnswer(question, scholar, reason) {
-    var litRef = '';
-    if (scholar.literature && scholar.literature.length > 0) {
-        litRef = scholar.literature.slice(0, 3).join(', ');
-    }
-    
-    var header = '';
-    var body = '';
-    
-    if (reason === 'no_literature') {
-        header = '🤖 Juge Claude - Réponse immédiate';
-        body = 'Le scholar ' + scholar.name + ' ne dispose pas de littérature spécifique pour cette question.\n\n';
-        body += '📚 Réponse basée sur les connaissances générales du domaine ' + question.domain + ' :\n\n';
-        body += 'Cette question relève de la spécialité "' + question.category + '". ';
-        body += 'En l\'absence de littérature spécifique du scholar, le Juge Claude fournit une réponse standard basée sur les connaissances établies.';
-    } else if (reason === 'timeout_5min') {
-        header = '⏱️ Juge Claude - Réponse après 5 minutes';
-        body = 'Le scholar ' + scholar.name + ' n\'a pas répondu dans le délai de 5 minutes.\n\n';
-        if (litRef) body += '📖 Littérature du scholar : ' + litRef + '\n\n';
-        body += '📚 Réponse basée sur la littérature diffusée par ' + scholar.name + ' :\n\n';
-        body += 'D\'après les ouvrages de référence de ' + scholar.name + ', voici une réponse à votre question sur "' + question.title + '".';
-    } else if (reason === 'late_scholar') {
-        header = '📢 Diffusion réponse Scholar';
-        body = 'Le scholar ' + scholar.name + ' a finalement répondu.\n\n';
-        body += '⏱️ Note : Le Juge Claude avait déjà fourni une réponse temporaire.';
-    }
-    
-    return header + '\n\n' + body;
-}
-
-// ============================================================
-// PERSISTANCE
-// ============================================================
-function saveUsers() { saveToStorage(STORAGE_KEYS.USERS, users); }
-function saveQuestions() { saveToStorage(STORAGE_KEYS.QUESTIONS, questions); }
-function saveSession() { saveToStorage(STORAGE_KEYS.SESSION, currentUser); }
-function saveHistory() { saveToStorage(STORAGE_KEYS.MY_HISTORY, myHistory); }
 
 // ============================================================
 // INITIALISATION
 // ============================================================
 function initializeApp() {
     if (currentUser) {
+        var found = false;
         for (var i = 0; i < users.length; i++) {
-            if (users[i].id === currentUser.id) { currentUser = users[i]; break; }
+            if (users[i].id === currentUser.id) { currentUser = users[i]; found = true; break; }
         }
+        if (!found) { currentUser = null; saveSession(); }
     }
     updateUI();
     renderQuestions();
@@ -813,6 +508,9 @@ function initializeApp() {
     }
 }
 
+// ============================================================
+// NAVIGATION
+// ============================================================
 function filterByDomain(domain, btn) {
     currentFilter = domain;
     var btns = document.querySelectorAll('.cat-btn');
@@ -821,6 +519,9 @@ function filterByDomain(domain, btn) {
     renderQuestions();
 }
 
+// ============================================================
+// CLAVIER ARABE
+// ============================================================
 function toggleKeyboard() {
     var keyboard = document.getElementById('arabicKeyboard');
     isKeyboardActive = !isKeyboardActive;
@@ -855,6 +556,9 @@ function clearText() {
     }
 }
 
+// ============================================================
+// LANGUES
+// ============================================================
 function toggleLanguage() {
     var langs = ['fr', 'ar', 'en', 'es', 'de', 'it', 'pt'];
     var idx = langs.indexOf(currentLanguage);
@@ -869,6 +573,9 @@ function getLangName(code) {
     return names[code] || code;
 }
 
+// ============================================================
+// SCHOLARS
+// ============================================================
 function assignScholar(domain, category) {
     var available = scholarsData.filter(function(s) { return s.domain === domain && s.expertise === category; });
     if (available.length > 0) return available[Math.floor(Math.random() * available.length)];
@@ -906,8 +613,7 @@ function showScholars() {
         var litBadge = litCount > 0 ? '<span style="background:#22c55e;padding:2px 8px;border-radius:10px;font-size:10px;">📚 ' + litCount + ' ouvrages</span>' : '<span style="background:#ef4444;padding:2px 8px;border-radius:10px;font-size:10px;">📚 Aucune littérature</span>';
         html += '<div class="scholar-card">' +
             '<strong>' + icon + ' ' + s.name + '</strong> ' +
-            '<span class="domain-tag ' + dClass + '">' + s.domain + '</span> ' +
-            litBadge +
+            '<span class="domain-tag ' + dClass + '">' + s.domain + '</span> ' + litBadge +
             '<div style="opacity:0.7;font-size:14px;margin-top:5px;">📂 ' + s.expertise + '</div>' +
             '<div style="font-size:13px;opacity:0.6;">🌐 ' + s.languages.map(function(l) { return getLangName(l); }).join(', ') + '</div>' +
             '<div style="color:#f59e0b;">⭐ ' + s.rating + '/5</div>' +
@@ -919,6 +625,9 @@ function showScholars() {
     document.getElementById('scholarsPopup').classList.add('active');
 }
 
+// ============================================================
+// NOTIFICATIONS
+// ============================================================
 function showNotification(message, type) {
     if (type === undefined) type = 'info';
     var el = document.getElementById('notification');
@@ -928,6 +637,9 @@ function showNotification(message, type) {
     setTimeout(function() { el.style.display = 'none'; }, 6000);
 }
 
+// ============================================================
+// FORMULAIRES
+// ============================================================
 function showLogin() { hideForms(); document.getElementById('loginForm').classList.add('active'); }
 function showRegister() { hideForms(); document.getElementById('registerForm').classList.add('active'); }
 function showQuestionForm() {
@@ -1069,7 +781,7 @@ function renderHistory() {
             }
         }
     }
-    stats.innerHTML = 
+    stats.innerHTML =
         '<span style="background:rgba(255,255,255,0.1);padding:5px 12px;border-radius:12px;">📋 ' + myQuestions.length + ' questions</span>' +
         '<span style="background:rgba(255,255,255,0.1);padding:5px 12px;border-radius:12px;">💬 ' + myAnswers + ' réponses</span>' +
         '<span style="background:rgba(255,255,255,0.1);padding:5px 12px;border-radius:12px;">📊 ' + myHistory.length + ' actions</span>';
@@ -1092,7 +804,7 @@ function renderHistory() {
             html += '<div class="answers-section"><strong>💬 ' + q.answers.length + ' réponses</strong>';
             for (var m = 0; m < q.answers.length; m++) {
                 var a = q.answers[m];
-                var aClass = a.isClaude ? 'claude-answer' : (a.isScholar ? 'scholar-answer' : '');
+                var aClass = a.isClaude ? 'claude-answer' : (a.isScholarResponse ? 'scholar-answer' : '');
                 html += '<div class="answer-item ' + aClass + '">' +
                     '<div>' + a.content + '</div>' +
                     '<div class="answer-meta">👤 ' + a.username + ' | 📅 ' + a.date + '</div>' +
@@ -1133,8 +845,7 @@ function askQuestion() {
         timestamp: new Date().toISOString(),
         status: scholar ? 'assigned' : 'pending',
         scholar: scholar,
-        answers: [],
-        claudeNotified: false
+        answers: []
     };
     
     questions.unshift(question);
@@ -1147,43 +858,7 @@ function askQuestion() {
     hideForms();
     renderQuestions();
     
-    // ============================================================
-    // DÉCLENCHER LE JUGE CLAUDE
-    // ============================================================
-    if (scholar) {
-        // Règle 1 : Vérifier la littérature
-        if (!scholar.literature || scholar.literature.length === 0) {
-            setTimeout(function() {
-                var claudeAnswer = claudeGenerateAnswer(question, scholar, 'no_literature');
-                addClaudeAnswer(question.id, claudeAnswer, 'no_literature');
-                showNotification('🤖 Juge Claude a répondu immédiatement (pas de littérature du scholar)', 'claude');
-            }, 2000);
-        } else {
-            // Règle 2 : Attendre 5 minutes (30 sec pour démo)
-            showNotification('⏱️ Juge Claude surveille (5 min max)...', 'info');
-            var questionId = question.id;
-            setTimeout(function() {
-                var q = null;
-                for (var i = 0; i < questions.length; i++) {
-                    if (questions[i].id === questionId) { q = questions[i]; break; }
-                }
-                if (!q) return;
-                
-                var scholarResponded = false;
-                if (q.answers) {
-                    for (var j = 0; j < q.answers.length; j++) {
-                        if (q.answers[j].isScholarResponse) { scholarResponded = true; break; }
-                    }
-                }
-                
-                if (!scholarResponded) {
-                    var claudeAnswer = claudeGenerateAnswer(q, q.scholar, 'timeout_5min');
-                    addClaudeAnswer(q.id, claudeAnswer, 'timeout_5min');
-                    showNotification('⏱️ Juge Claude a répondu après 5 minutes', 'claude');
-                }
-            }, 30000); // 30 sec pour démo (5 min en prod)
-        }
-    }
+    triggerClaudeJudge(question);
     
     document.getElementById('qTitle').value = '';
     document.getElementById('qContent').value = '';
@@ -1233,7 +908,7 @@ function renderQuestions() {
                 if (a.isClaude) {
                     badge = '<span class="claude-badge">🤖 Juge Claude</span> ';
                     if (a.claudeReason === 'no_literature') badge += '<span class="claude-status">Sans littérature</span>';
-                    if (a.claudeReason === 'timeout_5min') badge += '<span class="timer-badge">⏱️ 5 min dépassées</span>';
+                    if (a.claudeReason === 'timeout_5min') badge += '<span class="timer-badge">⏱️ 5 min</span>';
                 }
                 answersHtml += '<div class="answer-item ' + aClass + '">' +
                     '<div style="margin-bottom:5px;">' + badge + '</div>' +
@@ -1242,7 +917,7 @@ function renderQuestions() {
             }
             answersHtml += '</div>';
         } else {
-            answersHtml = '<div style="margin-top:10px;opacity:0.5;font-size:13px;">💬 En attente de réponse (Juge Claude surveille)...</div>';
+            answersHtml = '<div style="margin-top:10px;opacity:0.5;font-size:13px;">💬 En attente (Juge Claude surveille)...</div>';
         }
         
         var answerBtn = currentUser ? '<button class="btn btn-secondary" onclick="showAnswerForm(' + q.id + ')">💬 Répondre</button>' : '';
@@ -1289,7 +964,6 @@ function showAnswerForm(questionId) {
             saveQuestions();
             addToHistory('answer', { questionTitle: questions[i].title });
             
-            // Règle 3 : Si le scholar répond en retard, diffuser sa réponse
             if (isScholar) {
                 var hasClaudeAns = false;
                 for (var c = 0; c < questions[i].answers.length; c++) {

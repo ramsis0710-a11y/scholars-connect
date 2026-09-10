@@ -35,21 +35,21 @@ th { color:#667eea; font-size:12px; text-transform:uppercase; }
 </head>
 <body>
 <div class="container">
-    <div class="header">
-        <div><span class="logo">⚙️ Admin - Juge Claude Actif</span></div>
-        <div><button class="btn btn-secondary" onclick="window.location.href='/'">🏠 Retour</button></div>
-    </div>
-    <div class="stats" id="statsContainer"></div>
-    <div style="margin:15px 0;">
-        <button class="btn btn-primary" onclick="showTab('scholars')">🎓 Scholars</button>
-        <button class="btn btn-primary" onclick="showTab('questions')">📋 Questions</button>
-        <button class="btn btn-claude" onclick="showTab('claude')">🤖 Réponses Claude</button>
-        <button class="btn btn-primary" onclick="showTab('users')">👤 Utilisateurs</button>
-    </div>
-    <div id="content"></div>
+<div class="header">
+<div><span class="logo">⚙️ Admin - Juge Claude Actif</span></div>
+<div><button class="btn btn-secondary" onclick="window.location.href='/'">🏠 Retour</button></div>
+</div>
+<div class="stats" id="statsContainer"></div>
+<div style="margin:15px 0;">
+<button class="btn btn-primary" onclick="showTab('scholars')">🎓 Scholars</button>
+<button class="btn btn-primary" onclick="showTab('questions')">📋 Questions</button>
+<button class="btn btn-claude" onclick="showTab('claude')">🤖 Réponses Claude</button>
+<button class="btn btn-primary" onclick="showTab('users')">👤 Utilisateurs</button>
+</div>
+<div id="content"></div>
 </div>
 <script>
-const STORAGE_KEYS = { USERS: 'sc_users', QUESTIONS: 'sc_questions', SESSION: 'sc_session' };
+var STORAGE_KEYS = { USERS: 'sc_users', QUESTIONS: 'sc_questions' };
 function loadFromStorage(key, defaultValue) {
     try { var data = localStorage.getItem(key); if (data) return JSON.parse(data); return defaultValue; }
     catch(e) { return defaultValue; }
@@ -58,14 +58,14 @@ var users = loadFromStorage(STORAGE_KEYS.USERS, [{ id: 1, username: 'admin', ema
 var questions = loadFromStorage(STORAGE_KEYS.QUESTIONS, []);
 
 var scholars = [
-    { name: 'Dr. Ahmed Al-Faqih', domain: 'Islam', expertise: 'Fiqh', rating: 4.9, litCount: 4 },
-    { name: 'Dr. Fatima Al-Aqida', domain: 'Islam', expertise: 'Aqida', rating: 4.8, litCount: 3 },
-    { name: 'Dr. Omar Al-Hadith', domain: 'Islam', expertise: 'Hadith', rating: 4.9, litCount: 3 },
-    { name: 'Dr. Layla Tafsir', domain: 'Islam', expertise: 'Tafsir', rating: 4.7, litCount: 3 },
-    { name: 'Dr. Youssef Sira', domain: 'Islam', expertise: 'Sira', rating: 4.6, litCount: 2 },
-    { name: 'Dr. Khadija Soufisme', domain: 'Islam', expertise: 'Soufisme', rating: 4.5, litCount: 2 },
+    { name: 'Dr. Ahmed Al-Faqih', domain: 'Islam', expertise: 'Fiqh', rating: 4.9, litCount: 3 },
+    { name: 'Dr. Fatima Al-Aqida', domain: 'Islam', expertise: 'Aqida', rating: 4.8, litCount: 2 },
+    { name: 'Dr. Omar Al-Hadith', domain: 'Islam', expertise: 'Hadith', rating: 4.9, litCount: 2 },
+    { name: 'Dr. Layla Tafsir', domain: 'Islam', expertise: 'Tafsir', rating: 4.7, litCount: 2 },
+    { name: 'Dr. Youssef Sira', domain: 'Islam', expertise: 'Sira', rating: 4.6, litCount: 1 },
+    { name: 'Dr. Khadija Soufisme', domain: 'Islam', expertise: 'Soufisme', rating: 4.5, litCount: 1 },
     { name: 'Dr. Marie Dupont', domain: 'Médecine', expertise: 'Cardiologie', rating: 4.9, litCount: 2 },
-    { name: 'Dr. Ahmed Benali', domain: 'Médecine', expertise: 'Neurologie', rating: 4.8, litCount: 2 },
+    { name: 'Dr. Ahmed Benali', domain: 'Médecine', expertise: 'Neurologie', rating: 4.8, litCount: 1 },
     { name: 'Dr. Sophie Martin', domain: 'Médecine', expertise: 'Pédiatrie', rating: 4.9, litCount: 1 },
     { name: 'Dr. Karim Haddad', domain: 'Médecine', expertise: 'Chirurgie', rating: 4.7, litCount: 0 },
     { name: 'Dr. Leila Mansouri', domain: 'Médecine', expertise: 'Oncologie', rating: 4.8, litCount: 1 },
@@ -85,14 +85,14 @@ var scholars = [
     { name: 'Dr. Olivier Dubois', domain: 'GMAO', expertise: 'GMAO', rating: 4.9, litCount: 1 },
     { name: 'Dr. Karim Bouzid', domain: 'GMAO', expertise: 'GPAO', rating: 4.8, litCount: 1 },
     { name: 'Dr. Hélène Girard', domain: 'GMAO', expertise: 'Planification', rating: 4.7, litCount: 0 },
-    { name: 'Dr. Jean-Pierre Durand', domain: 'Mécanique Pétrole', expertise: 'CNC', rating: 5.0, litCount: 2 },
+    { name: 'Dr. Jean-Pierre Durand', domain: 'Mécanique Pétrole', expertise: 'CNC', rating: 5.0, litCount: 1 },
     { name: 'Dr. Abdelkader Ziani', domain: 'Mécanique Pétrole', expertise: 'Vannes', rating: 4.9, litCount: 2 },
     { name: 'Dr. Sarah Cohen', domain: 'Mécanique Pétrole', expertise: 'Turbines', rating: 4.8, litCount: 1 },
     { name: 'Dr. Rachid Benmoussa', domain: 'Mécanique Pétrole', expertise: 'Forage', rating: 4.9, litCount: 1 },
     { name: 'Dr. Philippe Roux', domain: 'Mécanique Pétrole', expertise: 'Métrologie', rating: 4.8, litCount: 1 },
-    { name: 'Dr. Amira Math', domain: 'Général', expertise: 'Maths', rating: 4.9, litCount: 2 },
+    { name: 'Dr. Amira Math', domain: 'Général', expertise: 'Maths', rating: 4.9, litCount: 1 },
     { name: 'Dr. Sophie Physique', domain: 'Général', expertise: 'Physique', rating: 4.8, litCount: 1 },
-    { name: 'Dr. Karim Info', domain: 'Général', expertise: 'Informatique', rating: 4.7, litCount: 2 },
+    { name: 'Dr. Karim Info', domain: 'Général', expertise: 'Informatique', rating: 4.7, litCount: 1 },
     { name: 'Dr. Fatima Histoire', domain: 'Général', expertise: 'Histoire', rating: 4.9, litCount: 1 }
 ];
 
@@ -118,7 +118,7 @@ function updateStats() {
         '<div class="stat-card"><div class="stat-number">' + users.length + '</div><div class="stat-label">👤 Utilisateurs</div></div>' +
         '<div class="stat-card"><div class="stat-number">' + questions.length + '</div><div class="stat-label">📋 Questions</div></div>' +
         '<div class="stat-card"><div class="stat-number">' + totalAnswers + '</div><div class="stat-label">💬 Réponses</div></div>' +
-        '<div class="stat-card"><div class="stat-number" style="color:#8b5cf6;">' + claudeAnswers + '</div><div class="stat-label">🤖 Réponses Claude</div></div>';
+        '<div class="stat-card"><div class="stat-number" style="color:#8b5cf6;">' + claudeAnswers + '</div><div class="stat-label">🤖 Claude</div></div>';
 }
 
 function showTab(tab) {
@@ -129,14 +129,14 @@ function showTab(tab) {
         for (var i = 0; i < scholars.length; i++) {
             var s = scholars[i];
             var cls = domainClass[s.domain] || 'badge-general';
-            var litBadge = s.litCount > 0 ? '<span style="color:#22c55e;">📚 ' + s.litCount + ' ouvrages</span>' : '<span style="color:#ef4444;">📚 Aucune</span>';
+            var litBadge = s.litCount > 0 ? '<span style="color:#22c55e;">📚 ' + s.litCount + '</span>' : '<span style="color:#ef4444;">📚 Aucune</span>';
             html += '<tr><td>' + s.name + '</td><td><span class="badge ' + cls + '">' + s.domain + '</span></td><td>' + s.expertise + '</td><td>' + litBadge + '</td><td>⭐ ' + s.rating + '</td></tr>';
         }
         html += '</tbody></table>';
         content.innerHTML = html;
     } else if (tab === 'questions') {
         if (questions.length === 0) { content.innerHTML = '<p style="text-align:center;padding:30px;opacity:0.5;">Aucune question.</p>'; return; }
-        var html = '<h3>📋 Toutes les questions (' + questions.length + ')</h3>' +
+        var html = '<h3>📋 Questions (' + questions.length + ')</h3>' +
             '<table><thead><tr><th>ID</th><th>Domaine</th><th>Titre</th><th>Auteur</th><th>Scholar</th><th>Statut</th><th>Réponses</th></tr></thead><tbody>';
         for (var j = 0; j < questions.length; j++) {
             var q = questions[j];
@@ -162,7 +162,7 @@ function showTab(tab) {
         }
         var html = '<h3>🤖 Réponses du Juge Claude (' + claudeAnswersList.length + ')</h3>';
         if (claudeAnswersList.length === 0) {
-            html += '<p style="text-align:center;padding:30px;opacity:0.5;">Aucune réponse Claude pour le moment.</p>';
+            html += '<p style="text-align:center;padding:30px;opacity:0.5;">Aucune réponse Claude.</p>';
         } else {
             for (var n = 0; n < claudeAnswersList.length; n++) {
                 var item = claudeAnswersList[n];
