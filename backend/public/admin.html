@@ -13,9 +13,9 @@ body { font-family:"Segoe UI",sans-serif; background:#0a0e27; color:#fff; paddin
 .btn-secondary { background:rgba(255,255,255,0.1); color:white; }
 .btn-primary { background:#667eea; color:white; }
 .btn-claude { background:linear-gradient(135deg,#8b5cf6,#ec4899); color:white; }
-table { width:100%; border-collapse:collapse; margin-top:20px; font-size:13px; }
-th,td { padding:10px 12px; text-align:left; border-bottom:1px solid rgba(255,255,255,0.05); }
-th { color:#667eea; font-size:12px; text-transform:uppercase; }
+table { width:100%; border-collapse:collapse; margin-top:20px; font-size:12px; }
+th,td { padding:8px 10px; text-align:left; border-bottom:1px solid rgba(255,255,255,0.05); }
+th { color:#667eea; font-size:11px; text-transform:uppercase; }
 .badge { padding:2px 10px; border-radius:20px; font-size:11px; font-weight:600; }
 .badge-islam { background:#059669; color:white; }
 .badge-medecine { background:#ef4444; color:white; }
@@ -26,11 +26,19 @@ th { color:#667eea; font-size:12px; text-transform:uppercase; }
 .badge-gmao { background:#f59e0b; color:#0a0e27; }
 .badge-meca { background:#78716c; color:white; }
 .badge-general { background:#667eea; color:white; }
+.badge-gestion { background:#0891b2; color:white; }
+.badge-compta { background:#7c3aed; color:white; }
+.badge-droit { background:#dc2626; color:white; }
+.badge-eco { background:#ea580c; color:white; }
+.badge-culture { background:#16a34a; color:white; }
+.badge-art { background:#db2777; color:white; }
+.badge-archi { background:#65a30d; color:white; }
+.badge-resto { background:#d97706; color:white; }
 .badge-claude { background:linear-gradient(135deg,#8b5cf6,#ec4899); color:white; }
-.stats { display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:15px; margin:20px 0; }
-.stat-card { background:rgba(255,255,255,0.05); padding:20px; border-radius:12px; text-align:center; border:1px solid rgba(255,255,255,0.08); }
-.stat-number { font-size:32px; font-weight:700; color:#667eea; }
-.stat-label { opacity:0.7; margin-top:5px; font-size:12px; }
+.stats { display:grid; grid-template-columns:repeat(auto-fit,minmax(120px,1fr)); gap:15px; margin:20px 0; }
+.stat-card { background:rgba(255,255,255,0.05); padding:15px; border-radius:12px; text-align:center; border:1px solid rgba(255,255,255,0.08); }
+.stat-number { font-size:28px; font-weight:700; color:#667eea; }
+.stat-label { opacity:0.7; margin-top:5px; font-size:11px; }
 </style>
 </head>
 <body>
@@ -90,27 +98,46 @@ var scholars = [
     { name: 'Dr. Sarah Cohen', domain: 'Mécanique Pétrole', expertise: 'Turbines', rating: 4.8, litCount: 1 },
     { name: 'Dr. Rachid Benmoussa', domain: 'Mécanique Pétrole', expertise: 'Forage', rating: 4.9, litCount: 1 },
     { name: 'Dr. Philippe Roux', domain: 'Mécanique Pétrole', expertise: 'Métrologie', rating: 4.8, litCount: 1 },
-    { name: 'Dr. Amira Math', domain: 'Général', expertise: 'Maths', rating: 4.9, litCount: 1 },
-    { name: 'Dr. Sophie Physique', domain: 'Général', expertise: 'Physique', rating: 4.8, litCount: 1 },
+    { name: 'Dr. Marc Dupont', domain: 'Gestion', expertise: 'Management', rating: 4.8, litCount: 1 },
+    { name: 'Dr. Sophie Bernard', domain: 'Gestion', expertise: 'RH', rating: 4.7, litCount: 1 },
+    { name: 'Dr. Ahmed Karim', domain: 'Gestion', expertise: 'Marketing', rating: 4.8, litCount: 1 },
+    { name: 'Dr. Isabelle Martin', domain: 'Expertise Comptable', expertise: 'Comptabilité', rating: 4.9, litCount: 1 },
+    { name: 'Dr. Karim Trabelsi', domain: 'Expertise Comptable', expertise: 'Audit', rating: 4.8, litCount: 1 },
+    { name: 'Dr. Claire Rousseau', domain: 'Expertise Comptable', expertise: 'Fiscalité', rating: 4.7, litCount: 1 },
+    { name: 'Dr. Pierre Dubois', domain: 'Droit', expertise: 'Affaires', rating: 4.9, litCount: 1 },
+    { name: 'Dr. Nadia Hamdi', domain: 'Droit', expertise: 'International', rating: 4.8, litCount: 1 },
+    { name: 'Dr. Hassan Rifai D', domain: 'Droit', expertise: 'Pénal', rating: 4.7, litCount: 1 },
+    { name: 'Dr. Amira Math E', domain: 'Économie', expertise: 'Macro', rating: 4.9, litCount: 1 },
+    { name: 'Dr. Sophie Physique E', domain: 'Économie', expertise: 'Micro', rating: 4.8, litCount: 1 },
+    { name: 'Dr. Karim Benali', domain: 'Économie', expertise: 'Internationale', rating: 4.7, litCount: 1 },
+    { name: 'Dr. Fatima Histoire', domain: 'Culture Générale', expertise: 'Histoire', rating: 4.9, litCount: 1 },
+    { name: 'Dr. Marc Philosophie', domain: 'Culture Générale', expertise: 'Philosophie', rating: 4.8, litCount: 1 },
+    { name: 'Dr. Amina Littérature', domain: 'Culture Générale', expertise: 'Littérature', rating: 4.7, litCount: 1 },
+    { name: 'Dr. Isabelle Art', domain: 'Art', expertise: 'Peinture', rating: 4.8, litCount: 1 },
+    { name: 'Dr. Karim Musique', domain: 'Art', expertise: 'Musicologie', rating: 4.7, litCount: 1 },
+    { name: 'Dr. Sophie Cinema', domain: 'Art', expertise: 'Cinéma', rating: 4.9, litCount: 1 },
+    { name: 'Dr. Pierre Architecte', domain: 'Architecture', expertise: 'Moderne', rating: 4.9, litCount: 1 },
+    { name: 'Dr. Nadia Urbanisme', domain: 'Architecture', expertise: 'Urbanisme', rating: 4.8, litCount: 1 },
+    { name: 'Dr. Hassan Patrimoine', domain: 'Architecture', expertise: 'Patrimoine', rating: 4.7, litCount: 1 },
+    { name: 'Dr. Amira Cuisine', domain: 'Restauration', expertise: 'Gastronomie', rating: 4.9, litCount: 1 },
+    { name: 'Dr. Sophie Pâtisserie', domain: 'Restauration', expertise: 'Pâtisserie', rating: 4.8, litCount: 1 },
+    { name: 'Dr. Karim Resto', domain: 'Restauration', expertise: 'Gestion', rating: 4.7, litCount: 1 },
+    { name: 'Dr. Amira Math G', domain: 'Général', expertise: 'Maths', rating: 4.9, litCount: 1 },
+    { name: 'Dr. Sophie Physique G', domain: 'Général', expertise: 'Physique', rating: 4.8, litCount: 1 },
     { name: 'Dr. Karim Info', domain: 'Général', expertise: 'Informatique', rating: 4.7, litCount: 1 },
-    { name: 'Dr. Fatima Histoire', domain: 'Général', expertise: 'Histoire', rating: 4.9, litCount: 1 }
+    { name: 'Dr. Fatima Histoire G', domain: 'Général', expertise: 'Histoire', rating: 4.9, litCount: 1 }
 ];
 
-var domainClass = { 'Islam': 'badge-islam', 'Médecine': 'badge-medecine', 'Pharmacie': 'badge-pharmacie', 'Chimie': 'badge-chimie', 'IA': 'badge-ia', 'IoT': 'badge-iot', 'GMAO': 'badge-gmao', 'Mécanique Pétrole': 'badge-meca', 'Général': 'badge-general' };
+var domainClass = { 'Islam': 'badge-islam', 'Médecine': 'badge-medecine', 'Pharmacie': 'badge-pharmacie', 'Chimie': 'badge-chimie', 'IA': 'badge-ia', 'IoT': 'badge-iot', 'GMAO': 'badge-gmao', 'Mécanique Pétrole': 'badge-meca', 'Gestion': 'badge-gestion', 'Expertise Comptable': 'badge-compta', 'Droit': 'badge-droit', 'Économie': 'badge-eco', 'Culture Générale': 'badge-culture', 'Art': 'badge-art', 'Architecture': 'badge-archi', 'Restauration': 'badge-resto', 'Général': 'badge-general' };
 
 function updateStats() {
     var totalAnswers = 0, claudeAnswers = 0;
     for (var i = 0; i < questions.length; i++) {
-        if (questions[i].answers) {
-            for (var j = 0; j < questions[i].answers.length; j++) {
-                totalAnswers++;
-                if (questions[i].answers[j].isClaude) claudeAnswers++;
-            }
-        }
+        if (questions[i].answers) for (var j = 0; j < questions[i].answers.length; j++) { totalAnswers++; if (questions[i].answers[j].isClaude) claudeAnswers++; }
     }
     document.getElementById('statsContainer').innerHTML =
         '<div class="stat-card"><div class="stat-number">' + scholars.length + '</div><div class="stat-label">🎓 Scholars</div></div>' +
-        '<div class="stat-card"><div class="stat-number">9</div><div class="stat-label">🌍 Domaines</div></div>' +
+        '<div class="stat-card"><div class="stat-number">17</div><div class="stat-label">🌍 Domaines</div></div>' +
         '<div class="stat-card"><div class="stat-number">' + users.length + '</div><div class="stat-label">👤 Utilisateurs</div></div>' +
         '<div class="stat-card"><div class="stat-number">' + questions.length + '</div><div class="stat-label">📋 Questions</div></div>' +
         '<div class="stat-card"><div class="stat-number">' + totalAnswers + '</div><div class="stat-label">💬 Réponses</div></div>' +
@@ -144,19 +171,15 @@ function showTab(tab) {
     } else if (tab === 'claude') {
         var claudeAnswersList = [];
         for (var k = 0; k < questions.length; k++) {
-            if (questions[k].answers) {
-                for (var m = 0; m < questions[k].answers.length; m++) {
-                    if (questions[k].answers[m].isClaude) { claudeAnswersList.push({ question: questions[k], answer: questions[k].answers[m] }); }
-                }
-            }
+            if (questions[k].answers) for (var m = 0; m < questions[k].answers.length; m++) if (questions[k].answers[m].isClaude) claudeAnswersList.push({ question: questions[k], answer: questions[k].answers[m] });
         }
         var html = '<h3>🤖 Réponses du Juge Claude (' + claudeAnswersList.length + ')</h3>';
-        if (claudeAnswersList.length === 0) { html += '<p style="text-align:center;padding:30px;opacity:0.5;">Aucune réponse Claude.</p>'; }
+        if (claudeAnswersList.length === 0) html += '<p style="text-align:center;padding:30px;opacity:0.5;">Aucune réponse Claude.</p>';
         else {
             for (var n = 0; n < claudeAnswersList.length; n++) {
                 var item = claudeAnswersList[n];
                 var reason = item.answer.claudeReason === 'no_literature' ? '❌ Sans littérature' : '⏱️ Timeout 5 min';
-                html += '<div style="background:linear-gradient(135deg,rgba(139,92,246,0.1),rgba(236,72,153,0.05));padding:15px;border-radius:10px;margin:10px 0;border-left:4px solid #8b5cf6;"><strong>Q#' + item.question.id + ' : ' + item.question.title + '</strong> <span class="badge badge-claude">' + reason + '</span><div style="margin-top:10px;white-space:pre-wrap;font-size:13px;">' + item.answer.content + '</div><div style="margin-top:10px;opacity:0.6;font-size:12px;">📅 ' + item.answer.date + '</div></div>';
+                html += '<div style="background:linear-gradient(135deg,rgba(139,92,246,0.1),rgba(236,72,153,0.05));padding:15px;border-radius:10px;margin:10px 0;border-left:4px solid #8b5cf6;"><strong>Q#' + item.question.id + ' : ' + item.question.title + '</strong> <span class="badge badge-claude">' + reason + '</span><div style="margin-top:10px;white-space:pre-wrap;font-size:12px;">' + item.answer.content + '</div><div style="margin-top:10px;opacity:0.6;font-size:11px;">📅 ' + item.answer.date + '</div></div>';
             }
         }
         content.innerHTML = html;

@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Scholars Connect - Juge Claude</title>
+<title>Scholars Connect - Multi-Domaines</title>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body { font-family: 'Segoe UI', system-ui, sans-serif; background: #0a0e27; color: #fff; min-height: 100vh; padding: 20px; }
@@ -20,8 +20,8 @@ body { font-family: 'Segoe UI', system-ui, sans-serif; background: #0a0e27; colo
 .btn-admin { background: #f59e0b; color: #0a0e27; }
 .btn-arabic { background: #1a7a5a; color: white; }
 .btn:hover { transform: scale(1.05); opacity: 0.9; }
-.categories-nav { display: flex; gap: 10px; padding: 15px 0; flex-wrap: wrap; border-bottom: 1px solid rgba(255,255,255,0.05); overflow-x: auto; }
-.cat-btn { padding: 8px 16px; border-radius: 20px; border: 1px solid rgba(255,255,255,0.15); background: transparent; color: white; cursor: pointer; font-size: 13px; transition: 0.3s; white-space: nowrap; }
+.categories-nav { display: flex; gap: 8px; padding: 15px 0; flex-wrap: wrap; border-bottom: 1px solid rgba(255,255,255,0.05); overflow-x: auto; }
+.cat-btn { padding: 6px 12px; border-radius: 20px; border: 1px solid rgba(255,255,255,0.15); background: transparent; color: white; cursor: pointer; font-size: 11px; transition: 0.3s; white-space: nowrap; }
 .cat-btn:hover { background: rgba(255,255,255,0.1); }
 .cat-btn.active { background: #667eea; border-color: #667eea; }
 .form-container { background: rgba(255,255,255,0.05); border-radius: 16px; padding: 24px; margin: 20px 0; display: none; border: 1px solid rgba(255,255,255,0.1); }
@@ -34,7 +34,7 @@ body { font-family: 'Segoe UI', system-ui, sans-serif; background: #0a0e27; colo
 .keyboard-container { background: rgba(255,255,255,0.05); border-radius: 12px; padding: 10px; margin: 10px 0; display: none; border: 1px solid rgba(255,255,255,0.1); }
 .keyboard-container.active { display: block; }
 .keyboard-row { display: flex; gap: 4px; margin: 4px 0; justify-content: center; flex-wrap: wrap; }
-.key-btn { min-width: 40px; padding: 8px 6px; border: 1px solid rgba(255,255,255,0.2); border-radius: 6px; background: rgba(255,255,255,0.05); color: white; cursor: pointer; font-family: 'Traditional Arabic', 'Amiri', serif; font-size: 18px; transition: 0.2s; text-align: center; }
+.key-btn { min-width: 40px; padding: 8px 6px; border: 1px solid rgba(255,255,255,0.2); border-radius: 6px; background: rgba(255,255,255,0.05); color: white; cursor: pointer; font-family: 'Traditional Arabic', 'Amiri', serif; font-size: 18px; transition: 0.2s; }
 .key-btn:hover { background: rgba(16,185,129,0.3); transform: scale(1.05); }
 .key-btn.space { min-width: 80px; }
 .status-bar { display: flex; gap: 20px; padding: 15px 0; flex-wrap: wrap; border-bottom: 1px solid rgba(255,255,255,0.05); }
@@ -69,6 +69,14 @@ body { font-family: 'Segoe UI', system-ui, sans-serif; background: #0a0e27; colo
 .domain-gmao { background: #f59e0b; color: #0a0e27; }
 .domain-meca { background: #78716c; color: white; }
 .domain-general { background: #667eea; color: white; }
+.domain-gestion { background: #0891b2; color: white; }
+.domain-compta { background: #7c3aed; color: white; }
+.domain-droit { background: #dc2626; color: white; }
+.domain-eco { background: #ea580c; color: white; }
+.domain-culture { background: #16a34a; color: white; }
+.domain-art { background: #db2777; color: white; }
+.domain-archi { background: #65a30d; color: white; }
+.domain-resto { background: #d97706; color: white; }
 .notification { position: fixed; top: 20px; right: 20px; padding: 15px 25px; border-radius: 12px; z-index: 1000; display: none; animation: slideIn 0.3s; max-width: 90%; }
 .notification.success { background: #22c55e; color: #0a0e27; display: block; }
 .notification.error { background: #ef4444; color: white; display: block; }
@@ -83,13 +91,12 @@ body { font-family: 'Segoe UI', system-ui, sans-serif; background: #0a0e27; colo
 .scholar-card { background: rgba(255,255,255,0.05); padding: 15px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.1); transition: 0.3s; }
 .scholar-card:hover { transform: translateY(-3px); border-color: #667eea; }
 .claude-response { white-space: pre-wrap; line-height: 1.7; font-size: 14px; }
-.claude-response strong { color: #8b5cf6; }
 @media (max-width: 600px) {
 .header { flex-direction: column; align-items: stretch; }
 .header-actions { flex-wrap: wrap; }
 .header-actions button { flex: 1; text-align: center; font-size: 11px; padding: 8px 12px; }
 .key-btn { min-width: 32px; padding: 6px 4px; font-size: 14px; }
-.cat-btn { font-size: 11px; padding: 6px 12px; }
+.cat-btn { font-size: 10px; padding: 5px 8px; }
 }
 </style>
 </head>
@@ -99,7 +106,7 @@ body { font-family: 'Segoe UI', system-ui, sans-serif; background: #0a0e27; colo
 <div class="header">
 <div>
 <div class="logo">🎓 Scholars Connect</div>
-<span class="logo-sub">🤖 Juge Claude actif · ⏱️ Réponse auto sous 5 min · 🌍 9 domaines</span>
+<span class="logo-sub">🤖 Juge Claude · 🌍 18 domaines · 60+ Scholars · 7 langues</span>
 </div>
 <div class="header-actions" id="authButtons">
 <button class="btn btn-primary" onclick="showLogin()">🔐 Connexion</button>
@@ -116,21 +123,10 @@ body { font-family: 'Segoe UI', system-ui, sans-serif; background: #0a0e27; colo
 <span class="status-item" id="userRole">👤 Visiteur</span>
 <span class="status-item" id="langDisplay">🌐 Français</span>
 <span class="status-item" id="questionCount">📋 0 questions</span>
-<span class="status-item" id="scholarCount">🎓 36 Scholars</span>
+<span class="status-item" id="scholarCount">🎓 Scholars</span>
 <span class="status-item">🤖 <span class="claude-badge">Juge Claude actif</span></span>
 </div>
-<div class="categories-nav">
-<button class="cat-btn active" onclick="filterByDomain('all', this)">🌍 Tous</button>
-<button class="cat-btn" onclick="filterByDomain('Islam', this)">🕌 Islam</button>
-<button class="cat-btn" onclick="filterByDomain('Médecine', this)">🏥 Médecine</button>
-<button class="cat-btn" onclick="filterByDomain('Pharmacie', this)">💊 Pharmacie</button>
-<button class="cat-btn" onclick="filterByDomain('Chimie', this)">⚗️ Chimie</button>
-<button class="cat-btn" onclick="filterByDomain('IA', this)">🤖 IA</button>
-<button class="cat-btn" onclick="filterByDomain('IoT', this)">🌐 IoT</button>
-<button class="cat-btn" onclick="filterByDomain('GMAO', this)">🏭 GMAO/GPAO</button>
-<button class="cat-btn" onclick="filterByDomain('Mécanique Pétrole', this)">⚙️ Méca Pétrole</button>
-<button class="cat-btn" onclick="filterByDomain('Général', this)">📚 Général</button>
-</div>
+<div class="categories-nav" id="categoriesNav"></div>
 <div style="margin:15px 0;display:flex;gap:10px;flex-wrap:wrap;">
 <button class="btn btn-primary" id="newQuestionBtn" onclick="showQuestionForm()" style="display:none;">✏️ Poser une question</button>
 <button class="btn btn-secondary" onclick="loadData()">🔄 Rafraîchir</button>
@@ -167,6 +163,14 @@ body { font-family: 'Segoe UI', system-ui, sans-serif; background: #0a0e27; colo
 <option value="IoT">🌐 IoT</option>
 <option value="GMAO">🏭 GMAO/GPAO</option>
 <option value="Mécanique Pétrole">⚙️ Mécanique Pétrole</option>
+<option value="Gestion">📊 Gestion</option>
+<option value="Expertise Comptable">💰 Expertise Comptable</option>
+<option value="Droit">⚖️ Droit</option>
+<option value="Économie">📈 Économie</option>
+<option value="Culture Générale">🌍 Culture Générale</option>
+<option value="Art">🎨 Art</option>
+<option value="Architecture">🏛️ Architecture</option>
+<option value="Restauration">🍽️ Restauration</option>
 <option value="Général">📚 Général</option>
 </select>
 </div>
@@ -187,17 +191,7 @@ body { font-family: 'Segoe UI', system-ui, sans-serif; background: #0a0e27; colo
 <div class="form-container" id="questionForm">
 <h2>✏️ Poser une question</h2>
 <div class="form-group"><label>Domaine</label>
-<select id="qDomain" onchange="updateCategories()">
-<option value="Islam">🕌 Islam</option>
-<option value="Médecine">🏥 Médecine</option>
-<option value="Pharmacie">💊 Pharmacie</option>
-<option value="Chimie">⚗️ Chimie</option>
-<option value="IA">🤖 IA</option>
-<option value="IoT">🌐 IoT</option>
-<option value="GMAO">🏭 GMAO/GPAO</option>
-<option value="Mécanique Pétrole">⚙️ Mécanique Pétrole</option>
-<option value="Général">📚 Général</option>
-</select>
+<select id="qDomain" onchange="updateCategories()"></select>
 </div>
 <div class="form-group"><label>Spécialité</label>
 <select id="qCategory"></select>
@@ -284,7 +278,7 @@ var STORAGE_KEYS = { USERS: 'sc_users', QUESTIONS: 'sc_questions', SESSION: 'sc_
 
 function saveToStorage(key, data) {
     try { localStorage.setItem(key, JSON.stringify(data)); return true; }
-    catch(e) { return false; }
+    catch(e) { console.error('Erreur sauvegarde:', e); return false; }
 }
 function loadFromStorage(key, defaultValue) {
     try { var data = localStorage.getItem(key); if (data) return JSON.parse(data); return defaultValue; }
@@ -302,148 +296,86 @@ var isKeyboardActive = false;
 var currentFilter = 'all';
 
 // ============================================================
-// BASE DE CONNAISSANCES DU JUGE CLAUDE
-// ============================================================
-var claudeKnowledgeBase = {
-    'filetage': {
-        'definition': 'Le filetage premium désigne un filetage de haute précision utilisé dans l\'industrie pétrolière pour les connexions de tubulaires (casing, tubing, drill pipe). Il garantit l\'étanchéité et la résistance mécanique dans des conditions extrêmes.',
-        'exigences': [
-            '🎯 Tolérances dimensionnelles très serrées (±0.05mm)',
-            '🔩 Pas de filetage constant et précis',
-            '📐 Angle de filetage conforme (60° ou 75°)',
-            '🔬 Contrôle par calibres API',
-            '💧 Étanchéité aux gaz et liquides',
-            '⚡ Résistance mécanique élevée (jusqu\'à 15 000 PSI)',
-            '🛡️ Traitement de surface anticorrosion',
-            '📊 Traçabilité complète des lots'
-        ],
-        'normes': ['API 5B', 'API 5CT', 'ISO 10422', 'TSH 511', 'API Spec 5B'],
-        'applications': 'Forage pétrolier, complétion de puits, pipelines haute pression',
-        'details': 'La norme TSH 511 spécifie les exigences pour les filetages premium destinés aux équipements pétroliers. Elle couvre : les dimensions, les tolérances, les matériaux, les traitements thermiques, les essais non destructifs, et les contrôles qualité. Les filetages premium se distinguent des filetages standards par leur capacité à assurer une étanchéité métal-métal sous haute pression.'
-    },
-    'tsh511': {
-        'definition': 'TSH 511 est une norme technique spécifique aux filetages de haute précision pour l\'industrie pétrolière.',
-        'exigences': [
-            '📏 Dimensions et tolérances précises',
-            '🔬 Contrôle qualité strict',
-            '💪 Résistance mécanique',
-            '🛡️ Protection anticorrosion',
-            '📋 Documentation complète'
-        ],
-        'details': 'Cette norme définit les caractéristiques des filetages premium pour garantir l\'étanchéité et la résistance dans les conditions extrêmes du forage pétrolier.'
-    },
-    'cnc': {
-        'definition': 'CNC (Computer Numerical Control) est un système de commande numérique par ordinateur pour les machines-outils.',
-        'exigences': [
-            '📐 Précision dimensionnelle (±0.01mm)',
-            '🔧 Programmation G-code',
-            '⚙️ Vitesse et avance contrôlées',
-            '🌡️ Gestion thermique',
-            '🔍 Contrôle qualité en cours'
-        ],
-        'details': 'L\'usinage CNC haute précision permet de fabriquer des pièces complexes avec une répétabilité élevée.'
-    },
-    'vanne': {
-        'definition': 'Les vannes pétrolières sont des dispositifs de contrôle d\'écoulement des fluides sous haute pression.',
-        'exigences': [
-            '🔒 Étanchéité parfaite',
-            '💪 Résistance à la pression (API 6D)',
-            '🌡️ Résistance aux températures extrêmes',
-            '🛡️ Anti-corrosion',
-            '🔧 Facilité de maintenance'
-        ],
-        'details': 'Les vannes doivent résister à des pressions allant jusqu\'à 15 000 PSI et à des températures de -46°C à +180°C.'
-    },
-    'turbine': {
-        'definition': 'Les turbines à gaz sont des machines tournantes utilisées pour la production d\'énergie dans l\'industrie pétrolière.',
-        'exigences': [
-            '🌡️ Résistance aux hautes températures',
-            '⚙️ Équilibrage dynamique',
-            '🔧 Maintenance préventive',
-            '📊 Surveillance vibratoire'
-        ],
-        'details': 'Les turbines doivent fonctionner de manière fiable pendant des milliers d\'heures.'
-    },
-    'forage': {
-        'definition': 'Le forage pétrolier est l\'opération de creusement d\'un puits pour atteindre les réservoirs d\'hydrocarbures.',
-        'exigences': [
-            '📏 Contrôle de la trajectoire',
-            '💧 Boue de forage adaptée',
-            '🌡️ Gestion des hautes pressions',
-            '⚙️ Tubage et complétion'
-        ],
-        'details': 'Le forage nécessite une planification rigoureuse et un suivi constant.'
-    },
-    'cardiologie': {
-        'definition': 'La cardiologie est la branche de la médecine qui étudie le cœur et les vaisseaux sanguins.',
-        'exigences': [
-            '🫀 Diagnostic précis',
-            '💊 Traitement adapté',
-            '📊 Suivi régulier',
-            '🏥 Prévention'
-        ],
-        'details': 'Les maladies cardiovasculaires nécessitent une prise en charge spécialisée.'
-    },
-    'fiqh': {
-        'definition': 'Le Fiqh est la jurisprudence islamique qui traite des règles pratiques.',
-        'exigences': [
-            '📖 Sources : Coran, Sunna, Ijma, Qiyas',
-            '⚖️ Interprétation des savants',
-            '🌍 Adaptation au contexte'
-        ],
-        'details': 'Le Fiqh couvre tous les aspects de la vie du musulman.'
-    },
-    'hadith': {
-        'definition': 'Le Hadith est l\'ensemble des paroles et actes du Prophète Muhammad (SAW).',
-        'exigences': [
-            '📚 Chaîne de transmission (Isnad)',
-            '🔍 Authentification',
-            '📖 Texte (Matn)'
-        ],
-        'details': 'Les hadiths sont classés selon leur authenticité.'
-    }
-};
-
-// ============================================================
-// SCHOLARS
+// SCHOLARS - 18 DOMAINES
 // ============================================================
 var scholarsData = [
+    // ISLAM
     { id: 1, name: 'Dr. Ahmed Al-Faqih', domain: 'Islam', expertise: 'Fiqh (Jurisprudence)', languages: ['ar', 'fr', 'en'], rating: 4.9, literature: ['Fiqh al-Islami', 'Usul al-Fiqh', 'Al-Risala'] },
     { id: 2, name: 'Dr. Fatima Al-Aqida', domain: 'Islam', expertise: 'Aqida (Croyance)', languages: ['ar', 'fr', 'en'], rating: 4.8, literature: ['Aqida Tahawiyya', 'Kitab al-Tawhid'] },
     { id: 3, name: 'Dr. Omar Al-Hadith', domain: 'Islam', expertise: 'Hadith (Prophétique)', languages: ['ar', 'en', 'fr'], rating: 4.9, literature: ['Sahih Bukhari', 'Sahih Muslim'] },
     { id: 4, name: 'Dr. Layla Tafsir', domain: 'Islam', expertise: 'Tafsir (Exégèse)', languages: ['ar', 'fr', 'en'], rating: 4.7, literature: ['Tafsir Ibn Kathir', 'Tafsir al-Tabari'] },
     { id: 5, name: 'Dr. Youssef Sira', domain: 'Islam', expertise: 'Sira (Biographie)', languages: ['ar', 'en', 'fr'], rating: 4.6, literature: ['Sira Ibn Hisham'] },
     { id: 6, name: 'Dr. Khadija Soufisme', domain: 'Islam', expertise: 'Soufisme (Spiritualité)', languages: ['ar', 'fr', 'en'], rating: 4.5, literature: ['Ihya Ulum al-Din'] },
+    // MÉDECINE
     { id: 7, name: 'Dr. Marie Dupont', domain: 'Médecine', expertise: 'Cardiologie', languages: ['fr', 'en', 'ar'], rating: 4.9, literature: ['Harrison Cardiology', 'Braunwald Heart Disease'] },
     { id: 8, name: 'Dr. Ahmed Benali', domain: 'Médecine', expertise: 'Neurologie', languages: ['fr', 'ar', 'en'], rating: 4.8, literature: ['Adams Neurology'] },
     { id: 9, name: 'Dr. Sophie Martin', domain: 'Médecine', expertise: 'Pédiatrie', languages: ['fr', 'en'], rating: 4.9, literature: ['Nelson Pediatrics'] },
     { id: 10, name: 'Dr. Karim Haddad', domain: 'Médecine', expertise: 'Chirurgie orthopédique', languages: ['fr', 'ar', 'en'], rating: 4.7, literature: [] },
     { id: 11, name: 'Dr. Leila Mansouri', domain: 'Médecine', expertise: 'Oncologie', languages: ['fr', 'ar', 'en'], rating: 4.8, literature: ['Devita Oncology'] },
+    // PHARMACIE
     { id: 12, name: 'Dr. Isabelle Rousseau', domain: 'Pharmacie', expertise: 'Pharmacologie clinique', languages: ['fr', 'en'], rating: 4.8, literature: ['Goodman & Gilman'] },
     { id: 13, name: 'Dr. Mohamed Trabelsi', domain: 'Pharmacie', expertise: 'Pharmacie galénique', languages: ['fr', 'ar', 'en'], rating: 4.7, literature: [] },
     { id: 14, name: 'Dr. Claire Petit', domain: 'Pharmacie', expertise: 'Pharmacovigilance', languages: ['fr', 'en'], rating: 4.9, literature: ['Meyler Pharmacovigilance'] },
+    // CHIMIE
     { id: 15, name: 'Dr. Pierre Laurent', domain: 'Chimie', expertise: 'Chimie organique', languages: ['fr', 'en'], rating: 4.8, literature: ['Clayden Organic Chemistry'] },
     { id: 16, name: 'Dr. Nadia Bouazizi', domain: 'Chimie', expertise: 'Chimie analytique', languages: ['fr', 'ar', 'en'], rating: 4.7, literature: ['Skoog Analytical Chemistry'] },
     { id: 17, name: 'Dr. Hassan Rifai', domain: 'Chimie', expertise: 'Chimie industrielle', languages: ['fr', 'ar', 'en'], rating: 4.8, literature: [] },
+    // IA
     { id: 18, name: 'Dr. Yann LeCun Jr.', domain: 'IA', expertise: 'Deep Learning', languages: ['fr', 'en'], rating: 5.0, literature: ['Deep Learning (Goodfellow)', 'Neural Networks (Bishop)'] },
     { id: 19, name: 'Dr. Amina Khalil', domain: 'IA', expertise: 'NLP & Traitement du langage', languages: ['fr', 'ar', 'en'], rating: 4.9, literature: ['Speech and Language Processing'] },
     { id: 20, name: 'Dr. Thomas Bernard', domain: 'IA', expertise: 'Computer Vision', languages: ['fr', 'en'], rating: 4.8, literature: ['Computer Vision (Szeliski)'] },
     { id: 21, name: 'Dr. Sara El Amrani', domain: 'IA', expertise: 'Reinforcement Learning', languages: ['fr', 'ar', 'en'], rating: 4.7, literature: ['Reinforcement Learning (Sutton)'] },
+    // IoT
     { id: 22, name: 'Dr. Julien Moreau', domain: 'IoT', expertise: 'Architecture IoT', languages: ['fr', 'en'], rating: 4.8, literature: ['IoT Architecture (Borgia)'] },
     { id: 23, name: 'Dr. Rania Hamdi', domain: 'IoT', expertise: 'Sécurité IoT', languages: ['fr', 'ar', 'en'], rating: 4.7, literature: ['IoT Security (Russell)'] },
     { id: 24, name: 'Dr. Marc Lefebvre', domain: 'IoT', expertise: 'Protocoles MQTT/CoAP', languages: ['fr', 'en'], rating: 4.6, literature: ['MQTT Essentials'] },
+    // GMAO/GPAO
     { id: 25, name: 'Dr. Olivier Dubois', domain: 'GMAO', expertise: 'GMAO (Maintenance Assistée)', languages: ['fr', 'en'], rating: 4.9, literature: ['Maintenance Industrielle (AFNOR)'] },
     { id: 26, name: 'Dr. Karim Bouzid', domain: 'GMAO', expertise: 'GPAO (Production Assistée)', languages: ['fr', 'ar', 'en'], rating: 4.8, literature: ['GPAO - Gestion de Production'] },
     { id: 27, name: 'Dr. Hélène Girard', domain: 'GMAO', expertise: 'Planification industrielle', languages: ['fr', 'en'], rating: 4.7, literature: [] },
+    // MÉCANIQUE PÉTROLE
     { id: 28, name: 'Dr. Jean-Pierre Durand', domain: 'Mécanique Pétrole', expertise: 'Usinage CNC haute précision', languages: ['fr', 'en'], rating: 5.0, literature: ['CNC Programming Handbook'] },
     { id: 29, name: 'Dr. Abdelkader Ziani', domain: 'Mécanique Pétrole', expertise: 'Vannes et équipements pétroliers', languages: ['fr', 'ar', 'en'], rating: 4.9, literature: ['Valve Handbook', 'API 6D Standard'] },
     { id: 30, name: 'Dr. Sarah Cohen', domain: 'Mécanique Pétrole', expertise: 'Turbines et compresseurs', languages: ['fr', 'en'], rating: 4.8, literature: ['Gas Turbine Theory'] },
     { id: 31, name: 'Dr. Rachid Benmoussa', domain: 'Mécanique Pétrole', expertise: 'Forage et complétion', languages: ['fr', 'ar', 'en'], rating: 4.9, literature: ['Drilling Engineering'] },
     { id: 32, name: 'Dr. Philippe Roux', domain: 'Mécanique Pétrole', expertise: 'Contrôle qualité et métrologie', languages: ['fr', 'en'], rating: 4.8, literature: ['Metrology Handbook'] },
-    { id: 33, name: 'Dr. Amira Math', domain: 'Général', expertise: 'Mathématiques', languages: ['fr', 'en', 'ar'], rating: 4.9, literature: ['Calculus (Stewart)'] },
-    { id: 34, name: 'Dr. Sophie Physique', domain: 'Général', expertise: 'Physique', languages: ['fr', 'en'], rating: 4.8, literature: ['Feynman Lectures'] },
-    { id: 35, name: 'Dr. Karim Info', domain: 'Général', expertise: 'Informatique', languages: ['fr', 'en', 'es'], rating: 4.7, literature: ['Clean Code'] },
-    { id: 36, name: 'Dr. Fatima Histoire', domain: 'Général', expertise: 'Histoire', languages: ['fr', 'en', 'ar'], rating: 4.9, literature: ['Histoire Universelle'] }
+    // GESTION
+    { id: 33, name: 'Dr. Marc Dupont', domain: 'Gestion', expertise: 'Management stratégique', languages: ['fr', 'en'], rating: 4.8, literature: ['Strategic Management (Porter)'] },
+    { id: 34, name: 'Dr. Sophie Bernard', domain: 'Gestion', expertise: 'Gestion des ressources humaines', languages: ['fr', 'en'], rating: 4.7, literature: ['HR Management (Dessler)'] },
+    { id: 35, name: 'Dr. Ahmed Karim', domain: 'Gestion', expertise: 'Marketing', languages: ['fr', 'ar', 'en'], rating: 4.8, literature: ['Marketing Management (Kotler)'] },
+    // EXPERTISE COMPTABLE
+    { id: 36, name: 'Dr. Isabelle Martin', domain: 'Expertise Comptable', expertise: 'Comptabilité générale', languages: ['fr', 'en'], rating: 4.9, literature: ['Comptabilité Générale (PCG)'] },
+    { id: 37, name: 'Dr. Karim Trabelsi', domain: 'Expertise Comptable', expertise: 'Audit financier', languages: ['fr', 'ar', 'en'], rating: 4.8, literature: ['Audit Financier (IFAC)'] },
+    { id: 38, name: 'Dr. Claire Rousseau', domain: 'Expertise Comptable', expertise: 'Fiscalité', languages: ['fr', 'en'], rating: 4.7, literature: ['Droit Fiscal'] },
+    // DROIT
+    { id: 39, name: 'Dr. Pierre Dubois', domain: 'Droit', expertise: 'Droit des affaires', languages: ['fr', 'en'], rating: 4.9, literature: ['Droit des Sociétés'] },
+    { id: 40, name: 'Dr. Nadia Hamdi', domain: 'Droit', expertise: 'Droit international', languages: ['fr', 'ar', 'en'], rating: 4.8, literature: ['Droit International Public'] },
+    { id: 41, name: 'Dr. Hassan Rifai', domain: 'Droit', expertise: 'Droit pénal', languages: ['fr', 'ar', 'en'], rating: 4.7, literature: ['Droit Pénal Général'] },
+    // ÉCONOMIE
+    { id: 42, name: 'Dr. Amira Math', domain: 'Économie', expertise: 'Macroéconomie', languages: ['fr', 'en', 'ar'], rating: 4.9, literature: ['Macroeconomics (Mankiw)'] },
+    { id: 43, name: 'Dr. Sophie Physique', domain: 'Économie', expertise: 'Microéconomie', languages: ['fr', 'en'], rating: 4.8, literature: ['Microeconomics (Varian)'] },
+    { id: 44, name: 'Dr. Karim Benali', domain: 'Économie', expertise: 'Économie internationale', languages: ['fr', 'ar', 'en'], rating: 4.7, literature: ['International Economics (Krugman)'] },
+    // CULTURE GÉNÉRALE
+    { id: 45, name: 'Dr. Fatima Histoire', domain: 'Culture Générale', expertise: 'Histoire', languages: ['fr', 'en', 'ar'], rating: 4.9, literature: ['Histoire Universelle'] },
+    { id: 46, name: 'Dr. Marc Philosophie', domain: 'Culture Générale', expertise: 'Philosophie', languages: ['fr', 'en'], rating: 4.8, literature: ['Histoire de la Philosophie'] },
+    { id: 47, name: 'Dr. Amina Littérature', domain: 'Culture Générale', expertise: 'Littérature', languages: ['fr', 'ar', 'en'], rating: 4.7, literature: ['Littérature Comparée'] },
+    // ART
+    { id: 48, name: 'Dr. Isabelle Art', domain: 'Art', expertise: 'Peinture', languages: ['fr', 'en'], rating: 4.8, literature: ['Histoire de l\'Art'] },
+    { id: 49, name: 'Dr. Karim Musique', domain: 'Art', expertise: 'Musicologie', languages: ['fr', 'ar', 'en'], rating: 4.7, literature: ['Musicologie Générale'] },
+    { id: 50, name: 'Dr. Sophie Cinema', domain: 'Art', expertise: 'Cinéma', languages: ['fr', 'en'], rating: 4.9, literature: ['Histoire du Cinéma'] },
+    // ARCHITECTURE
+    { id: 51, name: 'Dr. Pierre Architecte', domain: 'Architecture', expertise: 'Architecture moderne', languages: ['fr', 'en'], rating: 4.9, literature: ['Vers une Architecture (Le Corbusier)'] },
+    { id: 52, name: 'Dr. Nadia Urbanisme', domain: 'Architecture', expertise: 'Urbanisme', languages: ['fr', 'ar', 'en'], rating: 4.8, literature: ['Urbanisme (Choay)'] },
+    { id: 53, name: 'Dr. Hassan Patrimoine', domain: 'Architecture', expertise: 'Patrimoine', languages: ['fr', 'ar', 'en'], rating: 4.7, literature: ['Patrimoine et Conservation'] },
+    // RESTAURATION
+    { id: 54, name: 'Dr. Amira Cuisine', domain: 'Restauration', expertise: 'Gastronomie française', languages: ['fr', 'en'], rating: 4.9, literature: ['Guide Culinaire (Escoffier)'] },
+    { id: 55, name: 'Dr. Sophie Pâtisserie', domain: 'Restauration', expertise: 'Pâtisserie', languages: ['fr', 'en'], rating: 4.8, literature: ['Pâtisserie Professionnelle'] },
+    { id: 56, name: 'Dr. Karim Resto', domain: 'Restauration', expertise: 'Gestion restauration', languages: ['fr', 'ar', 'en'], rating: 4.7, literature: ['Management de la Restauration'] },
+    // GÉNÉRAL
+    { id: 57, name: 'Dr. Amira Math G', domain: 'Général', expertise: 'Mathématiques', languages: ['fr', 'en', 'ar'], rating: 4.9, literature: ['Calculus (Stewart)'] },
+    { id: 58, name: 'Dr. Sophie Physique G', domain: 'Général', expertise: 'Physique', languages: ['fr', 'en'], rating: 4.8, literature: ['Feynman Lectures'] },
+    { id: 59, name: 'Dr. Karim Info', domain: 'Général', expertise: 'Informatique', languages: ['fr', 'en', 'es'], rating: 4.7, literature: ['Clean Code'] },
+    { id: 60, name: 'Dr. Fatima Histoire G', domain: 'Général', expertise: 'Histoire', languages: ['fr', 'en', 'ar'], rating: 4.9, literature: ['Histoire Universelle'] }
 ];
 
 var categoriesByDomain = {
@@ -455,7 +387,36 @@ var categoriesByDomain = {
     'IoT': ['Architecture IoT', 'Sécurité IoT', 'Protocoles MQTT/CoAP'],
     'GMAO': ['GMAO (Maintenance Assistée)', 'GPAO (Production Assistée)', 'Planification industrielle'],
     'Mécanique Pétrole': ['Usinage CNC haute précision', 'Vannes et équipements pétroliers', 'Turbines et compresseurs', 'Forage et complétion', 'Contrôle qualité et métrologie'],
+    'Gestion': ['Management stratégique', 'Gestion des ressources humaines', 'Marketing'],
+    'Expertise Comptable': ['Comptabilité générale', 'Audit financier', 'Fiscalité'],
+    'Droit': ['Droit des affaires', 'Droit international', 'Droit pénal'],
+    'Économie': ['Macroéconomie', 'Microéconomie', 'Économie internationale'],
+    'Culture Générale': ['Histoire', 'Philosophie', 'Littérature'],
+    'Art': ['Peinture', 'Musicologie', 'Cinéma'],
+    'Architecture': ['Architecture moderne', 'Urbanisme', 'Patrimoine'],
+    'Restauration': ['Gastronomie française', 'Pâtisserie', 'Gestion restauration'],
     'Général': ['Mathématiques', 'Physique', 'Informatique', 'Histoire', 'Philosophie']
+};
+
+// ============================================================
+// BASE DE CONNAISSANCES JUGE CLAUDE
+// ============================================================
+var claudeKnowledgeBase = {
+    'filetage': { 'definition': 'Le filetage premium désigne un filetage de haute précision utilisé dans l\'industrie pétrolière pour les connexions de tubulaires.', 'exigences': ['🎯 Tolérances dimensionnelles très serrées (±0.05mm)', '🔩 Pas de filetage constant et précis', '📐 Angle de filetage conforme (60° ou 75°)', '🔬 Contrôle par calibres API', '💧 Étanchéité aux gaz et liquides', '⚡ Résistance mécanique élevée', '🛡️ Traitement de surface anticorrosion', '📊 Traçabilité complète des lots'], 'normes': ['API 5B', 'API 5CT', 'ISO 10422', 'TSH 511'], 'applications': 'Forage pétrolier, complétion de puits, pipelines haute pression', 'details': 'La norme TSH 511 spécifie les exigences pour les filetages premium. Elle couvre : dimensions, tolérances, matériaux, traitements thermiques, essais non destructifs, contrôles qualité.' },
+    'tsh511': { 'definition': 'TSH 511 est une norme technique spécifique aux filetages de haute précision pour l\'industrie pétrolière.', 'exigences': ['📏 Dimensions et tolérances précises', '🔬 Contrôle qualité strict', '💪 Résistance mécanique', '🛡️ Protection anticorrosion', '📋 Documentation complète'], 'details': 'Cette norme définit les caractéristiques des filetages premium pour garantir l\'étanchéité et la résistance dans les conditions extrêmes.' },
+    'cnc': { 'definition': 'CNC (Computer Numerical Control) est un système de commande numérique par ordinateur pour les machines-outils.', 'exigences': ['📐 Précision dimensionnelle (±0.01mm)', '🔧 Programmation G-code', '⚙️ Vitesse et avance contrôlées', '🌡️ Gestion thermique', '🔍 Contrôle qualité en cours'], 'details': 'L\'usinage CNC haute précision permet de fabriquer des pièces complexes avec une répétabilité élevée.' },
+    'vanne': { 'definition': 'Les vannes pétrolières sont des dispositifs de contrôle d\'écoulement des fluides sous haute pression.', 'exigences': ['🔒 Étanchéité parfaite', '💪 Résistance à la pression (API 6D)', '🌡️ Résistance aux températures extrêmes', '🛡️ Anti-corrosion', '🔧 Facilité de maintenance'], 'details': 'Les vannes doivent résister à des pressions allant jusqu\'à 15 000 PSI et à des températures de -46°C à +180°C.' },
+    'turbine': { 'definition': 'Les turbines à gaz sont des machines tournantes utilisées pour la production d\'énergie dans l\'industrie pétrolière.', 'exigences': ['🌡️ Résistance aux hautes températures', '⚙️ Équilibrage dynamique', '🔧 Maintenance préventive', '📊 Surveillance vibratoire'], 'details': 'Les turbines doivent fonctionner de manière fiable pendant des milliers d\'heures.' },
+    'forage': { 'definition': 'Le forage pétrolier est l\'opération de creusement d\'un puits pour atteindre les réservoirs d\'hydrocarbures.', 'exigences': ['📏 Contrôle de la trajectoire', '💧 Boue de forage adaptée', '🌡️ Gestion des hautes pressions', '⚙️ Tubage et complétion'], 'details': 'Le forage nécessite une planification rigoureuse et un suivi constant.' },
+    'cardiologie': { 'definition': 'La cardiologie est la branche de la médecine qui étudie le cœur et les vaisseaux sanguins.', 'exigences': ['🫀 Diagnostic précis', '💊 Traitement adapté', '📊 Suivi régulier', '🏥 Prévention'], 'details': 'Les maladies cardiovasculaires nécessitent une prise en charge spécialisée.' },
+    'fiqh': { 'definition': 'Le Fiqh est la jurisprudence islamique qui traite des règles pratiques.', 'exigences': ['📖 Sources : Coran, Sunna, Ijma, Qiyas', '⚖️ Interprétation des savants', '🌍 Adaptation au contexte'], 'details': 'Le Fiqh couvre tous les aspects de la vie du musulman.' },
+    'hadith': { 'definition': 'Le Hadith est l\'ensemble des paroles et actes du Prophète Muhammad (SAW).', 'exigences': ['📚 Chaîne de transmission (Isnad)', '🔍 Authentification', '📖 Texte (Matn)'], 'details': 'Les hadiths sont classés selon leur authenticité.' },
+    'comptabilité': { 'definition': 'La comptabilité est l\'enregistrement systématique des transactions financières d\'une entreprise.', 'exigences': ['📊 Respect du Plan Comptable Général', '📝 Enregistrement chronologique', '🔍 Vérification et contrôle', '📈 Présentation des états financiers'], 'details': 'La comptabilité permet de suivre la santé financière de l\'entreprise.' },
+    'audit': { 'definition': 'L\'audit financier est l\'examen indépendant des états financiers d\'une entreprise.', 'exigences': ['🔍 Indépendance de l\'auditeur', '📋 Respect des normes IFAC', '📊 Analyse des risques', '📝 Rapport d\'audit'], 'details': 'L\'audit vise à certifier la régularité et la sincérité des comptes.' },
+    'management': { 'definition': 'Le management stratégique est la formulation et la mise en œuvre des décisions majeures d\'une entreprise.', 'exigences': ['🎯 Définition des objectifs', '📊 Analyse SWOT', '💼 Allocation des ressources', '📈 Suivi de performance'], 'details': 'Le management stratégique oriente l\'entreprise vers ses objectifs long terme.' },
+    'macroéconomie': { 'definition': 'La macroéconomie étudie l\'économie dans son ensemble (PIB, inflation, chômage).', 'exigences': ['📊 Politique monétaire', '💰 Politique budgétaire', '📈 Croissance économique', '🌍 Commerce international'], 'details': 'La macroéconomie analyse les grands agrégats économiques.' },
+    'architecture': { 'definition': 'L\'architecture est l\'art et la science de concevoir et construire des bâtiments.', 'exigences': ['📐 Conception fonctionnelle', '🎨 Esthétique', '💪 Résistance structurelle', '🌱 Durabilité environnementale'], 'details': 'L\'architecture moderne intègre design, fonctionnalité et durabilité.' },
+    'restauration': { 'definition': 'La restauration est l\'art de préparer et servir des repas de qualité.', 'exigences': ['🍽️ Hygiène alimentaire', '👨‍🍳 Techniques culinaires', '💰 Gestion des coûts', '😊 Service client'], 'details': 'La restauration de qualité combine savoir-faire culinaire et gestion professionnelle.' }
 };
 
 // ============================================================
@@ -467,59 +428,42 @@ function saveSession() { saveToStorage(STORAGE_KEYS.SESSION, currentUser); }
 function saveHistory() { saveToStorage(STORAGE_KEYS.MY_HISTORY, myHistory); }
 
 // ============================================================
-// JUGE CLAUDE - RECHERCHE DANS LA BASE DE CONNAISSANCES
+// JUGE CLAUDE
 // ============================================================
 function claudeSearchKnowledge(question) {
     var searchText = (question.title + ' ' + question.content).toLowerCase();
     for (var key in claudeKnowledgeBase) {
-        if (searchText.indexOf(key) !== -1) {
-            return claudeKnowledgeBase[key];
-        }
+        if (searchText.indexOf(key) !== -1) return claudeKnowledgeBase[key];
     }
     return null;
 }
 
-// ============================================================
-// JUGE CLAUDE - GÉNÉRATION DE RÉPONSE COMPLÈTE
-// ============================================================
 function claudeGenerateAnswer(question, scholar, reason) {
     var litRef = '';
-    if (scholar.literature && scholar.literature.length > 0) {
-        litRef = scholar.literature.slice(0, 3).join(', ');
-    }
-    
+    if (scholar.literature && scholar.literature.length > 0) litRef = scholar.literature.slice(0, 3).join(', ');
     var knowledge = claudeSearchKnowledge(question);
     var answer = '';
     
     if (reason === 'no_literature') {
         answer = '🤖 RÉPONSE COMPLÈTE DU JUGE CLAUDE\n\n';
         answer += '📋 Analyse de votre question : "' + question.title + '"\n\n';
-        answer += 'Le scholar assigné ' + scholar.name + ' ne dispose pas de littérature spécifique sur ce sujet.\n\n';
+        answer += 'Le scholar assigné ' + scholar.name + ' ne dispose pas de littérature spécifique.\n\n';
         answer += '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n';
         answer += '🎯 RÉPONSE DÉTAILLÉE :\n\n';
-        
         if (knowledge) {
             answer += '📖 DÉFINITION :\n' + knowledge.definition + '\n\n';
             if (knowledge.exigences) {
                 answer += '✅ EXIGENCES PRINCIPALES :\n';
-                for (var i = 0; i < knowledge.exigences.length; i++) {
-                    answer += '   ' + knowledge.exigences[i] + '\n';
-                }
+                for (var i = 0; i < knowledge.exigences.length; i++) answer += '   ' + knowledge.exigences[i] + '\n';
                 answer += '\n';
             }
             if (knowledge.normes) {
                 answer += '📋 NORMES APPLICABLES :\n';
-                for (var j = 0; j < knowledge.normes.length; j++) {
-                    answer += '   • ' + knowledge.normes[j] + '\n';
-                }
+                for (var j = 0; j < knowledge.normes.length; j++) answer += '   • ' + knowledge.normes[j] + '\n';
                 answer += '\n';
             }
-            if (knowledge.applications) {
-                answer += '🏭 APPLICATIONS :\n' + knowledge.applications + '\n\n';
-            }
-            if (knowledge.details) {
-                answer += '📚 DÉTAILS TECHNIQUES :\n' + knowledge.details + '\n\n';
-            }
+            if (knowledge.applications) answer += '🏭 APPLICATIONS :\n' + knowledge.applications + '\n\n';
+            if (knowledge.details) answer += '📚 DÉTAILS TECHNIQUES :\n' + knowledge.details + '\n\n';
         } else {
             answer += '📖 ANALYSE DE LA QUESTION :\n';
             answer += 'Cette question relève du domaine ' + question.domain + ' (' + question.category + ').\n\n';
@@ -531,42 +475,29 @@ function claudeGenerateAnswer(question, scholar, reason) {
             answer += '   3. Contactez un scholar expert dans cette sous-catégorie\n';
             answer += '   4. Consultez les ressources documentaires professionnelles\n\n';
         }
-        
         answer += '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n';
-        answer += '💡 NOTE : Le scholar ' + scholar.name + ' pourra compléter cette réponse avec son expertise.';
-        
+        answer += '💡 NOTE : Le scholar ' + scholar.name + ' pourra compléter cette réponse.';
     } else if (reason === 'timeout_5min') {
         answer = '⏱️ RÉPONSE COMPLÈTE DU JUGE CLAUDE\n';
-        answer += '(Délai de 5 minutes dépassé - Le scholar n\'a pas répondu)\n\n';
-        answer += '👨‍🎓 Scholar concerné : ' + scholar.name + '\n';
-        if (litRef) {
-            answer += '📖 Littérature de référence : ' + litRef + '\n';
-        }
+        answer += '(Délai de 5 minutes dépassé)\n\n';
+        answer += '👨‍🎓 Scholar : ' + scholar.name + '\n';
+        if (litRef) answer += '📖 Littérature : ' + litRef + '\n';
         answer += '\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n';
         answer += '🎯 RÉPONSE DÉTAILLÉE :\n\n';
-        
         if (knowledge) {
             answer += '📖 DÉFINITION :\n' + knowledge.definition + '\n\n';
             if (knowledge.exigences) {
                 answer += '✅ EXIGENCES PRINCIPALES :\n';
-                for (var k = 0; k < knowledge.exigences.length; k++) {
-                    answer += '   ' + knowledge.exigences[k] + '\n';
-                }
+                for (var k = 0; k < knowledge.exigences.length; k++) answer += '   ' + knowledge.exigences[k] + '\n';
                 answer += '\n';
             }
             if (knowledge.normes) {
                 answer += '📋 NORMES APPLICABLES :\n';
-                for (var m = 0; m < knowledge.normes.length; m++) {
-                    answer += '   • ' + knowledge.normes[m] + '\n';
-                }
+                for (var m = 0; m < knowledge.normes.length; m++) answer += '   • ' + knowledge.normes[m] + '\n';
                 answer += '\n';
             }
-            if (knowledge.applications) {
-                answer += '🏭 APPLICATIONS :\n' + knowledge.applications + '\n\n';
-            }
-            if (knowledge.details) {
-                answer += '📚 DÉTAILS TECHNIQUES :\n' + knowledge.details + '\n\n';
-            }
+            if (knowledge.applications) answer += '🏭 APPLICATIONS :\n' + knowledge.applications + '\n\n';
+            if (knowledge.details) answer += '📚 DÉTAILS TECHNIQUES :\n' + knowledge.details + '\n\n';
         } else {
             answer += '📖 ANALYSE BASÉE SUR LA LITTÉRATURE DU SCHOLAR :\n\n';
             answer += 'D\'après les ouvrages de référence de ' + scholar.name + ' :\n';
@@ -579,34 +510,22 @@ function claudeGenerateAnswer(question, scholar, reason) {
             answer += '   3. Une expertise complémentaire peut être nécessaire\n';
             answer += '   4. Vérifiez les normes en vigueur\n\n';
         }
-        
         answer += '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n';
         answer += '💡 NOTE : Le scholar ' + scholar.name + ' pourra compléter cette réponse.';
     }
-    
     return answer;
 }
 
-// ============================================================
-// JUGE CLAUDE - AJOUT DE RÉPONSE
-// ============================================================
 function addClaudeAnswer(questionId, content, reason) {
     for (var i = 0; i < questions.length; i++) {
         if (questions[i].id === questionId) {
             if (!questions[i].answers) questions[i].answers = [];
             questions[i].answers.push({
-                username: 'Juge Claude',
-                userId: 0,
-                content: content,
-                language: currentLanguage,
-                date: new Date().toLocaleDateString(),
-                timestamp: new Date().toISOString(),
-                isClaude: true,
-                claudeReason: reason
+                username: 'Juge Claude', userId: 0, content: content, language: currentLanguage,
+                date: new Date().toLocaleDateString(), timestamp: new Date().toISOString(),
+                isClaude: true, claudeReason: reason
             });
-            if (questions[i].status === 'pending' || questions[i].status === 'assigned') {
-                questions[i].status = 'claude_answered';
-            }
+            if (questions[i].status === 'pending' || questions[i].status === 'assigned') questions[i].status = 'claude_answered';
             saveQuestions();
             renderQuestions();
             break;
@@ -614,42 +533,29 @@ function addClaudeAnswer(questionId, content, reason) {
     }
 }
 
-// ============================================================
-// TRAITEMENT JUGE CLAUDE
-// ============================================================
 function triggerClaudeJudge(question) {
     if (!question.scholar) return;
     var scholar = question.scholar;
-    
     if (!scholar.literature || scholar.literature.length === 0) {
         setTimeout(function() {
             var claudeAnswer = claudeGenerateAnswer(question, scholar, 'no_literature');
             addClaudeAnswer(question.id, claudeAnswer, 'no_literature');
-            showNotification('🤖 Juge Claude a répondu avec une réponse complète', 'claude');
+            showNotification('🤖 Juge Claude a répondu (pas de littérature)', 'claude');
         }, 2000);
         return;
     }
-    
     showNotification('⏱️ Juge Claude surveille (5 min max)...', 'info');
     var questionId = question.id;
     setTimeout(function() {
         var q = null;
-        for (var i = 0; i < questions.length; i++) {
-            if (questions[i].id === questionId) { q = questions[i]; break; }
-        }
+        for (var i = 0; i < questions.length; i++) { if (questions[i].id === questionId) { q = questions[i]; break; } }
         if (!q) return;
-        
         var scholarResponded = false;
-        if (q.answers) {
-            for (var j = 0; j < q.answers.length; j++) {
-                if (q.answers[j].isScholarResponse) { scholarResponded = true; break; }
-            }
-        }
-        
+        if (q.answers) { for (var j = 0; j < q.answers.length; j++) { if (q.answers[j].isScholarResponse) { scholarResponded = true; break; } } }
         if (!scholarResponded) {
             var claudeAnswer = claudeGenerateAnswer(q, q.scholar, 'timeout_5min');
             addClaudeAnswer(q.id, claudeAnswer, 'timeout_5min');
-            showNotification('⏱️ Juge Claude a répondu avec une réponse complète', 'claude');
+            showNotification('⏱️ Juge Claude a répondu après 5 minutes', 'claude');
         }
     }, 30000);
 }
@@ -665,13 +571,37 @@ function initializeApp() {
         }
         if (!found) { currentUser = null; saveSession(); }
     }
+    buildCategoriesNav();
+    buildDomainSelects();
     updateUI();
     renderQuestions();
     if (currentUser) {
-        setTimeout(function() {
-            showNotification('💾 Session restaurée : ' + currentUser.username, 'info');
-        }, 500);
+        setTimeout(function() { showNotification('💾 Session restaurée : ' + currentUser.username, 'info'); }, 500);
     }
+}
+
+function buildCategoriesNav() {
+    var nav = document.getElementById('categoriesNav');
+    var html = '<button class="cat-btn active" onclick="filterByDomain(\'all\', this)">🌍 Tous</button>';
+    var icons = { 'Islam': '🕌', 'Médecine': '🏥', 'Pharmacie': '💊', 'Chimie': '⚗️', 'IA': '🤖', 'IoT': '🌐', 'GMAO': '🏭', 'Mécanique Pétrole': '⚙️', 'Gestion': '📊', 'Expertise Comptable': '💰', 'Droit': '⚖️', 'Économie': '📈', 'Culture Générale': '🌍', 'Art': '🎨', 'Architecture': '🏛️', 'Restauration': '🍽️', 'Général': '📚' };
+    for (var d in categoriesByDomain) {
+        html += '<button class="cat-btn" onclick="filterByDomain(\'' + d + '\', this)">' + (icons[d] || '📖') + ' ' + d + '</button>';
+    }
+    nav.innerHTML = html;
+}
+
+function buildDomainSelects() {
+    var domains = Object.keys(categoriesByDomain);
+    var icons = { 'Islam': '🕌', 'Médecine': '🏥', 'Pharmacie': '💊', 'Chimie': '⚗️', 'IA': '🤖', 'IoT': '🌐', 'GMAO': '🏭', 'Mécanique Pétrole': '⚙️', 'Gestion': '📊', 'Expertise Comptable': '💰', 'Droit': '⚖️', 'Économie': '📈', 'Culture Générale': '🌍', 'Art': '🎨', 'Architecture': '🏛️', 'Restauration': '🍽️', 'Général': '📚' };
+    var qSel = document.getElementById('qDomain');
+    qSel.innerHTML = '';
+    for (var i = 0; i < domains.length; i++) {
+        var opt = document.createElement('option');
+        opt.value = domains[i];
+        opt.textContent = (icons[domains[i]] || '📖') + ' ' + domains[i];
+        qSel.appendChild(opt);
+    }
+    updateCategories();
 }
 
 function filterByDomain(domain, btn) {
@@ -685,23 +615,17 @@ function filterByDomain(domain, btn) {
 function toggleKeyboard() {
     var keyboard = document.getElementById('arabicKeyboard');
     isKeyboardActive = !isKeyboardActive;
-    if (isKeyboardActive) {
-        keyboard.classList.add('active');
-        showNotification('⌨️ Clavier arabe activé', 'info');
-    } else {
-        keyboard.classList.remove('active');
-    }
+    if (isKeyboardActive) { keyboard.classList.add('active'); showNotification('⌨️ Clavier arabe activé', 'info'); }
+    else keyboard.classList.remove('active');
 }
 
 function insertChar(char) {
-    var activeElement = document.activeElement;
-    if (activeElement && (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA')) {
-        var start = activeElement.selectionStart;
-        var end = activeElement.selectionEnd;
-        var value = activeElement.value;
-        activeElement.value = value.substring(0, start) + char + value.substring(end);
-        activeElement.selectionStart = activeElement.selectionEnd = start + char.length;
-        activeElement.focus();
+    var el = document.activeElement;
+    if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA')) {
+        var s = el.selectionStart, e = el.selectionEnd, v = el.value;
+        el.value = v.substring(0, s) + char + v.substring(e);
+        el.selectionStart = el.selectionEnd = s + char.length;
+        el.focus();
     } else {
         var cf = document.getElementById('qContent');
         if (cf) { cf.value += char; cf.focus(); }
@@ -709,10 +633,10 @@ function insertChar(char) {
 }
 
 function clearText() {
-    var activeElement = document.activeElement;
-    if (activeElement && (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA')) {
-        activeElement.value = activeElement.value.substring(0, activeElement.value.length - 1);
-        activeElement.focus();
+    var el = document.activeElement;
+    if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA')) {
+        el.value = el.value.substring(0, el.value.length - 1);
+        el.focus();
     }
 }
 
@@ -739,12 +663,12 @@ function assignScholar(domain, category) {
 }
 
 function getDomainClass(domain) {
-    var map = { 'Islam': 'domain-islam', 'Médecine': 'domain-medecine', 'Pharmacie': 'domain-pharmacie', 'Chimie': 'domain-chimie', 'IA': 'domain-ia', 'IoT': 'domain-iot', 'GMAO': 'domain-gmao', 'Mécanique Pétrole': 'domain-meca', 'Général': 'domain-general' };
+    var map = { 'Islam': 'domain-islam', 'Médecine': 'domain-medecine', 'Pharmacie': 'domain-pharmacie', 'Chimie': 'domain-chimie', 'IA': 'domain-ia', 'IoT': 'domain-iot', 'GMAO': 'domain-gmao', 'Mécanique Pétrole': 'domain-meca', 'Gestion': 'domain-gestion', 'Expertise Comptable': 'domain-compta', 'Droit': 'domain-droit', 'Économie': 'domain-eco', 'Culture Générale': 'domain-culture', 'Art': 'domain-art', 'Architecture': 'domain-archi', 'Restauration': 'domain-resto', 'Général': 'domain-general' };
     return map[domain] || 'domain-general';
 }
 
 function getDomainIcon(domain) {
-    var icons = { 'Islam': '🕌', 'Médecine': '🏥', 'Pharmacie': '💊', 'Chimie': '⚗️', 'IA': '🤖', 'IoT': '🌐', 'GMAO': '🏭', 'Mécanique Pétrole': '⚙️', 'Général': '📚' };
+    var icons = { 'Islam': '🕌', 'Médecine': '🏥', 'Pharmacie': '💊', 'Chimie': '⚗️', 'IA': '🤖', 'IoT': '🌐', 'GMAO': '🏭', 'Mécanique Pétrole': '⚙️', 'Gestion': '📊', 'Expertise Comptable': '💰', 'Droit': '⚖️', 'Économie': '📈', 'Culture Générale': '🌍', 'Art': '🎨', 'Architecture': '🏛️', 'Restauration': '🍽️', 'Général': '📚' };
     return icons[domain] || '📖';
 }
 
@@ -757,10 +681,11 @@ function showScholars() {
         var dClass = getDomainClass(s.domain);
         var icon = getDomainIcon(s.domain);
         var litCount = s.literature ? s.literature.length : 0;
-        var litBadge = litCount > 0 ? '<span style="background:#22c55e;padding:2px 8px;border-radius:10px;font-size:10px;">📚 ' + litCount + ' ouvrages</span>' : '<span style="background:#ef4444;padding:2px 8px;border-radius:10px;font-size:10px;">📚 Aucune littérature</span>';
+        var litBadge = litCount > 0 ? '<span style="background:#22c55e;padding:2px 8px;border-radius:10px;font-size:10px;">📚 ' + litCount + '</span>' : '<span style="background:#ef4444;padding:2px 8px;border-radius:10px;font-size:10px;">📚 Aucune</span>';
         html += '<div class="scholar-card"><strong>' + icon + ' ' + s.name + '</strong> <span class="domain-tag ' + dClass + '">' + s.domain + '</span> ' + litBadge + '<div style="opacity:0.7;font-size:14px;margin-top:5px;">📂 ' + s.expertise + '</div><div style="font-size:13px;opacity:0.6;">🌐 ' + s.languages.map(function(l) { return getLangName(l); }).join(', ') + '</div><div style="color:#f59e0b;">⭐ ' + s.rating + '/5</div></div>';
     }
     html += '</div>';
+    html += '<p style="text-align:center;opacity:0.6;margin-top:15px;">📊 Total : ' + filtered.length + ' Scholars</p>';
     container.innerHTML = html;
     hideForms();
     document.getElementById('scholarsPopup').classList.add('active');
@@ -827,9 +752,7 @@ function login() {
         hideForms();
         showNotification('✅ Connecté ! Session sauvegardée', 'success');
         renderQuestions();
-    } else {
-        showNotification('❌ Identifiants incorrects', 'error');
-    }
+    } else showNotification('❌ Identifiants incorrects', 'error');
 }
 
 function register() {
@@ -840,9 +763,7 @@ function register() {
     var domain = document.getElementById('regDomain').value;
     if (!username || !email || !password) { showNotification('Veuillez remplir tous les champs', 'error'); return; }
     if (password.length < 6) { showNotification('Mot de passe : 6 caractères min', 'error'); return; }
-    for (var i = 0; i < users.length; i++) {
-        if (users[i].email === email) { showNotification('Email déjà utilisé', 'error'); return; }
-    }
+    for (var i = 0; i < users.length; i++) { if (users[i].email === email) { showNotification('Email déjà utilisé', 'error'); return; } }
     var newUser = { id: users.length + 1, username: username, email: email, password: password, role: 'user', language: language, domain: domain };
     users.push(newUser);
     saveUsers();
@@ -880,6 +801,7 @@ function updateUI() {
         document.getElementById('userRole').innerHTML = '👤 Visiteur';
     }
     document.getElementById('langDisplay').innerHTML = '🌐 ' + getLangName(currentLanguage);
+    document.getElementById('scholarCount').textContent = '🎓 ' + scholarsData.length + ' Scholars';
 }
 
 function addToHistory(action, data) {
@@ -895,11 +817,7 @@ function renderHistory() {
     var myQuestions = questions.filter(function(q) { return q.username === currentUser.username; });
     var myAnswers = 0;
     for (var i = 0; i < questions.length; i++) {
-        if (questions[i].answers) {
-            for (var j = 0; j < questions[i].answers.length; j++) {
-                if (questions[i].answers[j].username === currentUser.username) myAnswers++;
-            }
-        }
+        if (questions[i].answers) for (var j = 0; j < questions[i].answers.length; j++) if (questions[i].answers[j].username === currentUser.username) myAnswers++;
     }
     stats.innerHTML = '<span style="background:rgba(255,255,255,0.1);padding:5px 12px;border-radius:12px;">📋 ' + myQuestions.length + ' questions</span><span style="background:rgba(255,255,255,0.1);padding:5px 12px;border-radius:12px;">💬 ' + myAnswers + ' réponses</span><span style="background:rgba(255,255,255,0.1);padding:5px 12px;border-radius:12px;">📊 ' + myHistory.length + ' actions</span>';
     if (myQuestions.length === 0) { container.innerHTML = '<p style="text-align:center;opacity:0.5;padding:30px;">Aucune question.</p>'; return; }
@@ -955,14 +873,14 @@ function renderQuestions() {
     for (var i = 0; i < filtered.length; i++) {
         var q = filtered[i];
         var hasClaudeAnswer = false;
-        if (q.answers) { for (var c = 0; c < q.answers.length; c++) { if (q.answers[c].isClaude) { hasClaudeAnswer = true; break; } } }
+        if (q.answers) for (var c = 0; c < q.answers.length; c++) if (q.answers[c].isClaude) { hasClaudeAnswer = true; break; }
         var cardClass = hasClaudeAnswer ? 'claude-card' : '';
         var statusClass = q.status === 'claude_answered' ? 'badge-claude' : (q.status === 'assigned' ? 'badge-assigned' : q.status === 'answered' ? 'badge-answered' : 'badge-pending');
         var statusLabel = q.status === 'claude_answered' ? '🤖 Juge Claude' : (q.status === 'assigned' ? 'Assigné' : q.status === 'answered' ? 'Répondu' : 'En attente');
         var dClass = getDomainClass(q.domain);
         var icon = getDomainIcon(q.domain);
         var scholarInfo = '';
-        if (q.scholar) { var litCount = q.scholar.literature ? q.scholar.literature.length : 0; scholarInfo = '<span class="domain-tag ' + dClass + '">🎓 ' + q.scholar.name + ' (' + litCount + ' ouvrages)</span>'; }
+        if (q.scholar) { var litCount = q.scholar.literature ? q.scholar.literature.length : 0; scholarInfo = '<span class="domain-tag ' + dClass + '">🎓 ' + q.scholar.name + ' (' + litCount + ')</span>'; }
         var answersHtml = '';
         if (q.answers && q.answers.length > 0) {
             answersHtml = '<div class="answers-section"><strong>💬 ' + q.answers.length + ' réponses</strong>';
@@ -974,7 +892,7 @@ function renderQuestions() {
                 answersHtml += '<div class="answer-item ' + aClass + '"><div style="margin-bottom:5px;">' + badge + '</div><div class="claude-response">' + a.content + '</div><div class="answer-meta">👤 ' + a.username + ' | 📅 ' + a.date + '</div></div>';
             }
             answersHtml += '</div>';
-        } else { answersHtml = '<div style="margin-top:10px;opacity:0.5;font-size:13px;">💬 En attente (Juge Claude surveille)...</div>'; }
+        } else answersHtml = '<div style="margin-top:10px;opacity:0.5;font-size:13px;">💬 En attente (Juge Claude surveille)...</div>';
         var answerBtn = currentUser ? '<button class="btn btn-secondary" onclick="showAnswerForm(' + q.id + ')">💬 Répondre</button>' : '';
         html += '<div class="question-card ' + cardClass + '"><div class="question-title">' + icon + ' ' + q.title + '</div><div class="question-meta"><span class="domain-tag ' + dClass + '">' + q.domain + '</span> 👤 ' + q.username + ' | 📂 ' + q.category + ' | 🌐 ' + getLangName(q.language) + ' | 📅 ' + q.date + ' | <span class="badge ' + statusClass + '">' + statusLabel + '</span> ' + scholarInfo + '</div><div class="question-content">' + q.content + '</div><div class="question-actions">' + answerBtn + '</div>' + answersHtml + '</div>';
     }
@@ -996,9 +914,10 @@ function showAnswerForm(questionId) {
             addToHistory('answer', { questionTitle: questions[i].title });
             if (isScholar) {
                 var hasClaudeAns = false;
-                for (var c = 0; c < questions[i].answers.length; c++) { if (questions[i].answers[c].isClaude) { hasClaudeAns = true; break; } }
-                if (hasClaudeAns) { showNotification('📢 Réponse du Scholar diffusée (arrivée en retard)', 'claude'); } else { showNotification('✅ Réponse du Scholar publiée !', 'success'); }
-            } else { showNotification('✅ Réponse publiée !', 'success'); }
+                for (var c = 0; c < questions[i].answers.length; c++) if (questions[i].answers[c].isClaude) { hasClaudeAns = true; break; }
+                if (hasClaudeAns) showNotification('📢 Réponse du Scholar diffusée (arrivée en retard)', 'claude');
+                else showNotification('✅ Réponse du Scholar publiée !', 'success');
+            } else showNotification('✅ Réponse publiée !', 'success');
             renderQuestions();
             break;
         }

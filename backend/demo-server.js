@@ -15,4 +15,5 @@ app.get('/admin', (req, res) => {
 
 app.listen(PORT, () => {
     console.log('✅ Serveur lancé sur le port ' + PORT);
+    console.log('📚 60+ Scholars dans 18 domaines');
 });
