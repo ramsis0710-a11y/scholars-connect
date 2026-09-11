@@ -296,7 +296,7 @@ app.post('/api/analyze-question', async function(req, res) {
         
         const result = await geminiModel.generateContent(prompt);
         const response = await result.response;
-        var text = response.text().replace(/\\\json/g, '').replace(/\\\/g, '').trim();
+        var text = response.text().split('`json').join('').split('`').join('').trim();
         
         try {
             var parsed = JSON.parse(text);
@@ -475,3 +475,4 @@ app.listen(PORT, '0.0.0.0', function() {
     console.log('  📱 QR Code: /logo');
     console.log('==========================================');
 });
+
