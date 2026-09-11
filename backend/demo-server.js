@@ -9,7 +9,7 @@ const MONGODB_URI = process.env.MONGODB_URI;
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
 if (!MONGODB_URI) {
-    console.error('❌ MONGODB_URI non définie');
+    console.error('MONGODB_URI non définie');
     process.exit(1);
 }
 
@@ -24,12 +24,12 @@ if (GEMINI_API_KEY) {
         const { GoogleGenerativeAI } = require('@google/generative-ai');
         genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
         geminiModel = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
-        console.log('✅ Gemini API initialisée');
+        console.log('Gemini API initialisée');
     } catch (e) {
-        console.error('❌ Erreur Gemini init:', e.message);
+        console.error('Erreur Gemini init:', e.message);
     }
 } else {
-    console.log('⚠️ GEMINI_API_KEY non définie - fallback sur base locale');
+    console.log('GEMINI_API_KEY non définie - fallback local');
 }
 
 // ============================================================
@@ -40,8 +40,8 @@ mongoose.connect(MONGODB_URI, {
     socketTimeoutMS: 45000,
     family: 4
 })
-    .then(() => console.log('✅ MongoDB Atlas connecté'))
-    .catch(err => console.error('❌ MongoDB error:', err.message));
+    .then(() => console.log('MongoDB Atlas connecté'))
+    .catch(err => console.error('MongoDB error:', err.message));
 
 // ============================================================
 // SCHÉMAS
@@ -98,7 +98,8 @@ const Question = mongoose.model('Question', QuestionSchema);
 const History = mongoose.model('History', HistorySchema);
 
 // Init admin
-async function initAdmin(retries = 5) {
+async function initAdmin(retries) {
+    if (retries === undefined) retries = 5;
     try {
         const existing = await User.findOne({ email: 'admin@scholars-connect.com' });
         if (!existing) {
@@ -109,15 +110,15 @@ async function initAdmin(retries = 5) {
                 role: 'admin',
                 domain: 'Général'
             });
-            console.log('✅ Admin créé');
+            console.log('Admin créé');
         }
     } catch (e) {
         console.error('Init admin tentative ' + (6 - retries) + ': ' + e.message);
-        if (retries > 0) setTimeout(() => initAdmin(retries - 1), 5000);
+        if (retries > 0) setTimeout(function() { initAdmin(retries - 1); }, 5000);
     }
 }
 
-mongoose.connection.once('connected', () => {
+mongoose.connection.once('connected', function() {
     initAdmin();
 });
 
@@ -128,7 +129,7 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
 // ============================================================
-// GÉNÉRATION DE RÉPONSE PAR GEMINI
+// GÉNÉRATION DE RÉPONSE PAR GEMINI (SANS BACKTICKS)
 // ============================================================
 async function generateGeminiResponse(question, scholar, reason) {
     if (!geminiModel) {
@@ -136,57 +137,47 @@ async function generateGeminiResponse(question, scholar, reason) {
     }
 
     try {
-        let prompt = '';
+        var prompt = '';
         
         if (reason === 'no_literature') {
-            prompt = Tu es un Juge Académique expert nommé "Juge Claude". 
-Un utilisateur a posé la question suivante :
-
-DOMAINE : \
-SPÉCIALITÉ : \
-QUESTION : \
-DÉTAILS : \
-
-Le scholar assigné "\" ne dispose pas de littérature spécifique sur ce sujet.
-
-Ta mission : Donne une réponse COMPLÈTE, DÉTAILLÉE et EXPERTE à cette question.
-
-Structure ta réponse ainsi :
-1. 📖 DÉFINITION / CONTEXTE : Explique brièvement le contexte
-2. 🎯 RÉPONSE DÉTAILLÉE : Développe la réponse en 3-5 paragraphes
-3. ✅ POINTS CLÉS : Liste 3-5 points importants
-4. 💡 POUR ALLER PLUS LOIN : Conseils ou références
-5. 📚 SOURCES : Cite 2-3 ouvrages/auteurs de référence
-
-Réponds en FRANÇAIS. Sois précis et pédagogique. N'utilise PAS de formatage Markdown complexe. Utilise uniquement des emojis et des tirets.;
+            prompt = 'Tu es un Juge Académique expert nommé "Juge Claude".\n' +
+                'Un utilisateur a posé la question suivante :\n\n' +
+                'DOMAINE : ' + question.domain + '\n' +
+                'SPÉCIALITÉ : ' + question.category + '\n' +
+                'QUESTION : ' + question.title + '\n' +
+                'DÉTAILS : ' + question.content + '\n\n' +
+                'Le scholar assigné "' + scholar.name + '" ne dispose pas de littérature spécifique sur ce sujet.\n\n' +
+                'Ta mission : Donne une réponse COMPLÈTE, DÉTAILLÉE et EXPERTE à cette question.\n\n' +
+                'Structure ta réponse ainsi :\n' +
+                '1. 📖 DÉFINITION / CONTEXTE : Explique brièvement le contexte\n' +
+                '2. 🎯 RÉPONSE DÉTAILLÉE : Développe la réponse en 3-5 paragraphes\n' +
+                '3. ✅ POINTS CLÉS : Liste 3-5 points importants\n' +
+                '4. 💡 POUR ALLER PLUS LOIN : Conseils ou références\n' +
+                '5. 📚 SOURCES : Cite 2-3 ouvrages/auteurs de référence\n\n' +
+                'Réponds en FRANÇAIS. Sois précis et pédagogique. N\'utilise PAS de formatage Markdown complexe. Utilise uniquement des emojis et des tirets.';
         } else if (reason === 'timeout_5min') {
-            prompt = Tu es un Juge Académique expert nommé "Juge Claude".
-Un utilisateur a posé la question suivante :
-
-DOMAINE : \
-SPÉCIALITÉ : \
-QUESTION : \
-DÉTAILS : \
-
-Le scholar assigné "\" n'a pas répondu dans le délai de 5 minutes.
-Sa littérature de référence : \
-
-Ta mission : Réponds à cette question en te basant sur la littérature du scholar.
-
-Structure ta réponse :
-1. 📖 DÉFINITION / CONTEXTE
-2. 🎯 RÉPONSE DÉTAILLÉE (3-5 paragraphes)
-3. ✅ POINTS CLÉS (3-5 points)
-4. 📚 RÉFÉRENCES (citer la littérature du scholar)
-
-Réponds en FRANÇAIS. Sois précis et pédagogique. Pas de Markdown complexe.;
+            prompt = 'Tu es un Juge Académique expert nommé "Juge Claude".\n' +
+                'Un utilisateur a posé la question suivante :\n\n' +
+                'DOMAINE : ' + question.domain + '\n' +
+                'SPÉCIALITÉ : ' + question.category + '\n' +
+                'QUESTION : ' + question.title + '\n' +
+                'DÉTAILS : ' + question.content + '\n\n' +
+                'Le scholar assigné "' + scholar.name + '" n\'a pas répondu dans le délai de 5 minutes.\n' +
+                'Sa littérature de référence : ' + (scholar.literature ? scholar.literature.join(', ') : 'Non spécifiée') + '\n\n' +
+                'Ta mission : Réponds à cette question en te basant sur la littérature du scholar.\n\n' +
+                'Structure ta réponse :\n' +
+                '1. 📖 DÉFINITION / CONTEXTE\n' +
+                '2. 🎯 RÉPONSE DÉTAILLÉE (3-5 paragraphes)\n' +
+                '3. ✅ POINTS CLÉS (3-5 points)\n' +
+                '4. 📚 RÉFÉRENCES (citer la littérature du scholar)\n\n' +
+                'Réponds en FRANÇAIS. Sois précis et pédagogique. Pas de Markdown complexe.';
         }
 
         const result = await geminiModel.generateContent(prompt);
         const response = await result.response;
         const text = response.text();
 
-        let header = '';
+        var header = '';
         if (reason === 'no_literature') {
             header = '🤖 RÉPONSE COMPLÈTE DU JUGE CLAUDE\n\n';
             header += '📋 Question : "' + question.title + '"\n';
@@ -213,7 +204,7 @@ Réponds en FRANÇAIS. Sois précis et pédagogique. Pas de Markdown complexe.;
 // FALLBACK LOCAL
 // ============================================================
 function generateLocalFallback(question, scholar, reason) {
-    let header = '';
+    var header = '';
     if (reason === 'no_literature') {
         header = '🤖 RÉPONSE DU JUGE CLAUDE\n\n';
         header += 'Le scholar ' + scholar.name + ' n\'a pas de littérature spécifique.\n\n';
@@ -222,7 +213,7 @@ function generateLocalFallback(question, scholar, reason) {
         header += 'Scholar : ' + scholar.name + '\n\n';
     }
     
-    let body = '📖 DÉFINITION : Cette question relève du domaine ' + question.domain + ' (' + question.category + ').\n\n';
+    var body = '📖 DÉFINITION : Cette question relève du domaine ' + question.domain + ' (' + question.category + ').\n\n';
     body += '🎯 RÉPONSE : Le Juge Claude analyse votre question : "' + question.title + '"\n\n';
     body += '✅ POINTS CLÉS :\n';
     body += '   • Le sujet appartient au domaine ' + question.domain + '\n';
@@ -235,49 +226,50 @@ function generateLocalFallback(question, scholar, reason) {
 // ============================================================
 // ROUTES HTML
 // ============================================================
-app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
-app.get('/admin', (req, res) => res.sendFile(path.join(__dirname, 'public', 'admin.html')));
+app.get('/', function(req, res) { res.sendFile(path.join(__dirname, 'public', 'index.html')); });
+app.get('/admin', function(req, res) { res.sendFile(path.join(__dirname, 'public', 'admin.html')); });
 
 // ============================================================
 // API - AUTH
 // ============================================================
-app.post('/api/login', async (req, res) => {
+app.post('/api/login', async function(req, res) {
     try {
         const user = await User.findOne({ email: req.body.email, password: req.body.password });
         if (!user) return res.status(401).json({ error: 'Identifiants incorrects' });
-        res.json({ ...user.toObject(), password: undefined });
+        var u = user.toObject();
+        delete u.password;
+        res.json(u);
     } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-app.post('/api/users', async (req, res) => {
+app.post('/api/users', async function(req, res) {
     try {
         const existing = await User.findOne({ email: req.body.email });
         if (existing) return res.status(400).json({ error: 'Email déjà utilisé' });
         const user = await User.create(req.body);
-        res.json({ ...user.toObject(), password: undefined });
+        var u = user.toObject();
+        delete u.password;
+        res.json(u);
     } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-app.get('/api/users', async (req, res) => {
+app.get('/api/users', async function(req, res) {
     try { res.json(await User.find().select('-password')); }
     catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 // ============================================================
-// API - QUESTIONS AVEC JUGE CLAUDE AUTOMATIQUE
+// API - QUESTIONS
 // ============================================================
-app.get('/api/questions', async (req, res) => {
+app.get('/api/questions', async function(req, res) {
     try { res.json(await Question.find().sort({ timestamp: -1 })); }
     catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-app.post('/api/questions', async (req, res) => {
+app.post('/api/questions', async function(req, res) {
     try {
         const question = await Question.create(req.body);
-        
-        // Lancer le Juge Claude en arrière-plan
         triggerClaudeJudge(question);
-        
         res.json(question);
     } catch (e) { res.status(500).json({ error: e.message }); }
 });
@@ -290,9 +282,8 @@ async function triggerClaudeJudge(question) {
     
     const scholar = question.scholar;
     
-    // RÈGLE 1 : Pas de littérature → réponse immédiate
     if (!scholar.literature || scholar.literature.length === 0) {
-        setTimeout(async () => {
+        setTimeout(async function() {
             try {
                 const answer = await generateGeminiResponse(question, scholar, 'no_literature');
                 const q = await Question.findById(question._id);
@@ -308,7 +299,7 @@ async function triggerClaudeJudge(question) {
                 });
                 q.status = 'claude_answered';
                 await q.save();
-                console.log('🤖 Juge Claude a répondu à Q#' + q._id);
+                console.log('Juge Claude a répondu à Q#' + q._id);
             } catch (e) {
                 console.error('Erreur Juge Claude:', e.message);
             }
@@ -316,15 +307,18 @@ async function triggerClaudeJudge(question) {
         return;
     }
     
-    // RÈGLE 2 : Attendre 30 sec (démo)
-    console.log('⏱️ Juge Claude surveille Q#' + question._id);
+    console.log('Juge Claude surveille Q#' + question._id);
     
-    setTimeout(async () => {
+    setTimeout(async function() {
         try {
             const q = await Question.findById(question._id);
             if (!q) return;
             
-            const scholarResponded = q.answers.some(a => a.isScholarResponse);
+            var scholarResponded = false;
+            for (var i = 0; i < q.answers.length; i++) {
+                if (q.answers[i].isScholarResponse) { scholarResponded = true; break; }
+            }
+            
             if (!scholarResponded) {
                 const answer = await generateGeminiResponse(q, q.scholar, 'timeout_5min');
                 q.answers.push({
@@ -338,7 +332,7 @@ async function triggerClaudeJudge(question) {
                 });
                 q.status = 'claude_answered';
                 await q.save();
-                console.log('⏱️ Juge Claude a répondu (5 min) à Q#' + q._id);
+                console.log('Juge Claude a répondu (5 min) à Q#' + q._id);
             }
         } catch (e) {
             console.error('Erreur Juge Claude timeout:', e.message);
@@ -349,7 +343,7 @@ async function triggerClaudeJudge(question) {
 // ============================================================
 // API - RÉPONSES
 // ============================================================
-app.post('/api/questions/:id/answers', async (req, res) => {
+app.post('/api/questions/:id/answers', async function(req, res) {
     try {
         const q = await Question.findById(req.params.id);
         if (!q) return res.status(404).json({ error: 'Question non trouvée' });
@@ -364,17 +358,17 @@ app.post('/api/questions/:id/answers', async (req, res) => {
 // ============================================================
 // API - HISTORIQUE
 // ============================================================
-app.get('/api/history', async (req, res) => {
+app.get('/api/history', async function(req, res) {
     try { res.json(await History.find().sort({ timestamp: -1 }).limit(500)); }
     catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-app.get('/api/history/:userId', async (req, res) => {
+app.get('/api/history/:userId', async function(req, res) {
     try { res.json(await History.find({ userId: parseInt(req.params.userId) }).sort({ timestamp: -1 })); }
     catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-app.post('/api/history', async (req, res) => {
+app.post('/api/history', async function(req, res) {
     try { res.json(await History.create(req.body)); }
     catch (e) { res.status(500).json({ error: e.message }); }
 });
@@ -382,7 +376,7 @@ app.post('/api/history', async (req, res) => {
 // ============================================================
 // API - SANTÉ
 // ============================================================
-app.get('/api/health', async (req, res) => {
+app.get('/api/health', async function(req, res) {
     try {
         res.json({
             status: 'healthy',
@@ -401,7 +395,7 @@ app.get('/api/health', async (req, res) => {
 // ============================================================
 // TEST GEMINI
 // ============================================================
-app.get('/api/test-gemini', async (req, res) => {
+app.get('/api/test-gemini', async function(req, res) {
     if (!geminiModel) {
         return res.json({ error: 'Gemini non configurée' });
     }
@@ -420,11 +414,11 @@ app.get('/api/test-gemini', async (req, res) => {
 // ============================================================
 // DÉMARRAGE
 // ============================================================
-app.listen(PORT, '0.0.0.0', () => {
+app.listen(PORT, '0.0.0.0', function() {
     console.log('==========================================');
     console.log('  Scholars Connect - MongoDB + Gemini');
     console.log('  URL: http://localhost:' + PORT);
-    console.log('  🍃 MongoDB: ' + (mongoose.connection.readyState === 1 ? 'Connecté' : 'Connexion...'));
-    console.log('  🤖 Gemini: ' + (geminiModel ? 'Actif' : 'Inactif'));
+    console.log('  MongoDB: ' + (mongoose.connection.readyState === 1 ? 'Connecté' : 'Connexion...'));
+    console.log('  Gemini: ' + (geminiModel ? 'Actif' : 'Inactif'));
     console.log('==========================================');
 });
