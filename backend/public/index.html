@@ -3,13 +3,13 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Scholars Connect - MongoDB</title>
+<title>Scholars Connect - Vocal + IA</title>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body { font-family: 'Segoe UI', system-ui, sans-serif; background: #0a0e27; color: #fff; min-height: 100vh; padding: 20px; }
 .container { max-width: 1400px; margin: 0 auto; }
-.header { display: flex; justify-content: space-between; align-items: center; padding: 20px 0; flex-wrap: wrap; gap: 15px; border-bottom: 2px solid #22c55e; }
-.logo { font-size: 32px; font-weight: 700; background: linear-gradient(135deg, #22c55e, #10b981, #f59e0b); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+.header { display: flex; justify-content: space-between; align-items: center; padding: 20px 0; flex-wrap: wrap; gap: 15px; border-bottom: 2px solid #8b5cf6; }
+.logo { font-size: 32px; font-weight: 700; background: linear-gradient(135deg, #667eea, #8b5cf6, #ec4899); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
 .logo-sub { font-size: 14px; opacity: 0.6; display: block; font-weight: 400; }
 .header-actions { display: flex; gap: 10px; flex-wrap: wrap; }
 .btn { padding: 10px 20px; border: none; border-radius: 10px; cursor: pointer; font-weight: 600; transition: 0.3s; font-size: 13px; }
@@ -18,6 +18,7 @@ body { font-family: 'Segoe UI', system-ui, sans-serif; background: #0a0e27; colo
 .btn-danger { background: #ef4444; color: white; }
 .btn-secondary { background: rgba(255,255,255,0.1); color: white; }
 .btn-admin { background: #f59e0b; color: #0a0e27; }
+.btn-voice { background: linear-gradient(135deg, #8b5cf6, #ec4899); color: white; }
 .btn:hover { transform: scale(1.05); opacity: 0.9; }
 .categories-nav { display: flex; gap: 8px; padding: 15px 0; flex-wrap: wrap; border-bottom: 1px solid rgba(255,255,255,0.05); overflow-x: auto; }
 .cat-btn { padding: 6px 12px; border-radius: 20px; border: 1px solid rgba(255,255,255,0.15); background: transparent; color: white; cursor: pointer; font-size: 11px; transition: 0.3s; white-space: nowrap; }
@@ -30,17 +31,22 @@ body { font-family: 'Segoe UI', system-ui, sans-serif; background: #0a0e27; colo
 .form-group input, .form-group textarea, .form-group select { width: 100%; padding: 12px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.05); color: white; font-size: 14px; }
 .form-group textarea { min-height: 100px; }
 .form-group select option { background: #1a1a2e; color: white; }
+.voice-box { background: linear-gradient(135deg, rgba(139,92,246,0.15), rgba(236,72,153,0.1)); padding: 20px; border-radius: 16px; margin-bottom: 20px; border: 2px dashed #8b5cf6; text-align: center; }
+.voice-btn { background: linear-gradient(135deg, #8b5cf6, #ec4899); color: white; padding: 18px 40px; border-radius: 50px; font-size: 16px; font-weight: 600; border: none; cursor: pointer; transition: 0.3s; }
+.voice-btn:hover { transform: scale(1.05); }
+.voice-btn.listening { background: #ef4444; animation: pulse 1s infinite; }
+@keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.7; } }
 .status-bar { display: flex; gap: 20px; padding: 15px 0; flex-wrap: wrap; border-bottom: 1px solid rgba(255,255,255,0.05); }
 .status-item { display: flex; align-items: center; gap: 8px; font-size: 13px; }
-.dot { width: 8px; height: 8px; border-radius: 50%; background: #22c55e; animation: pulse 2s infinite; }
-@keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
-.mongo-badge { background: #22c55e; color: white; padding: 3px 12px; border-radius: 12px; font-size: 11px; font-weight: 600; }
-.user-avatar { display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px; border-radius: 50%; background: linear-gradient(135deg, #22c55e, #10b981); font-weight: 700; margin-right: 10px; }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: #22c55e; animation: pulse2 2s infinite; }
+@keyframes pulse2 { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
+.badge-purple { background: linear-gradient(135deg, #8b5cf6, #ec4899); color: white; padding: 3px 12px; border-radius: 12px; font-size: 11px; font-weight: 600; }
+.user-avatar { display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px; border-radius: 50%; background: linear-gradient(135deg, #8b5cf6, #ec4899); font-weight: 700; margin-right: 10px; }
 .user-info { display: flex; align-items: center; gap: 10px; }
 .question-grid { display: grid; gap: 20px; margin: 20px 0; }
 .question-card { background: rgba(255,255,255,0.05); border-radius: 12px; padding: 20px; border: 1px solid rgba(255,255,255,0.08); }
 .question-card.claude-card { border-color: #8b5cf6; box-shadow: 0 0 20px rgba(139,92,246,0.2); }
-.question-title { font-size: 18px; font-weight: 600; color: #667eea; }
+.question-title { font-size: 18px; font-weight: 600; color: #8b5cf6; }
 .question-meta { font-size: 13px; opacity: 0.6; margin: 5px 0; display: flex; gap: 15px; flex-wrap: wrap; }
 .question-content { margin: 10px 0; }
 .question-actions { display: flex; gap: 10px; margin-top: 10px; flex-wrap: wrap; }
@@ -58,7 +64,6 @@ body { font-family: 'Segoe UI', system-ui, sans-serif; background: #0a0e27; colo
 .notification.error { background: #ef4444; color: white; display: block; }
 .notification.info { background: #3b82f6; color: white; display: block; }
 .notification.claude { background: linear-gradient(135deg, #8b5cf6, #ec4899); color: white; display: block; }
-.notification.mongo { background: #22c55e; color: white; display: block; }
 .badge { display: inline-block; padding: 2px 12px; border-radius: 20px; font-size: 11px; font-weight: 600; }
 .badge-pending { background: #eab308; color: #0a0e27; }
 .badge-answered { background: #22c55e; color: #0a0e27; }
@@ -66,6 +71,9 @@ body { font-family: 'Segoe UI', system-ui, sans-serif; background: #0a0e27; colo
 .badge-claude { background: linear-gradient(135deg, #8b5cf6, #ec4899); color: white; }
 .scholar-card { background: rgba(255,255,255,0.05); padding: 15px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.1); }
 .claude-response { white-space: pre-wrap; line-height: 1.7; font-size: 14px; }
+.speak-btn { background: #3b82f6; color: white; border: none; padding: 6px 12px; border-radius: 8px; font-size: 11px; cursor: pointer; margin-right: 5px; }
+.speak-btn:hover { background: #2563eb; }
+.stop-btn { background: #ef4444; color: white; border: none; padding: 6px 12px; border-radius: 8px; font-size: 11px; cursor: pointer; }
 @media (max-width: 600px) {
 .header { flex-direction: column; align-items: stretch; }
 .header-actions button { flex: 1; font-size: 11px; padding: 8px 12px; }
@@ -78,7 +86,7 @@ body { font-family: 'Segoe UI', system-ui, sans-serif; background: #0a0e27; colo
 <div class="header">
 <div>
 <div class="logo">🎓 Scholars Connect</div>
-<span class="logo-sub">🍃 MongoDB Atlas · 💾 Persistance permanente · 🤖 Juge Claude</span>
+<span class="logo-sub">🎤 Vocal · 🤖 IA Gemini · 🍃 MongoDB · 📱 QR Code</span>
 </div>
 <div class="header-actions" id="authButtons">
 <button class="btn btn-primary" onclick="showLogin()">🔐 Connexion</button>
@@ -95,7 +103,8 @@ body { font-family: 'Segoe UI', system-ui, sans-serif; background: #0a0e27; colo
 <span class="status-item" id="userRole">👤 Visiteur</span>
 <span class="status-item" id="questionCount">📋 0 questions</span>
 <span class="status-item" id="scholarCount">🎓 Scholars</span>
-<span class="status-item"><span class="mongo-badge">🍃 MongoDB Atlas</span></span>
+<span class="status-item"><span class="badge-purple">🤖 Gemini IA</span></span>
+<span class="status-item"><span class="badge-purple">🎤 Vocal</span></span>
 </div>
 <div class="categories-nav" id="categoriesNav"></div>
 <div style="margin:15px 0;display:flex;gap:10px;flex-wrap:wrap;">
@@ -103,6 +112,7 @@ body { font-family: 'Segoe UI', system-ui, sans-serif; background: #0a0e27; colo
 <button class="btn btn-secondary" onclick="loadData()">🔄 Rafraîchir</button>
 <button class="btn btn-secondary" onclick="showScholars()">🎓 Scholars</button>
 <button class="btn btn-secondary" onclick="showHistory()">📜 Historique</button>
+<button class="btn btn-voice" onclick="window.open('/logo', '_blank')">📱 QR Code</button>
 </div>
 <div class="form-container" id="historyForm">
 <h2>📜 Mon historique</h2>
@@ -148,14 +158,23 @@ body { font-family: 'Segoe UI', system-ui, sans-serif; background: #0a0e27; colo
 </div>
 <div class="form-container" id="questionForm">
 <h2>✏️ Poser une question</h2>
+<div class="voice-box">
+<h3 style="color: #8b5cf6; margin-bottom: 10px;">🎤 Mode Vocal</h3>
+<p style="opacity: 0.8; font-size: 13px; margin-bottom: 15px;">Dictez votre question - L'IA remplira automatiquement le titre et le domaine</p>
+<button class="voice-btn" onclick="startVoiceInput()" id="voiceBtn">🎤 Démarrer la dictée vocale</button>
+<div id="voiceStatus" style="margin-top: 12px; font-size: 13px; opacity: 0.8;"></div>
+</div>
+<div style="opacity: 0.7; text-align: center; margin: 15px 0; font-size: 13px;">— OU remplissez manuellement —</div>
 <div class="form-group"><label>Domaine</label>
 <select id="qDomain" onchange="updateCategories()"></select>
 </div>
 <div class="form-group"><label>Spécialité</label>
 <select id="qCategory"></select>
 </div>
-<div class="form-group"><label>Titre</label><input type="text" id="qTitle" placeholder="Titre"></div>
+<div class="form-group"><label>Titre <span style="opacity:0.5;font-size:11px;">(rempli automatiquement par l'IA)</span></label>
+<input type="text" id="qTitle" placeholder="Titre"></div>
 <div class="form-group"><label>Contenu</label><textarea id="qContent" placeholder="Votre question..."></textarea></div>
+<button class="btn btn-voice" onclick="autoAnalyze()" style="margin-bottom:10px;">🤖 Analyser avec l'IA (auto-remplir)</button>
 <button class="btn btn-success" onclick="askQuestion()">📤 Publier</button>
 <button class="btn btn-secondary" onclick="hideForms()">Fermer</button>
 </div>
@@ -172,11 +191,16 @@ var API_URL = window.location.origin + '/api';
 var currentUser = null;
 var questions = [];
 var currentFilter = 'all';
-var SESSION_KEY = 'sc_session_mongo';
+var SESSION_KEY = 'sc_session_v3';
+var recognition = null;
+var isListening = false;
 
 function saveSession() { try { localStorage.setItem(SESSION_KEY, JSON.stringify(currentUser)); } catch(e) {} }
 function loadSession() { try { var d = localStorage.getItem(SESSION_KEY); return d ? JSON.parse(d) : null; } catch(e) { return null; } }
 
+// ============================================================
+// SCHOLARS (60+)
+// ============================================================
 var scholarsData = [
     { id: 1, name: 'Dr. Ahmed Al-Faqih', domain: 'Islam', expertise: 'Fiqh (Jurisprudence)', languages: ['ar', 'fr', 'en'], rating: 4.9, literature: ['Fiqh al-Islami', 'Usul al-Fiqh'] },
     { id: 2, name: 'Dr. Fatima Al-Aqida', domain: 'Islam', expertise: 'Aqida (Croyance)', languages: ['ar', 'fr', 'en'], rating: 4.8, literature: ['Aqida Tahawiyya'] },
@@ -196,14 +220,14 @@ var scholarsData = [
     { id: 16, name: 'Dr. Nadia Bouazizi', domain: 'Chimie', expertise: 'Chimie analytique', languages: ['fr', 'ar'], rating: 4.7, literature: ['Skoog'] },
     { id: 17, name: 'Dr. Hassan Rifai', domain: 'Chimie', expertise: 'Chimie industrielle', languages: ['fr', 'ar'], rating: 4.8, literature: [] },
     { id: 18, name: 'Dr. Yann LeCun Jr.', domain: 'IA', expertise: 'Deep Learning', languages: ['fr', 'en'], rating: 5.0, literature: ['Deep Learning'] },
-    { id: 19, name: 'Dr. Amina Khalil', domain: 'IA', expertise: 'NLP', languages: ['fr', 'ar'], rating: 4.9, literature: ['Speech & Language'] },
+    { id: 19, name: 'Dr. Amina Khalil', domain: 'IA', expertise: 'NLP & Traitement du langage', languages: ['fr', 'ar'], rating: 4.9, literature: ['Speech & Language'] },
     { id: 20, name: 'Dr. Thomas Bernard', domain: 'IA', expertise: 'Computer Vision', languages: ['fr', 'en'], rating: 4.8, literature: ['Szeliski'] },
     { id: 21, name: 'Dr. Sara El Amrani', domain: 'IA', expertise: 'Reinforcement Learning', languages: ['fr', 'ar'], rating: 4.7, literature: ['Sutton & Barto'] },
     { id: 22, name: 'Dr. Julien Moreau', domain: 'IoT', expertise: 'Architecture IoT', languages: ['fr', 'en'], rating: 4.8, literature: ['IoT Architecture'] },
     { id: 23, name: 'Dr. Rania Hamdi', domain: 'IoT', expertise: 'Sécurité IoT', languages: ['fr', 'ar'], rating: 4.7, literature: ['IoT Security'] },
     { id: 24, name: 'Dr. Marc Lefebvre', domain: 'IoT', expertise: 'Protocoles MQTT/CoAP', languages: ['fr', 'en'], rating: 4.6, literature: ['MQTT Essentials'] },
-    { id: 25, name: 'Dr. Olivier Dubois', domain: 'GMAO', expertise: 'GMAO', languages: ['fr', 'en'], rating: 4.9, literature: ['Maintenance Industrielle'] },
-    { id: 26, name: 'Dr. Karim Bouzid', domain: 'GMAO', expertise: 'GPAO', languages: ['fr', 'ar'], rating: 4.8, literature: ['GPAO'] },
+    { id: 25, name: 'Dr. Olivier Dubois', domain: 'GMAO', expertise: 'GMAO (Maintenance Assistée)', languages: ['fr', 'en'], rating: 4.9, literature: ['Maintenance Industrielle'] },
+    { id: 26, name: 'Dr. Karim Bouzid', domain: 'GMAO', expertise: 'GPAO (Production Assistée)', languages: ['fr', 'ar'], rating: 4.8, literature: ['GPAO'] },
     { id: 27, name: 'Dr. Hélène Girard', domain: 'GMAO', expertise: 'Planification industrielle', languages: ['fr', 'en'], rating: 4.7, literature: [] },
     { id: 28, name: 'Dr. Jean-Pierre Durand', domain: 'Mécanique Pétrole', expertise: 'Usinage CNC haute précision', languages: ['fr', 'en'], rating: 5.0, literature: ['CNC Handbook'] },
     { id: 29, name: 'Dr. Abdelkader Ziani', domain: 'Mécanique Pétrole', expertise: 'Vannes et équipements pétroliers', languages: ['fr', 'ar'], rating: 4.9, literature: ['Valve Handbook', 'API 6D'] },
@@ -247,30 +271,25 @@ var categoriesByDomain = {
     'Chimie': ['Chimie organique', 'Chimie analytique', 'Chimie industrielle'],
     'IA': ['Deep Learning', 'NLP & Traitement du langage', 'Computer Vision', 'Reinforcement Learning'],
     'IoT': ['Architecture IoT', 'Sécurité IoT', 'Protocoles MQTT/CoAP'],
-    'GMAO': ['GMAO', 'GPAO', 'Planification industrielle'],
-    'Mécanique Pétrole': ['Usinage CNC', 'Vannes', 'Turbines', 'Forage', 'Métrologie'],
-    'Gestion': ['Management', 'RH', 'Marketing'],
-    'Expertise Comptable': ['Comptabilité', 'Audit', 'Fiscalité'],
+    'GMAO': ['GMAO (Maintenance Assistée)', 'GPAO (Production Assistée)', 'Planification industrielle'],
+    'Mécanique Pétrole': ['Usinage CNC haute précision', 'Vannes et équipements pétroliers', 'Turbines et compresseurs', 'Forage et complétion', 'Contrôle qualité et métrologie'],
+    'Gestion': ['Management stratégique', 'Gestion des ressources humaines', 'Marketing'],
+    'Expertise Comptable': ['Comptabilité générale', 'Audit financier', 'Fiscalité'],
     'Droit': ['Droit des affaires', 'Droit international', 'Droit pénal'],
     'Économie': ['Macroéconomie', 'Microéconomie', 'Économie internationale'],
     'Culture Générale': ['Histoire', 'Philosophie', 'Littérature'],
     'Art': ['Peinture', 'Musicologie', 'Cinéma'],
     'Architecture': ['Architecture moderne', 'Urbanisme', 'Patrimoine'],
-    'Restauration': ['Gastronomie', 'Pâtisserie', 'Gestion'],
-    'Général': ['Mathématiques', 'Physique', 'Informatique', 'Histoire']
+    'Restauration': ['Gastronomie française', 'Pâtisserie', 'Gestion restauration'],
+    'Général': ['Mathématiques', 'Physique', 'Informatique', 'Histoire', 'Philosophie']
 };
 
-var claudeKnowledgeBase = {
-    'filetage': { 'definition': 'Filetage de haute précision pour l\'industrie pétrolière.', 'exigences': ['Tolérances (±0.05mm)', 'Pas de filetage précis', 'Angle 60° ou 75°', 'Contrôle API', 'Étanchéité gaz/liquides', 'Résistance 15 000 PSI'], 'normes': ['API 5B', 'API 5CT', 'TSH 511'], 'details': 'TSH 511 spécifie dimensions, tolérances, matériaux, traitements.' },
-    'cnc': { 'definition': 'Commande numérique par ordinateur.', 'exigences': ['Précision ±0.01mm', 'G-code', 'Contrôle thermique'], 'details': 'Usinage haute précision.' },
-    'vanne': { 'definition': 'Dispositif de contrôle des fluides.', 'exigences': ['Étanchéité', 'API 6D', 'Résistance 15 000 PSI'], 'details': 'Vannes pétrolières haute pression.' },
-    'cardiologie': { 'definition': 'Branche médicale du cœur.', 'exigences': ['Diagnostic', 'Traitement', 'Suivi', 'Prévention'], 'details': 'Maladies cardiovasculaires.' },
-    'fiqh': { 'definition': 'Jurisprudence islamique.', 'exigences': ['Coran', 'Sunna', 'Ijma', 'Qiyas'], 'details': 'Règles pratiques islamiques.' }
-};
-
+// ============================================================
+// API
+// ============================================================
 async function apiGet(endpoint) {
     try { var r = await fetch(API_URL + endpoint); return await r.json(); }
-    catch(e) { console.error(e); return null; }
+    catch(e) { return null; }
 }
 async function apiPost(endpoint, data) {
     try {
@@ -280,86 +299,181 @@ async function apiPost(endpoint, data) {
             body: JSON.stringify(data)
         });
         return await r.json();
-    } catch(e) { console.error(e); return null; }
+    } catch(e) { return null; }
 }
 
-function claudeSearchKnowledge(question) {
-    var t = (question.title + ' ' + question.content).toLowerCase();
-    for (var k in claudeKnowledgeBase) if (t.indexOf(k) !== -1) return claudeKnowledgeBase[k];
-    return null;
-}
-
-function claudeGenerateAnswer(question, scholar, reason) {
-    var litRef = scholar.literature && scholar.literature.length > 0 ? scholar.literature.join(', ') : '';
-    var kb = claudeSearchKnowledge(question);
-    var a = '';
-    
-    if (reason === 'no_literature') {
-        a = '🤖 RÉPONSE COMPLÈTE DU JUGE CLAUDE\n\n';
-        a += '📋 Question : "' + question.title + '"\n\n';
-        a += 'Le scholar ' + scholar.name + ' n\'a pas de littérature spécifique.\n\n━━━━━━━━━━━━━━━━━━━━\n\n🎯 RÉPONSE :\n\n';
-        if (kb) {
-            a += '📖 DÉFINITION :\n' + kb.definition + '\n\n';
-            if (kb.exigences) { a += '✅ EXIGENCES :\n'; kb.exigences.forEach(function(e) { a += '   • ' + e + '\n'; }); a += '\n'; }
-            if (kb.normes) { a += '📋 NORMES :\n'; kb.normes.forEach(function(n) { a += '   • ' + n + '\n'; }); a += '\n'; }
-            if (kb.details) a += '📚 DÉTAILS :\n' + kb.details + '\n\n';
-        } else {
-            a += 'Cette question relève du domaine ' + question.domain + ' (' + question.category + ').\n\nConsultez la littérature spécialisée et les normes applicables.\n';
-        }
-        a += '━━━━━━━━━━━━━━━━━━━━\n💡 Le scholar pourra compléter.';
-    } else if (reason === 'timeout_5min') {
-        a = '⏱️ RÉPONSE COMPLÈTE DU JUGE CLAUDE (5 min)\n\n';
-        a += '👨‍🎓 ' + scholar.name + ' · 📖 ' + litRef + '\n\n━━━━━━━━━━━━━━━━━━━━\n\n🎯 RÉPONSE :\n\n';
-        if (kb) {
-            a += '📖 DÉFINITION :\n' + kb.definition + '\n\n';
-            if (kb.exigences) { a += '✅ EXIGENCES :\n'; kb.exigences.forEach(function(e) { a += '   • ' + e + '\n'; }); a += '\n'; }
-            if (kb.normes) { a += '📋 NORMES :\n'; kb.normes.forEach(function(n) { a += '   • ' + n + '\n'; }); a += '\n'; }
-            if (kb.details) a += '📚 DÉTAILS :\n' + kb.details + '\n\n';
-        } else {
-            a += 'Références : ' + litRef + '\nConsultez les ouvrages cités.\n';
-        }
-        a += '━━━━━━━━━━━━━━━━━━━━\n💡 Le scholar pourra compléter.';
+// ============================================================
+// VOCAL - RECONNAISSANCE
+// ============================================================
+function initVoice() {
+    var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) {
+        alert('❌ Reconnaissance vocale non supportée. Utilisez Chrome/Edge/Safari.');
+        return null;
     }
-    return a;
+    var rec = new SR();
+    rec.lang = 'fr-FR';
+    rec.continuous = true;
+    rec.interimResults = true;
+    rec.maxAlternatives = 1;
+    return rec;
 }
 
-async function addClaudeAnswer(questionId, content, reason) {
-    await apiPost('/questions/' + questionId + '/answers', {
-        username: 'Juge Claude', userId: 0, content: content,
-        language: 'fr', isClaude: true, claudeReason: reason
-    });
-    await loadQuestions();
+function startVoiceInput() {
+    if (!recognition) recognition = initVoice();
+    if (!recognition) return;
+    
+    if (isListening) { recognition.stop(); return; }
+    
+    var statusEl = document.getElementById('voiceStatus');
+    var btnEl = document.getElementById('voiceBtn');
+    
+    recognition.onstart = function() {
+        isListening = true;
+        btnEl.innerHTML = '🛑 Arrêter';
+        btnEl.classList.add('listening');
+        statusEl.innerHTML = '🎤 <strong>Écoute...</strong> Parlez maintenant.';
+        statusEl.style.color = '#8b5cf6';
+    };
+    
+    recognition.onresult = function(event) {
+        var transcript = '';
+        for (var i = event.resultIndex; i < event.results.length; i++) {
+            transcript += event.results[i][0].transcript;
+        }
+        document.getElementById('qContent').value = transcript;
+        statusEl.innerHTML = '📝 <strong>Capté :</strong> "' + transcript.substring(0, 80) + '..."';
+    };
+    
+    recognition.onerror = function(e) {
+        statusEl.innerHTML = '❌ Erreur : ' + e.error;
+        statusEl.style.color = '#ef4444';
+    };
+    
+    recognition.onend = function() {
+        isListening = false;
+        btnEl.innerHTML = '🎤 Démarrer la dictée vocale';
+        btnEl.classList.remove('listening');
+        var content = document.getElementById('qContent').value;
+        if (content && content.length > 10) {
+            statusEl.innerHTML = '🤖 <strong>Analyse IA...</strong>';
+            autoAnalyze();
+        }
+    };
+    
+    recognition.start();
 }
 
-async function triggerClaudeJudge(question) {
-    if (!question.scholar) return;
-    var scholar = question.scholar;
-    if (!scholar.literature || scholar.literature.length === 0) {
-        setTimeout(async function() {
-            await addClaudeAnswer(question._id, claudeGenerateAnswer(question, scholar, 'no_literature'), 'no_literature');
-            showNotification('🤖 Juge Claude a répondu', 'claude');
-        }, 3000);
+// ============================================================
+// LECTURE VOCALE DES RÉPONSES
+// ============================================================
+function speakText(text, language) {
+    if (!('speechSynthesis' in window)) { alert('❌ Synthèse vocale non supportée'); return; }
+    window.speechSynthesis.cancel();
+    
+    var utterance = new SpeechSynthesisUtterance(text);
+    var langMap = { 'fr': 'fr-FR', 'ar': 'ar-SA', 'en': 'en-US', 'es': 'es-ES', 'de': 'de-DE', 'it': 'it-IT', 'pt': 'pt-PT' };
+    utterance.lang = langMap[language] || 'fr-FR';
+    utterance.rate = 0.9;
+    utterance.pitch = 1;
+    utterance.volume = 1;
+    
+    var voices = window.speechSynthesis.getVoices();
+    var targetLang = langMap[language] || 'fr-FR';
+    for (var i = 0; i < voices.length; i++) {
+        if (voices[i].lang === targetLang) { utterance.voice = voices[i]; break; }
+    }
+    
+    utterance.onstart = function() { showNotification('🔊 Lecture...', 'info'); };
+    utterance.onend = function() { showNotification('✅ Lecture terminée', 'success'); };
+    
+    window.speechSynthesis.speak(utterance);
+}
+
+function stopSpeaking() {
+    if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+        showNotification('⏹️ Arrêté', 'info');
+    }
+}
+
+// ============================================================
+// AUTO-ANALYSE IA
+// ============================================================
+async function autoAnalyze() {
+    var content = document.getElementById('qContent').value.trim();
+    if (!content || content.length < 10) {
+        showNotification('Saisissez d\'abord votre question', 'error');
         return;
     }
-    showNotification('⏱️ Juge Claude surveille (30s)...', 'info');
-    setTimeout(async function() {
-        var q = questions.find(function(x) { return x._id === question._id; });
-        if (!q) return;
-        var responded = q.answers && q.answers.some(function(a) { return a.isScholarResponse; });
-        if (!responded) {
-            await addClaudeAnswer(q._id, claudeGenerateAnswer(q, q.scholar, 'timeout_5min'), 'timeout_5min');
-            showNotification('⏱️ Juge Claude a répondu', 'claude');
+    
+    var statusEl = document.getElementById('voiceStatus');
+    if (statusEl) statusEl.innerHTML = '🤖 <strong>Analyse IA en cours...</strong>';
+    
+    try {
+        var data = await apiPost('/analyze-question', { text: content });
+        
+        if (data.title) document.getElementById('qTitle').value = data.title;
+        
+        if (data.domain) {
+            var domainSelect = document.getElementById('qDomain');
+            for (var i = 0; i < domainSelect.options.length; i++) {
+                if (domainSelect.options[i].value === data.domain) {
+                    domainSelect.selectedIndex = i;
+                    updateCategories();
+                    break;
+                }
+            }
         }
-    }, 30000);
+        
+        setTimeout(function() {
+            if (data.category) {
+                var catSelect = document.getElementById('qCategory');
+                for (var i = 0; i < catSelect.options.length; i++) {
+                    if (catSelect.options[i].value === data.category) {
+                        catSelect.selectedIndex = i;
+                        break;
+                    }
+                }
+            }
+        }, 100);
+        
+        if (statusEl) {
+            statusEl.innerHTML = '✅ <strong>IA :</strong> Titre + Domaine remplis automatiquement';
+            statusEl.style.color = '#22c55e';
+        }
+        showNotification('🤖 Question analysée par l\'IA !', 'success');
+        
+    } catch (e) {
+        if (statusEl) statusEl.innerHTML = '❌ Erreur d\'analyse';
+    }
 }
 
+// ============================================================
+// NOTIFICATIONS
+// ============================================================
+function showNotification(msg, type) {
+    var el = document.getElementById('notification');
+    el.textContent = msg;
+    el.className = 'notification ' + (type || 'info');
+    setTimeout(function() { el.className = 'notification'; }, 4000);
+}
+
+// ============================================================
+// INITIALISATION
+// ============================================================
 async function initializeApp() {
     currentUser = loadSession();
     buildCategoriesNav();
     buildDomainSelects();
     updateUI();
     await loadQuestions();
-    if (currentUser) showNotification('🍃 Session restaurée depuis MongoDB : ' + currentUser.username, 'mongo');
+    
+    if ('speechSynthesis' in window) {
+        window.speechSynthesis.onvoiceschanged = function() { window.speechSynthesis.getVoices(); };
+    }
+    
+    if (currentUser) showNotification('💾 Session restaurée : ' + currentUser.username, 'success');
 }
 
 function buildCategoriesNav() {
@@ -409,19 +523,12 @@ function showScholars() {
     var html = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:15px;">';
     filtered.forEach(function(s) {
         var lit = s.literature ? s.literature.length : 0;
-        var litBadge = lit > 0 ? '<span style="background:#22c55e;padding:2px 8px;border-radius:10px;font-size:10px;">📚 ' + lit + '</span>' : '<span style="background:#ef4444;padding:2px 8px;border-radius:10px;font-size:10px;">📚 Aucune</span>';
-        html += '<div class="scholar-card"><strong>' + getDomainIcon(s.domain) + ' ' + s.name + '</strong> <span class="domain-tag">' + s.domain + '</span> ' + litBadge + '<div style="opacity:0.7;font-size:14px;margin-top:5px;">📂 ' + s.expertise + '</div><div style="color:#f59e0b;">⭐ ' + s.rating + '/5</div></div>';
+        var litBadge = lit > 0 ? '📚 ' + lit : '📚 Aucune';
+        html += '<div class="scholar-card"><strong>' + getDomainIcon(s.domain) + ' ' + s.name + '</strong> <span class="domain-tag">' + s.domain + '</span><div style="opacity:0.7;font-size:14px;margin-top:5px;">📂 ' + s.expertise + '</div><div style="color:#f59e0b;">⭐ ' + s.rating + '/5 · ' + litBadge + '</div></div>';
     });
     container.innerHTML = html + '</div>';
     hideForms();
     document.getElementById('scholarsPopup').classList.add('active');
-}
-
-function showNotification(msg, type) {
-    var el = document.getElementById('notification');
-    el.textContent = msg;
-    el.className = 'notification ' + (type || 'info');
-    setTimeout(function() { el.className = 'notification'; }, 5000);
 }
 
 function showLogin() { hideForms(); document.getElementById('loginForm').classList.add('active'); }
@@ -448,9 +555,7 @@ function updateCategories() {
     sel.innerHTML = '';
     cats.forEach(function(c) {
         var opt = document.createElement('option');
-        opt.value = c;
-        opt.textContent = c;
-        sel.appendChild(opt);
+        opt.value = c; opt.textContent = c; sel.appendChild(opt);
     });
 }
 
@@ -459,11 +564,8 @@ async function login() {
     var password = document.getElementById('loginPassword').value;
     var user = await apiPost('/login', { email: email, password: password });
     if (user && !user.error) {
-        currentUser = user;
-        saveSession();
-        updateUI();
-        hideForms();
-        showNotification('🍃 Connecté ! Historique MongoDB restauré', 'mongo');
+        currentUser = user; saveSession(); updateUI(); hideForms();
+        showNotification('✅ Connecté !', 'success');
         await loadQuestions();
     } else showNotification('❌ Identifiants incorrects', 'error');
 }
@@ -477,20 +579,15 @@ async function register() {
     if (password.length < 6) { showNotification('6 caractères min', 'error'); return; }
     var newUser = await apiPost('/users', { username: username, email: email, password: password, role: 'user', language: 'fr', domain: domain });
     if (newUser && !newUser.error) {
-        currentUser = newUser;
-        saveSession();
-        updateUI();
-        hideForms();
-        showNotification('🍃 Inscription réussie ! Sauvegardée dans MongoDB', 'mongo');
+        currentUser = newUser; saveSession(); updateUI(); hideForms();
+        showNotification('✅ Inscription réussie !', 'success');
         await loadQuestions();
     } else showNotification('❌ ' + (newUser ? newUser.error : 'Erreur'), 'error');
 }
 
 function logout() {
     if (!confirm('Se déconnecter ?')) return;
-    currentUser = null;
-    saveSession();
-    updateUI();
+    currentUser = null; saveSession(); updateUI();
     showNotification('🚪 Déconnecté', 'info');
 }
 
@@ -529,7 +626,7 @@ async function renderHistory() {
             html += '<div class="answers-section"><strong>💬 ' + q.answers.length + ' réponses</strong>';
             q.answers.forEach(function(a) {
                 var cls = a.isClaude ? 'claude-answer' : (a.isScholarResponse ? 'scholar-answer' : '');
-                html += '<div class="answer-item ' + cls + '"><div class="claude-response">' + a.content + '</div><div class="answer-meta">👤 ' + a.username + ' | ' + a.date + '</div></div>';
+                html += '<div class="answer-item ' + cls + '"><div class="claude-response">' + a.content + '</div><button class="speak-btn" onclick="speakText(this.previousElementSibling.textContent, \'fr\')">🔊 Écouter</button><button class="stop-btn" onclick="stopSpeaking()">⏹️</button></div>';
             });
             html += '</div>';
         }
@@ -555,10 +652,9 @@ async function askQuestion() {
     });
     if (q && !q.error) {
         await apiPost('/history', { userId: currentUser.id, username: currentUser.username, action: 'question', data: { title: title } });
-        showNotification('🍃 Question sauvegardée dans MongoDB !', 'mongo');
+        showNotification('✅ Question publiée !', 'success');
         hideForms();
         await loadQuestions();
-        triggerClaudeJudge(q);
         document.getElementById('qTitle').value = '';
         document.getElementById('qContent').value = '';
     }
@@ -587,10 +683,10 @@ function renderQuestions() {
                 var aCls = a.isClaude ? 'claude-answer' : (a.isScholarResponse ? 'scholar-answer' : '');
                 var badge = '';
                 if (a.isClaude) { badge = '<span class="claude-badge">🤖 Juge Claude</span> '; if (a.claudeReason === 'no_literature') badge += '<span class="claude-status">Sans littérature</span>'; if (a.claudeReason === 'timeout_5min') badge += '<span class="timer-badge">⏱️ 5 min</span>'; }
-                answersHtml += '<div class="answer-item ' + aCls + '"><div style="margin-bottom:5px;">' + badge + '</div><div class="claude-response">' + a.content + '</div><div class="answer-meta">👤 ' + a.username + ' | ' + a.date + '</div></div>';
+                answersHtml += '<div class="answer-item ' + aCls + '"><div style="margin-bottom:5px;">' + badge + '</div><div class="claude-response">' + a.content + '</div><div class="answer-meta">👤 ' + a.username + ' | ' + a.date + '</div><div style="margin-top:8px;"><button class="speak-btn" onclick="speakText(this.parentElement.previousElementSibling.textContent, \'fr\')">🔊 Écouter</button><button class="stop-btn" onclick="stopSpeaking()">⏹️ Arrêter</button></div></div>';
             });
             answersHtml += '</div>';
-        } else answersHtml = '<div style="margin-top:10px;opacity:0.5;font-size:13px;">💬 En attente...</div>';
+        } else answersHtml = '<div style="margin-top:10px;opacity:0.5;font-size:13px;">💬 En attente (Juge Claude surveille)...</div>';
         var ansBtn = currentUser ? '<button class="btn btn-secondary" onclick="showAnswerForm(\'' + q._id + '\')">💬 Répondre</button>' : '';
         html += '<div class="question-card ' + cardClass + '"><div class="question-title">' + getDomainIcon(q.domain) + ' ' + q.title + '</div><div class="question-meta"><span class="domain-tag">' + q.domain + '</span> 👤 ' + q.username + ' | ' + q.category + ' | ' + q.date + ' | <span class="badge ' + stClass + '">' + stLabel + '</span></div><div class="question-content">' + q.content + '</div><div class="question-actions">' + ansBtn + '</div>' + answersHtml + '</div>';
     });
@@ -608,11 +704,11 @@ async function showAnswerForm(questionId) {
         aiVerified: isScholar, isScholarResponse: isScholar
     });
     await apiPost('/history', { userId: currentUser.id, username: currentUser.username, action: 'answer', data: { content: content.substring(0, 50) } });
-    showNotification('🍃 Réponse sauvegardée dans MongoDB !', 'mongo');
+    showNotification('✅ Réponse publiée !', 'success');
     await loadQuestions();
 }
 
-async function loadData() { await loadQuestions(); showNotification('🍃 Actualisé depuis MongoDB', 'mongo'); }
+async function loadData() { await loadQuestions(); showNotification('✅ Actualisé', 'info'); }
 
 initializeApp();
 </script>
