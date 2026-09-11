@@ -64,6 +64,7 @@ body { font-family:'Segoe UI',system-ui,sans-serif; background:#0a0e27; color:#f
 .notification.success { background:#22c55e; color:#0a0e27; display:block; }
 .notification.error { background:#ef4444; color:white; display:block; }
 .notification.info { background:#3b82f6; color:white; display:block; }
+.notification.claude { background:linear-gradient(135deg,#8b5cf6,#ec4899); color:white; display:block; }
 .badge { display:inline-block; padding:2px 12px; border-radius:20px; font-size:11px; font-weight:600; }
 .badge-pending { background:#eab308; color:#0a0e27; }
 .badge-answered { background:#22c55e; color:#0a0e27; }
@@ -73,7 +74,7 @@ body { font-family:'Segoe UI',system-ui,sans-serif; background:#0a0e27; color:#f
 .claude-response { white-space:pre-wrap; line-height:1.7; font-size:14px; }
 .speak-btn { background:#3b82f6; color:white; border:none; padding:6px 12px; border-radius:8px; font-size:11px; cursor:pointer; margin-right:5px; }
 .stop-btn { background:#ef4444; color:white; border:none; padding:6px 12px; border-radius:8px; font-size:11px; cursor:pointer; }
-@media (max-width:600px) { .header { flex-direction:column; align-items:stretch; } }
+@media (max-width: 600px) { .header { flex-direction:column; align-items:stretch; } }
 </style>
 </head>
 <body>
@@ -211,36 +212,48 @@ var API_URL = window.location.origin + '/api';
 var currentUser = null;
 var questions = [];
 var currentFilter = 'all';
-var SESSION_KEY = 'sc_session_v5';
+var SESSION_KEY = 'sc_session_v4';
 var currentLanguage = 'fr';
 var recognition = null;
 var isListening = false;
 
+// ============================================================
+// TRADUCTIONS (7 LANGUES)
+// ============================================================
 var TRANSLATIONS = {
-    'fr': { 'subtitle': "Plateforme d'entraide académique multilingue", 'login': 'Connexion', 'register': 'Inscription', 'logout': 'Déconnexion', 'admin': 'Admin', 'new_question': 'Poser une question', 'refresh': 'Rafraîchir', 'scholars': 'Scholars', 'history': 'Historique', 'qr': 'QR Code', 'online': 'En ligne', 'visitor': 'Visiteur', 'voice_title': 'Mode Vocal', 'voice_desc': "Dictez votre question - L'IA remplira le titre et le domaine", 'voice_btn': 'Démarrer la dictée vocale', 'voice_stop': 'Arrêter', 'or_manual': 'OU remplissez manuellement', 'domain': 'Domaine', 'speciality': 'Spécialité', 'title': 'Titre (auto-rempli)', 'content': 'Contenu', 'content_ph': 'Votre question...', 'analyze': 'Analyser avec l\'IA', 'publish': 'Publier', 'close': 'Fermer', 'email': 'Email', 'password': 'Mot de passe', 'username': 'Nom d\'utilisateur', 'login_title': 'Connexion', 'register_title': 'Inscription', 'question_title': 'Poser une question', 'history_title': 'Mon historique', 'domain_int': 'Domaine d\'intérêt' },
-    'ar': { 'subtitle': 'منصة المساعدة الأكاديمية', 'login': 'تسجيل الدخول', 'register': 'إنشاء حساب', 'logout': 'تسجيل الخروج', 'admin': 'لوحة التحكم', 'new_question': 'طرح سؤال', 'refresh': 'تحديث', 'scholars': 'العلماء', 'history': 'السجل', 'qr': 'رمز QR', 'online': 'متصل', 'visitor': 'زائر', 'voice_title': 'الوضع الصوتي', 'voice_desc': 'أملِ سؤالك', 'voice_btn': 'بدء الإملاء الصوتي', 'voice_stop': 'إيقاف', 'or_manual': 'أو املأ يدوياً', 'domain': 'المجال', 'speciality': 'التخصص', 'title': 'العنوان', 'content': 'المحتوى', 'content_ph': 'سؤالك...', 'analyze': 'تحليل بالذكاء الاصطناعي', 'publish': 'نشر', 'close': 'إغلاق', 'email': 'البريد', 'password': 'كلمة المرور', 'username': 'اسم المستخدم', 'login_title': 'تسجيل الدخول', 'register_title': 'إنشاء حساب', 'question_title': 'طرح سؤال', 'history_title': 'سجلي', 'domain_int': 'المجال المفضل' },
-    'en': { 'subtitle': 'Academic Help Platform', 'login': 'Login', 'register': 'Sign Up', 'logout': 'Logout', 'admin': 'Admin', 'new_question': 'Ask a Question', 'refresh': 'Refresh', 'scholars': 'Scholars', 'history': 'History', 'qr': 'QR Code', 'online': 'Online', 'visitor': 'Visitor', 'voice_title': 'Voice Mode', 'voice_desc': 'Dictate your question', 'voice_btn': 'Start Voice Input', 'voice_stop': 'Stop', 'or_manual': 'OR fill manually', 'domain': 'Domain', 'speciality': 'Specialty', 'title': 'Title', 'content': 'Content', 'content_ph': 'Your question...', 'analyze': 'Analyze with AI', 'publish': 'Publish', 'close': 'Close', 'email': 'Email', 'password': 'Password', 'username': 'Username', 'login_title': 'Login', 'register_title': 'Sign Up', 'question_title': 'Ask a Question', 'history_title': 'My History', 'domain_int': 'Interest Domain' },
-    'es': { 'subtitle': 'Plataforma de Ayuda Académica', 'login': 'Iniciar Sesión', 'register': 'Registrarse', 'logout': 'Salir', 'admin': 'Admin', 'new_question': 'Hacer Pregunta', 'refresh': 'Actualizar', 'scholars': 'Eruditos', 'history': 'Historial', 'qr': 'Código QR', 'online': 'En línea', 'visitor': 'Visitante', 'voice_title': 'Modo de Voz', 'voice_desc': 'Dicte su pregunta', 'voice_btn': 'Iniciar Dictado', 'voice_stop': 'Detener', 'or_manual': 'O complete manualmente', 'domain': 'Dominio', 'speciality': 'Especialidad', 'title': 'Título', 'content': 'Contenido', 'content_ph': 'Su pregunta...', 'analyze': 'Analizar con IA', 'publish': 'Publicar', 'close': 'Cerrar', 'email': 'Correo', 'password': 'Contraseña', 'username': 'Usuario', 'login_title': 'Iniciar Sesión', 'register_title': 'Registrarse', 'question_title': 'Hacer Pregunta', 'history_title': 'Mi Historial', 'domain_int': 'Dominio de interés' },
-    'de': { 'subtitle': 'Akademische Hilfe', 'login': 'Anmelden', 'register': 'Registrieren', 'logout': 'Abmelden', 'admin': 'Admin', 'new_question': 'Frage stellen', 'refresh': 'Aktualisieren', 'scholars': 'Gelehrte', 'history': 'Verlauf', 'qr': 'QR-Code', 'online': 'Online', 'visitor': 'Besucher', 'voice_title': 'Sprachmodus', 'voice_desc': 'Diktieren Sie Ihre Frage', 'voice_btn': 'Spracheingabe starten', 'voice_stop': 'Stopp', 'or_manual': 'ODER manuell', 'domain': 'Bereich', 'speciality': 'Fachgebiet', 'title': 'Titel', 'content': 'Inhalt', 'content_ph': 'Ihre Frage...', 'analyze': 'Mit KI analysieren', 'publish': 'Veröffentlichen', 'close': 'Schließen', 'email': 'E-Mail', 'password': 'Passwort', 'username': 'Benutzername', 'login_title': 'Anmelden', 'register_title': 'Registrieren', 'question_title': 'Frage stellen', 'history_title': 'Mein Verlauf', 'domain_int': 'Interessenbereich' },
-    'it': { 'subtitle': 'Piattaforma di Aiuto', 'login': 'Accedi', 'register': 'Registrati', 'logout': 'Esci', 'admin': 'Admin', 'new_question': 'Fai una Domanda', 'refresh': 'Aggiorna', 'scholars': 'Studiosi', 'history': 'Cronologia', 'qr': 'Codice QR', 'online': 'Online', 'visitor': 'Visitatore', 'voice_title': 'Modalità Vocale', 'voice_desc': 'Dettare la domanda', 'voice_btn': 'Avvia Dettatura', 'voice_stop': 'Ferma', 'or_manual': 'O manualmente', 'domain': 'Dominio', 'speciality': 'Specialità', 'title': 'Titolo', 'content': 'Contenuto', 'content_ph': 'La tua domanda...', 'analyze': 'Analizza con IA', 'publish': 'Pubblica', 'close': 'Chiudi', 'email': 'Email', 'password': 'Password', 'username': 'Nome utente', 'login_title': 'Accedi', 'register_title': 'Registrati', 'question_title': 'Fai una Domanda', 'history_title': 'Mia Cronologia', 'domain_int': 'Dominio di interesse' },
-    'pt': { 'subtitle': 'Plataforma de Ajuda', 'login': 'Entrar', 'register': 'Registrar', 'logout': 'Sair', 'admin': 'Admin', 'new_question': 'Fazer Pergunta', 'refresh': 'Atualizar', 'scholars': 'Eruditos', 'history': 'Histórico', 'qr': 'Código QR', 'online': 'Online', 'visitor': 'Visitante', 'voice_title': 'Modo de Voz', 'voice_desc': 'Dite a sua pergunta', 'voice_btn': 'Iniciar Ditado', 'voice_stop': 'Parar', 'or_manual': 'OU manualmente', 'domain': 'Domínio', 'speciality': 'Especialidade', 'title': 'Título', 'content': 'Conteúdo', 'content_ph': 'A sua pergunta...', 'analyze': 'Analisar com IA', 'publish': 'Publicar', 'close': 'Fechar', 'email': 'Email', 'password': 'Senha', 'username': 'Nome de usuário', 'login_title': 'Entrar', 'register_title': 'Registrar', 'question_title': 'Fazer Pergunta', 'history_title': 'Meu Histórico', 'domain_int': 'Domínio de interesse' }
+    'fr': { 'subtitle': "Plateforme d'entraide académique multilingue", 'login': 'Connexion', 'register': 'Inscription', 'logout': 'Déconnexion', 'admin': 'Admin', 'new_question': 'Poser une question', 'refresh': 'Rafraîchir', 'scholars': 'Scholars', 'history': 'Historique', 'qr': 'QR Code', 'online': 'En ligne', 'visitor': 'Visiteur', 'voice_title': 'Mode Vocal', 'voice_desc': "Dictez votre question - L'IA remplira le titre et le domaine", 'voice_btn': 'Démarrer la dictée vocale', 'voice_stop': 'Arrêter', 'or_manual': 'OU remplissez manuellement', 'domain': 'Domaine', 'speciality': 'Spécialité', 'title': 'Titre (auto-rempli)', 'content': 'Contenu', 'content_ph': 'Votre question...', 'analyze': 'Analyser avec l\'IA (auto-remplir)', 'publish': 'Publier', 'close': 'Fermer', 'answer': 'Répondre', 'listen': 'Écouter', 'stop': 'Arrêter', 'email': 'Email', 'password': 'Mot de passe', 'username': 'Nom d\'utilisateur', 'login_title': 'Connexion', 'register_title': 'Inscription', 'question_title': 'Poser une question', 'history_title': 'Mon historique', 'sign_in': 'Se connecter', 'sign_up': 'S\'inscrire', 'domain_int': 'Domaine d\'intérêt' },
+    'ar': { 'subtitle': 'منصة المساعدة الأكاديمية', 'login': 'تسجيل الدخول', 'register': 'إنشاء حساب', 'logout': 'تسجيل الخروج', 'admin': 'لوحة التحكم', 'new_question': 'طرح سؤال', 'refresh': 'تحديث', 'scholars': 'العلماء', 'history': 'السجل', 'qr': 'رمز QR', 'online': 'متصل', 'visitor': 'زائر', 'voice_title': 'الوضع الصوتي', 'voice_desc': 'أملِ سؤالك - ستقوم الذكاء الاصطناعي بملء العنوان والمجال', 'voice_btn': 'بدء الإملاء الصوتي', 'voice_stop': 'إيقاف', 'or_manual': 'أو املأ يدوياً', 'domain': 'المجال', 'speciality': 'التخصص', 'title': 'العنوان', 'content': 'المحتوى', 'content_ph': 'سؤالك...', 'analyze': 'تحليل بالذكاء الاصطناعي', 'publish': 'نشر', 'close': 'إغلاق', 'answer': 'الرد', 'listen': 'استمع', 'stop': 'إيقاف', 'email': 'البريد الإلكتروني', 'password': 'كلمة المرور', 'username': 'اسم المستخدم', 'login_title': 'تسجيل الدخول', 'register_title': 'إنشاء حساب', 'question_title': 'طرح سؤال', 'history_title': 'سجلي', 'sign_in': 'دخول', 'sign_up': 'تسجيل', 'domain_int': 'المجال المفضل' },
+    'en': { 'subtitle': 'Academic Help Platform', 'login': 'Login', 'register': 'Sign Up', 'logout': 'Logout', 'admin': 'Admin', 'new_question': 'Ask a Question', 'refresh': 'Refresh', 'scholars': 'Scholars', 'history': 'History', 'qr': 'QR Code', 'online': 'Online', 'visitor': 'Visitor', 'voice_title': 'Voice Mode', 'voice_desc': 'Dictate your question - AI will fill title and domain', 'voice_btn': 'Start Voice Input', 'voice_stop': 'Stop', 'or_manual': 'OR fill manually', 'domain': 'Domain', 'speciality': 'Specialty', 'title': 'Title (auto-filled)', 'content': 'Content', 'content_ph': 'Your question...', 'analyze': 'Analyze with AI', 'publish': 'Publish', 'close': 'Close', 'answer': 'Answer', 'listen': 'Listen', 'stop': 'Stop', 'email': 'Email', 'password': 'Password', 'username': 'Username', 'login_title': 'Login', 'register_title': 'Sign Up', 'question_title': 'Ask a Question', 'history_title': 'My History', 'sign_in': 'Sign In', 'sign_up': 'Sign Up', 'domain_int': 'Interest Domain' },
+    'es': { 'subtitle': 'Plataforma de Ayuda Académica', 'login': 'Iniciar Sesión', 'register': 'Registrarse', 'logout': 'Salir', 'admin': 'Admin', 'new_question': 'Hacer Pregunta', 'refresh': 'Actualizar', 'scholars': 'Eruditos', 'history': 'Historial', 'qr': 'Código QR', 'online': 'En línea', 'visitor': 'Visitante', 'voice_title': 'Modo de Voz', 'voice_desc': 'Dicte su pregunta - IA llenará título y dominio', 'voice_btn': 'Iniciar Dictado', 'voice_stop': 'Detener', 'or_manual': 'O complete manualmente', 'domain': 'Dominio', 'speciality': 'Especialidad', 'title': 'Título', 'content': 'Contenido', 'content_ph': 'Su pregunta...', 'analyze': 'Analizar con IA', 'publish': 'Publicar', 'close': 'Cerrar', 'answer': 'Responder', 'listen': 'Escuchar', 'stop': 'Detener', 'email': 'Correo', 'password': 'Contraseña', 'username': 'Usuario', 'login_title': 'Iniciar Sesión', 'register_title': 'Registrarse', 'question_title': 'Hacer Pregunta', 'history_title': 'Mi Historial', 'sign_in': 'Entrar', 'sign_up': 'Registrarse', 'domain_int': 'Dominio de interés' },
+    'de': { 'subtitle': 'Akademische Hilfe-Plattform', 'login': 'Anmelden', 'register': 'Registrieren', 'logout': 'Abmelden', 'admin': 'Admin', 'new_question': 'Frage stellen', 'refresh': 'Aktualisieren', 'scholars': 'Gelehrte', 'history': 'Verlauf', 'qr': 'QR-Code', 'online': 'Online', 'visitor': 'Besucher', 'voice_title': 'Sprachmodus', 'voice_desc': 'Diktieren Sie Ihre Frage', 'voice_btn': 'Spracheingabe starten', 'voice_stop': 'Stopp', 'or_manual': 'ODER manuell ausfüllen', 'domain': 'Bereich', 'speciality': 'Fachgebiet', 'title': 'Titel', 'content': 'Inhalt', 'content_ph': 'Ihre Frage...', 'analyze': 'Mit KI analysieren', 'publish': 'Veröffentlichen', 'close': 'Schließen', 'answer': 'Antworten', 'listen': 'Anhören', 'stop': 'Stopp', 'email': 'E-Mail', 'password': 'Passwort', 'username': 'Benutzername', 'login_title': 'Anmelden', 'register_title': 'Registrieren', 'question_title': 'Frage stellen', 'history_title': 'Mein Verlauf', 'sign_in': 'Anmelden', 'sign_up': 'Registrieren', 'domain_int': 'Interessenbereich' },
+    'it': { 'subtitle': 'Piattaforma di Aiuto Accademico', 'login': 'Accedi', 'register': 'Registrati', 'logout': 'Esci', 'admin': 'Admin', 'new_question': 'Fai una Domanda', 'refresh': 'Aggiorna', 'scholars': 'Studiosi', 'history': 'Cronologia', 'qr': 'Codice QR', 'online': 'Online', 'visitor': 'Visitatore', 'voice_title': 'Modalità Vocale', 'voice_desc': 'Dettare la domanda', 'voice_btn': 'Avvia Dettatura', 'voice_stop': 'Ferma', 'or_manual': 'O compila manualmente', 'domain': 'Dominio', 'speciality': 'Specialità', 'title': 'Titolo', 'content': 'Contenuto', 'content_ph': 'La tua domanda...', 'analyze': 'Analizza con IA', 'publish': 'Pubblica', 'close': 'Chiudi', 'answer': 'Rispondi', 'listen': 'Ascolta', 'stop': 'Ferma', 'email': 'Email', 'password': 'Password', 'username': 'Nome utente', 'login_title': 'Accedi', 'register_title': 'Registrati', 'question_title': 'Fai una Domanda', 'history_title': 'Mia Cronologia', 'sign_in': 'Accedi', 'sign_up': 'Registrati', 'domain_int': 'Dominio di interesse' },
+    'pt': { 'subtitle': 'Plataforma de Ajuda Académica', 'login': 'Entrar', 'register': 'Registrar', 'logout': 'Sair', 'admin': 'Admin', 'new_question': 'Fazer Pergunta', 'refresh': 'Atualizar', 'scholars': 'Eruditos', 'history': 'Histórico', 'qr': 'Código QR', 'online': 'Online', 'visitor': 'Visitante', 'voice_title': 'Modo de Voz', 'voice_desc': 'Dite a sua pergunta', 'voice_btn': 'Iniciar Ditado', 'voice_stop': 'Parar', 'or_manual': 'OU preencha manualmente', 'domain': 'Domínio', 'speciality': 'Especialidade', 'title': 'Título', 'content': 'Conteúdo', 'content_ph': 'A sua pergunta...', 'analyze': 'Analisar com IA', 'publish': 'Publicar', 'close': 'Fechar', 'answer': 'Responder', 'listen': 'Ouvir', 'stop': 'Parar', 'email': 'Email', 'password': 'Senha', 'username': 'Nome de usuário', 'login_title': 'Entrar', 'register_title': 'Registrar', 'question_title': 'Fazer Pergunta', 'history_title': 'Meu Histórico', 'sign_in': 'Entrar', 'sign_up': 'Registrar', 'domain_int': 'Domínio de interesse' }
 };
 
+// ============================================================
+// CHANGE LANGUAGE
+// ============================================================
 function changeLanguage(lang) {
     currentLanguage = lang;
     try { localStorage.setItem('sc_language', lang); } catch(e) {}
+    
     var sel1 = document.getElementById('languageSelector');
     var sel2 = document.getElementById('languageSelector2');
     if (sel1) sel1.value = lang;
     if (sel2) sel2.value = lang;
+    
     applyTranslations();
+    
     var names = { 'fr': 'Français', 'ar': 'العربية', 'en': 'English', 'es': 'Español', 'de': 'Deutsch', 'it': 'Italiano', 'pt': 'Português' };
     showNotification('🌐 ' + names[lang], 'info');
 }
 
 function applyTranslations() {
     var t = TRANSLATIONS[currentLanguage] || TRANSLATIONS['fr'];
+    
     var set = function(id, text) { var el = document.getElementById(id); if (el) el.textContent = text; };
+    var setHtml = function(id, html) { var el = document.getElementById(id); if (el) el.innerHTML = html; };
+    
     set('subtitle', t.subtitle);
     set('btnLogin', '🔐 ' + t.login);
     set('btnRegister', '📝 ' + t.register);
@@ -267,33 +280,84 @@ function applyTranslations() {
     set('labelPassword2', t.password);
     set('labelUsername', t.username);
     set('labelDomainReg', t.domain_int);
+    
     var qContent = document.getElementById('qContent');
     if (qContent) qContent.placeholder = t.content_ph;
+    
+    var qTitle = document.getElementById('qTitle');
+    if (qTitle) qTitle.placeholder = t.title;
 }
 
+// ============================================================
+// SESSION
+// ============================================================
 function saveSession() { try { localStorage.setItem(SESSION_KEY, JSON.stringify(currentUser)); } catch(e) {} }
 function loadSession() { try { var d = localStorage.getItem(SESSION_KEY); return d ? JSON.parse(d) : null; } catch(e) { return null; } }
 
+// ============================================================
+// SCHOLARS (60+)
+// ============================================================
 var scholarsData = [
-    { id: 1, name: 'Dr. Ahmed Al-Faqih', domain: 'Islam', expertise: 'Fiqh (Jurisprudence)', languages: ['ar','fr','en'], rating: 4.9, literature: ['Fiqh al-Islami'] },
+    { id: 1, name: 'Dr. Ahmed Al-Faqih', domain: 'Islam', expertise: 'Fiqh (Jurisprudence)', languages: ['ar','fr','en'], rating: 4.9, literature: ['Fiqh al-Islami', 'Usul al-Fiqh'] },
+    { id: 2, name: 'Dr. Fatima Al-Aqida', domain: 'Islam', expertise: 'Aqida (Croyance)', languages: ['ar','fr','en'], rating: 4.8, literature: ['Aqida Tahawiyya'] },
+    { id: 3, name: 'Dr. Omar Al-Hadith', domain: 'Islam', expertise: 'Hadith (Prophétique)', languages: ['ar','en','fr'], rating: 4.9, literature: ['Sahih Bukhari'] },
+    { id: 4, name: 'Dr. Layla Tafsir', domain: 'Islam', expertise: 'Tafsir (Exégèse)', languages: ['ar','fr','en'], rating: 4.7, literature: ['Tafsir Ibn Kathir'] },
+    { id: 5, name: 'Dr. Youssef Sira', domain: 'Islam', expertise: 'Sira (Biographie)', languages: ['ar','en','fr'], rating: 4.6, literature: ['Sira Ibn Hisham'] },
+    { id: 6, name: 'Dr. Khadija Soufisme', domain: 'Islam', expertise: 'Soufisme (Spiritualité)', languages: ['ar','fr','en'], rating: 4.5, literature: ['Ihya Ulum al-Din'] },
     { id: 7, name: 'Dr. Marie Dupont', domain: 'Médecine', expertise: 'Cardiologie', languages: ['fr','en'], rating: 4.9, literature: ['Harrison Cardiology'] },
+    { id: 8, name: 'Dr. Ahmed Benali', domain: 'Médecine', expertise: 'Neurologie', languages: ['fr','ar'], rating: 4.8, literature: ['Adams Neurology'] },
+    { id: 9, name: 'Dr. Sophie Martin', domain: 'Médecine', expertise: 'Pédiatrie', languages: ['fr','en'], rating: 4.9, literature: ['Nelson Pediatrics'] },
+    { id: 10, name: 'Dr. Karim Haddad', domain: 'Médecine', expertise: 'Chirurgie orthopédique', languages: ['fr','ar'], rating: 4.7, literature: [] },
+    { id: 11, name: 'Dr. Leila Mansouri', domain: 'Médecine', expertise: 'Oncologie', languages: ['fr','ar'], rating: 4.8, literature: ['Devita Oncology'] },
     { id: 12, name: 'Dr. Isabelle Rousseau', domain: 'Pharmacie', expertise: 'Pharmacologie clinique', languages: ['fr','en'], rating: 4.8, literature: ['Goodman & Gilman'] },
+    { id: 13, name: 'Dr. Mohamed Trabelsi', domain: 'Pharmacie', expertise: 'Pharmacie galénique', languages: ['fr','ar'], rating: 4.7, literature: [] },
+    { id: 14, name: 'Dr. Claire Petit', domain: 'Pharmacie', expertise: 'Pharmacovigilance', languages: ['fr','en'], rating: 4.9, literature: ['Meyler'] },
     { id: 15, name: 'Dr. Pierre Laurent', domain: 'Chimie', expertise: 'Chimie organique', languages: ['fr','en'], rating: 4.8, literature: ['Clayden'] },
+    { id: 16, name: 'Dr. Nadia Bouazizi', domain: 'Chimie', expertise: 'Chimie analytique', languages: ['fr','ar'], rating: 4.7, literature: ['Skoog'] },
+    { id: 17, name: 'Dr. Hassan Rifai', domain: 'Chimie', expertise: 'Chimie industrielle', languages: ['fr','ar'], rating: 4.8, literature: [] },
     { id: 18, name: 'Dr. Yann LeCun Jr.', domain: 'IA', expertise: 'Deep Learning', languages: ['fr','en'], rating: 5.0, literature: ['Deep Learning'] },
     { id: 19, name: 'Dr. Amina Khalil', domain: 'IA', expertise: 'NLP & Traitement du langage', languages: ['fr','ar'], rating: 4.9, literature: ['Speech & Language'] },
+    { id: 20, name: 'Dr. Thomas Bernard', domain: 'IA', expertise: 'Computer Vision', languages: ['fr','en'], rating: 4.8, literature: ['Szeliski'] },
+    { id: 21, name: 'Dr. Sara El Amrani', domain: 'IA', expertise: 'Reinforcement Learning', languages: ['fr','ar'], rating: 4.7, literature: ['Sutton & Barto'] },
     { id: 22, name: 'Dr. Julien Moreau', domain: 'IoT', expertise: 'Architecture IoT', languages: ['fr','en'], rating: 4.8, literature: ['IoT Architecture'] },
+    { id: 23, name: 'Dr. Rania Hamdi', domain: 'IoT', expertise: 'Sécurité IoT', languages: ['fr','ar'], rating: 4.7, literature: ['IoT Security'] },
+    { id: 24, name: 'Dr. Marc Lefebvre', domain: 'IoT', expertise: 'Protocoles MQTT/CoAP', languages: ['fr','en'], rating: 4.6, literature: ['MQTT Essentials'] },
     { id: 25, name: 'Dr. Olivier Dubois', domain: 'GMAO', expertise: 'GMAO (Maintenance Assistée)', languages: ['fr','en'], rating: 4.9, literature: ['Maintenance Industrielle'] },
+    { id: 26, name: 'Dr. Karim Bouzid', domain: 'GMAO', expertise: 'GPAO (Production Assistée)', languages: ['fr','ar'], rating: 4.8, literature: ['GPAO'] },
+    { id: 27, name: 'Dr. Hélène Girard', domain: 'GMAO', expertise: 'Planification industrielle', languages: ['fr','en'], rating: 4.7, literature: [] },
     { id: 28, name: 'Dr. Jean-Pierre Durand', domain: 'Mécanique Pétrole', expertise: 'Usinage CNC haute précision', languages: ['fr','en'], rating: 5.0, literature: ['CNC Handbook'] },
-    { id: 29, name: 'Dr. Abdelkader Ziani', domain: 'Mécanique Pétrole', expertise: 'Vannes et équipements pétroliers', languages: ['fr','ar'], rating: 4.9, literature: ['Valve Handbook'] },
+    { id: 29, name: 'Dr. Abdelkader Ziani', domain: 'Mécanique Pétrole', expertise: 'Vannes et équipements pétroliers', languages: ['fr','ar'], rating: 4.9, literature: ['Valve Handbook', 'API 6D'] },
+    { id: 30, name: 'Dr. Sarah Cohen', domain: 'Mécanique Pétrole', expertise: 'Turbines et compresseurs', languages: ['fr','en'], rating: 4.8, literature: ['Gas Turbine Theory'] },
+    { id: 31, name: 'Dr. Rachid Benmoussa', domain: 'Mécanique Pétrole', expertise: 'Forage et complétion', languages: ['fr','ar'], rating: 4.9, literature: ['Drilling Engineering'] },
+    { id: 32, name: 'Dr. Philippe Roux', domain: 'Mécanique Pétrole', expertise: 'Contrôle qualité et métrologie', languages: ['fr','en'], rating: 4.8, literature: ['Metrology Handbook'] },
     { id: 33, name: 'Dr. Marc Dupont', domain: 'Gestion', expertise: 'Management stratégique', languages: ['fr','en'], rating: 4.8, literature: ['Strategic Management'] },
+    { id: 34, name: 'Dr. Sophie Bernard', domain: 'Gestion', expertise: 'Gestion des ressources humaines', languages: ['fr','en'], rating: 4.7, literature: ['HR Management'] },
+    { id: 35, name: 'Dr. Ahmed Karim', domain: 'Gestion', expertise: 'Marketing', languages: ['fr','ar'], rating: 4.8, literature: ['Marketing Management'] },
     { id: 36, name: 'Dr. Isabelle Martin', domain: 'Expertise Comptable', expertise: 'Comptabilité générale', languages: ['fr','en'], rating: 4.9, literature: ['PCG'] },
+    { id: 37, name: 'Dr. Karim Trabelsi', domain: 'Expertise Comptable', expertise: 'Audit financier', languages: ['fr','ar'], rating: 4.8, literature: ['Audit IFAC'] },
+    { id: 38, name: 'Dr. Claire Rousseau', domain: 'Expertise Comptable', expertise: 'Fiscalité', languages: ['fr','en'], rating: 4.7, literature: ['Droit Fiscal'] },
     { id: 39, name: 'Dr. Pierre Dubois', domain: 'Droit', expertise: 'Droit des affaires', languages: ['fr','en'], rating: 4.9, literature: ['Droit des Sociétés'] },
+    { id: 40, name: 'Dr. Nadia Hamdi', domain: 'Droit', expertise: 'Droit international', languages: ['fr','ar'], rating: 4.8, literature: ['DIP'] },
+    { id: 41, name: 'Dr. Hassan Rifai D', domain: 'Droit', expertise: 'Droit pénal', languages: ['fr','ar'], rating: 4.7, literature: ['Droit Pénal'] },
     { id: 42, name: 'Dr. Amira Math E', domain: 'Économie', expertise: 'Macroéconomie', languages: ['fr','en'], rating: 4.9, literature: ['Mankiw'] },
+    { id: 43, name: 'Dr. Sophie Physique E', domain: 'Économie', expertise: 'Microéconomie', languages: ['fr','en'], rating: 4.8, literature: ['Varian'] },
+    { id: 44, name: 'Dr. Karim Benali', domain: 'Économie', expertise: 'Économie internationale', languages: ['fr','ar'], rating: 4.7, literature: ['Krugman'] },
     { id: 45, name: 'Dr. Fatima Histoire', domain: 'Culture Générale', expertise: 'Histoire', languages: ['fr','ar'], rating: 4.9, literature: ['Histoire Universelle'] },
+    { id: 46, name: 'Dr. Marc Philosophie', domain: 'Culture Générale', expertise: 'Philosophie', languages: ['fr','en'], rating: 4.8, literature: ['Histoire Philo'] },
+    { id: 47, name: 'Dr. Amina Littérature', domain: 'Culture Générale', expertise: 'Littérature', languages: ['fr','ar'], rating: 4.7, literature: ['Littérature Comparée'] },
     { id: 48, name: 'Dr. Isabelle Art', domain: 'Art', expertise: 'Peinture', languages: ['fr','en'], rating: 4.8, literature: ["Histoire de l'Art"] },
+    { id: 49, name: 'Dr. Karim Musique', domain: 'Art', expertise: 'Musicologie', languages: ['fr','ar'], rating: 4.7, literature: ['Musicologie'] },
+    { id: 50, name: 'Dr. Sophie Cinema', domain: 'Art', expertise: 'Cinéma', languages: ['fr','en'], rating: 4.9, literature: ['Histoire Cinéma'] },
     { id: 51, name: 'Dr. Pierre Architecte', domain: 'Architecture', expertise: 'Architecture moderne', languages: ['fr','en'], rating: 4.9, literature: ['Le Corbusier'] },
+    { id: 52, name: 'Dr. Nadia Urbanisme', domain: 'Architecture', expertise: 'Urbanisme', languages: ['fr','ar'], rating: 4.8, literature: ['Urbanisme'] },
+    { id: 53, name: 'Dr. Hassan Patrimoine', domain: 'Architecture', expertise: 'Patrimoine', languages: ['fr','ar'], rating: 4.7, literature: ['Patrimoine'] },
     { id: 54, name: 'Dr. Amira Cuisine', domain: 'Restauration', expertise: 'Gastronomie française', languages: ['fr','en'], rating: 4.9, literature: ['Escoffier'] },
-    { id: 57, name: 'Dr. Amira Math G', domain: 'Général', expertise: 'Mathématiques', languages: ['fr','en'], rating: 4.9, literature: ['Stewart'] }
+    { id: 55, name: 'Dr. Sophie Pâtisserie', domain: 'Restauration', expertise: 'Pâtisserie', languages: ['fr','en'], rating: 4.8, literature: ['Pâtisserie Pro'] },
+    { id: 56, name: 'Dr. Karim Resto', domain: 'Restauration', expertise: 'Gestion restauration', languages: ['fr','ar'], rating: 4.7, literature: ['Management Resto'] },
+    { id: 57, name: 'Dr. Amira Math G', domain: 'Général', expertise: 'Mathématiques', languages: ['fr','en'], rating: 4.9, literature: ['Stewart'] },
+    { id: 58, name: 'Dr. Sophie Physique G', domain: 'Général', expertise: 'Physique', languages: ['fr','en'], rating: 4.8, literature: ['Feynman'] },
+    { id: 59, name: 'Dr. Karim Info', domain: 'Général', expertise: 'Informatique', languages: ['fr','en'], rating: 4.7, literature: ['Clean Code'] },
+    { id: 60, name: 'Dr. Fatima Histoire G', domain: 'Général', expertise: 'Histoire', languages: ['fr','ar'], rating: 4.9, literature: ['Histoire'] }
 ];
 
 var categoriesByDomain = {
@@ -316,6 +380,9 @@ var categoriesByDomain = {
     'Général': ['Mathématiques','Physique','Informatique','Histoire','Philosophie']
 };
 
+// ============================================================
+// API
+// ============================================================
 async function apiGet(endpoint) {
     try { var r = await fetch(API_URL + endpoint); return await r.json(); } catch(e) { return null; }
 }
@@ -326,6 +393,9 @@ async function apiPost(endpoint, data) {
     } catch(e) { return null; }
 }
 
+// ============================================================
+// VOCAL
+// ============================================================
 function initVoice() {
     var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SR) { alert('Reconnaissance vocale non supportée. Utilisez Chrome/Edge.'); return null; }
@@ -346,7 +416,7 @@ function startVoiceInput() {
     
     recognition.onstart = function() {
         isListening = true;
-        btnEl.innerHTML = '🛑 ' + (TRANSLATIONS[currentLanguage].voice_stop || 'Arrêter');
+        btnEl.innerHTML = '🛑 Arrêter';
         btnEl.classList.add('listening');
         statusEl.innerHTML = '🎤 Écoute en cours...';
     };
@@ -382,6 +452,9 @@ function speakText(text, language) {
 
 function stopSpeaking() { if ('speechSynthesis' in window) window.speechSynthesis.cancel(); }
 
+// ============================================================
+// AUTO-ANALYSE IA
+// ============================================================
 async function autoAnalyze() {
     var content = document.getElementById('qContent').value.trim();
     if (!content || content.length < 10) { showNotification('Saisissez d\'abord votre question', 'error'); return; }
@@ -413,15 +486,15 @@ function showNotification(msg, type) {
     setTimeout(function() { el.className = 'notification'; }, 4000);
 }
 
+// ============================================================
+// INITIALISATION
+// ============================================================
 async function initializeApp() {
     currentUser = loadSession();
-    var savedLang = 'fr';
-    try { savedLang = localStorage.getItem('sc_language') || 'fr'; } catch(e) {}
+    var savedLang = localStorage.getItem('sc_language') || 'fr';
     currentLanguage = savedLang;
-    var sel1 = document.getElementById('languageSelector');
-    var sel2 = document.getElementById('languageSelector2');
-    if (sel1) sel1.value = savedLang;
-    if (sel2) sel2.value = savedLang;
+    document.getElementById('languageSelector').value = savedLang;
+    document.getElementById('languageSelector2').value = savedLang;
     buildCategoriesNav();
     buildDomainSelects();
     updateUI();
@@ -433,8 +506,8 @@ async function initializeApp() {
 
 function buildCategoriesNav() {
     var nav = document.getElementById('categoriesNav');
-    var icons = { 'Islam':'🕌','Médecine':'🏥','Pharmacie':'💊','Chimie':'⚗️','IA':'🤖','IoT':'🌐','GMAO':'🏭','Mécanique Pétrole':'⚙️','Gestion':'📊','Expertise Comptable':'💰','Droit':'⚖️','Économie':'📈','Culture Générale':'🌍','Art':'🎨','Architecture':'🏛️','Restauration':'🍽️','Général':'📚' };
     var html = '<button class="cat-btn active" onclick="filterByDomain(\'all\', this)">🌍 Tous</button>';
+    var icons = { 'Islam':'🕌','Médecine':'🏥','Pharmacie':'💊','Chimie':'⚗️','IA':'🤖','IoT':'🌐','GMAO':'🏭','Mécanique Pétrole':'⚙️','Gestion':'📊','Expertise Comptable':'💰','Droit':'⚖️','Économie':'📈','Culture Générale':'🌍','Art':'🎨','Architecture':'🏛️','Restauration':'🍽️','Général':'📚' };
     for (var d in categoriesByDomain) html += '<button class="cat-btn" onclick="filterByDomain(\'' + d + '\', this)">' + (icons[d] || '📖') + ' ' + d + '</button>';
     nav.innerHTML = html;
 }
@@ -650,7 +723,7 @@ function renderQuestions() {
                 answersHtml += '<div class="answer-item ' + aCls + '"><div style="margin-bottom:5px;">' + badge + '</div><div class="claude-response">' + a.content + '</div><div class="answer-meta">👤 ' + a.username + ' | ' + a.date + '</div><div style="margin-top:8px;"><button class="speak-btn" onclick="speakText(this.parentElement.previousElementSibling.textContent, \'' + (a.language || 'fr') + '\')">🔊 Écouter</button><button class="stop-btn" onclick="stopSpeaking()">⏹️ Arrêter</button></div></div>';
             });
             answersHtml += '</div>';
-        } else answersHtml = '<div style="margin-top:10px;opacity:0.5;font-size:13px;">💬 En attente...</div>';
+        } else answersHtml = '<div style="margin-top:10px;opacity:0.5;font-size:13px;">💬 En attente (Juge Claude surveille)...</div>';
         var ansBtn = currentUser ? '<button class="btn btn-secondary" onclick="showAnswerForm(\'' + q._id + '\')">💬 Répondre</button>' : '';
         html += '<div class="question-card ' + cardClass + '"><div class="question-title">' + getDomainIcon(q.domain) + ' ' + q.title + '</div><div class="question-meta"><span class="domain-tag">' + q.domain + '</span> 👤 ' + q.username + ' | ' + q.category + ' | ' + q.date + ' | <span class="badge ' + stClass + '">' + stLabel + '</span></div><div class="question-content">' + q.content + '</div><div class="question-actions">' + ansBtn + '</div>' + answersHtml + '</div>';
     });
