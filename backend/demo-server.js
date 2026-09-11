@@ -132,7 +132,6 @@ app.use(express.urlencoded({ extended: true }));
 // ============================================================
 async function generateGeminiResponse(question, scholar, reason) {
     if (!geminiModel) {
-        // Fallback sur base locale si Gemini non disponible
         return generateLocalFallback(question, scholar, reason);
     }
 
@@ -143,12 +142,12 @@ async function generateGeminiResponse(question, scholar, reason) {
             prompt = Tu es un Juge Académique expert nommé "Juge Claude". 
 Un utilisateur a posé la question suivante :
 
-DOMAINE : 
-SPÉCIALITÉ : 
-QUESTION : 
-DÉTAILS : 
+DOMAINE : \
+SPÉCIALITÉ : \
+QUESTION : \
+DÉTAILS : \
 
-Le scholar assigné "" ne dispose pas de littérature spécifique sur ce sujet.
+Le scholar assigné "\" ne dispose pas de littérature spécifique sur ce sujet.
 
 Ta mission : Donne une réponse COMPLÈTE, DÉTAILLÉE et EXPERTE à cette question.
 
@@ -159,18 +158,18 @@ Structure ta réponse ainsi :
 4. 💡 POUR ALLER PLUS LOIN : Conseils ou références
 5. 📚 SOURCES : Cite 2-3 ouvrages/auteurs de référence
 
-Réponds en FRANÇAIS. Sois précis et pédagogique. N'utilise PAS de formatage Markdown complexe (**, ##, etc.). Utilise uniquement des emojis et des tirets.;
+Réponds en FRANÇAIS. Sois précis et pédagogique. N'utilise PAS de formatage Markdown complexe. Utilise uniquement des emojis et des tirets.;
         } else if (reason === 'timeout_5min') {
             prompt = Tu es un Juge Académique expert nommé "Juge Claude".
 Un utilisateur a posé la question suivante :
 
-DOMAINE : 
-SPÉCIALITÉ : 
-QUESTION : 
-DÉTAILS : 
+DOMAINE : \
+SPÉCIALITÉ : \
+QUESTION : \
+DÉTAILS : \
 
-Le scholar assigné "" n'a pas répondu dans le délai de 5 minutes.
-Sa littérature de référence : 
+Le scholar assigné "\" n'a pas répondu dans le délai de 5 minutes.
+Sa littérature de référence : \
 
 Ta mission : Réponds à cette question en te basant sur la littérature du scholar.
 
@@ -187,7 +186,6 @@ Réponds en FRANÇAIS. Sois précis et pédagogique. Pas de Markdown complexe.;
         const response = await result.response;
         const text = response.text();
 
-        // Ajouter l'en-tête
         let header = '';
         if (reason === 'no_literature') {
             header = '🤖 RÉPONSE COMPLÈTE DU JUGE CLAUDE\n\n';
@@ -212,7 +210,7 @@ Réponds en FRANÇAIS. Sois précis et pédagogique. Pas de Markdown complexe.;
 }
 
 // ============================================================
-// FALLBACK LOCAL (si Gemini indisponible)
+// FALLBACK LOCAL
 // ============================================================
 function generateLocalFallback(question, scholar, reason) {
     let header = '';
@@ -226,11 +224,10 @@ function generateLocalFallback(question, scholar, reason) {
     
     let body = '📖 DÉFINITION : Cette question relève du domaine ' + question.domain + ' (' + question.category + ').\n\n';
     body += '🎯 RÉPONSE : Le Juge Claude analyse votre question : "' + question.title + '"\n\n';
-    body += 'Pour une réponse complète et experte, veuillez vérifier que GEMINI_API_KEY est bien configurée.\n\n';
     body += '✅ POINTS CLÉS :\n';
     body += '   • Le sujet appartient au domaine ' + question.domain + '\n';
     body += '   • Le scholar ' + scholar.name + ' est spécialisé en ' + scholar.expertise + '\n';
-    body += '   • Les références de base : ' + (scholar.literature ? scholar.literature.join(', ') : 'Non spécifiées') + '\n\n';
+    body += '   • Références : ' + (scholar.literature ? scholar.literature.join(', ') : 'Non spécifiées') + '\n\n';
     
     return header + body + '💡 Le scholar pourra compléter.';
 }
@@ -267,7 +264,7 @@ app.get('/api/users', async (req, res) => {
 });
 
 // ============================================================
-// API - QUESTIONS
+// API - QUESTIONS AVEC JUGE CLAUDE AUTOMATIQUE
 // ============================================================
 app.get('/api/questions', async (req, res) => {
     try { res.json(await Question.find().sort({ timestamp: -1 })); }
@@ -298,7 +295,9 @@ async function triggerClaudeJudge(question) {
         setTimeout(async () => {
             try {
                 const answer = await generateGeminiResponse(question, scholar, 'no_literature');
-                question.answers.push({
+                const q = await Question.findById(question._id);
+                if (!q) return;
+                q.answers.push({
                     username: 'Juge Claude',
                     userId: 0,
                     content: answer,
@@ -307,9 +306,9 @@ async function triggerClaudeJudge(question) {
                     isClaude: true,
                     claudeReason: 'no_literature'
                 });
-                question.status = 'claude_answered';
-                await question.save();
-                console.log('🤖 Juge Claude a répondu (pas de littérature) à Q#' + question._id);
+                q.status = 'claude_answered';
+                await q.save();
+                console.log('🤖 Juge Claude a répondu à Q#' + q._id);
             } catch (e) {
                 console.error('Erreur Juge Claude:', e.message);
             }
@@ -317,7 +316,7 @@ async function triggerClaudeJudge(question) {
         return;
     }
     
-    // RÈGLE 2 : Attendre 5 minutes (30 sec en démo)
+    // RÈGLE 2 : Attendre 30 sec (démo)
     console.log('⏱️ Juge Claude surveille Q#' + question._id);
     
     setTimeout(async () => {
@@ -407,7 +406,7 @@ app.get('/api/test-gemini', async (req, res) => {
         return res.json({ error: 'Gemini non configurée' });
     }
     try {
-        const result = await geminiModel.generateContent('Réponds en une phrase : Que sais-tu sur Hannibal ?');
+        const result = await geminiModel.generateContent('Réponds en une phrase : Qui était Hannibal ?');
         const response = await result.response;
         res.json({ 
             success: true, 
@@ -423,7 +422,7 @@ app.get('/api/test-gemini', async (req, res) => {
 // ============================================================
 app.listen(PORT, '0.0.0.0', () => {
     console.log('==========================================');
-    console.log('  Scholars Connect - MongoDB Atlas + Gemini');
+    console.log('  Scholars Connect - MongoDB + Gemini');
     console.log('  URL: http://localhost:' + PORT);
     console.log('  🍃 MongoDB: ' + (mongoose.connection.readyState === 1 ? 'Connecté' : 'Connexion...'));
     console.log('  🤖 Gemini: ' + (geminiModel ? 'Actif' : 'Inactif'));
