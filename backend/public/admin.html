@@ -7,195 +7,193 @@
 * { margin:0; padding:0; box-sizing:border-box; }
 body { font-family:"Segoe UI",sans-serif; background:#0a0e27; color:#fff; padding:20px; }
 .container { max-width:1400px; margin:0 auto; }
-.header { display:flex; justify-content:space-between; align-items:center; padding:20px 0; border-bottom:2px solid #667eea; flex-wrap:wrap; gap:10px; }
-.logo { font-size:28px; font-weight:700; color:#667eea; }
+.header { display:flex; justify-content:space-between; align-items:center; padding:20px 0; border-bottom:2px solid #22c55e; flex-wrap:wrap; gap:10px; }
+.logo { font-size:28px; font-weight:700; color:#22c55e; }
 .btn { padding:10px 20px; border:none; border-radius:10px; cursor:pointer; font-weight:600; margin:5px; }
 .btn-secondary { background:rgba(255,255,255,0.1); color:white; }
 .btn-primary { background:#667eea; color:white; }
 .btn-claude { background:linear-gradient(135deg,#8b5cf6,#ec4899); color:white; }
+.btn-mongo { background:#22c55e; color:white; }
 table { width:100%; border-collapse:collapse; margin-top:20px; font-size:12px; }
 th,td { padding:8px 10px; text-align:left; border-bottom:1px solid rgba(255,255,255,0.05); }
-th { color:#667eea; font-size:11px; text-transform:uppercase; }
-.badge { padding:2px 10px; border-radius:20px; font-size:11px; font-weight:600; }
-.badge-islam { background:#059669; color:white; }
-.badge-medecine { background:#ef4444; color:white; }
-.badge-pharmacie { background:#f472b6; color:white; }
-.badge-chimie { background:#06b6d4; color:white; }
-.badge-ia { background:#8b5cf6; color:white; }
-.badge-iot { background:#14b8a6; color:white; }
-.badge-gmao { background:#f59e0b; color:#0a0e27; }
-.badge-meca { background:#78716c; color:white; }
-.badge-general { background:#667eea; color:white; }
-.badge-gestion { background:#0891b2; color:white; }
-.badge-compta { background:#7c3aed; color:white; }
-.badge-droit { background:#dc2626; color:white; }
-.badge-eco { background:#ea580c; color:white; }
-.badge-culture { background:#16a34a; color:white; }
-.badge-art { background:#db2777; color:white; }
-.badge-archi { background:#65a30d; color:white; }
-.badge-resto { background:#d97706; color:white; }
+th { color:#22c55e; font-size:11px; text-transform:uppercase; }
+.badge { padding:2px 10px; border-radius:20px; font-size:11px; font-weight:600; background:#667eea; color:white; }
 .badge-claude { background:linear-gradient(135deg,#8b5cf6,#ec4899); color:white; }
 .stats { display:grid; grid-template-columns:repeat(auto-fit,minmax(120px,1fr)); gap:15px; margin:20px 0; }
-.stat-card { background:rgba(255,255,255,0.05); padding:15px; border-radius:12px; text-align:center; border:1px solid rgba(255,255,255,0.08); }
-.stat-number { font-size:28px; font-weight:700; color:#667eea; }
+.stat-card { background:rgba(255,255,255,0.05); padding:15px; border-radius:12px; text-align:center; border:1px solid rgba(34,197,94,0.2); }
+.stat-number { font-size:28px; font-weight:700; color:#22c55e; }
 .stat-label { opacity:0.7; margin-top:5px; font-size:11px; }
+.mongo-status { display:inline-block; padding:5px 15px; border-radius:20px; background:#22c55e; color:white; font-weight:600; font-size:12px; }
 </style>
 </head>
 <body>
 <div class="container">
 <div class="header">
-<div><span class="logo">⚙️ Admin - Juge Claude Actif</span></div>
+<div><span class="logo">⚙️ Admin - MongoDB Atlas</span> <span class="mongo-status" id="mongoStatus">🍃 Vérification...</span></div>
 <div><button class="btn btn-secondary" onclick="window.location.href='/'">🏠 Retour</button></div>
 </div>
 <div class="stats" id="statsContainer"></div>
 <div style="margin:15px 0;">
 <button class="btn btn-primary" onclick="showTab('scholars')">🎓 Scholars</button>
 <button class="btn btn-primary" onclick="showTab('questions')">📋 Questions</button>
-<button class="btn btn-claude" onclick="showTab('claude')">🤖 Réponses Claude</button>
+<button class="btn btn-claude" onclick="showTab('claude')">🤖 Claude</button>
 <button class="btn btn-primary" onclick="showTab('users')">👤 Utilisateurs</button>
+<button class="btn btn-mongo" onclick="showTab('history')">📜 Historique</button>
 </div>
 <div id="content"></div>
 </div>
 <script>
-var STORAGE_KEYS = { USERS: 'sc_users', QUESTIONS: 'sc_questions' };
-function loadFromStorage(key, defaultValue) {
-    try { var data = localStorage.getItem(key); if (data) return JSON.parse(data); return defaultValue; }
-    catch(e) { return defaultValue; }
-}
-var users = loadFromStorage(STORAGE_KEYS.USERS, [{ id: 1, username: 'admin', email: 'admin@scholars-connect.com', role: 'admin' }]);
-var questions = loadFromStorage(STORAGE_KEYS.QUESTIONS, []);
+var API_URL = window.location.origin + '/api';
+var users = [], questions = [], history = [], health = {};
 
 var scholars = [
-    { name: 'Dr. Ahmed Al-Faqih', domain: 'Islam', expertise: 'Fiqh', rating: 4.9, litCount: 3 },
-    { name: 'Dr. Fatima Al-Aqida', domain: 'Islam', expertise: 'Aqida', rating: 4.8, litCount: 2 },
-    { name: 'Dr. Omar Al-Hadith', domain: 'Islam', expertise: 'Hadith', rating: 4.9, litCount: 2 },
-    { name: 'Dr. Layla Tafsir', domain: 'Islam', expertise: 'Tafsir', rating: 4.7, litCount: 2 },
-    { name: 'Dr. Youssef Sira', domain: 'Islam', expertise: 'Sira', rating: 4.6, litCount: 1 },
-    { name: 'Dr. Khadija Soufisme', domain: 'Islam', expertise: 'Soufisme', rating: 4.5, litCount: 1 },
-    { name: 'Dr. Marie Dupont', domain: 'Médecine', expertise: 'Cardiologie', rating: 4.9, litCount: 2 },
-    { name: 'Dr. Ahmed Benali', domain: 'Médecine', expertise: 'Neurologie', rating: 4.8, litCount: 1 },
-    { name: 'Dr. Sophie Martin', domain: 'Médecine', expertise: 'Pédiatrie', rating: 4.9, litCount: 1 },
-    { name: 'Dr. Karim Haddad', domain: 'Médecine', expertise: 'Chirurgie', rating: 4.7, litCount: 0 },
-    { name: 'Dr. Leila Mansouri', domain: 'Médecine', expertise: 'Oncologie', rating: 4.8, litCount: 1 },
-    { name: 'Dr. Isabelle Rousseau', domain: 'Pharmacie', expertise: 'Pharmacologie', rating: 4.8, litCount: 1 },
-    { name: 'Dr. Mohamed Trabelsi', domain: 'Pharmacie', expertise: 'Galénique', rating: 4.7, litCount: 0 },
-    { name: 'Dr. Claire Petit', domain: 'Pharmacie', expertise: 'Pharmacovigilance', rating: 4.9, litCount: 1 },
-    { name: 'Dr. Pierre Laurent', domain: 'Chimie', expertise: 'Organique', rating: 4.8, litCount: 1 },
-    { name: 'Dr. Nadia Bouazizi', domain: 'Chimie', expertise: 'Analytique', rating: 4.7, litCount: 1 },
-    { name: 'Dr. Hassan Rifai', domain: 'Chimie', expertise: 'Industrielle', rating: 4.8, litCount: 0 },
-    { name: 'Dr. Yann LeCun Jr.', domain: 'IA', expertise: 'Deep Learning', rating: 5.0, litCount: 2 },
-    { name: 'Dr. Amina Khalil', domain: 'IA', expertise: 'NLP', rating: 4.9, litCount: 1 },
-    { name: 'Dr. Thomas Bernard', domain: 'IA', expertise: 'Computer Vision', rating: 4.8, litCount: 1 },
-    { name: 'Dr. Sara El Amrani', domain: 'IA', expertise: 'RL', rating: 4.7, litCount: 1 },
-    { name: 'Dr. Julien Moreau', domain: 'IoT', expertise: 'Architecture', rating: 4.8, litCount: 1 },
-    { name: 'Dr. Rania Hamdi', domain: 'IoT', expertise: 'Sécurité', rating: 4.7, litCount: 1 },
-    { name: 'Dr. Marc Lefebvre', domain: 'IoT', expertise: 'MQTT/CoAP', rating: 4.6, litCount: 1 },
-    { name: 'Dr. Olivier Dubois', domain: 'GMAO', expertise: 'GMAO', rating: 4.9, litCount: 1 },
-    { name: 'Dr. Karim Bouzid', domain: 'GMAO', expertise: 'GPAO', rating: 4.8, litCount: 1 },
-    { name: 'Dr. Hélène Girard', domain: 'GMAO', expertise: 'Planification', rating: 4.7, litCount: 0 },
-    { name: 'Dr. Jean-Pierre Durand', domain: 'Mécanique Pétrole', expertise: 'CNC', rating: 5.0, litCount: 1 },
-    { name: 'Dr. Abdelkader Ziani', domain: 'Mécanique Pétrole', expertise: 'Vannes', rating: 4.9, litCount: 2 },
-    { name: 'Dr. Sarah Cohen', domain: 'Mécanique Pétrole', expertise: 'Turbines', rating: 4.8, litCount: 1 },
-    { name: 'Dr. Rachid Benmoussa', domain: 'Mécanique Pétrole', expertise: 'Forage', rating: 4.9, litCount: 1 },
-    { name: 'Dr. Philippe Roux', domain: 'Mécanique Pétrole', expertise: 'Métrologie', rating: 4.8, litCount: 1 },
-    { name: 'Dr. Marc Dupont', domain: 'Gestion', expertise: 'Management', rating: 4.8, litCount: 1 },
-    { name: 'Dr. Sophie Bernard', domain: 'Gestion', expertise: 'RH', rating: 4.7, litCount: 1 },
-    { name: 'Dr. Ahmed Karim', domain: 'Gestion', expertise: 'Marketing', rating: 4.8, litCount: 1 },
-    { name: 'Dr. Isabelle Martin', domain: 'Expertise Comptable', expertise: 'Comptabilité', rating: 4.9, litCount: 1 },
-    { name: 'Dr. Karim Trabelsi', domain: 'Expertise Comptable', expertise: 'Audit', rating: 4.8, litCount: 1 },
-    { name: 'Dr. Claire Rousseau', domain: 'Expertise Comptable', expertise: 'Fiscalité', rating: 4.7, litCount: 1 },
-    { name: 'Dr. Pierre Dubois', domain: 'Droit', expertise: 'Affaires', rating: 4.9, litCount: 1 },
-    { name: 'Dr. Nadia Hamdi', domain: 'Droit', expertise: 'International', rating: 4.8, litCount: 1 },
-    { name: 'Dr. Hassan Rifai D', domain: 'Droit', expertise: 'Pénal', rating: 4.7, litCount: 1 },
-    { name: 'Dr. Amira Math E', domain: 'Économie', expertise: 'Macro', rating: 4.9, litCount: 1 },
-    { name: 'Dr. Sophie Physique E', domain: 'Économie', expertise: 'Micro', rating: 4.8, litCount: 1 },
-    { name: 'Dr. Karim Benali', domain: 'Économie', expertise: 'Internationale', rating: 4.7, litCount: 1 },
-    { name: 'Dr. Fatima Histoire', domain: 'Culture Générale', expertise: 'Histoire', rating: 4.9, litCount: 1 },
-    { name: 'Dr. Marc Philosophie', domain: 'Culture Générale', expertise: 'Philosophie', rating: 4.8, litCount: 1 },
-    { name: 'Dr. Amina Littérature', domain: 'Culture Générale', expertise: 'Littérature', rating: 4.7, litCount: 1 },
-    { name: 'Dr. Isabelle Art', domain: 'Art', expertise: 'Peinture', rating: 4.8, litCount: 1 },
-    { name: 'Dr. Karim Musique', domain: 'Art', expertise: 'Musicologie', rating: 4.7, litCount: 1 },
-    { name: 'Dr. Sophie Cinema', domain: 'Art', expertise: 'Cinéma', rating: 4.9, litCount: 1 },
-    { name: 'Dr. Pierre Architecte', domain: 'Architecture', expertise: 'Moderne', rating: 4.9, litCount: 1 },
-    { name: 'Dr. Nadia Urbanisme', domain: 'Architecture', expertise: 'Urbanisme', rating: 4.8, litCount: 1 },
-    { name: 'Dr. Hassan Patrimoine', domain: 'Architecture', expertise: 'Patrimoine', rating: 4.7, litCount: 1 },
-    { name: 'Dr. Amira Cuisine', domain: 'Restauration', expertise: 'Gastronomie', rating: 4.9, litCount: 1 },
-    { name: 'Dr. Sophie Pâtisserie', domain: 'Restauration', expertise: 'Pâtisserie', rating: 4.8, litCount: 1 },
-    { name: 'Dr. Karim Resto', domain: 'Restauration', expertise: 'Gestion', rating: 4.7, litCount: 1 },
-    { name: 'Dr. Amira Math G', domain: 'Général', expertise: 'Maths', rating: 4.9, litCount: 1 },
-    { name: 'Dr. Sophie Physique G', domain: 'Général', expertise: 'Physique', rating: 4.8, litCount: 1 },
-    { name: 'Dr. Karim Info', domain: 'Général', expertise: 'Informatique', rating: 4.7, litCount: 1 },
-    { name: 'Dr. Fatima Histoire G', domain: 'Général', expertise: 'Histoire', rating: 4.9, litCount: 1 }
+    { name: 'Dr. Ahmed Al-Faqih', domain: 'Islam', expertise: 'Fiqh', rating: 4.9 },
+    { name: 'Dr. Fatima Al-Aqida', domain: 'Islam', expertise: 'Aqida', rating: 4.8 },
+    { name: 'Dr. Omar Al-Hadith', domain: 'Islam', expertise: 'Hadith', rating: 4.9 },
+    { name: 'Dr. Layla Tafsir', domain: 'Islam', expertise: 'Tafsir', rating: 4.7 },
+    { name: 'Dr. Youssef Sira', domain: 'Islam', expertise: 'Sira', rating: 4.6 },
+    { name: 'Dr. Khadija Soufisme', domain: 'Islam', expertise: 'Soufisme', rating: 4.5 },
+    { name: 'Dr. Marie Dupont', domain: 'Médecine', expertise: 'Cardiologie', rating: 4.9 },
+    { name: 'Dr. Ahmed Benali', domain: 'Médecine', expertise: 'Neurologie', rating: 4.8 },
+    { name: 'Dr. Sophie Martin', domain: 'Médecine', expertise: 'Pédiatrie', rating: 4.9 },
+    { name: 'Dr. Karim Haddad', domain: 'Médecine', expertise: 'Chirurgie', rating: 4.7 },
+    { name: 'Dr. Leila Mansouri', domain: 'Médecine', expertise: 'Oncologie', rating: 4.8 },
+    { name: 'Dr. Isabelle Rousseau', domain: 'Pharmacie', expertise: 'Pharmacologie', rating: 4.8 },
+    { name: 'Dr. Mohamed Trabelsi', domain: 'Pharmacie', expertise: 'Galénique', rating: 4.7 },
+    { name: 'Dr. Claire Petit', domain: 'Pharmacie', expertise: 'Pharmacovigilance', rating: 4.9 },
+    { name: 'Dr. Pierre Laurent', domain: 'Chimie', expertise: 'Organique', rating: 4.8 },
+    { name: 'Dr. Nadia Bouazizi', domain: 'Chimie', expertise: 'Analytique', rating: 4.7 },
+    { name: 'Dr. Hassan Rifai', domain: 'Chimie', expertise: 'Industrielle', rating: 4.8 },
+    { name: 'Dr. Yann LeCun Jr.', domain: 'IA', expertise: 'Deep Learning', rating: 5.0 },
+    { name: 'Dr. Amina Khalil', domain: 'IA', expertise: 'NLP', rating: 4.9 },
+    { name: 'Dr. Thomas Bernard', domain: 'IA', expertise: 'Computer Vision', rating: 4.8 },
+    { name: 'Dr. Sara El Amrani', domain: 'IA', expertise: 'RL', rating: 4.7 },
+    { name: 'Dr. Julien Moreau', domain: 'IoT', expertise: 'Architecture', rating: 4.8 },
+    { name: 'Dr. Rania Hamdi', domain: 'IoT', expertise: 'Sécurité', rating: 4.7 },
+    { name: 'Dr. Marc Lefebvre', domain: 'IoT', expertise: 'MQTT', rating: 4.6 },
+    { name: 'Dr. Olivier Dubois', domain: 'GMAO', expertise: 'GMAO', rating: 4.9 },
+    { name: 'Dr. Karim Bouzid', domain: 'GMAO', expertise: 'GPAO', rating: 4.8 },
+    { name: 'Dr. Hélène Girard', domain: 'GMAO', expertise: 'Planification', rating: 4.7 },
+    { name: 'Dr. Jean-Pierre Durand', domain: 'Mécanique Pétrole', expertise: 'CNC', rating: 5.0 },
+    { name: 'Dr. Abdelkader Ziani', domain: 'Mécanique Pétrole', expertise: 'Vannes', rating: 4.9 },
+    { name: 'Dr. Sarah Cohen', domain: 'Mécanique Pétrole', expertise: 'Turbines', rating: 4.8 },
+    { name: 'Dr. Rachid Benmoussa', domain: 'Mécanique Pétrole', expertise: 'Forage', rating: 4.9 },
+    { name: 'Dr. Philippe Roux', domain: 'Mécanique Pétrole', expertise: 'Métrologie', rating: 4.8 },
+    { name: 'Dr. Marc Dupont', domain: 'Gestion', expertise: 'Management', rating: 4.8 },
+    { name: 'Dr. Sophie Bernard', domain: 'Gestion', expertise: 'RH', rating: 4.7 },
+    { name: 'Dr. Ahmed Karim', domain: 'Gestion', expertise: 'Marketing', rating: 4.8 },
+    { name: 'Dr. Isabelle Martin', domain: 'Expertise Comptable', expertise: 'Comptabilité', rating: 4.9 },
+    { name: 'Dr. Karim Trabelsi', domain: 'Expertise Comptable', expertise: 'Audit', rating: 4.8 },
+    { name: 'Dr. Claire Rousseau', domain: 'Expertise Comptable', expertise: 'Fiscalité', rating: 4.7 },
+    { name: 'Dr. Pierre Dubois', domain: 'Droit', expertise: 'Affaires', rating: 4.9 },
+    { name: 'Dr. Nadia Hamdi', domain: 'Droit', expertise: 'International', rating: 4.8 },
+    { name: 'Dr. Hassan Rifai D', domain: 'Droit', expertise: 'Pénal', rating: 4.7 },
+    { name: 'Dr. Amira Math E', domain: 'Économie', expertise: 'Macro', rating: 4.9 },
+    { name: 'Dr. Sophie Physique E', domain: 'Économie', expertise: 'Micro', rating: 4.8 },
+    { name: 'Dr. Karim Benali', domain: 'Économie', expertise: 'Internationale', rating: 4.7 },
+    { name: 'Dr. Fatima Histoire', domain: 'Culture Générale', expertise: 'Histoire', rating: 4.9 },
+    { name: 'Dr. Marc Philosophie', domain: 'Culture Générale', expertise: 'Philosophie', rating: 4.8 },
+    { name: 'Dr. Amina Littérature', domain: 'Culture Générale', expertise: 'Littérature', rating: 4.7 },
+    { name: 'Dr. Isabelle Art', domain: 'Art', expertise: 'Peinture', rating: 4.8 },
+    { name: 'Dr. Karim Musique', domain: 'Art', expertise: 'Musicologie', rating: 4.7 },
+    { name: 'Dr. Sophie Cinema', domain: 'Art', expertise: 'Cinéma', rating: 4.9 },
+    { name: 'Dr. Pierre Architecte', domain: 'Architecture', expertise: 'Moderne', rating: 4.9 },
+    { name: 'Dr. Nadia Urbanisme', domain: 'Architecture', expertise: 'Urbanisme', rating: 4.8 },
+    { name: 'Dr. Hassan Patrimoine', domain: 'Architecture', expertise: 'Patrimoine', rating: 4.7 },
+    { name: 'Dr. Amira Cuisine', domain: 'Restauration', expertise: 'Gastronomie', rating: 4.9 },
+    { name: 'Dr. Sophie Pâtisserie', domain: 'Restauration', expertise: 'Pâtisserie', rating: 4.8 },
+    { name: 'Dr. Karim Resto', domain: 'Restauration', expertise: 'Gestion', rating: 4.7 },
+    { name: 'Dr. Amira Math G', domain: 'Général', expertise: 'Maths', rating: 4.9 },
+    { name: 'Dr. Sophie Physique G', domain: 'Général', expertise: 'Physique', rating: 4.8 },
+    { name: 'Dr. Karim Info', domain: 'Général', expertise: 'Informatique', rating: 4.7 },
+    { name: 'Dr. Fatima Histoire G', domain: 'Général', expertise: 'Histoire', rating: 4.9 }
 ];
 
-var domainClass = { 'Islam': 'badge-islam', 'Médecine': 'badge-medecine', 'Pharmacie': 'badge-pharmacie', 'Chimie': 'badge-chimie', 'IA': 'badge-ia', 'IoT': 'badge-iot', 'GMAO': 'badge-gmao', 'Mécanique Pétrole': 'badge-meca', 'Gestion': 'badge-gestion', 'Expertise Comptable': 'badge-compta', 'Droit': 'badge-droit', 'Économie': 'badge-eco', 'Culture Générale': 'badge-culture', 'Art': 'badge-art', 'Architecture': 'badge-archi', 'Restauration': 'badge-resto', 'Général': 'badge-general' };
+async function loadData() {
+    try {
+        health = await (await fetch(API_URL + '/health')).json();
+        users = await (await fetch(API_URL + '/users')).json();
+        questions = await (await fetch(API_URL + '/questions')).json();
+        history = await (await fetch(API_URL + '/history')).json();
+        
+        var mongoEl = document.getElementById('mongoStatus');
+        if (health.mongodb === 'connected') {
+            mongoEl.textContent = '🍃 MongoDB Connecté';
+            mongoEl.style.background = '#22c55e';
+        } else {
+            mongoEl.textContent = '❌ MongoDB Déconnecté';
+            mongoEl.style.background = '#ef4444';
+        }
+        updateStats();
+    } catch(e) { console.error(e); }
+}
 
 function updateStats() {
     var totalAnswers = 0, claudeAnswers = 0;
-    for (var i = 0; i < questions.length; i++) {
-        if (questions[i].answers) for (var j = 0; j < questions[i].answers.length; j++) { totalAnswers++; if (questions[i].answers[j].isClaude) claudeAnswers++; }
-    }
+    questions.forEach(function(q) {
+        if (q.answers) q.answers.forEach(function(a) { totalAnswers++; if (a.isClaude) claudeAnswers++; });
+    });
     document.getElementById('statsContainer').innerHTML =
         '<div class="stat-card"><div class="stat-number">' + scholars.length + '</div><div class="stat-label">🎓 Scholars</div></div>' +
         '<div class="stat-card"><div class="stat-number">17</div><div class="stat-label">🌍 Domaines</div></div>' +
         '<div class="stat-card"><div class="stat-number">' + users.length + '</div><div class="stat-label">👤 Utilisateurs</div></div>' +
         '<div class="stat-card"><div class="stat-number">' + questions.length + '</div><div class="stat-label">📋 Questions</div></div>' +
         '<div class="stat-card"><div class="stat-number">' + totalAnswers + '</div><div class="stat-label">💬 Réponses</div></div>' +
-        '<div class="stat-card"><div class="stat-number" style="color:#8b5cf6;">' + claudeAnswers + '</div><div class="stat-label">🤖 Claude</div></div>';
+        '<div class="stat-card"><div class="stat-number">' + claudeAnswers + '</div><div class="stat-label">🤖 Claude</div></div>' +
+        '<div class="stat-card"><div class="stat-number">' + history.length + '</div><div class="stat-label">📜 Actions</div></div>';
 }
 
 function showTab(tab) {
-    var content = document.getElementById('content');
+    var c = document.getElementById('content');
     if (tab === 'scholars') {
-        var html = '<h3>🎓 Tous les Scholars (' + scholars.length + ')</h3><table><thead><tr><th>Nom</th><th>Domaine</th><th>Expertise</th><th>Littérature</th><th>Note</th></tr></thead><tbody>';
-        for (var i = 0; i < scholars.length; i++) {
-            var s = scholars[i];
-            var cls = domainClass[s.domain] || 'badge-general';
-            var litBadge = s.litCount > 0 ? '<span style="color:#22c55e;">📚 ' + s.litCount + '</span>' : '<span style="color:#ef4444;">📚 Aucune</span>';
-            html += '<tr><td>' + s.name + '</td><td><span class="badge ' + cls + '">' + s.domain + '</span></td><td>' + s.expertise + '</td><td>' + litBadge + '</td><td>⭐ ' + s.rating + '</td></tr>';
-        }
-        html += '</tbody></table>';
-        content.innerHTML = html;
+        var h = '<h3>🎓 Scholars (' + scholars.length + ')</h3><table><thead><tr><th>Nom</th><th>Domaine</th><th>Expertise</th><th>Note</th></tr></thead><tbody>';
+        scholars.forEach(function(s) {
+            h += '<tr><td>' + s.name + '</td><td><span class="badge">' + s.domain + '</span></td><td>' + s.expertise + '</td><td>⭐ ' + s.rating + '</td></tr>';
+        });
+        h += '</tbody></table>';
+        c.innerHTML = h;
     } else if (tab === 'questions') {
-        if (questions.length === 0) { content.innerHTML = '<p style="text-align:center;padding:30px;opacity:0.5;">Aucune question.</p>'; return; }
-        var html = '<h3>📋 Questions (' + questions.length + ')</h3><table><thead><tr><th>ID</th><th>Domaine</th><th>Titre</th><th>Auteur</th><th>Scholar</th><th>Statut</th><th>Réponses</th></tr></thead><tbody>';
-        for (var j = 0; j < questions.length; j++) {
-            var q = questions[j];
-            var cls = domainClass[q.domain] || 'badge-general';
-            var ansCount = q.answers ? q.answers.length : 0;
-            var scholarName = q.scholar ? q.scholar.name : 'Non assigné';
-            html += '<tr><td>' + q.id + '</td><td><span class="badge ' + cls + '">' + q.domain + '</span></td><td>' + q.title + '</td><td>' + q.username + '</td><td>' + scholarName + '</td><td>' + q.status + '</td><td>' + ansCount + '</td></tr>';
-        }
-        html += '</tbody></table>';
-        content.innerHTML = html;
+        if (questions.length === 0) { c.innerHTML = '<p style="text-align:center;padding:30px;opacity:0.5;">Aucune question.</p>'; return; }
+        var h = '<h3>📋 Questions (' + questions.length + ')</h3><table><thead><tr><th>Titre</th><th>Domaine</th><th>Auteur</th><th>Scholar</th><th>Statut</th><th>Réponses</th><th>Date</th></tr></thead><tbody>';
+        questions.forEach(function(q) {
+            var sn = q.scholar ? q.scholar.name : 'Non assigné';
+            var ac = q.answers ? q.answers.length : 0;
+            h += '<tr><td>' + q.title + '</td><td><span class="badge">' + q.domain + '</span></td><td>' + q.username + '</td><td>' + sn + '</td><td>' + q.status + '</td><td>' + ac + '</td><td>' + (q.date || '') + '</td></tr>';
+        });
+        h += '</tbody></table>';
+        c.innerHTML = h;
     } else if (tab === 'claude') {
-        var claudeAnswersList = [];
-        for (var k = 0; k < questions.length; k++) {
-            if (questions[k].answers) for (var m = 0; m < questions[k].answers.length; m++) if (questions[k].answers[m].isClaude) claudeAnswersList.push({ question: questions[k], answer: questions[k].answers[m] });
-        }
-        var html = '<h3>🤖 Réponses du Juge Claude (' + claudeAnswersList.length + ')</h3>';
-        if (claudeAnswersList.length === 0) html += '<p style="text-align:center;padding:30px;opacity:0.5;">Aucune réponse Claude.</p>';
-        else {
-            for (var n = 0; n < claudeAnswersList.length; n++) {
-                var item = claudeAnswersList[n];
-                var reason = item.answer.claudeReason === 'no_literature' ? '❌ Sans littérature' : '⏱️ Timeout 5 min';
-                html += '<div style="background:linear-gradient(135deg,rgba(139,92,246,0.1),rgba(236,72,153,0.05));padding:15px;border-radius:10px;margin:10px 0;border-left:4px solid #8b5cf6;"><strong>Q#' + item.question.id + ' : ' + item.question.title + '</strong> <span class="badge badge-claude">' + reason + '</span><div style="margin-top:10px;white-space:pre-wrap;font-size:12px;">' + item.answer.content + '</div><div style="margin-top:10px;opacity:0.6;font-size:11px;">📅 ' + item.answer.date + '</div></div>';
-            }
-        }
-        content.innerHTML = html;
+        var list = [];
+        questions.forEach(function(q) { if (q.answers) q.answers.forEach(function(a) { if (a.isClaude) list.push({ q: q, a: a }); }); });
+        var h = '<h3>🤖 Réponses Claude (' + list.length + ')</h3>';
+        if (list.length === 0) h += '<p style="text-align:center;padding:30px;opacity:0.5;">Aucune réponse Claude.</p>';
+        else list.forEach(function(item) {
+            var r = item.a.claudeReason === 'no_literature' ? '❌ Sans littérature' : '⏱️ Timeout 5 min';
+            h += '<div style="background:linear-gradient(135deg,rgba(139,92,246,0.1),rgba(236,72,153,0.05));padding:15px;border-radius:10px;margin:10px 0;border-left:4px solid #8b5cf6;"><strong>' + item.q.title + '</strong> <span class="badge badge-claude">' + r + '</span><div style="margin-top:10px;white-space:pre-wrap;font-size:12px;">' + item.a.content + '</div></div>';
+        });
+        c.innerHTML = h;
     } else if (tab === 'users') {
-        var html = '<h3>👤 Utilisateurs (' + users.length + ')</h3><table><thead><tr><th>ID</th><th>Nom</th><th>Email</th><th>Rôle</th></tr></thead><tbody>';
-        for (var p = 0; p < users.length; p++) {
-            var u = users[p];
-            html += '<tr><td>' + u.id + '</td><td>' + u.username + '</td><td>' + u.email + '</td><td>' + (u.role || 'user') + '</td></tr>';
+        var h = '<h3>👤 Utilisateurs (' + users.length + ')</h3><table><thead><tr><th>ID</th><th>Nom</th><th>Email</th><th>Rôle</th><th>Inscrit</th></tr></thead><tbody>';
+        users.forEach(function(u) {
+            h += '<tr><td>' + (u._id || u.id) + '</td><td>' + u.username + '</td><td>' + u.email + '</td><td>' + u.role + '</td><td>' + (u.createdAt ? new Date(u.createdAt).toLocaleString('fr-FR') : '-') + '</td></tr>';
+        });
+        h += '</tbody></table>';
+        c.innerHTML = h;
+    } else if (tab === 'history') {
+        var h = '<h3>📜 Historique complet (' + history.length + ')</h3>';
+        if (history.length === 0) h += '<p style="text-align:center;padding:30px;opacity:0.5;">Aucune action.</p>';
+        else {
+            h += '<table><thead><tr><th>Utilisateur</th><th>Action</th><th>Détails</th><th>Date</th></tr></thead><tbody>';
+            history.slice(0, 200).forEach(function(e) {
+                h += '<tr><td>' + e.username + '</td><td>' + e.action + '</td><td>' + JSON.stringify(e.data).substring(0, 50) + '</td><td>' + (e.date || '') + '</td></tr>';
+            });
+            h += '</tbody></table>';
         }
-        html += '</tbody></table>';
-        content.innerHTML = html;
+        c.innerHTML = h;
     }
 }
 
-updateStats();
-showTab('scholars');
+loadData().then(function() { showTab('scholars'); });
 </script>
 </body>
 </html>
