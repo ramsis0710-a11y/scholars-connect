@@ -8,21 +8,28 @@ const PORT = process.env.PORT || 3000;
 const MONGODB_URI = process.env.MONGODB_URI;
 
 if (!MONGODB_URI) {
-    console.error('❌ MONGODB_URI non définie dans .env');
+    console.error('❌ MONGODB_URI non définie');
     process.exit(1);
 }
 
-mongoose.connect(MONGODB_URI)
+// Connexion MongoDB avec gestion d'erreurs
+mongoose.connect(MONGODB_URI, {
+    serverSelectionTimeoutMS: 30000,
+    socketTimeoutMS: 45000,
+    family: 4
+})
     .then(() => console.log('✅ MongoDB Atlas connecté'))
-    .catch(err => console.error('❌ MongoDB error:', err.message));
+    .catch(err => {
+        console.error('❌ MongoDB error:', err.message);
+    });
 
 // ============================================================
-// SCHÉMAS MONGOOSE
+// SCHÉMAS
 // ============================================================
 const UserSchema = new mongoose.Schema({
-    username: { type: String, required: true },
-    email: { type: String, required: true, unique: true },
-    password: { type: String, required: true },
+    username: String,
+    email: { type: String, unique: true },
+    password: String,
     role: { type: String, default: 'user' },
     language: { type: String, default: 'fr' },
     domain: { type: String, default: 'Général' },
@@ -43,8 +50,8 @@ const AnswerSchema = new mongoose.Schema({
 });
 
 const QuestionSchema = new mongoose.Schema({
-    title: { type: String, required: true },
-    content: { type: String, required: true },
+    title: String,
+    content: String,
     domain: String,
     category: String,
     username: String,
@@ -70,8 +77,8 @@ const User = mongoose.model('User', UserSchema);
 const Question = mongoose.model('Question', QuestionSchema);
 const History = mongoose.model('History', HistorySchema);
 
-// Init admin
-(async () => {
+// Init admin (avec retry)
+async function initAdmin(retries = 5) {
     try {
         const existing = await User.findOne({ email: 'admin@scholars-connect.com' });
         if (!existing) {
@@ -82,10 +89,20 @@ const History = mongoose.model('History', HistorySchema);
                 role: 'admin',
                 domain: 'Général'
             });
-            console.log('✅ Admin créé dans MongoDB');
+            console.log('✅ Admin créé');
         }
-    } catch (e) { console.error('Init admin:', e.message); }
-})();
+    } catch (e) {
+        console.error('Init admin tentative ' + (6 - retries) + ': ' + e.message);
+        if (retries > 0) {
+            setTimeout(() => initAdmin(retries - 1), 5000);
+        }
+    }
+}
+
+// Attendre la connexion avant d'initialiser
+mongoose.connection.once('connected', () => {
+    initAdmin();
+});
 
 // ============================================================
 // MIDDLEWARE
@@ -94,14 +111,11 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
 // ============================================================
-// ROUTES HTML
+// ROUTES
 // ============================================================
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
 app.get('/admin', (req, res) => res.sendFile(path.join(__dirname, 'public', 'admin.html')));
 
-// ============================================================
-// API - AUTH
-// ============================================================
 app.post('/api/login', async (req, res) => {
     try {
         const user = await User.findOne({ email: req.body.email, password: req.body.password });
@@ -124,9 +138,6 @@ app.get('/api/users', async (req, res) => {
     catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// ============================================================
-// API - QUESTIONS
-// ============================================================
 app.get('/api/questions', async (req, res) => {
     try { res.json(await Question.find().sort({ timestamp: -1 })); }
     catch (e) { res.status(500).json({ error: e.message }); }
@@ -149,9 +160,6 @@ app.post('/api/questions/:id/answers', async (req, res) => {
     } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// ============================================================
-// API - HISTORIQUE
-// ============================================================
 app.get('/api/history', async (req, res) => {
     try { res.json(await History.find().sort({ timestamp: -1 }).limit(500)); }
     catch (e) { res.status(500).json({ error: e.message }); }
@@ -167,9 +175,6 @@ app.post('/api/history', async (req, res) => {
     catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// ============================================================
-// API - SANTÉ
-// ============================================================
 app.get('/api/health', async (req, res) => {
     try {
         res.json({
@@ -180,7 +185,13 @@ app.get('/api/health', async (req, res) => {
             history: await History.countDocuments(),
             timestamp: new Date().toISOString()
         });
-    } catch (e) { res.status(500).json({ error: e.message }); }
+    } catch (e) {
+        res.json({
+            status: 'error',
+            mongodb: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected',
+            error: e.message
+        });
+    }
 });
 
 // ============================================================
@@ -190,6 +201,5 @@ app.listen(PORT, '0.0.0.0', () => {
     console.log('==========================================');
     console.log('  Scholars Connect - MongoDB Atlas');
     console.log('  URL: http://localhost:' + PORT);
-    console.log('  🍃 Base: MongoDB Atlas PERMANENTE');
     console.log('==========================================');
 });
