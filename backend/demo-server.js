@@ -23,7 +23,7 @@ if (GEMINI_API_KEY) {
     try {
         const { GoogleGenerativeAI } = require('@google/generative-ai');
         genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
-        geminiModel = genAI.getGenerativeModel({ model: 'gemini-2.0-flash-exp' });
+        geminiModel = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
         console.log('Gemini API initialisée');
     } catch (e) {
         console.error('Erreur Gemini init:', e.message);
@@ -422,4 +422,5 @@ app.listen(PORT, '0.0.0.0', function() {
     console.log('  Gemini: ' + (geminiModel ? 'Actif' : 'Inactif'));
     console.log('==========================================');
 });
+
 
