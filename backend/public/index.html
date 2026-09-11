@@ -21,6 +21,7 @@ body { font-family:'Segoe UI',system-ui,sans-serif; background:#0a0e27; color:#f
 .btn-secondary { background:rgba(255,255,255,0.1); color:white; }
 .btn-admin { background:#f59e0b; color:#0a0e27; }
 .btn-voice { background:linear-gradient(135deg,#8b5cf6,#ec4899); color:white; }
+.btn-pause { background:#f59e0b; color:#0a0e27; }
 .btn:hover { transform:scale(1.05); opacity:0.9; }
 .categories-nav { display:flex; gap:8px; padding:15px 0; flex-wrap:wrap; border-bottom:1px solid rgba(255,255,255,0.05); overflow-x:auto; }
 .cat-btn { padding:6px 12px; border-radius:20px; border:1px solid rgba(255,255,255,0.15); background:transparent; color:white; cursor:pointer; font-size:11px; transition:0.3s; white-space:nowrap; }
@@ -64,6 +65,7 @@ body { font-family:'Segoe UI',system-ui,sans-serif; background:#0a0e27; color:#f
 .notification.success { background:#22c55e; color:#0a0e27; display:block; }
 .notification.error { background:#ef4444; color:white; display:block; }
 .notification.info { background:#3b82f6; color:white; display:block; }
+.notification.warning { background:#f59e0b; color:#0a0e27; display:block; }
 .badge { display:inline-block; padding:2px 12px; border-radius:20px; font-size:11px; font-weight:600; }
 .badge-pending { background:#eab308; color:#0a0e27; }
 .badge-answered { background:#22c55e; color:#0a0e27; }
@@ -72,7 +74,9 @@ body { font-family:'Segoe UI',system-ui,sans-serif; background:#0a0e27; color:#f
 .scholar-card { background:rgba(255,255,255,0.05); padding:15px; border-radius:10px; border:1px solid rgba(255,255,255,0.1); }
 .claude-response { white-space:pre-wrap; line-height:1.7; font-size:14px; }
 .speak-btn { background:#3b82f6; color:white; border:none; padding:6px 12px; border-radius:8px; font-size:11px; cursor:pointer; margin-right:5px; }
+.pause-btn { background:#f59e0b; color:#0a0e27; border:none; padding:6px 12px; border-radius:8px; font-size:11px; cursor:pointer; margin-right:5px; }
 .stop-btn { background:#ef4444; color:white; border:none; padding:6px 12px; border-radius:8px; font-size:11px; cursor:pointer; }
+.speak-controls { margin-top:8px; display:flex; gap:5px; flex-wrap:wrap; }
 @media (max-width:600px) { .header { flex-direction:column; align-items:stretch; } }
 </style>
 </head>
@@ -211,19 +215,26 @@ var API_URL = window.location.origin + '/api';
 var currentUser = null;
 var questions = [];
 var currentFilter = 'all';
-var SESSION_KEY = 'sc_session_v5';
+var SESSION_KEY = 'sc_session_v6';
 var currentLanguage = 'fr';
 var recognition = null;
 var isListening = false;
+var speechQueue = [];
+var currentSpeechIndex = 0;
+var isSpeaking = false;
+var isPaused = false;
 
+// ============================================================
+// TRADUCTIONS (7 LANGUES)
+// ============================================================
 var TRANSLATIONS = {
-    'fr': { 'subtitle': "Plateforme d'entraide académique multilingue", 'login': 'Connexion', 'register': 'Inscription', 'logout': 'Déconnexion', 'admin': 'Admin', 'new_question': 'Poser une question', 'refresh': 'Rafraîchir', 'scholars': 'Scholars', 'history': 'Historique', 'qr': 'QR Code', 'online': 'En ligne', 'visitor': 'Visiteur', 'voice_title': 'Mode Vocal', 'voice_desc': "Dictez votre question - L'IA remplira le titre et le domaine", 'voice_btn': 'Démarrer la dictée vocale', 'voice_stop': 'Arrêter', 'or_manual': 'OU remplissez manuellement', 'domain': 'Domaine', 'speciality': 'Spécialité', 'title': 'Titre (auto-rempli)', 'content': 'Contenu', 'content_ph': 'Votre question...', 'analyze': 'Analyser avec l\'IA', 'publish': 'Publier', 'close': 'Fermer', 'email': 'Email', 'password': 'Mot de passe', 'username': 'Nom d\'utilisateur', 'login_title': 'Connexion', 'register_title': 'Inscription', 'question_title': 'Poser une question', 'history_title': 'Mon historique', 'domain_int': 'Domaine d\'intérêt' },
-    'ar': { 'subtitle': 'منصة المساعدة الأكاديمية', 'login': 'تسجيل الدخول', 'register': 'إنشاء حساب', 'logout': 'تسجيل الخروج', 'admin': 'لوحة التحكم', 'new_question': 'طرح سؤال', 'refresh': 'تحديث', 'scholars': 'العلماء', 'history': 'السجل', 'qr': 'رمز QR', 'online': 'متصل', 'visitor': 'زائر', 'voice_title': 'الوضع الصوتي', 'voice_desc': 'أملِ سؤالك', 'voice_btn': 'بدء الإملاء الصوتي', 'voice_stop': 'إيقاف', 'or_manual': 'أو املأ يدوياً', 'domain': 'المجال', 'speciality': 'التخصص', 'title': 'العنوان', 'content': 'المحتوى', 'content_ph': 'سؤالك...', 'analyze': 'تحليل بالذكاء الاصطناعي', 'publish': 'نشر', 'close': 'إغلاق', 'email': 'البريد', 'password': 'كلمة المرور', 'username': 'اسم المستخدم', 'login_title': 'تسجيل الدخول', 'register_title': 'إنشاء حساب', 'question_title': 'طرح سؤال', 'history_title': 'سجلي', 'domain_int': 'المجال المفضل' },
-    'en': { 'subtitle': 'Academic Help Platform', 'login': 'Login', 'register': 'Sign Up', 'logout': 'Logout', 'admin': 'Admin', 'new_question': 'Ask a Question', 'refresh': 'Refresh', 'scholars': 'Scholars', 'history': 'History', 'qr': 'QR Code', 'online': 'Online', 'visitor': 'Visitor', 'voice_title': 'Voice Mode', 'voice_desc': 'Dictate your question', 'voice_btn': 'Start Voice Input', 'voice_stop': 'Stop', 'or_manual': 'OR fill manually', 'domain': 'Domain', 'speciality': 'Specialty', 'title': 'Title', 'content': 'Content', 'content_ph': 'Your question...', 'analyze': 'Analyze with AI', 'publish': 'Publish', 'close': 'Close', 'email': 'Email', 'password': 'Password', 'username': 'Username', 'login_title': 'Login', 'register_title': 'Sign Up', 'question_title': 'Ask a Question', 'history_title': 'My History', 'domain_int': 'Interest Domain' },
-    'es': { 'subtitle': 'Plataforma de Ayuda Académica', 'login': 'Iniciar Sesión', 'register': 'Registrarse', 'logout': 'Salir', 'admin': 'Admin', 'new_question': 'Hacer Pregunta', 'refresh': 'Actualizar', 'scholars': 'Eruditos', 'history': 'Historial', 'qr': 'Código QR', 'online': 'En línea', 'visitor': 'Visitante', 'voice_title': 'Modo de Voz', 'voice_desc': 'Dicte su pregunta', 'voice_btn': 'Iniciar Dictado', 'voice_stop': 'Detener', 'or_manual': 'O complete manualmente', 'domain': 'Dominio', 'speciality': 'Especialidad', 'title': 'Título', 'content': 'Contenido', 'content_ph': 'Su pregunta...', 'analyze': 'Analizar con IA', 'publish': 'Publicar', 'close': 'Cerrar', 'email': 'Correo', 'password': 'Contraseña', 'username': 'Usuario', 'login_title': 'Iniciar Sesión', 'register_title': 'Registrarse', 'question_title': 'Hacer Pregunta', 'history_title': 'Mi Historial', 'domain_int': 'Dominio de interés' },
-    'de': { 'subtitle': 'Akademische Hilfe', 'login': 'Anmelden', 'register': 'Registrieren', 'logout': 'Abmelden', 'admin': 'Admin', 'new_question': 'Frage stellen', 'refresh': 'Aktualisieren', 'scholars': 'Gelehrte', 'history': 'Verlauf', 'qr': 'QR-Code', 'online': 'Online', 'visitor': 'Besucher', 'voice_title': 'Sprachmodus', 'voice_desc': 'Diktieren Sie Ihre Frage', 'voice_btn': 'Spracheingabe starten', 'voice_stop': 'Stopp', 'or_manual': 'ODER manuell', 'domain': 'Bereich', 'speciality': 'Fachgebiet', 'title': 'Titel', 'content': 'Inhalt', 'content_ph': 'Ihre Frage...', 'analyze': 'Mit KI analysieren', 'publish': 'Veröffentlichen', 'close': 'Schließen', 'email': 'E-Mail', 'password': 'Passwort', 'username': 'Benutzername', 'login_title': 'Anmelden', 'register_title': 'Registrieren', 'question_title': 'Frage stellen', 'history_title': 'Mein Verlauf', 'domain_int': 'Interessenbereich' },
-    'it': { 'subtitle': 'Piattaforma di Aiuto', 'login': 'Accedi', 'register': 'Registrati', 'logout': 'Esci', 'admin': 'Admin', 'new_question': 'Fai una Domanda', 'refresh': 'Aggiorna', 'scholars': 'Studiosi', 'history': 'Cronologia', 'qr': 'Codice QR', 'online': 'Online', 'visitor': 'Visitatore', 'voice_title': 'Modalità Vocale', 'voice_desc': 'Dettare la domanda', 'voice_btn': 'Avvia Dettatura', 'voice_stop': 'Ferma', 'or_manual': 'O manualmente', 'domain': 'Dominio', 'speciality': 'Specialità', 'title': 'Titolo', 'content': 'Contenuto', 'content_ph': 'La tua domanda...', 'analyze': 'Analizza con IA', 'publish': 'Pubblica', 'close': 'Chiudi', 'email': 'Email', 'password': 'Password', 'username': 'Nome utente', 'login_title': 'Accedi', 'register_title': 'Registrati', 'question_title': 'Fai una Domanda', 'history_title': 'Mia Cronologia', 'domain_int': 'Dominio di interesse' },
-    'pt': { 'subtitle': 'Plataforma de Ajuda', 'login': 'Entrar', 'register': 'Registrar', 'logout': 'Sair', 'admin': 'Admin', 'new_question': 'Fazer Pergunta', 'refresh': 'Atualizar', 'scholars': 'Eruditos', 'history': 'Histórico', 'qr': 'Código QR', 'online': 'Online', 'visitor': 'Visitante', 'voice_title': 'Modo de Voz', 'voice_desc': 'Dite a sua pergunta', 'voice_btn': 'Iniciar Ditado', 'voice_stop': 'Parar', 'or_manual': 'OU manualmente', 'domain': 'Domínio', 'speciality': 'Especialidade', 'title': 'Título', 'content': 'Conteúdo', 'content_ph': 'A sua pergunta...', 'analyze': 'Analisar com IA', 'publish': 'Publicar', 'close': 'Fechar', 'email': 'Email', 'password': 'Senha', 'username': 'Nome de usuário', 'login_title': 'Entrar', 'register_title': 'Registrar', 'question_title': 'Fazer Pergunta', 'history_title': 'Meu Histórico', 'domain_int': 'Domínio de interesse' }
+    'fr': { 'subtitle': "Plateforme d'entraide académique multilingue", 'login': 'Connexion', 'register': 'Inscription', 'logout': 'Déconnexion', 'admin': 'Admin', 'new_question': 'Poser une question', 'voice_title': 'Mode Vocal', 'voice_desc': "Dictez votre question - L'IA remplira le titre", 'voice_btn': 'Démarrer la dictée vocale', 'voice_stop': 'Arrêter', 'or_manual': 'OU remplissez manuellement', 'domain': 'Domaine', 'speciality': 'Spécialité', 'title': 'Titre (auto-rempli)', 'content': 'Contenu', 'analyze': 'Analyser avec l\'IA', 'publish': 'Publier', 'close': 'Fermer', 'password': 'Mot de passe', 'username': 'Nom d\'utilisateur', 'login_title': 'Connexion', 'register_title': 'Inscription', 'question_title': 'Poser une question', 'history_title': 'Mon historique', 'domain_int': 'Domaine d\'intérêt', 'online': 'En ligne', 'visitor': 'Visiteur' },
+    'ar': { 'subtitle': 'منصة المساعدة الأكاديمية', 'login': 'تسجيل الدخول', 'register': 'إنشاء حساب', 'logout': 'خروج', 'admin': 'لوحة التحكم', 'new_question': 'طرح سؤال', 'voice_title': 'الوضع الصوتي', 'voice_desc': 'أملِ سؤالك', 'voice_btn': 'بدء الإملاء', 'voice_stop': 'إيقاف', 'or_manual': 'أو املأ يدوياً', 'domain': 'المجال', 'speciality': 'التخصص', 'title': 'العنوان', 'content': 'المحتوى', 'analyze': 'تحليل بالذكاء', 'publish': 'نشر', 'close': 'إغلاق', 'password': 'كلمة المرور', 'username': 'اسم المستخدم', 'login_title': 'دخول', 'register_title': 'إنشاء حساب', 'question_title': 'طرح سؤال', 'history_title': 'سجلي', 'domain_int': 'المجال المفضل', 'online': 'متصل', 'visitor': 'زائر' },
+    'en': { 'subtitle': 'Academic Help Platform', 'login': 'Login', 'register': 'Sign Up', 'logout': 'Logout', 'admin': 'Admin', 'new_question': 'Ask Question', 'voice_title': 'Voice Mode', 'voice_desc': 'Dictate your question', 'voice_btn': 'Start Voice', 'voice_stop': 'Stop', 'or_manual': 'OR fill manually', 'domain': 'Domain', 'speciality': 'Specialty', 'title': 'Title', 'content': 'Content', 'analyze': 'Analyze with AI', 'publish': 'Publish', 'close': 'Close', 'password': 'Password', 'username': 'Username', 'login_title': 'Login', 'register_title': 'Sign Up', 'question_title': 'Ask Question', 'history_title': 'My History', 'domain_int': 'Interest Domain', 'online': 'Online', 'visitor': 'Visitor' },
+    'es': { 'subtitle': 'Plataforma Académica', 'login': 'Iniciar', 'register': 'Registrarse', 'logout': 'Salir', 'admin': 'Admin', 'new_question': 'Hacer Pregunta', 'voice_title': 'Modo Voz', 'voice_desc': 'Dicte su pregunta', 'voice_btn': 'Iniciar Dictado', 'voice_stop': 'Detener', 'or_manual': 'O complete', 'domain': 'Dominio', 'speciality': 'Especialidad', 'title': 'Título', 'content': 'Contenido', 'analyze': 'Analizar IA', 'publish': 'Publicar', 'close': 'Cerrar', 'password': 'Contraseña', 'username': 'Usuario', 'login_title': 'Iniciar', 'register_title': 'Registrarse', 'question_title': 'Pregunta', 'history_title': 'Historial', 'domain_int': 'Dominio', 'online': 'En línea', 'visitor': 'Visitante' },
+    'de': { 'subtitle': 'Akademische Hilfe', 'login': 'Anmelden', 'register': 'Registrieren', 'logout': 'Abmelden', 'admin': 'Admin', 'new_question': 'Frage', 'voice_title': 'Sprachmodus', 'voice_desc': 'Diktieren', 'voice_btn': 'Sprache starten', 'voice_stop': 'Stopp', 'or_manual': 'ODER manuell', 'domain': 'Bereich', 'speciality': 'Fach', 'title': 'Titel', 'content': 'Inhalt', 'analyze': 'KI analysieren', 'publish': 'Senden', 'close': 'Schließen', 'password': 'Passwort', 'username': 'Benutzer', 'login_title': 'Anmelden', 'register_title': 'Registrieren', 'question_title': 'Frage', 'history_title': 'Verlauf', 'domain_int': 'Bereich', 'online': 'Online', 'visitor': 'Besucher' },
+    'it': { 'subtitle': 'Piattaforma Accademica', 'login': 'Accedi', 'register': 'Registrati', 'logout': 'Esci', 'admin': 'Admin', 'new_question': 'Domanda', 'voice_title': 'Modalità Vocale', 'voice_desc': 'Dettare', 'voice_btn': 'Avvia', 'voice_stop': 'Ferma', 'or_manual': 'O manuale', 'domain': 'Dominio', 'speciality': 'Specialità', 'title': 'Titolo', 'content': 'Contenuto', 'analyze': 'Analizza IA', 'publish': 'Pubblica', 'close': 'Chiudi', 'password': 'Password', 'username': 'Utente', 'login_title': 'Accedi', 'register_title': 'Registrati', 'question_title': 'Domanda', 'history_title': 'Cronologia', 'domain_int': 'Dominio', 'online': 'Online', 'visitor': 'Visitatore' },
+    'pt': { 'subtitle': 'Plataforma Acadêmica', 'login': 'Entrar', 'register': 'Registrar', 'logout': 'Sair', 'admin': 'Admin', 'new_question': 'Pergunta', 'voice_title': 'Modo Voz', 'voice_desc': 'Ditar', 'voice_btn': 'Iniciar', 'voice_stop': 'Parar', 'or_manual': 'OU manual', 'domain': 'Domínio', 'speciality': 'Especialidade', 'title': 'Título', 'content': 'Conteúdo', 'analyze': 'Analisar IA', 'publish': 'Publicar', 'close': 'Fechar', 'password': 'Senha', 'username': 'Usuário', 'login_title': 'Entrar', 'register_title': 'Registrar', 'question_title': 'Pergunta', 'history_title': 'Histórico', 'domain_int': 'Domínio', 'online': 'Online', 'visitor': 'Visitante' }
 };
 
 function changeLanguage(lang) {
@@ -267,16 +278,19 @@ function applyTranslations() {
     set('labelPassword2', t.password);
     set('labelUsername', t.username);
     set('labelDomainReg', t.domain_int);
-    var qContent = document.getElementById('qContent');
-    if (qContent) qContent.placeholder = t.content_ph;
 }
 
 function saveSession() { try { localStorage.setItem(SESSION_KEY, JSON.stringify(currentUser)); } catch(e) {} }
 function loadSession() { try { var d = localStorage.getItem(SESSION_KEY); return d ? JSON.parse(d) : null; } catch(e) { return null; } }
 
+// ============================================================
+// SCHOLARS
+// ============================================================
 var scholarsData = [
     { id: 1, name: 'Dr. Ahmed Al-Faqih', domain: 'Islam', expertise: 'Fiqh (Jurisprudence)', languages: ['ar','fr','en'], rating: 4.9, literature: ['Fiqh al-Islami'] },
+    { id: 3, name: 'Dr. Omar Al-Hadith', domain: 'Islam', expertise: 'Hadith (Prophétique)', languages: ['ar','en'], rating: 4.9, literature: ['Sahih Bukhari'] },
     { id: 7, name: 'Dr. Marie Dupont', domain: 'Médecine', expertise: 'Cardiologie', languages: ['fr','en'], rating: 4.9, literature: ['Harrison Cardiology'] },
+    { id: 9, name: 'Dr. Sophie Martin', domain: 'Médecine', expertise: 'Pédiatrie', languages: ['fr','en'], rating: 4.9, literature: ['Nelson Pediatrics'] },
     { id: 12, name: 'Dr. Isabelle Rousseau', domain: 'Pharmacie', expertise: 'Pharmacologie clinique', languages: ['fr','en'], rating: 4.8, literature: ['Goodman & Gilman'] },
     { id: 15, name: 'Dr. Pierre Laurent', domain: 'Chimie', expertise: 'Chimie organique', languages: ['fr','en'], rating: 4.8, literature: ['Clayden'] },
     { id: 18, name: 'Dr. Yann LeCun Jr.', domain: 'IA', expertise: 'Deep Learning', languages: ['fr','en'], rating: 5.0, literature: ['Deep Learning'] },
@@ -326,6 +340,9 @@ async function apiPost(endpoint, data) {
     } catch(e) { return null; }
 }
 
+// ============================================================
+// SAISIE VOCALE (RECONNAISSANCE)
+// ============================================================
 function initVoice() {
     var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SR) { alert('Reconnaissance vocale non supportée. Utilisez Chrome/Edge.'); return null; }
@@ -355,7 +372,7 @@ function startVoiceInput() {
         var transcript = '';
         for (var i = event.resultIndex; i < event.results.length; i++) transcript += event.results[i][0].transcript;
         document.getElementById('qContent').value = transcript;
-        statusEl.innerHTML = '📝 ' + transcript.substring(0, 80);
+        statusEl.innerHTML = '📝 ' + transcript.substring(0, 100);
     };
     
     recognition.onerror = function(e) { statusEl.innerHTML = '❌ Erreur: ' + e.error; };
@@ -370,18 +387,140 @@ function startVoiceInput() {
     recognition.start();
 }
 
+// ============================================================
+// LECTURE VOCALE INTÉGRALE
+// ============================================================
 function speakText(text, language) {
-    if (!('speechSynthesis' in window)) { alert('Synthèse vocale non supportée'); return; }
+    if (!('speechSynthesis' in window)) { 
+        alert('❌ Synthèse vocale non supportée'); 
+        return; 
+    }
+    
     window.speechSynthesis.cancel();
-    var utterance = new SpeechSynthesisUtterance(text);
+    speechQueue = [];
+    currentSpeechIndex = 0;
+    isPaused = false;
+    
+    // Nettoyer le texte
+    var cleanText = text
+        .replace(/[\u{1F300}-\u{1F9FF}]/gu, '')
+        .replace(/[\u{2600}-\u{26FF}]/gu, '')
+        .replace(/[━─=]/g, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+    
+    if (!cleanText) {
+        showNotification('⚠️ Aucun texte à lire', 'warning');
+        return;
+    }
+    
+    // Découper en segments
+    var sentences = cleanText.split(/(?<=[.!?])\s+/);
+    var currentSegment = '';
+    var segments = [];
+    
+    for (var i = 0; i < sentences.length; i++) {
+        var sentence = sentences[i].trim();
+        if (!sentence) continue;
+        
+        if ((currentSegment + ' ' + sentence).length > 200) {
+            if (currentSegment) segments.push(currentSegment.trim());
+            currentSegment = sentence;
+        } else {
+            currentSegment = currentSegment ? currentSegment + ' ' + sentence : sentence;
+        }
+    }
+    if (currentSegment) segments.push(currentSegment.trim());
+    
+    if (segments.length === 0) segments = [cleanText];
+    
+    speechQueue = segments;
+    currentSpeechIndex = 0;
+    isSpeaking = true;
+    
     var langMap = { 'fr':'fr-FR', 'ar':'ar-SA', 'en':'en-US', 'es':'es-ES', 'de':'de-DE', 'it':'it-IT', 'pt':'pt-PT' };
-    utterance.lang = langMap[language] || 'fr-FR';
-    utterance.rate = 0.9;
-    window.speechSynthesis.speak(utterance);
+    var targetLang = langMap[language] || 'fr-FR';
+    
+    var voices = window.speechSynthesis.getVoices();
+    var selectedVoice = null;
+    for (var v = 0; v < voices.length; v++) {
+        if (voices[v].lang === targetLang) { selectedVoice = voices[v]; break; }
+    }
+    
+    showNotification('🔊 Lecture (' + segments.length + ' segments)...', 'info');
+    
+    function speakNext() {
+        if (currentSpeechIndex >= speechQueue.length) {
+            isSpeaking = false;
+            isPaused = false;
+            showNotification('✅ Lecture terminée', 'success');
+            return;
+        }
+        
+        if (isPaused) {
+            setTimeout(speakNext, 500);
+            return;
+        }
+        
+        var segment = speechQueue[currentSpeechIndex];
+        var utterance = new SpeechSynthesisUtterance(segment);
+        utterance.lang = targetLang;
+        utterance.rate = 0.9;
+        if (selectedVoice) utterance.voice = selectedVoice;
+        
+        utterance.onend = function() {
+            currentSpeechIndex++;
+            setTimeout(speakNext, 100);
+        };
+        
+        utterance.onerror = function() {
+            currentSpeechIndex++;
+            setTimeout(speakNext, 100);
+        };
+        
+        window.speechSynthesis.speak(utterance);
+    }
+    
+    speakNext();
 }
 
-function stopSpeaking() { if ('speechSynthesis' in window) window.speechSynthesis.cancel(); }
+function pauseSpeaking() {
+    if (!('speechSynthesis' in window)) return;
+    
+    if (isPaused) {
+        // Reprendre
+        isPaused = false;
+        window.speechSynthesis.resume();
+        showNotification('▶️ Lecture reprise', 'info');
+    } else {
+        // Pause
+        isPaused = true;
+        window.speechSynthesis.pause();
+        showNotification('⏸️ Lecture en pause', 'warning');
+    }
+}
 
+function stopSpeaking() {
+    if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+        speechQueue = [];
+        currentSpeechIndex = 0;
+        isSpeaking = false;
+        isPaused = false;
+        showNotification('⏹️ Lecture arrêtée', 'info');
+    }
+}
+
+// Charger les voix
+if ('speechSynthesis' in window) {
+    window.speechSynthesis.onvoiceschanged = function() {
+        window.speechSynthesis.getVoices();
+    };
+}
+
+// ============================================================
+// AUTO-ANALYSE IA
+// ============================================================
 async function autoAnalyze() {
     var content = document.getElementById('qContent').value.trim();
     if (!content || content.length < 10) { showNotification('Saisissez d\'abord votre question', 'error'); return; }
@@ -427,7 +566,6 @@ async function initializeApp() {
     updateUI();
     applyTranslations();
     await loadQuestions();
-    if ('speechSynthesis' in window) window.speechSynthesis.onvoiceschanged = function() { window.speechSynthesis.getVoices(); };
     if (currentUser) showNotification('💾 ' + currentUser.username, 'success');
 }
 
@@ -568,7 +706,7 @@ function updateUI() {
         document.getElementById('userActions').style.display = 'none';
         document.getElementById('newQuestionBtn').style.display = 'none';
         document.getElementById('adminBtn').style.display = 'none';
-        document.getElementById('userRole').innerHTML = '👤 Visiteur';
+        document.getElementById('userRole').innerHTML = '👤 ' + (TRANSLATIONS[currentLanguage] ? TRANSLATIONS[currentLanguage].visitor : 'Visiteur');
     }
     document.getElementById('scholarCount').textContent = '🎓 ' + scholarsData.length + ' Scholars';
 }
@@ -590,7 +728,8 @@ async function renderHistory() {
             html += '<div class="answers-section"><strong>💬 ' + q.answers.length + ' réponses</strong>';
             q.answers.forEach(function(a) {
                 var cls = a.isClaude ? 'claude-answer' : (a.isScholarResponse ? 'scholar-answer' : '');
-                html += '<div class="answer-item ' + cls + '"><div class="claude-response">' + a.content + '</div><button class="speak-btn" onclick="speakText(this.previousElementSibling.textContent, \'fr\')">🔊 Écouter</button><button class="stop-btn" onclick="stopSpeaking()">⏹️</button></div>';
+                var textContent = a.content.replace(/"/g, '&quot;').replace(/\n/g, ' ');
+                html += '<div class="answer-item ' + cls + '"><div class="claude-response">' + a.content + '</div><div class="speak-controls"><button class="speak-btn" onclick="speakText(\'' + textContent.replace(/'/g, '\\\'') + '\', \'' + (a.language || 'fr') + '\')">🔊 Écouter</button><button class="pause-btn" onclick="pauseSpeaking()">⏸️ Pause</button><button class="stop-btn" onclick="stopSpeaking()">⏹️ Arrêter</button></div></div>';
             });
             html += '</div>';
         }
@@ -647,7 +786,8 @@ function renderQuestions() {
                 var aCls = a.isClaude ? 'claude-answer' : (a.isScholarResponse ? 'scholar-answer' : '');
                 var badge = '';
                 if (a.isClaude) { badge = '<span class="claude-badge">🤖 Juge Claude</span> '; if (a.claudeReason === 'no_literature') badge += '<span class="claude-status">Sans littérature</span>'; if (a.claudeReason === 'timeout_5min') badge += '<span class="timer-badge">⏱️ 5 min</span>'; }
-                answersHtml += '<div class="answer-item ' + aCls + '"><div style="margin-bottom:5px;">' + badge + '</div><div class="claude-response">' + a.content + '</div><div class="answer-meta">👤 ' + a.username + ' | ' + a.date + '</div><div style="margin-top:8px;"><button class="speak-btn" onclick="speakText(this.parentElement.previousElementSibling.textContent, \'' + (a.language || 'fr') + '\')">🔊 Écouter</button><button class="stop-btn" onclick="stopSpeaking()">⏹️ Arrêter</button></div></div>';
+                var textContent = a.content.replace(/"/g, '&quot;').replace(/\n/g, ' ');
+                answersHtml += '<div class="answer-item ' + aCls + '"><div style="margin-bottom:5px;">' + badge + '</div><div class="claude-response">' + a.content + '</div><div class="answer-meta">👤 ' + a.username + ' | ' + a.date + '</div><div class="speak-controls"><button class="speak-btn" onclick="speakText(\'' + textContent.replace(/'/g, '\\\'') + '\', \'' + (a.language || 'fr') + '\')">🔊 Écouter</button><button class="pause-btn" onclick="pauseSpeaking()">⏸️ Pause</button><button class="stop-btn" onclick="stopSpeaking()">⏹️ Arrêter</button></div></div>';
             });
             answersHtml += '</div>';
         } else answersHtml = '<div style="margin-top:10px;opacity:0.5;font-size:13px;">💬 En attente...</div>';
