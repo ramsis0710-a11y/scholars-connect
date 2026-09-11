@@ -89,10 +89,28 @@ body { font-family: 'Segoe UI', system-ui, sans-serif; background: #0a0e27; colo
 <span class="logo-sub">🎤 Vocal · 🤖 IA Gemini · 🍃 MongoDB · 📱 QR Code</span>
 </div>
 <div class="header-actions" id="authButtons">
+<select id="languageSelector" onchange="changeLanguage(this.value)" style="padding: 10px 15px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.2); background: rgba(255,255,255,0.1); color: white; font-size: 14px; font-weight: 600; cursor: pointer; outline: none; margin-right: 5px;">
+<option value="fr">🇫🇷 Français</option>
+<option value="ar">🇸🇦 العربية</option>
+<option value="en">🇬🇧 English</option>
+<option value="es">🇪🇸 Español</option>
+<option value="de">🇩🇪 Deutsch</option>
+<option value="it">🇮🇹 Italiano</option>
+<option value="pt">🇵🇹 Português</option>
+</select>
 <button class="btn btn-primary" onclick="showLogin()">🔐 Connexion</button>
 <button class="btn btn-success" onclick="showRegister()">📝 Inscription</button>
 </div>
 <div class="header-actions" id="userActions" style="display:none;">
+<select id="languageSelector2" onchange="changeLanguage(this.value)" style="padding: 10px 15px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.2); background: rgba(255,255,255,0.1); color: white; font-size: 14px; font-weight: 600; cursor: pointer; outline: none; margin-right: 5px;">
+<option value="fr">🇫🇷 Français</option>
+<option value="ar">🇸🇦 العربية</option>
+<option value="en">🇬🇧 English</option>
+<option value="es">🇪🇸 Español</option>
+<option value="de">🇩🇪 Deutsch</option>
+<option value="it">🇮🇹 Italiano</option>
+<option value="pt">🇵🇹 Português</option>
+</select>
 <span class="user-info" id="userDisplay"></span>
 <button class="btn btn-admin" onclick="goToAdmin()" id="adminBtn" style="display:none;">⚙️ Admin</button>
 <button class="btn btn-danger" onclick="logout()">🚪 Déconnexion</button>
@@ -462,8 +480,350 @@ function showNotification(msg, type) {
 // ============================================================
 // INITIALISATION
 // ============================================================
-async function initializeApp() {
+async 
+// ============================================================
+// SYSTÈME DE TRADUCTION MULTILINGUE
+// ============================================================
+var TRANSLATIONS = {
+    'fr': {
+        'app_name': 'Scholars Connect',
+        'subtitle': 'Plateforme d\'entraide académique',
+        'login': 'Connexion',
+        'register': 'Inscription',
+        'logout': 'Déconnexion',
+        'admin': 'Admin',
+        'new_question': 'Poser une question',
+        'refresh': 'Rafraîchir',
+        'scholars': 'Scholars',
+        'history': 'Historique',
+        'qr_code': 'QR Code',
+        'online': 'En ligne',
+        'visitor': 'Visiteur',
+        'questions': 'questions',
+        'ask_question': 'Poser une question',
+        'question_form': 'Poser une question',
+        'voice_mode': 'Mode Vocal',
+        'voice_desc': 'Dictez votre question - L\'IA remplira le titre et le domaine',
+        'start_voice': 'Démarrer la dictée vocale',
+        'stop_voice': 'Arrêter',
+        'or_manual': 'OU remplissez manuellement',
+        'domain': 'Domaine',
+        'speciality': 'Spécialité',
+        'title': 'Titre',
+        'title_auto': 'Titre (rempli automatiquement par l\'IA)',
+        'content': 'Contenu',
+        'content_placeholder': 'Votre question...',
+        'analyze_ai': 'Analyser avec l\'IA (auto-remplir)',
+        'publish': 'Publier',
+        'close': 'Fermer',
+        'send': 'Envoyer',
+        'answer': 'Répondre',
+        'listen': 'Écouter',
+        'stop_reading': 'Arrêter',
+        'email': 'Email',
+        'password': 'Mot de passe',
+        'name': 'Nom',
+        'username': 'Nom d\'utilisateur',
+        'sign_in': 'Se connecter',
+        'sign_up': 'S\'inscrire',
+        'welcome': 'Bienvenue',
+        'connected': 'Connecté',
+        'disconnected': 'Déconnecté',
+        'my_history': 'Mon historique',
+        'no_questions': 'Aucune question',
+        'pending': 'En attente',
+        'assigned': 'Assigné',
+        'answered': 'Répondu',
+        'claude_answered': 'Claude a répondu',
+        'juge_claude': 'Juge Claude',
+        'domain_islam': 'Islam',
+        'domain_medecine': 'Médecine',
+        'domain_pharmacie': 'Pharmacie',
+        'domain_chimie': 'Chimie',
+        'domain_ia': 'IA',
+        'domain_iot': 'IoT',
+        'domain_gmao': 'GMAO/GPAO',
+        'domain_meca': 'Mécanique Pétrole',
+        'domain_gestion': 'Gestion',
+        'domain_compta': 'Expertise Comptable',
+        'domain_droit': 'Droit',
+        'domain_eco': 'Économie',
+        'domain_culture': 'Culture Générale',
+        'domain_art': 'Art',
+        'domain_archi': 'Architecture',
+        'domain_resto': 'Restauration',
+        'domain_general': 'Général'
+    },
+    'ar': {
+        'app_name': 'شولارز كونكت',
+        'subtitle': 'منصة المساعدة الأكاديمية',
+        'login': 'تسجيل الدخول',
+        'register': 'إنشاء حساب',
+        'logout': 'تسجيل الخروج',
+        'admin': 'لوحة التحكم',
+        'new_question': 'طرح سؤال',
+        'refresh': 'تحديث',
+        'scholars': 'العلماء',
+        'history': 'السجل',
+        'qr_code': 'رمز QR',
+        'online': 'متصل',
+        'visitor': 'زائر',
+        'questions': 'أسئلة',
+        'ask_question': 'طرح سؤال',
+        'question_form': 'طرح سؤال جديد',
+        'voice_mode': 'الوضع الصوتي',
+        'voice_desc': 'أملِ سؤالك - ستقوم الذكاء الاصطناعي بملء العنوان والمجال',
+        'start_voice': 'بدء الإملاء الصوتي',
+        'stop_voice': 'إيقاف',
+        'or_manual': 'أو املأ يدوياً',
+        'domain': 'المجال',
+        'speciality': 'التخصص',
+        'title': 'العنوان',
+        'title_auto': 'العنوان (يتم ملؤه تلقائياً)',
+        'content': 'المحتوى',
+        'content_placeholder': 'سؤالك...',
+        'analyze_ai': 'تحليل بالذكاء الاصطناعي',
+        'publish': 'نشر',
+        'close': 'إغلاق',
+        'send': 'إرسال',
+        'answer': 'الرد',
+        'listen': 'استمع',
+        'stop_reading': 'إيقاف',
+        'email': 'البريد الإلكتروني',
+        'password': 'كلمة المرور',
+        'name': 'الاسم',
+        'username': 'اسم المستخدم',
+        'sign_in': 'تسجيل الدخول',
+        'sign_up': 'إنشاء حساب',
+        'welcome': 'مرحباً',
+        'connected': 'متصل',
+        'disconnected': 'غير متصل',
+        'my_history': 'سجلي',
+        'no_questions': 'لا توجد أسئلة',
+        'pending': 'قيد الانتظار',
+        'assigned': 'تم التعيين',
+        'answered': 'تم الرد',
+        'claude_answered': 'رد كلود',
+        'juge_claude': 'القاضي كلود',
+        'domain_islam': 'الإسلام',
+        'domain_medecine': 'الطب',
+        'domain_pharmacie': 'الصيدلة',
+        'domain_chimie': 'الكيمياء',
+        'domain_ia': 'الذكاء الاصطناعي',
+        'domain_iot': 'إنترنت الأشياء',
+        'domain_gmao': 'GMAO/GPAO',
+        'domain_meca': 'الميكانيكا البترولية',
+        'domain_gestion': 'الإدارة',
+        'domain_compta': 'المحاسبة',
+        'domain_droit': 'القانون',
+        'domain_eco': 'الاقتصاد',
+        'domain_culture': 'الثقافة العامة',
+        'domain_art': 'الفن',
+        'domain_archi': 'الهندسة المعمارية',
+        'domain_resto': 'المطاعم',
+        'domain_general': 'عام'
+    },
+    'en': {
+        'app_name': 'Scholars Connect',
+        'subtitle': 'Academic Help Platform',
+        'login': 'Login',
+        'register': 'Sign Up',
+        'logout': 'Logout',
+        'admin': 'Admin',
+        'new_question': 'Ask a Question',
+        'refresh': 'Refresh',
+        'scholars': 'Scholars',
+        'history': 'History',
+        'qr_code': 'QR Code',
+        'online': 'Online',
+        'visitor': 'Visitor',
+        'questions': 'questions',
+        'ask_question': 'Ask a Question',
+        'question_form': 'Ask a Question',
+        'voice_mode': 'Voice Mode',
+        'voice_desc': 'Dictate your question - AI will fill title and domain',
+        'start_voice': 'Start Voice Input',
+        'stop_voice': 'Stop',
+        'or_manual': 'OR fill manually',
+        'domain': 'Domain',
+        'speciality': 'Specialty',
+        'title': 'Title',
+        'title_auto': 'Title (auto-filled by AI)',
+        'content': 'Content',
+        'content_placeholder': 'Your question...',
+        'analyze_ai': 'Analyze with AI',
+        'publish': 'Publish',
+        'close': 'Close',
+        'send': 'Send',
+        'answer': 'Answer',
+        'listen': 'Listen',
+        'stop_reading': 'Stop',
+        'email': 'Email',
+        'password': 'Password',
+        'name': 'Name',
+        'username': 'Username',
+        'sign_in': 'Sign In',
+        'sign_up': 'Sign Up',
+        'welcome': 'Welcome',
+        'connected': 'Connected',
+        'disconnected': 'Disconnected',
+        'my_history': 'My History',
+        'no_questions': 'No questions',
+        'pending': 'Pending',
+        'assigned': 'Assigned',
+        'answered': 'Answered',
+        'claude_answered': 'Claude answered',
+        'juge_claude': 'Judge Claude',
+        'domain_islam': 'Islam',
+        'domain_medecine': 'Medicine',
+        'domain_pharmacie': 'Pharmacy',
+        'domain_chimie': 'Chemistry',
+        'domain_ia': 'AI',
+        'domain_iot': 'IoT',
+        'domain_gmao': 'GMAO/GPAO',
+        'domain_meca': 'Petroleum Mechanics',
+        'domain_gestion': 'Management',
+        'domain_compta': 'Accounting',
+        'domain_droit': 'Law',
+        'domain_eco': 'Economics',
+        'domain_culture': 'General Culture',
+        'domain_art': 'Art',
+        'domain_archi': 'Architecture',
+        'domain_resto': 'Restaurant',
+        'domain_general': 'General'
+    },
+    'es': {
+        'app_name': 'Scholars Connect',
+        'subtitle': 'Plataforma de Ayuda Académica',
+        'login': 'Iniciar Sesión',
+        'register': 'Registrarse',
+        'logout': 'Cerrar Sesión',
+        'admin': 'Admin',
+        'new_question': 'Hacer una Pregunta',
+        'refresh': 'Actualizar',
+        'scholars': 'Eruditos',
+        'history': 'Historial',
+        'qr_code': 'Código QR',
+        'online': 'En línea',
+        'visitor': 'Visitante',
+        'questions': 'preguntas',
+        'ask_question': 'Hacer una Pregunta',
+        'question_form': 'Hacer una Pregunta',
+        'voice_mode': 'Modo de Voz',
+        'voice_desc': 'Dicte su pregunta - La IA llenará título y dominio',
+        'start_voice': 'Iniciar Dictado',
+        'stop_voice': 'Detener',
+        'or_manual': 'O complete manualmente',
+        'domain': 'Dominio',
+        'speciality': 'Especialidad',
+        'title': 'Título',
+        'title_auto': 'Título (auto-rellenado por IA)',
+        'content': 'Contenido',
+        'content_placeholder': 'Su pregunta...',
+        'analyze_ai': 'Analizar con IA',
+        'publish': 'Publicar',
+        'close': 'Cerrar',
+        'send': 'Enviar',
+        'answer': 'Responder',
+        'listen': 'Escuchar',
+        'stop_reading': 'Detener',
+        'email': 'Correo',
+        'password': 'Contraseña',
+        'name': 'Nombre',
+        'username': 'Usuario',
+        'sign_in': 'Iniciar Sesión',
+        'sign_up': 'Registrarse',
+        'welcome': 'Bienvenido',
+        'connected': 'Conectado',
+        'disconnected': 'Desconectado',
+        'my_history': 'Mi Historial',
+        'no_questions': 'Sin preguntas',
+        'pending': 'Pendiente',
+        'assigned': 'Asignado',
+        'answered': 'Respondido',
+        'claude_answered': 'Claude respondió',
+        'juge_claude': 'Juez Claude'
+    }
+};
+
+var currentLanguage = 'fr';
+
+// ============================================================
+// FONCTION DE CHANGEMENT DE LANGUE
+// ============================================================
+function changeLanguage(lang) {
+    currentLanguage = lang;
+    localStorage.setItem('sc_language', lang);
+    
+    // Synchroniser les deux sélecteurs
+    var sel1 = document.getElementById('languageSelector');
+    var sel2 = document.getElementById('languageSelector2');
+    if (sel1) sel1.value = lang;
+    if (sel2) sel2.value = lang;
+    
+    // Appliquer les traductions
+    applyTranslations();
+    
+    // Notification
+    var langNames = { 'fr': 'Français', 'ar': 'العربية', 'en': 'English', 'es': 'Español', 'de': 'Deutsch', 'it': 'Italiano', 'pt': 'Português' };
+    showNotification('🌐 Langue : ' + langNames[lang], 'info');
+}
+
+// ============================================================
+// APPLIQUER LES TRADUCTIONS
+// ============================================================
+function applyTranslations() {
+    var t = TRANSLATIONS[currentLanguage] || TRANSLATIONS['fr'];
+    
+    // Mettre à jour le HTML selon les sélecteurs connus
+    var elements = {
+        '.logo': t.app_name,
+        '.logo-sub': t.subtitle
+    };
+    
+    // Traduire les boutons principaux
+    var buttons = document.querySelectorAll('.btn');
+    buttons.forEach(function(btn) {
+        var text = btn.textContent.trim();
+        if (text.includes('Connexion') || text.includes('Login') || text.includes('تسجيل')) btn.textContent = '🔐 ' + t.login;
+        else if (text.includes('Inscription') || text.includes('Sign Up') || text.includes('إنشاء')) btn.textContent = '📝 ' + t.register;
+        else if (text.includes('Déconnexion') || text.includes('Logout') || text.includes('تسجيل الخروج')) btn.textContent = '🚪 ' + t.logout;
+        else if (text.includes('Admin') || text.includes('لوحة')) btn.textContent = '⚙️ ' + t.admin;
+        else if (text.includes('Poser une question') || text.includes('Ask') || text.includes('طرح')) btn.textContent = '✏️ ' + t.new_question;
+        else if (text.includes('Rafraîchir') || text.includes('Refresh') || text.includes('تحديث')) btn.textContent = '🔄 ' + t.refresh;
+        else if (text.includes('Scholars') || text.includes('العلماء')) btn.textContent = '🎓 ' + t.scholars;
+        else if (text.includes('Historique') || text.includes('History') || text.includes('السجل')) btn.textContent = '📜 ' + t.history;
+        else if (text.includes('QR Code') || text.includes('رمز QR')) btn.textContent = '📱 ' + t.qr_code;
+    });
+    
+    // Mettre à jour le placeholder des champs
+    var qTitle = document.getElementById('qTitle');
+    var qContent = document.getElementById('qContent');
+    if (qTitle) qTitle.placeholder = t.title;
+    if (qContent) qContent.placeholder = t.content_placeholder;
+    
+    // Statut
+    var userRole = document.getElementById('userRole');
+    if (userRole && userRole.textContent.includes('Visiteur')) userRole.innerHTML = '👤 ' + t.visitor;
+}
+
+// ============================================================
+// CHARGER LA LANGUE AU DÉMARRAGE
+// ============================================================
+function loadSavedLanguage() {
+    var saved = localStorage.getItem('sc_language');
+    if (saved && TRANSLATIONS[saved]) {
+        currentLanguage = saved;
+        var sel1 = document.getElementById('languageSelector');
+        var sel2 = document.getElementById('languageSelector2');
+        if (sel1) sel1.value = saved;
+        if (sel2) sel2.value = saved;
+    }
+}
+
+function initializeApp() {
     currentUser = loadSession();
+    loadSavedLanguage();
     buildCategoriesNav();
     buildDomainSelects();
     updateUI();
@@ -714,3 +1074,4 @@ initializeApp();
 </script>
 </body>
 </html>
+
