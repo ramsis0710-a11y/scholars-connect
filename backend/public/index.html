@@ -3,81 +3,78 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Scholars Connect - Vocal + IA</title>
+<title>Scholars Connect</title>
 <style>
-* { margin: 0; padding: 0; box-sizing: border-box; }
-body { font-family: 'Segoe UI', system-ui, sans-serif; background: #0a0e27; color: #fff; min-height: 100vh; padding: 20px; }
-.container { max-width: 1400px; margin: 0 auto; }
-.header { display: flex; justify-content: space-between; align-items: center; padding: 20px 0; flex-wrap: wrap; gap: 15px; border-bottom: 2px solid #8b5cf6; }
-.logo { font-size: 32px; font-weight: 700; background: linear-gradient(135deg, #667eea, #8b5cf6, #ec4899); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
-.logo-sub { font-size: 14px; opacity: 0.6; display: block; font-weight: 400; }
-.header-actions { display: flex; gap: 10px; flex-wrap: wrap; }
-.btn { padding: 10px 20px; border: none; border-radius: 10px; cursor: pointer; font-weight: 600; transition: 0.3s; font-size: 13px; }
-.btn-primary { background: #667eea; color: white; }
-.btn-success { background: #22c55e; color: #0a0e27; }
-.btn-danger { background: #ef4444; color: white; }
-.btn-secondary { background: rgba(255,255,255,0.1); color: white; }
-.btn-admin { background: #f59e0b; color: #0a0e27; }
-.btn-voice { background: linear-gradient(135deg, #8b5cf6, #ec4899); color: white; }
-.btn:hover { transform: scale(1.05); opacity: 0.9; }
-.categories-nav { display: flex; gap: 8px; padding: 15px 0; flex-wrap: wrap; border-bottom: 1px solid rgba(255,255,255,0.05); overflow-x: auto; }
-.cat-btn { padding: 6px 12px; border-radius: 20px; border: 1px solid rgba(255,255,255,0.15); background: transparent; color: white; cursor: pointer; font-size: 11px; transition: 0.3s; white-space: nowrap; }
-.cat-btn.active { background: #667eea; border-color: #667eea; }
-.cat-btn:hover { background: rgba(255,255,255,0.1); }
-.form-container { background: rgba(255,255,255,0.05); border-radius: 16px; padding: 24px; margin: 20px 0; display: none; border: 1px solid rgba(255,255,255,0.1); }
-.form-container.active { display: block; }
-.form-group { margin-bottom: 15px; }
-.form-group label { display: block; margin-bottom: 5px; opacity: 0.8; }
-.form-group input, .form-group textarea, .form-group select { width: 100%; padding: 12px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.05); color: white; font-size: 14px; }
-.form-group textarea { min-height: 100px; }
-.form-group select option { background: #1a1a2e; color: white; }
-.voice-box { background: linear-gradient(135deg, rgba(139,92,246,0.15), rgba(236,72,153,0.1)); padding: 20px; border-radius: 16px; margin-bottom: 20px; border: 2px dashed #8b5cf6; text-align: center; }
-.voice-btn { background: linear-gradient(135deg, #8b5cf6, #ec4899); color: white; padding: 18px 40px; border-radius: 50px; font-size: 16px; font-weight: 600; border: none; cursor: pointer; transition: 0.3s; }
-.voice-btn:hover { transform: scale(1.05); }
-.voice-btn.listening { background: #ef4444; animation: pulse 1s infinite; }
-@keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.7; } }
-.status-bar { display: flex; gap: 20px; padding: 15px 0; flex-wrap: wrap; border-bottom: 1px solid rgba(255,255,255,0.05); }
-.status-item { display: flex; align-items: center; gap: 8px; font-size: 13px; }
-.dot { width: 8px; height: 8px; border-radius: 50%; background: #22c55e; animation: pulse2 2s infinite; }
-@keyframes pulse2 { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
-.badge-purple { background: linear-gradient(135deg, #8b5cf6, #ec4899); color: white; padding: 3px 12px; border-radius: 12px; font-size: 11px; font-weight: 600; }
-.user-avatar { display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px; border-radius: 50%; background: linear-gradient(135deg, #8b5cf6, #ec4899); font-weight: 700; margin-right: 10px; }
-.user-info { display: flex; align-items: center; gap: 10px; }
-.question-grid { display: grid; gap: 20px; margin: 20px 0; }
-.question-card { background: rgba(255,255,255,0.05); border-radius: 12px; padding: 20px; border: 1px solid rgba(255,255,255,0.08); }
-.question-card.claude-card { border-color: #8b5cf6; box-shadow: 0 0 20px rgba(139,92,246,0.2); }
-.question-title { font-size: 18px; font-weight: 600; color: #8b5cf6; }
-.question-meta { font-size: 13px; opacity: 0.6; margin: 5px 0; display: flex; gap: 15px; flex-wrap: wrap; }
-.question-content { margin: 10px 0; }
-.question-actions { display: flex; gap: 10px; margin-top: 10px; flex-wrap: wrap; }
-.answers-section { margin-top: 15px; padding-top: 15px; border-top: 1px solid rgba(255,255,255,0.05); }
-.answer-item { background: rgba(255,255,255,0.03); border-radius: 8px; padding: 12px; margin: 8px 0; border-left: 3px solid #667eea; }
-.answer-item.claude-answer { border-left: 4px solid #8b5cf6; background: linear-gradient(135deg, rgba(139,92,246,0.1), rgba(236,72,153,0.05)); }
-.answer-item.scholar-answer { border-left: 4px solid #10b981; }
-.answer-meta { font-size: 12px; opacity: 0.6; display: flex; gap: 15px; flex-wrap: wrap; }
-.claude-badge { display: inline-block; padding: 3px 12px; border-radius: 12px; font-size: 11px; font-weight: 600; background: linear-gradient(135deg, #8b5cf6, #ec4899); color: white; }
-.claude-status { display: inline-block; padding: 3px 12px; border-radius: 12px; font-size: 11px; font-weight: 600; background: #f59e0b; color: #0a0e27; }
-.timer-badge { display: inline-block; padding: 3px 12px; border-radius: 12px; font-size: 11px; font-weight: 600; background: #3b82f6; color: white; }
-.domain-tag { display: inline-block; padding: 2px 10px; border-radius: 12px; font-size: 11px; font-weight: 600; margin-left: 5px; background: #667eea; color: white; }
-.notification { position: fixed; top: 20px; right: 20px; padding: 15px 25px; border-radius: 12px; z-index: 1000; display: none; }
-.notification.success { background: #22c55e; color: #0a0e27; display: block; }
-.notification.error { background: #ef4444; color: white; display: block; }
-.notification.info { background: #3b82f6; color: white; display: block; }
-.notification.claude { background: linear-gradient(135deg, #8b5cf6, #ec4899); color: white; display: block; }
-.badge { display: inline-block; padding: 2px 12px; border-radius: 20px; font-size: 11px; font-weight: 600; }
-.badge-pending { background: #eab308; color: #0a0e27; }
-.badge-answered { background: #22c55e; color: #0a0e27; }
-.badge-assigned { background: #8b5cf6; color: white; }
-.badge-claude { background: linear-gradient(135deg, #8b5cf6, #ec4899); color: white; }
-.scholar-card { background: rgba(255,255,255,0.05); padding: 15px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.1); }
-.claude-response { white-space: pre-wrap; line-height: 1.7; font-size: 14px; }
-.speak-btn { background: #3b82f6; color: white; border: none; padding: 6px 12px; border-radius: 8px; font-size: 11px; cursor: pointer; margin-right: 5px; }
-.speak-btn:hover { background: #2563eb; }
-.stop-btn { background: #ef4444; color: white; border: none; padding: 6px 12px; border-radius: 8px; font-size: 11px; cursor: pointer; }
-@media (max-width: 600px) {
-.header { flex-direction: column; align-items: stretch; }
-.header-actions button { flex: 1; font-size: 11px; padding: 8px 12px; }
-}
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family:'Segoe UI',system-ui,sans-serif; background:#0a0e27; color:#fff; min-height:100vh; padding:20px; }
+.container { max-width:1400px; margin:0 auto; }
+.header { display:flex; justify-content:space-between; align-items:center; padding:20px 0; flex-wrap:wrap; gap:15px; border-bottom:2px solid #8b5cf6; }
+.logo { font-size:32px; font-weight:700; background:linear-gradient(135deg,#667eea,#8b5cf6,#ec4899); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
+.logo-sub { font-size:14px; opacity:0.6; display:block; font-weight:400; }
+.header-actions { display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+.lang-selector { padding:10px 15px; border-radius:10px; border:1px solid rgba(255,255,255,0.2); background:rgba(255,255,255,0.1); color:white; font-size:14px; font-weight:600; cursor:pointer; outline:none; }
+.lang-selector option { background:#1a1a2e; color:white; }
+.btn { padding:10px 20px; border:none; border-radius:10px; cursor:pointer; font-weight:600; transition:0.3s; font-size:13px; }
+.btn-primary { background:#667eea; color:white; }
+.btn-success { background:#22c55e; color:#0a0e27; }
+.btn-danger { background:#ef4444; color:white; }
+.btn-secondary { background:rgba(255,255,255,0.1); color:white; }
+.btn-admin { background:#f59e0b; color:#0a0e27; }
+.btn-voice { background:linear-gradient(135deg,#8b5cf6,#ec4899); color:white; }
+.btn:hover { transform:scale(1.05); opacity:0.9; }
+.categories-nav { display:flex; gap:8px; padding:15px 0; flex-wrap:wrap; border-bottom:1px solid rgba(255,255,255,0.05); overflow-x:auto; }
+.cat-btn { padding:6px 12px; border-radius:20px; border:1px solid rgba(255,255,255,0.15); background:transparent; color:white; cursor:pointer; font-size:11px; transition:0.3s; white-space:nowrap; }
+.cat-btn.active { background:#667eea; border-color:#667eea; }
+.cat-btn:hover { background:rgba(255,255,255,0.1); }
+.form-container { background:rgba(255,255,255,0.05); border-radius:16px; padding:24px; margin:20px 0; display:none; border:1px solid rgba(255,255,255,0.1); }
+.form-container.active { display:block; }
+.form-group { margin-bottom:15px; }
+.form-group label { display:block; margin-bottom:5px; opacity:0.8; }
+.form-group input, .form-group textarea, .form-group select { width:100%; padding:12px; border-radius:10px; border:1px solid rgba(255,255,255,0.1); background:rgba(255,255,255,0.05); color:white; font-size:14px; }
+.form-group textarea { min-height:100px; }
+.form-group select option { background:#1a1a2e; color:white; }
+.voice-box { background:linear-gradient(135deg,rgba(139,92,246,0.15),rgba(236,72,153,0.1)); padding:20px; border-radius:16px; margin-bottom:20px; border:2px dashed #8b5cf6; text-align:center; }
+.voice-btn { background:linear-gradient(135deg,#8b5cf6,#ec4899); color:white; padding:18px 40px; border-radius:50px; font-size:16px; font-weight:600; border:none; cursor:pointer; transition:0.3s; }
+.voice-btn.listening { background:#ef4444; animation:pulse 1s infinite; }
+@keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.7; } }
+.status-bar { display:flex; gap:20px; padding:15px 0; flex-wrap:wrap; border-bottom:1px solid rgba(255,255,255,0.05); }
+.status-item { display:flex; align-items:center; gap:8px; font-size:13px; }
+.dot { width:8px; height:8px; border-radius:50%; background:#22c55e; animation:pulse2 2s infinite; }
+@keyframes pulse2 { 0%,100% { opacity:1; } 50% { opacity:0.3; } }
+.badge-purple { background:linear-gradient(135deg,#8b5cf6,#ec4899); color:white; padding:3px 12px; border-radius:12px; font-size:11px; font-weight:600; }
+.user-avatar { display:inline-flex; align-items:center; justify-content:center; width:40px; height:40px; border-radius:50%; background:linear-gradient(135deg,#8b5cf6,#ec4899); font-weight:700; margin-right:10px; }
+.user-info { display:flex; align-items:center; gap:10px; }
+.question-grid { display:grid; gap:20px; margin:20px 0; }
+.question-card { background:rgba(255,255,255,0.05); border-radius:12px; padding:20px; border:1px solid rgba(255,255,255,0.08); }
+.question-card.claude-card { border-color:#8b5cf6; box-shadow:0 0 20px rgba(139,92,246,0.2); }
+.question-title { font-size:18px; font-weight:600; color:#8b5cf6; }
+.question-meta { font-size:13px; opacity:0.6; margin:5px 0; display:flex; gap:15px; flex-wrap:wrap; }
+.question-content { margin:10px 0; }
+.question-actions { display:flex; gap:10px; margin-top:10px; flex-wrap:wrap; }
+.answers-section { margin-top:15px; padding-top:15px; border-top:1px solid rgba(255,255,255,0.05); }
+.answer-item { background:rgba(255,255,255,0.03); border-radius:8px; padding:12px; margin:8px 0; border-left:3px solid #667eea; }
+.answer-item.claude-answer { border-left:4px solid #8b5cf6; background:linear-gradient(135deg,rgba(139,92,246,0.1),rgba(236,72,153,0.05)); }
+.answer-item.scholar-answer { border-left:4px solid #10b981; }
+.answer-meta { font-size:12px; opacity:0.6; display:flex; gap:15px; flex-wrap:wrap; }
+.claude-badge { display:inline-block; padding:3px 12px; border-radius:12px; font-size:11px; font-weight:600; background:linear-gradient(135deg,#8b5cf6,#ec4899); color:white; }
+.claude-status { display:inline-block; padding:3px 12px; border-radius:12px; font-size:11px; font-weight:600; background:#f59e0b; color:#0a0e27; }
+.timer-badge { display:inline-block; padding:3px 12px; border-radius:12px; font-size:11px; font-weight:600; background:#3b82f6; color:white; }
+.domain-tag { display:inline-block; padding:2px 10px; border-radius:12px; font-size:11px; font-weight:600; margin-left:5px; background:#667eea; color:white; }
+.notification { position:fixed; top:20px; right:20px; padding:15px 25px; border-radius:12px; z-index:1000; display:none; }
+.notification.success { background:#22c55e; color:#0a0e27; display:block; }
+.notification.error { background:#ef4444; color:white; display:block; }
+.notification.info { background:#3b82f6; color:white; display:block; }
+.notification.claude { background:linear-gradient(135deg,#8b5cf6,#ec4899); color:white; display:block; }
+.badge { display:inline-block; padding:2px 12px; border-radius:20px; font-size:11px; font-weight:600; }
+.badge-pending { background:#eab308; color:#0a0e27; }
+.badge-answered { background:#22c55e; color:#0a0e27; }
+.badge-assigned { background:#8b5cf6; color:white; }
+.badge-claude { background:linear-gradient(135deg,#8b5cf6,#ec4899); color:white; }
+.scholar-card { background:rgba(255,255,255,0.05); padding:15px; border-radius:10px; border:1px solid rgba(255,255,255,0.1); }
+.claude-response { white-space:pre-wrap; line-height:1.7; font-size:14px; }
+.speak-btn { background:#3b82f6; color:white; border:none; padding:6px 12px; border-radius:8px; font-size:11px; cursor:pointer; margin-right:5px; }
+.stop-btn { background:#ef4444; color:white; border:none; padding:6px 12px; border-radius:8px; font-size:11px; cursor:pointer; }
+@media (max-width: 600px) { .header { flex-direction:column; align-items:stretch; } }
 </style>
 </head>
 <body>
@@ -86,10 +83,10 @@ body { font-family: 'Segoe UI', system-ui, sans-serif; background: #0a0e27; colo
 <div class="header">
 <div>
 <div class="logo">🎓 Scholars Connect</div>
-<span class="logo-sub">🎤 Vocal · 🤖 IA Gemini · 🍃 MongoDB · 📱 QR Code</span>
+<span class="logo-sub" id="subtitle">Plateforme d'entraide académique multilingue</span>
 </div>
 <div class="header-actions" id="authButtons">
-<select id="languageSelector" onchange="changeLanguage(this.value)" style="padding: 10px 15px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.2); background: rgba(255,255,255,0.1); color: white; font-size: 14px; font-weight: 600; cursor: pointer; outline: none; margin-right: 5px;">
+<select class="lang-selector" id="languageSelector" onchange="changeLanguage(this.value)">
 <option value="fr">🇫🇷 Français</option>
 <option value="ar">🇸🇦 العربية</option>
 <option value="en">🇬🇧 English</option>
@@ -98,11 +95,11 @@ body { font-family: 'Segoe UI', system-ui, sans-serif; background: #0a0e27; colo
 <option value="it">🇮🇹 Italiano</option>
 <option value="pt">🇵🇹 Português</option>
 </select>
-<button class="btn btn-primary" onclick="showLogin()">🔐 Connexion</button>
-<button class="btn btn-success" onclick="showRegister()">📝 Inscription</button>
+<button class="btn btn-primary" id="btnLogin" onclick="showLogin()">🔐 Connexion</button>
+<button class="btn btn-success" id="btnRegister" onclick="showRegister()">📝 Inscription</button>
 </div>
 <div class="header-actions" id="userActions" style="display:none;">
-<select id="languageSelector2" onchange="changeLanguage(this.value)" style="padding: 10px 15px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.2); background: rgba(255,255,255,0.1); color: white; font-size: 14px; font-weight: 600; cursor: pointer; outline: none; margin-right: 5px;">
+<select class="lang-selector" id="languageSelector2" onchange="changeLanguage(this.value)">
 <option value="fr">🇫🇷 Français</option>
 <option value="ar">🇸🇦 العربية</option>
 <option value="en">🇬🇧 English</option>
@@ -113,11 +110,11 @@ body { font-family: 'Segoe UI', system-ui, sans-serif; background: #0a0e27; colo
 </select>
 <span class="user-info" id="userDisplay"></span>
 <button class="btn btn-admin" onclick="goToAdmin()" id="adminBtn" style="display:none;">⚙️ Admin</button>
-<button class="btn btn-danger" onclick="logout()">🚪 Déconnexion</button>
+<button class="btn btn-danger" id="btnLogout" onclick="logout()">🚪 Déconnexion</button>
 </div>
 </div>
 <div class="status-bar">
-<span class="status-item"><span class="dot"></span> En ligne</span>
+<span class="status-item"><span class="dot"></span> <span id="statusOnline">En ligne</span></span>
 <span class="status-item" id="userRole">👤 Visiteur</span>
 <span class="status-item" id="questionCount">📋 0 questions</span>
 <span class="status-item" id="scholarCount">🎓 Scholars</span>
@@ -130,27 +127,30 @@ body { font-family: 'Segoe UI', system-ui, sans-serif; background: #0a0e27; colo
 <button class="btn btn-secondary" onclick="loadData()">🔄 Rafraîchir</button>
 <button class="btn btn-secondary" onclick="showScholars()">🎓 Scholars</button>
 <button class="btn btn-secondary" onclick="showHistory()">📜 Historique</button>
-<button class="btn btn-voice" onclick="window.open('/logo', '_blank')">📱 QR Code</button>
+<button class="btn btn-voice" onclick="window.open('/logo','_blank')">📱 QR Code</button>
 </div>
+
 <div class="form-container" id="historyForm">
-<h2>📜 Mon historique</h2>
+<h2 id="historyTitle">📜 Mon historique</h2>
 <div id="historyStats" style="display:flex;gap:15px;padding:10px 0;flex-wrap:wrap;"></div>
 <div id="historyList"></div>
 <button class="btn btn-secondary" onclick="hideForms()">Fermer</button>
 </div>
+
 <div class="form-container" id="loginForm">
-<h2>🔐 Connexion</h2>
+<h2 id="loginTitle">🔐 Connexion</h2>
 <div class="form-group"><label>Email</label><input type="email" id="loginEmail" placeholder="admin@scholars-connect.com"></div>
-<div class="form-group"><label>Mot de passe</label><input type="password" id="loginPassword" placeholder="admin12345"></div>
+<div class="form-group"><label id="labelPassword1">Mot de passe</label><input type="password" id="loginPassword" placeholder="admin12345"></div>
 <button class="btn btn-primary" onclick="login()">Se connecter</button>
 <button class="btn btn-secondary" onclick="hideForms()">Fermer</button>
 </div>
+
 <div class="form-container" id="registerForm">
-<h2>📝 Inscription</h2>
-<div class="form-group"><label>Nom</label><input type="text" id="regUsername" placeholder="Votre nom"></div>
+<h2 id="registerTitle">📝 Inscription</h2>
+<div class="form-group"><label id="labelUsername">Nom d'utilisateur</label><input type="text" id="regUsername" placeholder="Votre nom"></div>
 <div class="form-group"><label>Email</label><input type="email" id="regEmail" placeholder="votre@email.com"></div>
-<div class="form-group"><label>Mot de passe</label><input type="password" id="regPassword" placeholder="Min 6 caractères"></div>
-<div class="form-group"><label>Domaine</label>
+<div class="form-group"><label id="labelPassword2">Mot de passe</label><input type="password" id="regPassword" placeholder="Min 6 caractères"></div>
+<div class="form-group"><label id="labelDomainReg">Domaine d'intérêt</label>
 <select id="regDomain">
 <option value="Islam">🕌 Islam</option>
 <option value="Médecine">🏥 Médecine</option>
@@ -174,33 +174,36 @@ body { font-family: 'Segoe UI', system-ui, sans-serif; background: #0a0e27; colo
 <button class="btn btn-success" onclick="register()">S'inscrire</button>
 <button class="btn btn-secondary" onclick="hideForms()">Fermer</button>
 </div>
+
 <div class="form-container" id="questionForm">
-<h2>✏️ Poser une question</h2>
+<h2 id="questionTitle">✏️ Poser une question</h2>
 <div class="voice-box">
-<h3 style="color: #8b5cf6; margin-bottom: 10px;">🎤 Mode Vocal</h3>
-<p style="opacity: 0.8; font-size: 13px; margin-bottom: 15px;">Dictez votre question - L'IA remplira automatiquement le titre et le domaine</p>
+<h3 style="color:#8b5cf6;margin-bottom:10px;" id="voiceTitle">🎤 Mode Vocal</h3>
+<p style="opacity:0.8;font-size:13px;margin-bottom:15px;" id="voiceDesc">Dictez votre question - L'IA remplira le titre et le domaine</p>
 <button class="voice-btn" onclick="startVoiceInput()" id="voiceBtn">🎤 Démarrer la dictée vocale</button>
-<div id="voiceStatus" style="margin-top: 12px; font-size: 13px; opacity: 0.8;"></div>
+<div id="voiceStatus" style="margin-top:12px;font-size:13px;opacity:0.8;"></div>
 </div>
-<div style="opacity: 0.7; text-align: center; margin: 15px 0; font-size: 13px;">— OU remplissez manuellement —</div>
-<div class="form-group"><label>Domaine</label>
+<div style="opacity:0.7;text-align:center;margin:15px 0;font-size:13px;" id="orManual">— OU remplissez manuellement —</div>
+<div class="form-group"><label id="labelDomain">Domaine</label>
 <select id="qDomain" onchange="updateCategories()"></select>
 </div>
-<div class="form-group"><label>Spécialité</label>
+<div class="form-group"><label id="labelSpeciality">Spécialité</label>
 <select id="qCategory"></select>
 </div>
-<div class="form-group"><label>Titre <span style="opacity:0.5;font-size:11px;">(rempli automatiquement par l'IA)</span></label>
+<div class="form-group"><label id="labelTitle">Titre (rempli automatiquement par l'IA)</label>
 <input type="text" id="qTitle" placeholder="Titre"></div>
-<div class="form-group"><label>Contenu</label><textarea id="qContent" placeholder="Votre question..."></textarea></div>
-<button class="btn btn-voice" onclick="autoAnalyze()" style="margin-bottom:10px;">🤖 Analyser avec l'IA (auto-remplir)</button>
-<button class="btn btn-success" onclick="askQuestion()">📤 Publier</button>
-<button class="btn btn-secondary" onclick="hideForms()">Fermer</button>
+<div class="form-group"><label id="labelContent">Contenu</label><textarea id="qContent" placeholder="Votre question..."></textarea></div>
+<button class="btn btn-voice" onclick="autoAnalyze()" style="margin-bottom:10px;" id="btnAnalyze">🤖 Analyser avec l'IA (auto-remplir)</button>
+<button class="btn btn-success" onclick="askQuestion()" id="btnPublish">📤 Publier</button>
+<button class="btn btn-secondary" onclick="hideForms()" id="btnCloseQ">Fermer</button>
 </div>
+
 <div class="form-container" id="scholarsPopup">
 <h2>🎓 Scholars</h2>
 <div id="scholarsList"></div>
 <button class="btn btn-secondary" onclick="hideForms()">Fermer</button>
 </div>
+
 <div id="questionsContainer" class="question-grid"></div>
 </div>
 
@@ -209,10 +212,85 @@ var API_URL = window.location.origin + '/api';
 var currentUser = null;
 var questions = [];
 var currentFilter = 'all';
-var SESSION_KEY = 'sc_session_v3';
+var SESSION_KEY = 'sc_session_v4';
+var currentLanguage = 'fr';
 var recognition = null;
 var isListening = false;
 
+// ============================================================
+// TRADUCTIONS (7 LANGUES)
+// ============================================================
+var TRANSLATIONS = {
+    'fr': { 'subtitle': "Plateforme d'entraide académique multilingue", 'login': 'Connexion', 'register': 'Inscription', 'logout': 'Déconnexion', 'admin': 'Admin', 'new_question': 'Poser une question', 'refresh': 'Rafraîchir', 'scholars': 'Scholars', 'history': 'Historique', 'qr': 'QR Code', 'online': 'En ligne', 'visitor': 'Visiteur', 'voice_title': 'Mode Vocal', 'voice_desc': "Dictez votre question - L'IA remplira le titre et le domaine", 'voice_btn': 'Démarrer la dictée vocale', 'voice_stop': 'Arrêter', 'or_manual': 'OU remplissez manuellement', 'domain': 'Domaine', 'speciality': 'Spécialité', 'title': 'Titre (auto-rempli)', 'content': 'Contenu', 'content_ph': 'Votre question...', 'analyze': 'Analyser avec l\'IA (auto-remplir)', 'publish': 'Publier', 'close': 'Fermer', 'answer': 'Répondre', 'listen': 'Écouter', 'stop': 'Arrêter', 'email': 'Email', 'password': 'Mot de passe', 'username': 'Nom d\'utilisateur', 'login_title': 'Connexion', 'register_title': 'Inscription', 'question_title': 'Poser une question', 'history_title': 'Mon historique', 'sign_in': 'Se connecter', 'sign_up': 'S\'inscrire', 'domain_int': 'Domaine d\'intérêt' },
+    'ar': { 'subtitle': 'منصة المساعدة الأكاديمية', 'login': 'تسجيل الدخول', 'register': 'إنشاء حساب', 'logout': 'تسجيل الخروج', 'admin': 'لوحة التحكم', 'new_question': 'طرح سؤال', 'refresh': 'تحديث', 'scholars': 'العلماء', 'history': 'السجل', 'qr': 'رمز QR', 'online': 'متصل', 'visitor': 'زائر', 'voice_title': 'الوضع الصوتي', 'voice_desc': 'أملِ سؤالك - ستقوم الذكاء الاصطناعي بملء العنوان والمجال', 'voice_btn': 'بدء الإملاء الصوتي', 'voice_stop': 'إيقاف', 'or_manual': 'أو املأ يدوياً', 'domain': 'المجال', 'speciality': 'التخصص', 'title': 'العنوان', 'content': 'المحتوى', 'content_ph': 'سؤالك...', 'analyze': 'تحليل بالذكاء الاصطناعي', 'publish': 'نشر', 'close': 'إغلاق', 'answer': 'الرد', 'listen': 'استمع', 'stop': 'إيقاف', 'email': 'البريد الإلكتروني', 'password': 'كلمة المرور', 'username': 'اسم المستخدم', 'login_title': 'تسجيل الدخول', 'register_title': 'إنشاء حساب', 'question_title': 'طرح سؤال', 'history_title': 'سجلي', 'sign_in': 'دخول', 'sign_up': 'تسجيل', 'domain_int': 'المجال المفضل' },
+    'en': { 'subtitle': 'Academic Help Platform', 'login': 'Login', 'register': 'Sign Up', 'logout': 'Logout', 'admin': 'Admin', 'new_question': 'Ask a Question', 'refresh': 'Refresh', 'scholars': 'Scholars', 'history': 'History', 'qr': 'QR Code', 'online': 'Online', 'visitor': 'Visitor', 'voice_title': 'Voice Mode', 'voice_desc': 'Dictate your question - AI will fill title and domain', 'voice_btn': 'Start Voice Input', 'voice_stop': 'Stop', 'or_manual': 'OR fill manually', 'domain': 'Domain', 'speciality': 'Specialty', 'title': 'Title (auto-filled)', 'content': 'Content', 'content_ph': 'Your question...', 'analyze': 'Analyze with AI', 'publish': 'Publish', 'close': 'Close', 'answer': 'Answer', 'listen': 'Listen', 'stop': 'Stop', 'email': 'Email', 'password': 'Password', 'username': 'Username', 'login_title': 'Login', 'register_title': 'Sign Up', 'question_title': 'Ask a Question', 'history_title': 'My History', 'sign_in': 'Sign In', 'sign_up': 'Sign Up', 'domain_int': 'Interest Domain' },
+    'es': { 'subtitle': 'Plataforma de Ayuda Académica', 'login': 'Iniciar Sesión', 'register': 'Registrarse', 'logout': 'Salir', 'admin': 'Admin', 'new_question': 'Hacer Pregunta', 'refresh': 'Actualizar', 'scholars': 'Eruditos', 'history': 'Historial', 'qr': 'Código QR', 'online': 'En línea', 'visitor': 'Visitante', 'voice_title': 'Modo de Voz', 'voice_desc': 'Dicte su pregunta - IA llenará título y dominio', 'voice_btn': 'Iniciar Dictado', 'voice_stop': 'Detener', 'or_manual': 'O complete manualmente', 'domain': 'Dominio', 'speciality': 'Especialidad', 'title': 'Título', 'content': 'Contenido', 'content_ph': 'Su pregunta...', 'analyze': 'Analizar con IA', 'publish': 'Publicar', 'close': 'Cerrar', 'answer': 'Responder', 'listen': 'Escuchar', 'stop': 'Detener', 'email': 'Correo', 'password': 'Contraseña', 'username': 'Usuario', 'login_title': 'Iniciar Sesión', 'register_title': 'Registrarse', 'question_title': 'Hacer Pregunta', 'history_title': 'Mi Historial', 'sign_in': 'Entrar', 'sign_up': 'Registrarse', 'domain_int': 'Dominio de interés' },
+    'de': { 'subtitle': 'Akademische Hilfe-Plattform', 'login': 'Anmelden', 'register': 'Registrieren', 'logout': 'Abmelden', 'admin': 'Admin', 'new_question': 'Frage stellen', 'refresh': 'Aktualisieren', 'scholars': 'Gelehrte', 'history': 'Verlauf', 'qr': 'QR-Code', 'online': 'Online', 'visitor': 'Besucher', 'voice_title': 'Sprachmodus', 'voice_desc': 'Diktieren Sie Ihre Frage', 'voice_btn': 'Spracheingabe starten', 'voice_stop': 'Stopp', 'or_manual': 'ODER manuell ausfüllen', 'domain': 'Bereich', 'speciality': 'Fachgebiet', 'title': 'Titel', 'content': 'Inhalt', 'content_ph': 'Ihre Frage...', 'analyze': 'Mit KI analysieren', 'publish': 'Veröffentlichen', 'close': 'Schließen', 'answer': 'Antworten', 'listen': 'Anhören', 'stop': 'Stopp', 'email': 'E-Mail', 'password': 'Passwort', 'username': 'Benutzername', 'login_title': 'Anmelden', 'register_title': 'Registrieren', 'question_title': 'Frage stellen', 'history_title': 'Mein Verlauf', 'sign_in': 'Anmelden', 'sign_up': 'Registrieren', 'domain_int': 'Interessenbereich' },
+    'it': { 'subtitle': 'Piattaforma di Aiuto Accademico', 'login': 'Accedi', 'register': 'Registrati', 'logout': 'Esci', 'admin': 'Admin', 'new_question': 'Fai una Domanda', 'refresh': 'Aggiorna', 'scholars': 'Studiosi', 'history': 'Cronologia', 'qr': 'Codice QR', 'online': 'Online', 'visitor': 'Visitatore', 'voice_title': 'Modalità Vocale', 'voice_desc': 'Dettare la domanda', 'voice_btn': 'Avvia Dettatura', 'voice_stop': 'Ferma', 'or_manual': 'O compila manualmente', 'domain': 'Dominio', 'speciality': 'Specialità', 'title': 'Titolo', 'content': 'Contenuto', 'content_ph': 'La tua domanda...', 'analyze': 'Analizza con IA', 'publish': 'Pubblica', 'close': 'Chiudi', 'answer': 'Rispondi', 'listen': 'Ascolta', 'stop': 'Ferma', 'email': 'Email', 'password': 'Password', 'username': 'Nome utente', 'login_title': 'Accedi', 'register_title': 'Registrati', 'question_title': 'Fai una Domanda', 'history_title': 'Mia Cronologia', 'sign_in': 'Accedi', 'sign_up': 'Registrati', 'domain_int': 'Dominio di interesse' },
+    'pt': { 'subtitle': 'Plataforma de Ajuda Académica', 'login': 'Entrar', 'register': 'Registrar', 'logout': 'Sair', 'admin': 'Admin', 'new_question': 'Fazer Pergunta', 'refresh': 'Atualizar', 'scholars': 'Eruditos', 'history': 'Histórico', 'qr': 'Código QR', 'online': 'Online', 'visitor': 'Visitante', 'voice_title': 'Modo de Voz', 'voice_desc': 'Dite a sua pergunta', 'voice_btn': 'Iniciar Ditado', 'voice_stop': 'Parar', 'or_manual': 'OU preencha manualmente', 'domain': 'Domínio', 'speciality': 'Especialidade', 'title': 'Título', 'content': 'Conteúdo', 'content_ph': 'A sua pergunta...', 'analyze': 'Analisar com IA', 'publish': 'Publicar', 'close': 'Fechar', 'answer': 'Responder', 'listen': 'Ouvir', 'stop': 'Parar', 'email': 'Email', 'password': 'Senha', 'username': 'Nome de usuário', 'login_title': 'Entrar', 'register_title': 'Registrar', 'question_title': 'Fazer Pergunta', 'history_title': 'Meu Histórico', 'sign_in': 'Entrar', 'sign_up': 'Registrar', 'domain_int': 'Domínio de interesse' }
+};
+
+// ============================================================
+// CHANGE LANGUAGE
+// ============================================================
+function changeLanguage(lang) {
+    currentLanguage = lang;
+    try { localStorage.setItem('sc_language', lang); } catch(e) {}
+    
+    var sel1 = document.getElementById('languageSelector');
+    var sel2 = document.getElementById('languageSelector2');
+    if (sel1) sel1.value = lang;
+    if (sel2) sel2.value = lang;
+    
+    applyTranslations();
+    
+    var names = { 'fr': 'Français', 'ar': 'العربية', 'en': 'English', 'es': 'Español', 'de': 'Deutsch', 'it': 'Italiano', 'pt': 'Português' };
+    showNotification('🌐 ' + names[lang], 'info');
+}
+
+function applyTranslations() {
+    var t = TRANSLATIONS[currentLanguage] || TRANSLATIONS['fr'];
+    
+    var set = function(id, text) { var el = document.getElementById(id); if (el) el.textContent = text; };
+    var setHtml = function(id, html) { var el = document.getElementById(id); if (el) el.innerHTML = html; };
+    
+    set('subtitle', t.subtitle);
+    set('btnLogin', '🔐 ' + t.login);
+    set('btnRegister', '📝 ' + t.register);
+    set('btnLogout', '🚪 ' + t.logout);
+    set('adminBtn', '⚙️ ' + t.admin);
+    set('newQuestionBtn', '✏️ ' + t.new_question);
+    set('statusOnline', t.online);
+    set('voiceTitle', '🎤 ' + t.voice_title);
+    set('voiceDesc', t.voice_desc);
+    set('voiceBtn', '🎤 ' + t.voice_btn);
+    set('orManual', '— ' + t.or_manual + ' —');
+    set('labelDomain', t.domain);
+    set('labelSpeciality', t.speciality);
+    set('labelTitle', t.title);
+    set('labelContent', t.content);
+    set('btnAnalyze', '🤖 ' + t.analyze);
+    set('btnPublish', '📤 ' + t.publish);
+    set('btnCloseQ', t.close);
+    set('loginTitle', '🔐 ' + t.login_title);
+    set('registerTitle', '📝 ' + t.register_title);
+    set('questionTitle', '✏️ ' + t.question_title);
+    set('historyTitle', '📜 ' + t.history_title);
+    set('labelPassword1', t.password);
+    set('labelPassword2', t.password);
+    set('labelUsername', t.username);
+    set('labelDomainReg', t.domain_int);
+    
+    var qContent = document.getElementById('qContent');
+    if (qContent) qContent.placeholder = t.content_ph;
+    
+    var qTitle = document.getElementById('qTitle');
+    if (qTitle) qTitle.placeholder = t.title;
+}
+
+// ============================================================
+// SESSION
+// ============================================================
 function saveSession() { try { localStorage.setItem(SESSION_KEY, JSON.stringify(currentUser)); } catch(e) {} }
 function loadSession() { try { var d = localStorage.getItem(SESSION_KEY); return d ? JSON.parse(d) : null; } catch(e) { return null; } }
 
@@ -220,127 +298,117 @@ function loadSession() { try { var d = localStorage.getItem(SESSION_KEY); return
 // SCHOLARS (60+)
 // ============================================================
 var scholarsData = [
-    { id: 1, name: 'Dr. Ahmed Al-Faqih', domain: 'Islam', expertise: 'Fiqh (Jurisprudence)', languages: ['ar', 'fr', 'en'], rating: 4.9, literature: ['Fiqh al-Islami', 'Usul al-Fiqh'] },
-    { id: 2, name: 'Dr. Fatima Al-Aqida', domain: 'Islam', expertise: 'Aqida (Croyance)', languages: ['ar', 'fr', 'en'], rating: 4.8, literature: ['Aqida Tahawiyya'] },
-    { id: 3, name: 'Dr. Omar Al-Hadith', domain: 'Islam', expertise: 'Hadith (Prophétique)', languages: ['ar', 'en', 'fr'], rating: 4.9, literature: ['Sahih Bukhari'] },
-    { id: 4, name: 'Dr. Layla Tafsir', domain: 'Islam', expertise: 'Tafsir (Exégèse)', languages: ['ar', 'fr', 'en'], rating: 4.7, literature: ['Tafsir Ibn Kathir'] },
-    { id: 5, name: 'Dr. Youssef Sira', domain: 'Islam', expertise: 'Sira (Biographie)', languages: ['ar', 'en', 'fr'], rating: 4.6, literature: ['Sira Ibn Hisham'] },
-    { id: 6, name: 'Dr. Khadija Soufisme', domain: 'Islam', expertise: 'Soufisme (Spiritualité)', languages: ['ar', 'fr', 'en'], rating: 4.5, literature: ['Ihya Ulum al-Din'] },
-    { id: 7, name: 'Dr. Marie Dupont', domain: 'Médecine', expertise: 'Cardiologie', languages: ['fr', 'en'], rating: 4.9, literature: ['Harrison Cardiology'] },
-    { id: 8, name: 'Dr. Ahmed Benali', domain: 'Médecine', expertise: 'Neurologie', languages: ['fr', 'ar'], rating: 4.8, literature: ['Adams Neurology'] },
-    { id: 9, name: 'Dr. Sophie Martin', domain: 'Médecine', expertise: 'Pédiatrie', languages: ['fr', 'en'], rating: 4.9, literature: ['Nelson Pediatrics'] },
-    { id: 10, name: 'Dr. Karim Haddad', domain: 'Médecine', expertise: 'Chirurgie orthopédique', languages: ['fr', 'ar'], rating: 4.7, literature: [] },
-    { id: 11, name: 'Dr. Leila Mansouri', domain: 'Médecine', expertise: 'Oncologie', languages: ['fr', 'ar'], rating: 4.8, literature: ['Devita Oncology'] },
-    { id: 12, name: 'Dr. Isabelle Rousseau', domain: 'Pharmacie', expertise: 'Pharmacologie clinique', languages: ['fr', 'en'], rating: 4.8, literature: ['Goodman & Gilman'] },
-    { id: 13, name: 'Dr. Mohamed Trabelsi', domain: 'Pharmacie', expertise: 'Pharmacie galénique', languages: ['fr', 'ar'], rating: 4.7, literature: [] },
-    { id: 14, name: 'Dr. Claire Petit', domain: 'Pharmacie', expertise: 'Pharmacovigilance', languages: ['fr', 'en'], rating: 4.9, literature: ['Meyler'] },
-    { id: 15, name: 'Dr. Pierre Laurent', domain: 'Chimie', expertise: 'Chimie organique', languages: ['fr', 'en'], rating: 4.8, literature: ['Clayden'] },
-    { id: 16, name: 'Dr. Nadia Bouazizi', domain: 'Chimie', expertise: 'Chimie analytique', languages: ['fr', 'ar'], rating: 4.7, literature: ['Skoog'] },
-    { id: 17, name: 'Dr. Hassan Rifai', domain: 'Chimie', expertise: 'Chimie industrielle', languages: ['fr', 'ar'], rating: 4.8, literature: [] },
-    { id: 18, name: 'Dr. Yann LeCun Jr.', domain: 'IA', expertise: 'Deep Learning', languages: ['fr', 'en'], rating: 5.0, literature: ['Deep Learning'] },
-    { id: 19, name: 'Dr. Amina Khalil', domain: 'IA', expertise: 'NLP & Traitement du langage', languages: ['fr', 'ar'], rating: 4.9, literature: ['Speech & Language'] },
-    { id: 20, name: 'Dr. Thomas Bernard', domain: 'IA', expertise: 'Computer Vision', languages: ['fr', 'en'], rating: 4.8, literature: ['Szeliski'] },
-    { id: 21, name: 'Dr. Sara El Amrani', domain: 'IA', expertise: 'Reinforcement Learning', languages: ['fr', 'ar'], rating: 4.7, literature: ['Sutton & Barto'] },
-    { id: 22, name: 'Dr. Julien Moreau', domain: 'IoT', expertise: 'Architecture IoT', languages: ['fr', 'en'], rating: 4.8, literature: ['IoT Architecture'] },
-    { id: 23, name: 'Dr. Rania Hamdi', domain: 'IoT', expertise: 'Sécurité IoT', languages: ['fr', 'ar'], rating: 4.7, literature: ['IoT Security'] },
-    { id: 24, name: 'Dr. Marc Lefebvre', domain: 'IoT', expertise: 'Protocoles MQTT/CoAP', languages: ['fr', 'en'], rating: 4.6, literature: ['MQTT Essentials'] },
-    { id: 25, name: 'Dr. Olivier Dubois', domain: 'GMAO', expertise: 'GMAO (Maintenance Assistée)', languages: ['fr', 'en'], rating: 4.9, literature: ['Maintenance Industrielle'] },
-    { id: 26, name: 'Dr. Karim Bouzid', domain: 'GMAO', expertise: 'GPAO (Production Assistée)', languages: ['fr', 'ar'], rating: 4.8, literature: ['GPAO'] },
-    { id: 27, name: 'Dr. Hélène Girard', domain: 'GMAO', expertise: 'Planification industrielle', languages: ['fr', 'en'], rating: 4.7, literature: [] },
-    { id: 28, name: 'Dr. Jean-Pierre Durand', domain: 'Mécanique Pétrole', expertise: 'Usinage CNC haute précision', languages: ['fr', 'en'], rating: 5.0, literature: ['CNC Handbook'] },
-    { id: 29, name: 'Dr. Abdelkader Ziani', domain: 'Mécanique Pétrole', expertise: 'Vannes et équipements pétroliers', languages: ['fr', 'ar'], rating: 4.9, literature: ['Valve Handbook', 'API 6D'] },
-    { id: 30, name: 'Dr. Sarah Cohen', domain: 'Mécanique Pétrole', expertise: 'Turbines et compresseurs', languages: ['fr', 'en'], rating: 4.8, literature: ['Gas Turbine Theory'] },
-    { id: 31, name: 'Dr. Rachid Benmoussa', domain: 'Mécanique Pétrole', expertise: 'Forage et complétion', languages: ['fr', 'ar'], rating: 4.9, literature: ['Drilling Engineering'] },
-    { id: 32, name: 'Dr. Philippe Roux', domain: 'Mécanique Pétrole', expertise: 'Contrôle qualité et métrologie', languages: ['fr', 'en'], rating: 4.8, literature: ['Metrology Handbook'] },
-    { id: 33, name: 'Dr. Marc Dupont', domain: 'Gestion', expertise: 'Management stratégique', languages: ['fr', 'en'], rating: 4.8, literature: ['Strategic Management'] },
-    { id: 34, name: 'Dr. Sophie Bernard', domain: 'Gestion', expertise: 'Gestion des ressources humaines', languages: ['fr', 'en'], rating: 4.7, literature: ['HR Management'] },
-    { id: 35, name: 'Dr. Ahmed Karim', domain: 'Gestion', expertise: 'Marketing', languages: ['fr', 'ar'], rating: 4.8, literature: ['Marketing Management'] },
-    { id: 36, name: 'Dr. Isabelle Martin', domain: 'Expertise Comptable', expertise: 'Comptabilité générale', languages: ['fr', 'en'], rating: 4.9, literature: ['PCG'] },
-    { id: 37, name: 'Dr. Karim Trabelsi', domain: 'Expertise Comptable', expertise: 'Audit financier', languages: ['fr', 'ar'], rating: 4.8, literature: ['Audit IFAC'] },
-    { id: 38, name: 'Dr. Claire Rousseau', domain: 'Expertise Comptable', expertise: 'Fiscalité', languages: ['fr', 'en'], rating: 4.7, literature: ['Droit Fiscal'] },
-    { id: 39, name: 'Dr. Pierre Dubois', domain: 'Droit', expertise: 'Droit des affaires', languages: ['fr', 'en'], rating: 4.9, literature: ['Droit des Sociétés'] },
-    { id: 40, name: 'Dr. Nadia Hamdi', domain: 'Droit', expertise: 'Droit international', languages: ['fr', 'ar'], rating: 4.8, literature: ['DIP'] },
-    { id: 41, name: 'Dr. Hassan Rifai D', domain: 'Droit', expertise: 'Droit pénal', languages: ['fr', 'ar'], rating: 4.7, literature: ['Droit Pénal'] },
-    { id: 42, name: 'Dr. Amira Math E', domain: 'Économie', expertise: 'Macroéconomie', languages: ['fr', 'en'], rating: 4.9, literature: ['Mankiw'] },
-    { id: 43, name: 'Dr. Sophie Physique E', domain: 'Économie', expertise: 'Microéconomie', languages: ['fr', 'en'], rating: 4.8, literature: ['Varian'] },
-    { id: 44, name: 'Dr. Karim Benali', domain: 'Économie', expertise: 'Économie internationale', languages: ['fr', 'ar'], rating: 4.7, literature: ['Krugman'] },
-    { id: 45, name: 'Dr. Fatima Histoire', domain: 'Culture Générale', expertise: 'Histoire', languages: ['fr', 'ar'], rating: 4.9, literature: ['Histoire Universelle'] },
-    { id: 46, name: 'Dr. Marc Philosophie', domain: 'Culture Générale', expertise: 'Philosophie', languages: ['fr', 'en'], rating: 4.8, literature: ['Histoire Philo'] },
-    { id: 47, name: 'Dr. Amina Littérature', domain: 'Culture Générale', expertise: 'Littérature', languages: ['fr', 'ar'], rating: 4.7, literature: ['Littérature Comparée'] },
-    { id: 48, name: 'Dr. Isabelle Art', domain: 'Art', expertise: 'Peinture', languages: ['fr', 'en'], rating: 4.8, literature: ['Histoire de l\'Art'] },
-    { id: 49, name: 'Dr. Karim Musique', domain: 'Art', expertise: 'Musicologie', languages: ['fr', 'ar'], rating: 4.7, literature: ['Musicologie'] },
-    { id: 50, name: 'Dr. Sophie Cinema', domain: 'Art', expertise: 'Cinéma', languages: ['fr', 'en'], rating: 4.9, literature: ['Histoire Cinéma'] },
-    { id: 51, name: 'Dr. Pierre Architecte', domain: 'Architecture', expertise: 'Architecture moderne', languages: ['fr', 'en'], rating: 4.9, literature: ['Le Corbusier'] },
-    { id: 52, name: 'Dr. Nadia Urbanisme', domain: 'Architecture', expertise: 'Urbanisme', languages: ['fr', 'ar'], rating: 4.8, literature: ['Urbanisme'] },
-    { id: 53, name: 'Dr. Hassan Patrimoine', domain: 'Architecture', expertise: 'Patrimoine', languages: ['fr', 'ar'], rating: 4.7, literature: ['Patrimoine'] },
-    { id: 54, name: 'Dr. Amira Cuisine', domain: 'Restauration', expertise: 'Gastronomie française', languages: ['fr', 'en'], rating: 4.9, literature: ['Escoffier'] },
-    { id: 55, name: 'Dr. Sophie Pâtisserie', domain: 'Restauration', expertise: 'Pâtisserie', languages: ['fr', 'en'], rating: 4.8, literature: ['Pâtisserie Pro'] },
-    { id: 56, name: 'Dr. Karim Resto', domain: 'Restauration', expertise: 'Gestion restauration', languages: ['fr', 'ar'], rating: 4.7, literature: ['Management Resto'] },
-    { id: 57, name: 'Dr. Amira Math G', domain: 'Général', expertise: 'Mathématiques', languages: ['fr', 'en'], rating: 4.9, literature: ['Stewart'] },
-    { id: 58, name: 'Dr. Sophie Physique G', domain: 'Général', expertise: 'Physique', languages: ['fr', 'en'], rating: 4.8, literature: ['Feynman'] },
-    { id: 59, name: 'Dr. Karim Info', domain: 'Général', expertise: 'Informatique', languages: ['fr', 'en'], rating: 4.7, literature: ['Clean Code'] },
-    { id: 60, name: 'Dr. Fatima Histoire G', domain: 'Général', expertise: 'Histoire', languages: ['fr', 'ar'], rating: 4.9, literature: ['Histoire'] }
+    { id: 1, name: 'Dr. Ahmed Al-Faqih', domain: 'Islam', expertise: 'Fiqh (Jurisprudence)', languages: ['ar','fr','en'], rating: 4.9, literature: ['Fiqh al-Islami', 'Usul al-Fiqh'] },
+    { id: 2, name: 'Dr. Fatima Al-Aqida', domain: 'Islam', expertise: 'Aqida (Croyance)', languages: ['ar','fr','en'], rating: 4.8, literature: ['Aqida Tahawiyya'] },
+    { id: 3, name: 'Dr. Omar Al-Hadith', domain: 'Islam', expertise: 'Hadith (Prophétique)', languages: ['ar','en','fr'], rating: 4.9, literature: ['Sahih Bukhari'] },
+    { id: 4, name: 'Dr. Layla Tafsir', domain: 'Islam', expertise: 'Tafsir (Exégèse)', languages: ['ar','fr','en'], rating: 4.7, literature: ['Tafsir Ibn Kathir'] },
+    { id: 5, name: 'Dr. Youssef Sira', domain: 'Islam', expertise: 'Sira (Biographie)', languages: ['ar','en','fr'], rating: 4.6, literature: ['Sira Ibn Hisham'] },
+    { id: 6, name: 'Dr. Khadija Soufisme', domain: 'Islam', expertise: 'Soufisme (Spiritualité)', languages: ['ar','fr','en'], rating: 4.5, literature: ['Ihya Ulum al-Din'] },
+    { id: 7, name: 'Dr. Marie Dupont', domain: 'Médecine', expertise: 'Cardiologie', languages: ['fr','en'], rating: 4.9, literature: ['Harrison Cardiology'] },
+    { id: 8, name: 'Dr. Ahmed Benali', domain: 'Médecine', expertise: 'Neurologie', languages: ['fr','ar'], rating: 4.8, literature: ['Adams Neurology'] },
+    { id: 9, name: 'Dr. Sophie Martin', domain: 'Médecine', expertise: 'Pédiatrie', languages: ['fr','en'], rating: 4.9, literature: ['Nelson Pediatrics'] },
+    { id: 10, name: 'Dr. Karim Haddad', domain: 'Médecine', expertise: 'Chirurgie orthopédique', languages: ['fr','ar'], rating: 4.7, literature: [] },
+    { id: 11, name: 'Dr. Leila Mansouri', domain: 'Médecine', expertise: 'Oncologie', languages: ['fr','ar'], rating: 4.8, literature: ['Devita Oncology'] },
+    { id: 12, name: 'Dr. Isabelle Rousseau', domain: 'Pharmacie', expertise: 'Pharmacologie clinique', languages: ['fr','en'], rating: 4.8, literature: ['Goodman & Gilman'] },
+    { id: 13, name: 'Dr. Mohamed Trabelsi', domain: 'Pharmacie', expertise: 'Pharmacie galénique', languages: ['fr','ar'], rating: 4.7, literature: [] },
+    { id: 14, name: 'Dr. Claire Petit', domain: 'Pharmacie', expertise: 'Pharmacovigilance', languages: ['fr','en'], rating: 4.9, literature: ['Meyler'] },
+    { id: 15, name: 'Dr. Pierre Laurent', domain: 'Chimie', expertise: 'Chimie organique', languages: ['fr','en'], rating: 4.8, literature: ['Clayden'] },
+    { id: 16, name: 'Dr. Nadia Bouazizi', domain: 'Chimie', expertise: 'Chimie analytique', languages: ['fr','ar'], rating: 4.7, literature: ['Skoog'] },
+    { id: 17, name: 'Dr. Hassan Rifai', domain: 'Chimie', expertise: 'Chimie industrielle', languages: ['fr','ar'], rating: 4.8, literature: [] },
+    { id: 18, name: 'Dr. Yann LeCun Jr.', domain: 'IA', expertise: 'Deep Learning', languages: ['fr','en'], rating: 5.0, literature: ['Deep Learning'] },
+    { id: 19, name: 'Dr. Amina Khalil', domain: 'IA', expertise: 'NLP & Traitement du langage', languages: ['fr','ar'], rating: 4.9, literature: ['Speech & Language'] },
+    { id: 20, name: 'Dr. Thomas Bernard', domain: 'IA', expertise: 'Computer Vision', languages: ['fr','en'], rating: 4.8, literature: ['Szeliski'] },
+    { id: 21, name: 'Dr. Sara El Amrani', domain: 'IA', expertise: 'Reinforcement Learning', languages: ['fr','ar'], rating: 4.7, literature: ['Sutton & Barto'] },
+    { id: 22, name: 'Dr. Julien Moreau', domain: 'IoT', expertise: 'Architecture IoT', languages: ['fr','en'], rating: 4.8, literature: ['IoT Architecture'] },
+    { id: 23, name: 'Dr. Rania Hamdi', domain: 'IoT', expertise: 'Sécurité IoT', languages: ['fr','ar'], rating: 4.7, literature: ['IoT Security'] },
+    { id: 24, name: 'Dr. Marc Lefebvre', domain: 'IoT', expertise: 'Protocoles MQTT/CoAP', languages: ['fr','en'], rating: 4.6, literature: ['MQTT Essentials'] },
+    { id: 25, name: 'Dr. Olivier Dubois', domain: 'GMAO', expertise: 'GMAO (Maintenance Assistée)', languages: ['fr','en'], rating: 4.9, literature: ['Maintenance Industrielle'] },
+    { id: 26, name: 'Dr. Karim Bouzid', domain: 'GMAO', expertise: 'GPAO (Production Assistée)', languages: ['fr','ar'], rating: 4.8, literature: ['GPAO'] },
+    { id: 27, name: 'Dr. Hélène Girard', domain: 'GMAO', expertise: 'Planification industrielle', languages: ['fr','en'], rating: 4.7, literature: [] },
+    { id: 28, name: 'Dr. Jean-Pierre Durand', domain: 'Mécanique Pétrole', expertise: 'Usinage CNC haute précision', languages: ['fr','en'], rating: 5.0, literature: ['CNC Handbook'] },
+    { id: 29, name: 'Dr. Abdelkader Ziani', domain: 'Mécanique Pétrole', expertise: 'Vannes et équipements pétroliers', languages: ['fr','ar'], rating: 4.9, literature: ['Valve Handbook', 'API 6D'] },
+    { id: 30, name: 'Dr. Sarah Cohen', domain: 'Mécanique Pétrole', expertise: 'Turbines et compresseurs', languages: ['fr','en'], rating: 4.8, literature: ['Gas Turbine Theory'] },
+    { id: 31, name: 'Dr. Rachid Benmoussa', domain: 'Mécanique Pétrole', expertise: 'Forage et complétion', languages: ['fr','ar'], rating: 4.9, literature: ['Drilling Engineering'] },
+    { id: 32, name: 'Dr. Philippe Roux', domain: 'Mécanique Pétrole', expertise: 'Contrôle qualité et métrologie', languages: ['fr','en'], rating: 4.8, literature: ['Metrology Handbook'] },
+    { id: 33, name: 'Dr. Marc Dupont', domain: 'Gestion', expertise: 'Management stratégique', languages: ['fr','en'], rating: 4.8, literature: ['Strategic Management'] },
+    { id: 34, name: 'Dr. Sophie Bernard', domain: 'Gestion', expertise: 'Gestion des ressources humaines', languages: ['fr','en'], rating: 4.7, literature: ['HR Management'] },
+    { id: 35, name: 'Dr. Ahmed Karim', domain: 'Gestion', expertise: 'Marketing', languages: ['fr','ar'], rating: 4.8, literature: ['Marketing Management'] },
+    { id: 36, name: 'Dr. Isabelle Martin', domain: 'Expertise Comptable', expertise: 'Comptabilité générale', languages: ['fr','en'], rating: 4.9, literature: ['PCG'] },
+    { id: 37, name: 'Dr. Karim Trabelsi', domain: 'Expertise Comptable', expertise: 'Audit financier', languages: ['fr','ar'], rating: 4.8, literature: ['Audit IFAC'] },
+    { id: 38, name: 'Dr. Claire Rousseau', domain: 'Expertise Comptable', expertise: 'Fiscalité', languages: ['fr','en'], rating: 4.7, literature: ['Droit Fiscal'] },
+    { id: 39, name: 'Dr. Pierre Dubois', domain: 'Droit', expertise: 'Droit des affaires', languages: ['fr','en'], rating: 4.9, literature: ['Droit des Sociétés'] },
+    { id: 40, name: 'Dr. Nadia Hamdi', domain: 'Droit', expertise: 'Droit international', languages: ['fr','ar'], rating: 4.8, literature: ['DIP'] },
+    { id: 41, name: 'Dr. Hassan Rifai D', domain: 'Droit', expertise: 'Droit pénal', languages: ['fr','ar'], rating: 4.7, literature: ['Droit Pénal'] },
+    { id: 42, name: 'Dr. Amira Math E', domain: 'Économie', expertise: 'Macroéconomie', languages: ['fr','en'], rating: 4.9, literature: ['Mankiw'] },
+    { id: 43, name: 'Dr. Sophie Physique E', domain: 'Économie', expertise: 'Microéconomie', languages: ['fr','en'], rating: 4.8, literature: ['Varian'] },
+    { id: 44, name: 'Dr. Karim Benali', domain: 'Économie', expertise: 'Économie internationale', languages: ['fr','ar'], rating: 4.7, literature: ['Krugman'] },
+    { id: 45, name: 'Dr. Fatima Histoire', domain: 'Culture Générale', expertise: 'Histoire', languages: ['fr','ar'], rating: 4.9, literature: ['Histoire Universelle'] },
+    { id: 46, name: 'Dr. Marc Philosophie', domain: 'Culture Générale', expertise: 'Philosophie', languages: ['fr','en'], rating: 4.8, literature: ['Histoire Philo'] },
+    { id: 47, name: 'Dr. Amina Littérature', domain: 'Culture Générale', expertise: 'Littérature', languages: ['fr','ar'], rating: 4.7, literature: ['Littérature Comparée'] },
+    { id: 48, name: 'Dr. Isabelle Art', domain: 'Art', expertise: 'Peinture', languages: ['fr','en'], rating: 4.8, literature: ["Histoire de l'Art"] },
+    { id: 49, name: 'Dr. Karim Musique', domain: 'Art', expertise: 'Musicologie', languages: ['fr','ar'], rating: 4.7, literature: ['Musicologie'] },
+    { id: 50, name: 'Dr. Sophie Cinema', domain: 'Art', expertise: 'Cinéma', languages: ['fr','en'], rating: 4.9, literature: ['Histoire Cinéma'] },
+    { id: 51, name: 'Dr. Pierre Architecte', domain: 'Architecture', expertise: 'Architecture moderne', languages: ['fr','en'], rating: 4.9, literature: ['Le Corbusier'] },
+    { id: 52, name: 'Dr. Nadia Urbanisme', domain: 'Architecture', expertise: 'Urbanisme', languages: ['fr','ar'], rating: 4.8, literature: ['Urbanisme'] },
+    { id: 53, name: 'Dr. Hassan Patrimoine', domain: 'Architecture', expertise: 'Patrimoine', languages: ['fr','ar'], rating: 4.7, literature: ['Patrimoine'] },
+    { id: 54, name: 'Dr. Amira Cuisine', domain: 'Restauration', expertise: 'Gastronomie française', languages: ['fr','en'], rating: 4.9, literature: ['Escoffier'] },
+    { id: 55, name: 'Dr. Sophie Pâtisserie', domain: 'Restauration', expertise: 'Pâtisserie', languages: ['fr','en'], rating: 4.8, literature: ['Pâtisserie Pro'] },
+    { id: 56, name: 'Dr. Karim Resto', domain: 'Restauration', expertise: 'Gestion restauration', languages: ['fr','ar'], rating: 4.7, literature: ['Management Resto'] },
+    { id: 57, name: 'Dr. Amira Math G', domain: 'Général', expertise: 'Mathématiques', languages: ['fr','en'], rating: 4.9, literature: ['Stewart'] },
+    { id: 58, name: 'Dr. Sophie Physique G', domain: 'Général', expertise: 'Physique', languages: ['fr','en'], rating: 4.8, literature: ['Feynman'] },
+    { id: 59, name: 'Dr. Karim Info', domain: 'Général', expertise: 'Informatique', languages: ['fr','en'], rating: 4.7, literature: ['Clean Code'] },
+    { id: 60, name: 'Dr. Fatima Histoire G', domain: 'Général', expertise: 'Histoire', languages: ['fr','ar'], rating: 4.9, literature: ['Histoire'] }
 ];
 
 var categoriesByDomain = {
-    'Islam': ['Fiqh (Jurisprudence)', 'Aqida (Croyance)', 'Hadith (Prophétique)', 'Tafsir (Exégèse)', 'Sira (Biographie)', 'Soufisme (Spiritualité)'],
-    'Médecine': ['Cardiologie', 'Neurologie', 'Pédiatrie', 'Chirurgie orthopédique', 'Oncologie'],
-    'Pharmacie': ['Pharmacologie clinique', 'Pharmacie galénique', 'Pharmacovigilance'],
-    'Chimie': ['Chimie organique', 'Chimie analytique', 'Chimie industrielle'],
-    'IA': ['Deep Learning', 'NLP & Traitement du langage', 'Computer Vision', 'Reinforcement Learning'],
-    'IoT': ['Architecture IoT', 'Sécurité IoT', 'Protocoles MQTT/CoAP'],
-    'GMAO': ['GMAO (Maintenance Assistée)', 'GPAO (Production Assistée)', 'Planification industrielle'],
-    'Mécanique Pétrole': ['Usinage CNC haute précision', 'Vannes et équipements pétroliers', 'Turbines et compresseurs', 'Forage et complétion', 'Contrôle qualité et métrologie'],
-    'Gestion': ['Management stratégique', 'Gestion des ressources humaines', 'Marketing'],
-    'Expertise Comptable': ['Comptabilité générale', 'Audit financier', 'Fiscalité'],
-    'Droit': ['Droit des affaires', 'Droit international', 'Droit pénal'],
-    'Économie': ['Macroéconomie', 'Microéconomie', 'Économie internationale'],
-    'Culture Générale': ['Histoire', 'Philosophie', 'Littérature'],
-    'Art': ['Peinture', 'Musicologie', 'Cinéma'],
-    'Architecture': ['Architecture moderne', 'Urbanisme', 'Patrimoine'],
-    'Restauration': ['Gastronomie française', 'Pâtisserie', 'Gestion restauration'],
-    'Général': ['Mathématiques', 'Physique', 'Informatique', 'Histoire', 'Philosophie']
+    'Islam': ['Fiqh (Jurisprudence)','Aqida (Croyance)','Hadith (Prophétique)','Tafsir (Exégèse)','Sira (Biographie)','Soufisme (Spiritualité)'],
+    'Médecine': ['Cardiologie','Neurologie','Pédiatrie','Chirurgie orthopédique','Oncologie'],
+    'Pharmacie': ['Pharmacologie clinique','Pharmacie galénique','Pharmacovigilance'],
+    'Chimie': ['Chimie organique','Chimie analytique','Chimie industrielle'],
+    'IA': ['Deep Learning','NLP & Traitement du langage','Computer Vision','Reinforcement Learning'],
+    'IoT': ['Architecture IoT','Sécurité IoT','Protocoles MQTT/CoAP'],
+    'GMAO': ['GMAO (Maintenance Assistée)','GPAO (Production Assistée)','Planification industrielle'],
+    'Mécanique Pétrole': ['Usinage CNC haute précision','Vannes et équipements pétroliers','Turbines et compresseurs','Forage et complétion','Contrôle qualité et métrologie'],
+    'Gestion': ['Management stratégique','Gestion des ressources humaines','Marketing'],
+    'Expertise Comptable': ['Comptabilité générale','Audit financier','Fiscalité'],
+    'Droit': ['Droit des affaires','Droit international','Droit pénal'],
+    'Économie': ['Macroéconomie','Microéconomie','Économie internationale'],
+    'Culture Générale': ['Histoire','Philosophie','Littérature'],
+    'Art': ['Peinture','Musicologie','Cinéma'],
+    'Architecture': ['Architecture moderne','Urbanisme','Patrimoine'],
+    'Restauration': ['Gastronomie française','Pâtisserie','Gestion restauration'],
+    'Général': ['Mathématiques','Physique','Informatique','Histoire','Philosophie']
 };
 
 // ============================================================
 // API
 // ============================================================
 async function apiGet(endpoint) {
-    try { var r = await fetch(API_URL + endpoint); return await r.json(); }
-    catch(e) { return null; }
+    try { var r = await fetch(API_URL + endpoint); return await r.json(); } catch(e) { return null; }
 }
 async function apiPost(endpoint, data) {
     try {
-        var r = await fetch(API_URL + endpoint, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(data)
-        });
+        var r = await fetch(API_URL + endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
         return await r.json();
     } catch(e) { return null; }
 }
 
 // ============================================================
-// VOCAL - RECONNAISSANCE
+// VOCAL
 // ============================================================
 function initVoice() {
     var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SR) {
-        alert('❌ Reconnaissance vocale non supportée. Utilisez Chrome/Edge/Safari.');
-        return null;
-    }
+    if (!SR) { alert('Reconnaissance vocale non supportée. Utilisez Chrome/Edge.'); return null; }
     var rec = new SR();
-    rec.lang = 'fr-FR';
+    rec.lang = currentLanguage === 'ar' ? 'ar-SA' : currentLanguage === 'en' ? 'en-US' : 'fr-FR';
     rec.continuous = true;
     rec.interimResults = true;
-    rec.maxAlternatives = 1;
     return rec;
 }
 
 function startVoiceInput() {
     if (!recognition) recognition = initVoice();
     if (!recognition) return;
-    
     if (isListening) { recognition.stop(); return; }
     
     var statusEl = document.getElementById('voiceStatus');
@@ -350,126 +418,67 @@ function startVoiceInput() {
         isListening = true;
         btnEl.innerHTML = '🛑 Arrêter';
         btnEl.classList.add('listening');
-        statusEl.innerHTML = '🎤 <strong>Écoute...</strong> Parlez maintenant.';
-        statusEl.style.color = '#8b5cf6';
+        statusEl.innerHTML = '🎤 Écoute en cours...';
     };
     
     recognition.onresult = function(event) {
         var transcript = '';
-        for (var i = event.resultIndex; i < event.results.length; i++) {
-            transcript += event.results[i][0].transcript;
-        }
+        for (var i = event.resultIndex; i < event.results.length; i++) transcript += event.results[i][0].transcript;
         document.getElementById('qContent').value = transcript;
-        statusEl.innerHTML = '📝 <strong>Capté :</strong> "' + transcript.substring(0, 80) + '..."';
+        statusEl.innerHTML = '📝 ' + transcript.substring(0, 80);
     };
     
-    recognition.onerror = function(e) {
-        statusEl.innerHTML = '❌ Erreur : ' + e.error;
-        statusEl.style.color = '#ef4444';
-    };
-    
+    recognition.onerror = function(e) { statusEl.innerHTML = '❌ Erreur: ' + e.error; };
     recognition.onend = function() {
         isListening = false;
-        btnEl.innerHTML = '🎤 Démarrer la dictée vocale';
+        btnEl.innerHTML = '🎤 ' + (TRANSLATIONS[currentLanguage].voice_btn);
         btnEl.classList.remove('listening');
         var content = document.getElementById('qContent').value;
-        if (content && content.length > 10) {
-            statusEl.innerHTML = '🤖 <strong>Analyse IA...</strong>';
-            autoAnalyze();
-        }
+        if (content && content.length > 10) { statusEl.innerHTML = '🤖 Analyse IA...'; autoAnalyze(); }
     };
     
     recognition.start();
 }
 
-// ============================================================
-// LECTURE VOCALE DES RÉPONSES
-// ============================================================
 function speakText(text, language) {
-    if (!('speechSynthesis' in window)) { alert('❌ Synthèse vocale non supportée'); return; }
+    if (!('speechSynthesis' in window)) { alert('Synthèse vocale non supportée'); return; }
     window.speechSynthesis.cancel();
-    
     var utterance = new SpeechSynthesisUtterance(text);
-    var langMap = { 'fr': 'fr-FR', 'ar': 'ar-SA', 'en': 'en-US', 'es': 'es-ES', 'de': 'de-DE', 'it': 'it-IT', 'pt': 'pt-PT' };
+    var langMap = { 'fr':'fr-FR', 'ar':'ar-SA', 'en':'en-US', 'es':'es-ES', 'de':'de-DE', 'it':'it-IT', 'pt':'pt-PT' };
     utterance.lang = langMap[language] || 'fr-FR';
     utterance.rate = 0.9;
-    utterance.pitch = 1;
-    utterance.volume = 1;
-    
-    var voices = window.speechSynthesis.getVoices();
-    var targetLang = langMap[language] || 'fr-FR';
-    for (var i = 0; i < voices.length; i++) {
-        if (voices[i].lang === targetLang) { utterance.voice = voices[i]; break; }
-    }
-    
-    utterance.onstart = function() { showNotification('🔊 Lecture...', 'info'); };
-    utterance.onend = function() { showNotification('✅ Lecture terminée', 'success'); };
-    
     window.speechSynthesis.speak(utterance);
 }
 
-function stopSpeaking() {
-    if ('speechSynthesis' in window) {
-        window.speechSynthesis.cancel();
-        showNotification('⏹️ Arrêté', 'info');
-    }
-}
+function stopSpeaking() { if ('speechSynthesis' in window) window.speechSynthesis.cancel(); }
 
 // ============================================================
 // AUTO-ANALYSE IA
 // ============================================================
 async function autoAnalyze() {
     var content = document.getElementById('qContent').value.trim();
-    if (!content || content.length < 10) {
-        showNotification('Saisissez d\'abord votre question', 'error');
-        return;
-    }
-    
+    if (!content || content.length < 10) { showNotification('Saisissez d\'abord votre question', 'error'); return; }
     var statusEl = document.getElementById('voiceStatus');
-    if (statusEl) statusEl.innerHTML = '🤖 <strong>Analyse IA en cours...</strong>';
+    if (statusEl) statusEl.innerHTML = '🤖 Analyse IA...';
     
     try {
         var data = await apiPost('/analyze-question', { text: content });
-        
         if (data.title) document.getElementById('qTitle').value = data.title;
-        
         if (data.domain) {
-            var domainSelect = document.getElementById('qDomain');
-            for (var i = 0; i < domainSelect.options.length; i++) {
-                if (domainSelect.options[i].value === data.domain) {
-                    domainSelect.selectedIndex = i;
-                    updateCategories();
-                    break;
-                }
-            }
+            var ds = document.getElementById('qDomain');
+            for (var i = 0; i < ds.options.length; i++) if (ds.options[i].value === data.domain) { ds.selectedIndex = i; updateCategories(); break; }
         }
-        
         setTimeout(function() {
             if (data.category) {
-                var catSelect = document.getElementById('qCategory');
-                for (var i = 0; i < catSelect.options.length; i++) {
-                    if (catSelect.options[i].value === data.category) {
-                        catSelect.selectedIndex = i;
-                        break;
-                    }
-                }
+                var cs = document.getElementById('qCategory');
+                for (var i = 0; i < cs.options.length; i++) if (cs.options[i].value === data.category) { cs.selectedIndex = i; break; }
             }
         }, 100);
-        
-        if (statusEl) {
-            statusEl.innerHTML = '✅ <strong>IA :</strong> Titre + Domaine remplis automatiquement';
-            statusEl.style.color = '#22c55e';
-        }
-        showNotification('🤖 Question analysée par l\'IA !', 'success');
-        
-    } catch (e) {
-        if (statusEl) statusEl.innerHTML = '❌ Erreur d\'analyse';
-    }
+        if (statusEl) statusEl.innerHTML = '✅ IA : Titre + Domaine remplis';
+        showNotification('🤖 Question analysée !', 'success');
+    } catch (e) { if (statusEl) statusEl.innerHTML = '❌ Erreur analyse'; }
 }
 
-// ============================================================
-// NOTIFICATIONS
-// ============================================================
 function showNotification(msg, type) {
     var el = document.getElementById('notification');
     el.textContent = msg;
@@ -480,373 +489,32 @@ function showNotification(msg, type) {
 // ============================================================
 // INITIALISATION
 // ============================================================
-async 
-// ============================================================
-// SYSTÈME DE TRADUCTION MULTILINGUE
-// ============================================================
-var TRANSLATIONS = {
-    'fr': {
-        'app_name': 'Scholars Connect',
-        'subtitle': 'Plateforme d\'entraide académique',
-        'login': 'Connexion',
-        'register': 'Inscription',
-        'logout': 'Déconnexion',
-        'admin': 'Admin',
-        'new_question': 'Poser une question',
-        'refresh': 'Rafraîchir',
-        'scholars': 'Scholars',
-        'history': 'Historique',
-        'qr_code': 'QR Code',
-        'online': 'En ligne',
-        'visitor': 'Visiteur',
-        'questions': 'questions',
-        'ask_question': 'Poser une question',
-        'question_form': 'Poser une question',
-        'voice_mode': 'Mode Vocal',
-        'voice_desc': 'Dictez votre question - L\'IA remplira le titre et le domaine',
-        'start_voice': 'Démarrer la dictée vocale',
-        'stop_voice': 'Arrêter',
-        'or_manual': 'OU remplissez manuellement',
-        'domain': 'Domaine',
-        'speciality': 'Spécialité',
-        'title': 'Titre',
-        'title_auto': 'Titre (rempli automatiquement par l\'IA)',
-        'content': 'Contenu',
-        'content_placeholder': 'Votre question...',
-        'analyze_ai': 'Analyser avec l\'IA (auto-remplir)',
-        'publish': 'Publier',
-        'close': 'Fermer',
-        'send': 'Envoyer',
-        'answer': 'Répondre',
-        'listen': 'Écouter',
-        'stop_reading': 'Arrêter',
-        'email': 'Email',
-        'password': 'Mot de passe',
-        'name': 'Nom',
-        'username': 'Nom d\'utilisateur',
-        'sign_in': 'Se connecter',
-        'sign_up': 'S\'inscrire',
-        'welcome': 'Bienvenue',
-        'connected': 'Connecté',
-        'disconnected': 'Déconnecté',
-        'my_history': 'Mon historique',
-        'no_questions': 'Aucune question',
-        'pending': 'En attente',
-        'assigned': 'Assigné',
-        'answered': 'Répondu',
-        'claude_answered': 'Claude a répondu',
-        'juge_claude': 'Juge Claude',
-        'domain_islam': 'Islam',
-        'domain_medecine': 'Médecine',
-        'domain_pharmacie': 'Pharmacie',
-        'domain_chimie': 'Chimie',
-        'domain_ia': 'IA',
-        'domain_iot': 'IoT',
-        'domain_gmao': 'GMAO/GPAO',
-        'domain_meca': 'Mécanique Pétrole',
-        'domain_gestion': 'Gestion',
-        'domain_compta': 'Expertise Comptable',
-        'domain_droit': 'Droit',
-        'domain_eco': 'Économie',
-        'domain_culture': 'Culture Générale',
-        'domain_art': 'Art',
-        'domain_archi': 'Architecture',
-        'domain_resto': 'Restauration',
-        'domain_general': 'Général'
-    },
-    'ar': {
-        'app_name': 'شولارز كونكت',
-        'subtitle': 'منصة المساعدة الأكاديمية',
-        'login': 'تسجيل الدخول',
-        'register': 'إنشاء حساب',
-        'logout': 'تسجيل الخروج',
-        'admin': 'لوحة التحكم',
-        'new_question': 'طرح سؤال',
-        'refresh': 'تحديث',
-        'scholars': 'العلماء',
-        'history': 'السجل',
-        'qr_code': 'رمز QR',
-        'online': 'متصل',
-        'visitor': 'زائر',
-        'questions': 'أسئلة',
-        'ask_question': 'طرح سؤال',
-        'question_form': 'طرح سؤال جديد',
-        'voice_mode': 'الوضع الصوتي',
-        'voice_desc': 'أملِ سؤالك - ستقوم الذكاء الاصطناعي بملء العنوان والمجال',
-        'start_voice': 'بدء الإملاء الصوتي',
-        'stop_voice': 'إيقاف',
-        'or_manual': 'أو املأ يدوياً',
-        'domain': 'المجال',
-        'speciality': 'التخصص',
-        'title': 'العنوان',
-        'title_auto': 'العنوان (يتم ملؤه تلقائياً)',
-        'content': 'المحتوى',
-        'content_placeholder': 'سؤالك...',
-        'analyze_ai': 'تحليل بالذكاء الاصطناعي',
-        'publish': 'نشر',
-        'close': 'إغلاق',
-        'send': 'إرسال',
-        'answer': 'الرد',
-        'listen': 'استمع',
-        'stop_reading': 'إيقاف',
-        'email': 'البريد الإلكتروني',
-        'password': 'كلمة المرور',
-        'name': 'الاسم',
-        'username': 'اسم المستخدم',
-        'sign_in': 'تسجيل الدخول',
-        'sign_up': 'إنشاء حساب',
-        'welcome': 'مرحباً',
-        'connected': 'متصل',
-        'disconnected': 'غير متصل',
-        'my_history': 'سجلي',
-        'no_questions': 'لا توجد أسئلة',
-        'pending': 'قيد الانتظار',
-        'assigned': 'تم التعيين',
-        'answered': 'تم الرد',
-        'claude_answered': 'رد كلود',
-        'juge_claude': 'القاضي كلود',
-        'domain_islam': 'الإسلام',
-        'domain_medecine': 'الطب',
-        'domain_pharmacie': 'الصيدلة',
-        'domain_chimie': 'الكيمياء',
-        'domain_ia': 'الذكاء الاصطناعي',
-        'domain_iot': 'إنترنت الأشياء',
-        'domain_gmao': 'GMAO/GPAO',
-        'domain_meca': 'الميكانيكا البترولية',
-        'domain_gestion': 'الإدارة',
-        'domain_compta': 'المحاسبة',
-        'domain_droit': 'القانون',
-        'domain_eco': 'الاقتصاد',
-        'domain_culture': 'الثقافة العامة',
-        'domain_art': 'الفن',
-        'domain_archi': 'الهندسة المعمارية',
-        'domain_resto': 'المطاعم',
-        'domain_general': 'عام'
-    },
-    'en': {
-        'app_name': 'Scholars Connect',
-        'subtitle': 'Academic Help Platform',
-        'login': 'Login',
-        'register': 'Sign Up',
-        'logout': 'Logout',
-        'admin': 'Admin',
-        'new_question': 'Ask a Question',
-        'refresh': 'Refresh',
-        'scholars': 'Scholars',
-        'history': 'History',
-        'qr_code': 'QR Code',
-        'online': 'Online',
-        'visitor': 'Visitor',
-        'questions': 'questions',
-        'ask_question': 'Ask a Question',
-        'question_form': 'Ask a Question',
-        'voice_mode': 'Voice Mode',
-        'voice_desc': 'Dictate your question - AI will fill title and domain',
-        'start_voice': 'Start Voice Input',
-        'stop_voice': 'Stop',
-        'or_manual': 'OR fill manually',
-        'domain': 'Domain',
-        'speciality': 'Specialty',
-        'title': 'Title',
-        'title_auto': 'Title (auto-filled by AI)',
-        'content': 'Content',
-        'content_placeholder': 'Your question...',
-        'analyze_ai': 'Analyze with AI',
-        'publish': 'Publish',
-        'close': 'Close',
-        'send': 'Send',
-        'answer': 'Answer',
-        'listen': 'Listen',
-        'stop_reading': 'Stop',
-        'email': 'Email',
-        'password': 'Password',
-        'name': 'Name',
-        'username': 'Username',
-        'sign_in': 'Sign In',
-        'sign_up': 'Sign Up',
-        'welcome': 'Welcome',
-        'connected': 'Connected',
-        'disconnected': 'Disconnected',
-        'my_history': 'My History',
-        'no_questions': 'No questions',
-        'pending': 'Pending',
-        'assigned': 'Assigned',
-        'answered': 'Answered',
-        'claude_answered': 'Claude answered',
-        'juge_claude': 'Judge Claude',
-        'domain_islam': 'Islam',
-        'domain_medecine': 'Medicine',
-        'domain_pharmacie': 'Pharmacy',
-        'domain_chimie': 'Chemistry',
-        'domain_ia': 'AI',
-        'domain_iot': 'IoT',
-        'domain_gmao': 'GMAO/GPAO',
-        'domain_meca': 'Petroleum Mechanics',
-        'domain_gestion': 'Management',
-        'domain_compta': 'Accounting',
-        'domain_droit': 'Law',
-        'domain_eco': 'Economics',
-        'domain_culture': 'General Culture',
-        'domain_art': 'Art',
-        'domain_archi': 'Architecture',
-        'domain_resto': 'Restaurant',
-        'domain_general': 'General'
-    },
-    'es': {
-        'app_name': 'Scholars Connect',
-        'subtitle': 'Plataforma de Ayuda Académica',
-        'login': 'Iniciar Sesión',
-        'register': 'Registrarse',
-        'logout': 'Cerrar Sesión',
-        'admin': 'Admin',
-        'new_question': 'Hacer una Pregunta',
-        'refresh': 'Actualizar',
-        'scholars': 'Eruditos',
-        'history': 'Historial',
-        'qr_code': 'Código QR',
-        'online': 'En línea',
-        'visitor': 'Visitante',
-        'questions': 'preguntas',
-        'ask_question': 'Hacer una Pregunta',
-        'question_form': 'Hacer una Pregunta',
-        'voice_mode': 'Modo de Voz',
-        'voice_desc': 'Dicte su pregunta - La IA llenará título y dominio',
-        'start_voice': 'Iniciar Dictado',
-        'stop_voice': 'Detener',
-        'or_manual': 'O complete manualmente',
-        'domain': 'Dominio',
-        'speciality': 'Especialidad',
-        'title': 'Título',
-        'title_auto': 'Título (auto-rellenado por IA)',
-        'content': 'Contenido',
-        'content_placeholder': 'Su pregunta...',
-        'analyze_ai': 'Analizar con IA',
-        'publish': 'Publicar',
-        'close': 'Cerrar',
-        'send': 'Enviar',
-        'answer': 'Responder',
-        'listen': 'Escuchar',
-        'stop_reading': 'Detener',
-        'email': 'Correo',
-        'password': 'Contraseña',
-        'name': 'Nombre',
-        'username': 'Usuario',
-        'sign_in': 'Iniciar Sesión',
-        'sign_up': 'Registrarse',
-        'welcome': 'Bienvenido',
-        'connected': 'Conectado',
-        'disconnected': 'Desconectado',
-        'my_history': 'Mi Historial',
-        'no_questions': 'Sin preguntas',
-        'pending': 'Pendiente',
-        'assigned': 'Asignado',
-        'answered': 'Respondido',
-        'claude_answered': 'Claude respondió',
-        'juge_claude': 'Juez Claude'
-    }
-};
-
-var currentLanguage = 'fr';
-
-// ============================================================
-// FONCTION DE CHANGEMENT DE LANGUE
-// ============================================================
-function changeLanguage(lang) {
-    currentLanguage = lang;
-    localStorage.setItem('sc_language', lang);
-    
-    // Synchroniser les deux sélecteurs
-    var sel1 = document.getElementById('languageSelector');
-    var sel2 = document.getElementById('languageSelector2');
-    if (sel1) sel1.value = lang;
-    if (sel2) sel2.value = lang;
-    
-    // Appliquer les traductions
-    applyTranslations();
-    
-    // Notification
-    var langNames = { 'fr': 'Français', 'ar': 'العربية', 'en': 'English', 'es': 'Español', 'de': 'Deutsch', 'it': 'Italiano', 'pt': 'Português' };
-    showNotification('🌐 Langue : ' + langNames[lang], 'info');
-}
-
-// ============================================================
-// APPLIQUER LES TRADUCTIONS
-// ============================================================
-function applyTranslations() {
-    var t = TRANSLATIONS[currentLanguage] || TRANSLATIONS['fr'];
-    
-    // Mettre à jour le HTML selon les sélecteurs connus
-    var elements = {
-        '.logo': t.app_name,
-        '.logo-sub': t.subtitle
-    };
-    
-    // Traduire les boutons principaux
-    var buttons = document.querySelectorAll('.btn');
-    buttons.forEach(function(btn) {
-        var text = btn.textContent.trim();
-        if (text.includes('Connexion') || text.includes('Login') || text.includes('تسجيل')) btn.textContent = '🔐 ' + t.login;
-        else if (text.includes('Inscription') || text.includes('Sign Up') || text.includes('إنشاء')) btn.textContent = '📝 ' + t.register;
-        else if (text.includes('Déconnexion') || text.includes('Logout') || text.includes('تسجيل الخروج')) btn.textContent = '🚪 ' + t.logout;
-        else if (text.includes('Admin') || text.includes('لوحة')) btn.textContent = '⚙️ ' + t.admin;
-        else if (text.includes('Poser une question') || text.includes('Ask') || text.includes('طرح')) btn.textContent = '✏️ ' + t.new_question;
-        else if (text.includes('Rafraîchir') || text.includes('Refresh') || text.includes('تحديث')) btn.textContent = '🔄 ' + t.refresh;
-        else if (text.includes('Scholars') || text.includes('العلماء')) btn.textContent = '🎓 ' + t.scholars;
-        else if (text.includes('Historique') || text.includes('History') || text.includes('السجل')) btn.textContent = '📜 ' + t.history;
-        else if (text.includes('QR Code') || text.includes('رمز QR')) btn.textContent = '📱 ' + t.qr_code;
-    });
-    
-    // Mettre à jour le placeholder des champs
-    var qTitle = document.getElementById('qTitle');
-    var qContent = document.getElementById('qContent');
-    if (qTitle) qTitle.placeholder = t.title;
-    if (qContent) qContent.placeholder = t.content_placeholder;
-    
-    // Statut
-    var userRole = document.getElementById('userRole');
-    if (userRole && userRole.textContent.includes('Visiteur')) userRole.innerHTML = '👤 ' + t.visitor;
-}
-
-// ============================================================
-// CHARGER LA LANGUE AU DÉMARRAGE
-// ============================================================
-function loadSavedLanguage() {
-    var saved = localStorage.getItem('sc_language');
-    if (saved && TRANSLATIONS[saved]) {
-        currentLanguage = saved;
-        var sel1 = document.getElementById('languageSelector');
-        var sel2 = document.getElementById('languageSelector2');
-        if (sel1) sel1.value = saved;
-        if (sel2) sel2.value = saved;
-    }
-}
-
-function initializeApp() {
+async function initializeApp() {
     currentUser = loadSession();
-    loadSavedLanguage();
+    var savedLang = localStorage.getItem('sc_language') || 'fr';
+    currentLanguage = savedLang;
+    document.getElementById('languageSelector').value = savedLang;
+    document.getElementById('languageSelector2').value = savedLang;
     buildCategoriesNav();
     buildDomainSelects();
     updateUI();
+    applyTranslations();
     await loadQuestions();
-    
-    if ('speechSynthesis' in window) {
-        window.speechSynthesis.onvoiceschanged = function() { window.speechSynthesis.getVoices(); };
-    }
-    
-    if (currentUser) showNotification('💾 Session restaurée : ' + currentUser.username, 'success');
+    if ('speechSynthesis' in window) window.speechSynthesis.onvoiceschanged = function() { window.speechSynthesis.getVoices(); };
+    if (currentUser) showNotification('💾 ' + currentUser.username, 'success');
 }
 
 function buildCategoriesNav() {
     var nav = document.getElementById('categoriesNav');
     var html = '<button class="cat-btn active" onclick="filterByDomain(\'all\', this)">🌍 Tous</button>';
-    var icons = { 'Islam': '🕌', 'Médecine': '🏥', 'Pharmacie': '💊', 'Chimie': '⚗️', 'IA': '🤖', 'IoT': '🌐', 'GMAO': '🏭', 'Mécanique Pétrole': '⚙️', 'Gestion': '📊', 'Expertise Comptable': '💰', 'Droit': '⚖️', 'Économie': '📈', 'Culture Générale': '🌍', 'Art': '🎨', 'Architecture': '🏛️', 'Restauration': '🍽️', 'Général': '📚' };
+    var icons = { 'Islam':'🕌','Médecine':'🏥','Pharmacie':'💊','Chimie':'⚗️','IA':'🤖','IoT':'🌐','GMAO':'🏭','Mécanique Pétrole':'⚙️','Gestion':'📊','Expertise Comptable':'💰','Droit':'⚖️','Économie':'📈','Culture Générale':'🌍','Art':'🎨','Architecture':'🏛️','Restauration':'🍽️','Général':'📚' };
     for (var d in categoriesByDomain) html += '<button class="cat-btn" onclick="filterByDomain(\'' + d + '\', this)">' + (icons[d] || '📖') + ' ' + d + '</button>';
     nav.innerHTML = html;
 }
 
 function buildDomainSelects() {
     var domains = Object.keys(categoriesByDomain);
-    var icons = { 'Islam': '🕌', 'Médecine': '🏥', 'Pharmacie': '💊', 'Chimie': '⚗️', 'IA': '🤖', 'IoT': '🌐', 'GMAO': '🏭', 'Mécanique Pétrole': '⚙️', 'Gestion': '📊', 'Expertise Comptable': '💰', 'Droit': '⚖️', 'Économie': '📈', 'Culture Générale': '🌍', 'Art': '🎨', 'Architecture': '🏛️', 'Restauration': '🍽️', 'Général': '📚' };
+    var icons = { 'Islam':'🕌','Médecine':'🏥','Pharmacie':'💊','Chimie':'⚗️','IA':'🤖','IoT':'🌐','GMAO':'🏭','Mécanique Pétrole':'⚙️','Gestion':'📊','Expertise Comptable':'💰','Droit':'⚖️','Économie':'📈','Culture Générale':'🌍','Art':'🎨','Architecture':'🏛️','Restauration':'🍽️','Général':'📚' };
     var qSel = document.getElementById('qDomain');
     qSel.innerHTML = '';
     domains.forEach(function(d) {
@@ -866,7 +534,7 @@ function filterByDomain(domain, btn) {
 }
 
 function getDomainIcon(domain) {
-    var icons = { 'Islam': '🕌', 'Médecine': '🏥', 'Pharmacie': '💊', 'Chimie': '⚗️', 'IA': '🤖', 'IoT': '🌐', 'GMAO': '🏭', 'Mécanique Pétrole': '⚙️', 'Gestion': '📊', 'Expertise Comptable': '💰', 'Droit': '⚖️', 'Économie': '📈', 'Culture Générale': '🌍', 'Art': '🎨', 'Architecture': '🏛️', 'Restauration': '🍽️', 'Général': '📚' };
+    var icons = { 'Islam':'🕌','Médecine':'🏥','Pharmacie':'💊','Chimie':'⚗️','IA':'🤖','IoT':'🌐','GMAO':'🏭','Mécanique Pétrole':'⚙️','Gestion':'📊','Expertise Comptable':'💰','Droit':'⚖️','Économie':'📈','Culture Générale':'🌍','Art':'🎨','Architecture':'🏛️','Restauration':'🍽️','Général':'📚' };
     return icons[domain] || '📖';
 }
 
@@ -883,8 +551,7 @@ function showScholars() {
     var html = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:15px;">';
     filtered.forEach(function(s) {
         var lit = s.literature ? s.literature.length : 0;
-        var litBadge = lit > 0 ? '📚 ' + lit : '📚 Aucune';
-        html += '<div class="scholar-card"><strong>' + getDomainIcon(s.domain) + ' ' + s.name + '</strong> <span class="domain-tag">' + s.domain + '</span><div style="opacity:0.7;font-size:14px;margin-top:5px;">📂 ' + s.expertise + '</div><div style="color:#f59e0b;">⭐ ' + s.rating + '/5 · ' + litBadge + '</div></div>';
+        html += '<div class="scholar-card"><strong>' + getDomainIcon(s.domain) + ' ' + s.name + '</strong> <span class="domain-tag">' + s.domain + '</span><div style="opacity:0.7;font-size:14px;margin-top:5px;">📂 ' + s.expertise + '</div><div style="color:#f59e0b;">⭐ ' + s.rating + ' · 📚 ' + lit + '</div></div>';
     });
     container.innerHTML = html + '</div>';
     hideForms();
@@ -915,7 +582,9 @@ function updateCategories() {
     sel.innerHTML = '';
     cats.forEach(function(c) {
         var opt = document.createElement('option');
-        opt.value = c; opt.textContent = c; sel.appendChild(opt);
+        opt.value = c;
+        opt.textContent = c;
+        sel.appendChild(opt);
     });
 }
 
@@ -924,7 +593,10 @@ async function login() {
     var password = document.getElementById('loginPassword').value;
     var user = await apiPost('/login', { email: email, password: password });
     if (user && !user.error) {
-        currentUser = user; saveSession(); updateUI(); hideForms();
+        currentUser = user;
+        saveSession();
+        updateUI();
+        hideForms();
         showNotification('✅ Connecté !', 'success');
         await loadQuestions();
     } else showNotification('❌ Identifiants incorrects', 'error');
@@ -936,10 +608,13 @@ async function register() {
     var password = document.getElementById('regPassword').value;
     var domain = document.getElementById('regDomain').value;
     if (!username || !email || !password) { showNotification('Remplir tous les champs', 'error'); return; }
-    if (password.length < 6) { showNotification('6 caractères min', 'error'); return; }
-    var newUser = await apiPost('/users', { username: username, email: email, password: password, role: 'user', language: 'fr', domain: domain });
+    if (password.length < 6) { showNotification('6 caractères minimum', 'error'); return; }
+    var newUser = await apiPost('/users', { username: username, email: email, password: password, role: 'user', language: currentLanguage, domain: domain });
     if (newUser && !newUser.error) {
-        currentUser = newUser; saveSession(); updateUI(); hideForms();
+        currentUser = newUser;
+        saveSession();
+        updateUI();
+        hideForms();
         showNotification('✅ Inscription réussie !', 'success');
         await loadQuestions();
     } else showNotification('❌ ' + (newUser ? newUser.error : 'Erreur'), 'error');
@@ -947,7 +622,9 @@ async function register() {
 
 function logout() {
     if (!confirm('Se déconnecter ?')) return;
-    currentUser = null; saveSession(); updateUI();
+    currentUser = null;
+    saveSession();
+    updateUI();
     showNotification('🚪 Déconnecté', 'info');
 }
 
@@ -1006,7 +683,7 @@ async function askQuestion() {
     var q = await apiPost('/questions', {
         title: title, content: content, domain: domain, category: category,
         username: currentUser.username, userId: currentUser.id,
-        language: 'fr', date: new Date().toLocaleDateString('fr-FR'),
+        language: currentLanguage, date: new Date().toLocaleDateString('fr-FR'),
         status: scholar ? 'assigned' : 'pending',
         scholar: scholar, answers: []
     });
@@ -1043,7 +720,7 @@ function renderQuestions() {
                 var aCls = a.isClaude ? 'claude-answer' : (a.isScholarResponse ? 'scholar-answer' : '');
                 var badge = '';
                 if (a.isClaude) { badge = '<span class="claude-badge">🤖 Juge Claude</span> '; if (a.claudeReason === 'no_literature') badge += '<span class="claude-status">Sans littérature</span>'; if (a.claudeReason === 'timeout_5min') badge += '<span class="timer-badge">⏱️ 5 min</span>'; }
-                answersHtml += '<div class="answer-item ' + aCls + '"><div style="margin-bottom:5px;">' + badge + '</div><div class="claude-response">' + a.content + '</div><div class="answer-meta">👤 ' + a.username + ' | ' + a.date + '</div><div style="margin-top:8px;"><button class="speak-btn" onclick="speakText(this.parentElement.previousElementSibling.textContent, \'fr\')">🔊 Écouter</button><button class="stop-btn" onclick="stopSpeaking()">⏹️ Arrêter</button></div></div>';
+                answersHtml += '<div class="answer-item ' + aCls + '"><div style="margin-bottom:5px;">' + badge + '</div><div class="claude-response">' + a.content + '</div><div class="answer-meta">👤 ' + a.username + ' | ' + a.date + '</div><div style="margin-top:8px;"><button class="speak-btn" onclick="speakText(this.parentElement.previousElementSibling.textContent, \'' + (a.language || 'fr') + '\')">🔊 Écouter</button><button class="stop-btn" onclick="stopSpeaking()">⏹️ Arrêter</button></div></div>';
             });
             answersHtml += '</div>';
         } else answersHtml = '<div style="margin-top:10px;opacity:0.5;font-size:13px;">💬 En attente (Juge Claude surveille)...</div>';
@@ -1060,7 +737,7 @@ async function showAnswerForm(questionId) {
     var isScholar = scholarsData.some(function(s) { return s.name === currentUser.username; });
     await apiPost('/questions/' + questionId + '/answers', {
         username: currentUser.username, userId: currentUser.id,
-        content: content, language: 'fr', date: new Date().toLocaleDateString('fr-FR'),
+        content: content, language: currentLanguage, date: new Date().toLocaleDateString('fr-FR'),
         aiVerified: isScholar, isScholarResponse: isScholar
     });
     await apiPost('/history', { userId: currentUser.id, username: currentUser.username, action: 'answer', data: { content: content.substring(0, 50) } });
@@ -1074,4 +751,3 @@ initializeApp();
 </script>
 </body>
 </html>
-
