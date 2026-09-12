@@ -67,8 +67,7 @@ function updateStats() {
         '<div class="stat-card"><div class="stat-number">' + users.length + '</div><div class="stat-label">👤 Utilisateurs</div></div>' +
         '<div class="stat-card"><div class="stat-number">' + questions.length + '</div><div class="stat-label">📋 Questions</div></div>' +
         '<div class="stat-card"><div class="stat-number">' + totalAnswers + '</div><div class="stat-label">💬 Réponses</div></div>' +
-        '<div class="stat-card"><div class="stat-number">' + claudeAnswers + '</div><div class="stat-label">🤖 Claude</div></div>' +
-        '<div class="stat-card"><div class="stat-number">' + history.length + '</div><div class="stat-label">📜 Actions</div></div>';
+        '<div class="stat-card"><div class="stat-number">' + claudeAnswers + '</div><div class="stat-label">🤖 Claude</div></div>';
 }
 
 function showTab(tab) {
@@ -81,11 +80,8 @@ function showTab(tab) {
         c.innerHTML = h;
     } else if (tab === 'questions') {
         if (questions.length === 0) { c.innerHTML = '<p style="text-align:center;padding:30px;opacity:0.5;">Aucune question.</p>'; return; }
-        var h = '<h3>📋 Questions (' + questions.length + ')</h3><table><thead><tr><th>Titre</th><th>Domaine</th><th>Langue</th><th>Auteur</th><th>Statut</th><th>Réponses</th></tr></thead><tbody>';
-        questions.forEach(function(q) {
-            var ac = q.answers ? q.answers.length : 0;
-            h += '<tr><td>' + q.title + '</td><td><span class="badge">' + q.domain + '</span></td><td>' + (q.language || 'fr') + '</td><td>' + q.username + '</td><td>' + q.status + '</td><td>' + ac + '</td></tr>';
-        });
+        var h = '<h3>📋 Questions (' + questions.length + ')</h3><table><thead><tr><th>Titre</th><th>Domaine</th><th>Langue</th><th>Auteur</th><th>Statut</th></tr></thead><tbody>';
+        questions.forEach(function(q) { h += '<tr><td>' + q.title + '</td><td><span class="badge">' + q.domain + '</span></td><td>' + (q.language || 'fr') + '</td><td>' + q.username + '</td><td>' + q.status + '</td></tr>'; });
         h += '</tbody></table>';
         c.innerHTML = h;
     } else if (tab === 'claude') {
@@ -94,8 +90,7 @@ function showTab(tab) {
         var h = '<h3>🤖 Réponses Claude (' + list.length + ')</h3>';
         if (list.length === 0) h += '<p style="text-align:center;padding:30px;opacity:0.5;">Aucune.</p>';
         else list.forEach(function(item) {
-            var r = item.a.claudeReason === 'no_literature' ? '❌ Sans littérature' : '⏱️ Timeout';
-            h += '<div style="background:linear-gradient(135deg,rgba(139,92,246,0.1),rgba(236,72,153,0.05));padding:15px;border-radius:10px;margin:10px 0;border-left:4px solid #8b5cf6;"><strong>' + item.q.title + '</strong> <span class="badge badge-claude">' + r + '</span><div style="margin-top:10px;white-space:pre-wrap;font-size:12px;">' + item.a.content + '</div></div>';
+            h += '<div style="background:linear-gradient(135deg,rgba(139,92,246,0.1),rgba(236,72,153,0.05));padding:15px;border-radius:10px;margin:10px 0;border-left:4px solid #8b5cf6;"><strong>' + item.q.title + '</strong><div style="margin-top:10px;white-space:pre-wrap;font-size:12px;">' + item.a.content + '</div></div>';
         });
         c.innerHTML = h;
     } else if (tab === 'users') {

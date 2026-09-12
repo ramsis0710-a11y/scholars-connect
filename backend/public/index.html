@@ -32,6 +32,7 @@ body { font-family:'Segoe UI',system-ui,sans-serif; background:#0a0e27; color:#f
 .form-group label { display:block; margin-bottom:5px; opacity:0.8; }
 .form-group input, .form-group textarea, .form-group select { width:100%; padding:12px; border-radius:10px; border:1px solid rgba(255,255,255,0.1); background:rgba(255,255,255,0.05); color:white; font-size:14px; }
 .form-group textarea { min-height:100px; }
+.form-group textarea.rtl { direction: rtl; text-align: right; font-family: 'Traditional Arabic', 'Arial', sans-serif; font-size: 18px; }
 .form-group select option { background:#1a1a2e; color:white; }
 .voice-box { background:linear-gradient(135deg,rgba(139,92,246,0.15),rgba(236,72,153,0.1)); padding:20px; border-radius:16px; margin-bottom:20px; border:2px dashed #8b5cf6; text-align:center; }
 .voice-btn { background:linear-gradient(135deg,#8b5cf6,#ec4899); color:white; padding:18px 40px; border-radius:50px; font-size:16px; font-weight:600; border:none; cursor:pointer; transition:0.3s; }
@@ -76,8 +77,6 @@ body { font-family:'Segoe UI',system-ui,sans-serif; background:#0a0e27; color:#f
 .speak-btn { background:#3b82f6; color:white; border:none; padding:6px 12px; border-radius:8px; font-size:11px; cursor:pointer; }
 .pause-btn { background:#f59e0b; color:#0a0e27; border:none; padding:6px 12px; border-radius:8px; font-size:11px; cursor:pointer; }
 .stop-btn { background:#ef4444; color:white; border:none; padding:6px 12px; border-radius:8px; font-size:11px; cursor:pointer; }
-.share-lang-btn { transition: all 0.3s ease !important; }
-.share-lang-btn:hover { transform: scale(1.05) !important; }
 @media (max-width:600px) { .header { flex-direction:column; align-items:stretch; } }
 </style>
 </head>
@@ -226,7 +225,7 @@ var API_URL = window.location.origin + '/api';
 var currentUser = null;
 var questions = [];
 var currentFilter = 'all';
-var SESSION_KEY = 'sc_session_v7';
+var SESSION_KEY = 'sc_session_v8';
 var currentLanguage = 'fr';
 var recognition = null;
 var isListening = false;
@@ -235,6 +234,7 @@ var currentSpeechIndex = 0;
 var isSpeaking = false;
 var isPaused = false;
 var selectedShareLang = 'fr';
+var silenceTimer = null;
 
 var TRANSLATIONS = {
     'fr': { 'subtitle': "Plateforme d'entraide académique multilingue", 'login': 'Connexion', 'register': 'Inscription', 'logout': 'Déconnexion', 'admin': 'Admin', 'new_question': 'Poser une question', 'voice_title': 'Mode Vocal', 'voice_desc': "Dictez votre question - L'IA remplira le titre", 'voice_btn': 'Démarrer la dictée vocale', 'voice_stop': 'Arrêter', 'or_manual': 'OU remplissez manuellement', 'domain': 'Domaine', 'speciality': 'Spécialité', 'title': 'Titre (auto-rempli)', 'content': 'Contenu', 'analyze': 'Analyser avec l\'IA', 'publish': 'Publier', 'close': 'Fermer', 'password': 'Mot de passe', 'username': 'Nom d\'utilisateur', 'login_title': 'Connexion', 'register_title': 'Inscription', 'question_title': 'Poser une question', 'history_title': 'Mon historique', 'domain_int': 'Domaine d\'intérêt', 'online': 'En ligne', 'visitor': 'Visiteur' },
@@ -259,6 +259,21 @@ function changeLanguage(lang) {
     if (sel1) sel1.value = lang;
     if (sel2) sel2.value = lang;
     applyTranslations();
+    // Changer la direction du contenu si arabe
+    var content = document.getElementById('qContent');
+    if (content) {
+        if (lang === 'ar') {
+            content.classList.add('rtl');
+            content.setAttribute('dir', 'rtl');
+            content.style.direction = 'rtl';
+            content.style.textAlign = 'right';
+        } else {
+            content.classList.remove('rtl');
+            content.setAttribute('dir', 'ltr');
+            content.style.direction = 'ltr';
+            content.style.textAlign = 'left';
+        }
+    }
     showNotification('🌐 ' + lang.toUpperCase(), 'info');
 }
 
@@ -358,48 +373,102 @@ async function apiPost(endpoint, data) {
 }
 
 // ============================================================
-// SAISIE VOCALE
+// SAISIE VOCALE AVEC DÉLAI DE 7 SECONDES
 // ============================================================
 function initVoice() {
     var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SR) { alert('Reconnaissance vocale non supportée. Utilisez Chrome/Edge.'); return null; }
     var rec = new SR();
-    rec.lang = currentLanguage === 'ar' ? 'ar-SA' : currentLanguage === 'en' ? 'en-US' : 'fr-FR';
-    rec.continuous = false;
+    rec.lang = currentLanguage === 'ar' ? 'ar-SA' : currentLanguage === 'en' ? 'en-US' : currentLanguage === 'es' ? 'es-ES' : currentLanguage === 'de' ? 'de-DE' : currentLanguage === 'it' ? 'it-IT' : currentLanguage === 'pt' ? 'pt-PT' : currentLanguage === 'zh' ? 'zh-CN' : currentLanguage === 'ja' ? 'ja-JP' : currentLanguage === 'ko' ? 'ko-KR' : currentLanguage === 'ru' ? 'ru-RU' : currentLanguage === 'hi' ? 'hi-IN' : 'fr-FR';
+    rec.continuous = true;
     rec.interimResults = true;
     return rec;
 }
 
 function startVoiceInput() {
+    if (silenceTimer) { clearTimeout(silenceTimer); silenceTimer = null; }
+    
     if (!recognition) recognition = initVoice();
     if (!recognition) return;
     if (isListening) { recognition.stop(); return; }
     
     var statusEl = document.getElementById('voiceStatus');
     var btnEl = document.getElementById('voiceBtn');
+    var contentEl = document.getElementById('qContent');
+    
+    // Adapter la direction selon la langue
+    if (currentLanguage === 'ar') {
+        contentEl.classList.add('rtl');
+        contentEl.style.direction = 'rtl';
+        contentEl.style.textAlign = 'right';
+    }
     
     recognition.onstart = function() {
         isListening = true;
-        btnEl.innerHTML = '🛑 Arrêter';
+        btnEl.innerHTML = '🛑 ' + (TRANSLATIONS[currentLanguage].voice_stop || 'Arrêter');
         btnEl.classList.add('listening');
-        statusEl.innerHTML = '🎤 Écoute en cours...';
+        statusEl.innerHTML = '🎤 Écoute en cours... (7 secondes de silence max)';
+        statusEl.style.color = '#8b5cf6';
     };
     
     recognition.onresult = function(event) {
+        // Annuler le timer précédent
+        if (silenceTimer) { clearTimeout(silenceTimer); silenceTimer = null; }
+        
         var transcript = '';
-        for (var i = event.resultIndex; i < event.results.length; i++) transcript += event.results[i][0].transcript;
-        document.getElementById('qContent').value = transcript;
-        statusEl.innerHTML = '📝 ' + transcript.substring(0, 100);
+        for (var i = 0; i < event.results.length; i++) {
+            transcript += event.results[i][0].transcript;
+        }
+        
+        contentEl.value = transcript;
+        statusEl.innerHTML = '📝 ' + transcript.substring(0, 80) + '...';
+        
+        // Vérifier si le texte est en arabe pour adapter la direction
+        if (/[\u0600-\u06FF]/.test(transcript)) {
+            contentEl.classList.add('rtl');
+            contentEl.style.direction = 'rtl';
+            contentEl.style.textAlign = 'right';
+            if (currentLanguage !== 'ar') {
+                currentLanguage = 'ar';
+                var sel1 = document.getElementById('languageSelector');
+                var sel2 = document.getElementById('languageSelector2');
+                if (sel1) sel1.value = 'ar';
+                if (sel2) sel2.value = 'ar';
+            }
+        } else {
+            contentEl.classList.remove('rtl');
+            contentEl.style.direction = 'ltr';
+            contentEl.style.textAlign = 'left';
+        }
+        
+        // DÉLAI DE 7 SECONDES après la dernière parole
+        silenceTimer = setTimeout(function() {
+            if (isListening) {
+                statusEl.innerHTML = '⏱️ 7 secondes de silence - Analyse en cours...';
+                recognition.stop();
+            }
+        }, 7000);
     };
     
-    recognition.onerror = function(e) { statusEl.innerHTML = '❌ Erreur: ' + e.error; };
+    recognition.onerror = function(e) { 
+        statusEl.innerHTML = '❌ Erreur: ' + e.error;
+        statusEl.style.color = '#ef4444';
+    };
+    
     recognition.onend = function() {
         isListening = false;
         btnEl.innerHTML = '🎤 ' + (TRANSLATIONS[currentLanguage].voice_btn);
         btnEl.classList.remove('listening');
-        var content = document.getElementById('qContent').value;
-        if (content && content.length > 5) {
-            statusEl.innerHTML = '✅ Dictée terminée. Cliquez sur 🤖 Analyser';
+        
+        var content = contentEl.value;
+        if (content && content.length > 3) {
+            statusEl.innerHTML = '🤖 Analyse IA automatique...';
+            statusEl.style.color = '#22c55e';
+            // Analyse automatique après la dictée
+            setTimeout(function() { autoAnalyze(); }, 500);
+        } else {
+            statusEl.innerHTML = '⚠️ Aucun texte détecté. Réessayez.';
+            statusEl.style.color = '#f59e0b';
         }
     };
     
@@ -407,7 +476,7 @@ function startVoiceInput() {
 }
 
 // ============================================================
-// LECTURE VOCALE INTÉGRALE MULTILINGUE
+// LECTURE VOCALE INTÉGRALE
 // ============================================================
 function speakText(text, language) {
     if (!('speechSynthesis' in window)) { alert('❌ Synthèse vocale non supportée'); return; }
@@ -461,7 +530,7 @@ function speakText(text, language) {
         if (voices[v].lang === targetLang) { selectedVoice = voices[v]; break; }
     }
     
-    showNotification('🔊 Lecture (' + segments.length + ' segments)', 'info');
+    showNotification('🔊 Lecture (' + segments.length + ' segments) en ' + detectedLang.toUpperCase(), 'info');
     
     function speakNext() {
         if (currentSpeechIndex >= speechQueue.length) {
@@ -521,18 +590,10 @@ function shareQuestionMultilingual(questionId) {
     if (!q) { showNotification('❌ Question introuvable', 'error'); return; }
     
     var langs = [
-        { code: 'fr', name: '🇫🇷 Français' },
-        { code: 'ar', name: '🇸🇦 العربية' },
-        { code: 'en', name: '🇬🇧 English' },
-        { code: 'es', name: '🇪🇸 Español' },
-        { code: 'de', name: '🇩🇪 Deutsch' },
-        { code: 'it', name: '🇮🇹 Italiano' },
-        { code: 'pt', name: '🇵🇹 Português' },
-        { code: 'zh', name: '🇨🇳 中文' },
-        { code: 'ja', name: '🇯🇵 日本語' },
-        { code: 'ko', name: '🇰🇷 한국어' },
-        { code: 'ru', name: '🇷🇺 Русский' },
-        { code: 'hi', name: '🇮🇳 हिन्दी' }
+        { code: 'fr', name: '🇫🇷 Français' }, { code: 'ar', name: '🇸🇦 العربية' }, { code: 'en', name: '🇬🇧 English' },
+        { code: 'es', name: '🇪🇸 Español' }, { code: 'de', name: '🇩🇪 Deutsch' }, { code: 'it', name: '🇮🇹 Italiano' },
+        { code: 'pt', name: '🇵🇹 Português' }, { code: 'zh', name: '🇨🇳 中文' }, { code: 'ja', name: '🇯🇵 日本語' },
+        { code: 'ko', name: '🇰🇷 한국어' }, { code: 'ru', name: '🇷🇺 Русский' }, { code: 'hi', name: '🇮🇳 हिन्दी' }
     ];
     
     var modal = document.createElement('div');
@@ -549,18 +610,14 @@ function shareQuestionMultilingual(questionId) {
         content += '<button onclick="selectShareLang(\'' + l.code + '\',\'' + questionId + '\')" data-lang="' + l.code + '" class="share-lang-btn" style="' + selected + 'border:2px solid transparent;padding:12px;border-radius:10px;cursor:pointer;font-size:14px;font-weight:600;">' + l.name + '</button>';
     });
     content += '</div>';
-    content += '<div id="sharePreview" style="background:rgba(255,255,255,0.1);padding:20px;border-radius:12px;margin-bottom:20px;max-height:300px;overflow-y:auto;">';
-    content += '<p style="color:white;text-align:center;opacity:0.6;">Sélectionnez une langue pour prévisualiser</p>';
-    content += '</div>';
+    content += '<div id="sharePreview" style="background:rgba(255,255,255,0.1);padding:20px;border-radius:12px;margin-bottom:20px;max-height:300px;overflow-y:auto;"><p style="color:white;text-align:center;opacity:0.6;">Sélectionnez une langue</p></div>';
     content += '<div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center;">';
     content += '<button onclick="executeShare()" style="background:#22c55e;color:white;border:none;padding:14px 28px;border-radius:10px;cursor:pointer;font-weight:600;">📤 Partager</button>';
     content += '<button onclick="copyShareText()" style="background:#3b82f6;color:white;border:none;padding:14px 28px;border-radius:10px;cursor:pointer;font-weight:600;">📋 Copier</button>';
-    content += '<button onclick="document.getElementById(\'shareLangModal\').remove()" style="background:rgba(255,255,255,0.2);color:white;border:none;padding:14px 28px;border-radius:10px;cursor:pointer;font-weight:600;">❌ Annuler</button>';
     content += '</div></div>';
     
     modal.innerHTML = content;
     document.body.appendChild(modal);
-    
     window.currentShareQuestionId = questionId;
     selectedShareLang = currentLanguage;
     previewShareTranslation(questionId, currentLanguage);
@@ -570,13 +627,9 @@ function selectShareLang(lang, questionId) {
     selectedShareLang = lang;
     document.querySelectorAll('.share-lang-btn').forEach(function(btn) {
         if (btn.dataset.lang === lang) {
-            btn.style.background = '#22c55e';
-            btn.style.color = 'white';
-            btn.style.transform = 'scale(1.05)';
+            btn.style.background = '#22c55e'; btn.style.color = 'white'; btn.style.transform = 'scale(1.05)';
         } else {
-            btn.style.background = 'white';
-            btn.style.color = '#667eea';
-            btn.style.transform = 'scale(1)';
+            btn.style.background = 'white'; btn.style.color = '#667eea'; btn.style.transform = 'scale(1)';
         }
     });
     previewShareTranslation(questionId || window.currentShareQuestionId, lang);
@@ -585,18 +638,15 @@ function selectShareLang(lang, questionId) {
 async function previewShareTranslation(questionId, targetLang) {
     var q = questions.find(function(x) { return x._id === questionId; });
     if (!q) return;
-    
     var preview = document.getElementById('sharePreview');
     if (preview) preview.innerHTML = '<p style="color:white;text-align:center;">⏳ Traduction...</p>';
     
     try {
         var originalText = '📚 QUESTION :\n' + q.title + '\n' + q.content;
-        if (q.answers && q.answers.length > 0) {
-            originalText += '\n\n💬 RÉPONSE :\n' + q.answers[q.answers.length - 1].content;
-        }
+        if (q.answers && q.answers.length > 0) originalText += '\n\n💬 RÉPONSE :\n' + q.answers[q.answers.length - 1].content;
         
         var questionLang = q.language || 'fr';
-        var langNames = { 'fr': '🇫🇷 Français', 'ar': '🇸🇦 العربية', 'en': '🇬🇧 English', 'es': '🇪🇸 Español', 'de': '🇩🇪 Deutsch', 'it': '🇮🇹 Italiano', 'pt': '🇵🇹 Português', 'zh': '🇨🇳 中文', 'ja': '🇯🇵 日本語', 'ko': '🇰🇷 한국어', 'ru': '🇷🇺 Русский', 'hi': '🇮🇳 हिन्दी' };
+        var langNames = { 'fr': '🇫🇷', 'ar': '🇸🇦', 'en': '🇬🇧', 'es': '🇪🇸', 'de': '🇩🇪', 'it': '🇮🇹', 'pt': '🇵🇹', 'zh': '🇨🇳', 'ja': '🇯🇵', 'ko': '🇰🇷', 'ru': '🇷🇺', 'hi': '🇮🇳' };
         
         if (targetLang === questionLang) {
             if (preview) preview.innerHTML = '<div style="color:white;"><strong style="color:#22c55e;">' + (langNames[targetLang] || targetLang) + ' (original)</strong><div style="margin-top:10px;white-space:pre-wrap;font-size:13px;">' + originalText.replace(/</g, '&lt;') + '</div></div>';
@@ -606,31 +656,21 @@ async function previewShareTranslation(questionId, targetLang) {
         
         var result = await apiPost('/translate', { text: originalText, targetLang: targetLang });
         var translatedText = result.translation || originalText;
-        
-        if (preview) {
-            preview.innerHTML = '<div style="color:white;"><strong style="color:#22c55e;">' + (langNames[targetLang] || targetLang) + '</strong><div style="margin-top:10px;white-space:pre-wrap;font-size:13px;">' + translatedText.replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</div></div>';
-        }
+        if (preview) preview.innerHTML = '<div style="color:white;"><strong style="color:#22c55e;">' + (langNames[targetLang] || targetLang) + '</strong><div style="margin-top:10px;white-space:pre-wrap;font-size:13px;">' + translatedText.replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</div></div>';
         window.currentShareText = translatedText + '\n\n🔗 https://scholars-connect-app.onrender.com';
-    } catch (e) {
-        if (preview) preview.innerHTML = '<p style="color:#ef4444;">❌ Erreur traduction</p>';
-    }
+    } catch (e) { if (preview) preview.innerHTML = '<p style="color:#ef4444;">❌ Erreur</p>'; }
 }
 
 async function executeShare() {
     var text = window.currentShareText;
     if (!text) { showNotification('⚠️ Sélectionnez une langue', 'warning'); return; }
-    
     if (navigator.share) {
         try {
             await navigator.share({ title: '📚 Scholars Connect', text: text, url: 'https://scholars-connect-app.onrender.com' });
-            showNotification('✅ Partage réussi !', 'success');
+            showNotification('✅ Partagé !', 'success');
             document.getElementById('shareLangModal').remove();
-        } catch (e) {
-            if (e.name !== 'AbortError') copyToClipboard(text);
-        }
-    } else {
-        copyToClipboard(text);
-    }
+        } catch (e) { if (e.name !== 'AbortError') copyToClipboard(text); }
+    } else copyToClipboard(text);
 }
 
 function copyShareText() {
@@ -641,44 +681,28 @@ function copyShareText() {
 
 function copyToClipboard(text) {
     if (navigator.clipboard) {
-        navigator.clipboard.writeText(text).then(function() {
-            showNotification('✅ Copié !', 'success');
-        }).catch(function() { fallbackCopy(text); });
-    } else { fallbackCopy(text); }
+        navigator.clipboard.writeText(text).then(function() { showNotification('✅ Copié !', 'success'); }).catch(function() { fallbackCopy(text); });
+    } else fallbackCopy(text);
 }
 
 function fallbackCopy(text) {
     var ta = document.createElement('textarea');
-    ta.value = text;
-    ta.style.position = 'fixed';
-    ta.style.left = '-9999px';
-    document.body.appendChild(ta);
-    ta.select();
-    try { document.execCommand('copy'); showNotification('✅ Copié !', 'success'); }
-    catch(e) { showNotification('❌ Erreur', 'error'); }
+    ta.value = text; ta.style.position = 'fixed'; ta.style.left = '-9999px';
+    document.body.appendChild(ta); ta.select();
+    try { document.execCommand('copy'); showNotification('✅ Copié !', 'success'); } catch(e) {}
     document.body.removeChild(ta);
 }
 
 function showTranslateMenu(questionId) {
     var langs = [
-        { code: 'fr', name: '🇫🇷 Français' },
-        { code: 'ar', name: '🇸🇦 العربية' },
-        { code: 'en', name: '🇬🇧 English' },
-        { code: 'es', name: '🇪🇸 Español' },
-        { code: 'de', name: '🇩🇪 Deutsch' },
-        { code: 'it', name: '🇮🇹 Italiano' },
-        { code: 'pt', name: '🇵🇹 Português' },
-        { code: 'zh', name: '🇨🇳 中文' },
-        { code: 'ja', name: '🇯🇵 日本語' },
-        { code: 'ko', name: '🇰🇷 한국어' },
-        { code: 'ru', name: '🇷🇺 Русский' },
-        { code: 'hi', name: '🇮🇳 हिन्दी' }
+        { code: 'fr', name: '🇫🇷 Français' }, { code: 'ar', name: '🇸🇦 العربية' }, { code: 'en', name: '🇬🇧 English' },
+        { code: 'es', name: '🇪🇸 Español' }, { code: 'de', name: '🇩🇪 Deutsch' }, { code: 'it', name: '🇮🇹 Italiano' },
+        { code: 'pt', name: '🇵🇹 Português' }, { code: 'zh', name: '🇨🇳 中文' }, { code: 'ja', name: '🇯🇵 日本語' },
+        { code: 'ko', name: '🇰🇷 한국어' }, { code: 'ru', name: '🇷🇺 Русский' }, { code: 'hi', name: '🇮🇳 हिन्दी' }
     ];
-    
     var modal = document.createElement('div');
     modal.id = 'transModal';
     modal.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.8);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;';
-    
     var content = '<div style="background:linear-gradient(135deg,#8b5cf6,#ec4899);border-radius:16px;padding:30px;max-width:500px;width:100%;position:relative;">';
     content += '<button onclick="document.getElementById(\'transModal\').remove()" style="position:absolute;top:15px;right:15px;background:#ef4444;color:white;border:none;width:35px;height:35px;border-radius:50%;cursor:pointer;font-size:18px;">✕</button>';
     content += '<h2 style="color:white;margin-bottom:20px;text-align:center;">🌐 Traduire en :</h2>';
@@ -695,7 +719,6 @@ async function translateQuestion(questionId, targetLang) {
     var q = questions.find(function(x) { return x._id === questionId; });
     if (!q) return;
     showNotification('🌐 Traduction...', 'info');
-    
     try {
         var qResult = await apiPost('/translate', { text: q.title + '\n' + q.content, targetLang: targetLang });
         var translatedQ = qResult.translation || (q.title + '\n' + q.content);
@@ -704,37 +727,30 @@ async function translateQuestion(questionId, targetLang) {
             var aResult = await apiPost('/translate', { text: q.answers[q.answers.length - 1].content, targetLang: targetLang });
             translatedA = aResult.translation || q.answers[q.answers.length - 1].content;
         }
-        showTranslationModal(q.title, translatedQ, translatedA, targetLang);
+        showTranslationModal(translatedQ, translatedA, targetLang);
     } catch (e) { showNotification('❌ Erreur', 'error'); }
 }
 
-function showTranslationModal(originalTitle, translatedQuestion, translatedAnswer, targetLang) {
+function showTranslationModal(translatedQuestion, translatedAnswer, targetLang) {
     var langNames = { 'fr': '🇫🇷 Français', 'ar': '🇸🇦 العربية', 'en': '🇬🇧 English', 'es': '🇪🇸 Español', 'de': '🇩🇪 Deutsch', 'it': '🇮🇹 Italiano', 'pt': '🇵🇹 Português', 'zh': '🇨🇳 中文', 'ja': '🇯🇵 日本語', 'ko': '🇰🇷 한국어', 'ru': '🇷🇺 Русский', 'hi': '🇮🇳 हिन्दी' };
     var modal = document.createElement('div');
     modal.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.8);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;';
     var content = '<div style="background:linear-gradient(135deg,#667eea,#764ba2);border-radius:16px;padding:30px;max-width:700px;width:100%;max-height:90vh;overflow-y:auto;position:relative;">';
     content += '<button onclick="this.parentElement.parentElement.remove()" style="position:absolute;top:15px;right:15px;background:#ef4444;color:white;border:none;width:35px;height:35px;border-radius:50%;cursor:pointer;font-size:18px;">✕</button>';
     content += '<h2 style="color:white;margin-bottom:20px;">🌐 ' + (langNames[targetLang] || targetLang) + '</h2>';
-    content += '<div style="background:rgba(255,255,255,0.1);padding:15px;border-radius:10px;margin-bottom:15px;">';
-    content += '<h3 style="color:#e0e7ff;margin-bottom:10px;">📋 Question :</h3>';
-    content += '<p style="color:white;white-space:pre-wrap;line-height:1.6;">' + translatedQuestion.replace(/</g, '&lt;') + '</p></div>';
-    if (translatedAnswer) {
-        content += '<div style="background:rgba(255,255,255,0.1);padding:15px;border-radius:10px;">';
-        content += '<h3 style="color:#e0e7ff;margin-bottom:10px;">💬 Réponse :</h3>';
-        content += '<p style="color:white;white-space:pre-wrap;line-height:1.6;">' + translatedAnswer.replace(/</g, '&lt;') + '</p></div>';
-    }
-    content += '<button onclick="copyToClipboard(this.dataset.text)" data-text="' + (translatedQuestion + '\n\n' + translatedAnswer).replace(/"/g, '&quot;') + '" style="background:#22c55e;color:white;border:none;padding:12px 24px;border-radius:8px;cursor:pointer;font-weight:600;margin-top:15px;">📋 Copier</button>';
+    content += '<div style="background:rgba(255,255,255,0.1);padding:15px;border-radius:10px;margin-bottom:15px;"><h3 style="color:#e0e7ff;margin-bottom:10px;">📋 Question :</h3><p style="color:white;white-space:pre-wrap;line-height:1.6;">' + translatedQuestion.replace(/</g, '&lt;') + '</p></div>';
+    if (translatedAnswer) content += '<div style="background:rgba(255,255,255,0.1);padding:15px;border-radius:10px;"><h3 style="color:#e0e7ff;margin-bottom:10px;">💬 Réponse :</h3><p style="color:white;white-space:pre-wrap;line-height:1.6;">' + translatedAnswer.replace(/</g, '&lt;') + '</p></div>';
     content += '</div>';
     modal.innerHTML = content;
     document.body.appendChild(modal);
 }
 
 // ============================================================
-// AUTO-ANALYSE IA
+// AUTO-ANALYSE IA (remplit après validation)
 // ============================================================
 async function autoAnalyze() {
     var content = document.getElementById('qContent').value.trim();
-    if (!content || content.length < 5) { showNotification('Saisissez une question', 'error'); return; }
+    if (!content || content.length < 3) { showNotification('Saisissez une question', 'error'); return; }
     
     var statusEl = document.getElementById('voiceStatus');
     if (statusEl) statusEl.innerHTML = '🤖 Analyse IA...';
@@ -764,10 +780,27 @@ async function autoAnalyze() {
             currentLanguage = detectedLang;
         }
         
+        // Direction RTL si arabe
+        var contentEl = document.getElementById('qContent');
+        var titleEl = document.getElementById('qTitle');
+        if (detectedLang === 'ar') {
+            contentEl.classList.add('rtl');
+            contentEl.style.direction = 'rtl';
+            contentEl.style.textAlign = 'right';
+            titleEl.style.direction = 'rtl';
+            titleEl.style.textAlign = 'right';
+        } else {
+            contentEl.classList.remove('rtl');
+            contentEl.style.direction = 'ltr';
+            contentEl.style.textAlign = 'left';
+            titleEl.style.direction = 'ltr';
+            titleEl.style.textAlign = 'left';
+        }
+        
         var langNames = { 'fr': '🇫🇷', 'ar': '🇸🇦', 'en': '🇬🇧', 'es': '🇪🇸', 'de': '🇩🇪', 'it': '🇮🇹', 'pt': '🇵🇹', 'zh': '🇨🇳', 'ja': '🇯🇵', 'ko': '🇰🇷', 'ru': '🇷🇺', 'hi': '🇮🇳' };
         
         if (statusEl) {
-            statusEl.innerHTML = '✅ Détection :<br>📂 ' + (data.domain || '-') + '<br>🔬 ' + (data.category || '-') + '<br>📝 ' + (data.title || '-') + '<br>🌐 ' + (langNames[detectedLang] || detectedLang);
+            statusEl.innerHTML = '✅ Détection : 📂 ' + (data.domain || '-') + ' | 🔬 ' + (data.category || '-') + ' | 📝 ' + (data.title || '-') + ' | 🌐 ' + (langNames[detectedLang] || detectedLang);
             statusEl.style.color = '#22c55e';
         }
         showNotification('✅ Analyse complète !', 'success');
@@ -851,11 +884,52 @@ function showScholars() {
     document.getElementById('scholarsPopup').classList.add('active');
 }
 
+// ============================================================
+// RESET DES CHAMPS À CHAQUE NOUVELLE QUESTION
+// ============================================================
+function resetQuestionFields() {
+    // Vider les champs
+    document.getElementById('qTitle').value = '';
+    document.getElementById('qContent').value = '';
+    
+    // Reset direction
+    var contentEl = document.getElementById('qContent');
+    var titleEl = document.getElementById('qTitle');
+    contentEl.classList.remove('rtl');
+    contentEl.style.direction = 'ltr';
+    contentEl.style.textAlign = 'left';
+    titleEl.style.direction = 'ltr';
+    titleEl.style.textAlign = 'left';
+    
+    // Reset le domaine à la première option
+    var qDomain = document.getElementById('qDomain');
+    if (qDomain) {
+        qDomain.selectedIndex = 0;
+        updateCategories();
+    }
+    
+    // Reset la spécialité
+    var qCategory = document.getElementById('qCategory');
+    if (qCategory) qCategory.selectedIndex = 0;
+    
+    // Vider le status vocal
+    var voiceStatus = document.getElementById('voiceStatus');
+    if (voiceStatus) {
+        voiceStatus.innerHTML = '';
+        voiceStatus.style.color = 'rgba(255,255,255,0.8)';
+    }
+    
+    // Annuler tout timer de silence
+    if (silenceTimer) { clearTimeout(silenceTimer); silenceTimer = null; }
+}
+
 function showLogin() { hideForms(); document.getElementById('loginForm').classList.add('active'); }
 function showRegister() { hideForms(); document.getElementById('registerForm').classList.add('active'); }
 function showQuestionForm() {
     if (!currentUser) { showNotification('Connectez-vous', 'error'); return; }
     hideForms();
+    // RESET TOUS LES CHAMPS
+    resetQuestionFields();
     document.getElementById('questionForm').classList.add('active');
     updateCategories();
 }
@@ -947,7 +1021,7 @@ async function renderHistory() {
     var myAnswers = 0;
     all.forEach(function(q) { if (q.answers) q.answers.forEach(function(a) { if (a.username === currentUser.username) myAnswers++; }); });
     var hist = await apiGet('/history/' + currentUser.id) || [];
-    stats.innerHTML = '<span style="background:rgba(255,255,255,0.1);padding:5px 12px;border-radius:12px;">📋 ' + mine.length + ' questions</span><span style="background:rgba(255,255,255,0.1);padding:5px 12px;border-radius:12px;">💬 ' + myAnswers + ' réponses</span><span style="background:rgba(255,255,255,0.1);padding:5px 12px;border-radius:12px;">📊 ' + hist.length + ' actions</span>';
+    stats.innerHTML = '<span style="background:rgba(255,255,255,0.1);padding:5px 12px;border-radius:12px;">📋 ' + mine.length + ' questions</span><span style="background:rgba(255,255,255,0.1);padding:5px 12px;border-radius:12px;">💬 ' + myAnswers + ' réponses</span>';
     if (mine.length === 0) { container.innerHTML = '<p style="text-align:center;opacity:0.5;padding:30px;">Aucune question.</p>'; return; }
     var html = '';
     mine.forEach(function(q) {
@@ -956,8 +1030,7 @@ async function renderHistory() {
             html += '<div class="answers-section"><strong>💬 ' + q.answers.length + ' réponses</strong>';
             q.answers.forEach(function(a) {
                 var cls = a.isClaude ? 'claude-answer' : (a.isScholarResponse ? 'scholar-answer' : '');
-                var txt = a.content.replace(/"/g, '&quot;').replace(/\n/g, ' ');
-                html += '<div class="answer-item ' + cls + '"><div class="claude-response">' + a.content + '</div><div class="speak-controls"><button class="speak-btn" onclick="speakText(this.parentElement.previousElementSibling.textContent, \'' + (a.language || 'auto') + '\')">🔊 Écouter</button><button class="pause-btn" onclick="pauseSpeaking()">⏸️ Pause</button><button class="stop-btn" onclick="stopSpeaking()">⏹️</button></div></div>';
+                html += '<div class="answer-item ' + cls + '"><div class="claude-response">' + a.content + '</div><div class="speak-controls"><button class="speak-btn" onclick="speakText(this.parentElement.previousElementSibling.textContent, \'' + (q.language || 'auto') + '\')">🔊 Écouter</button><button class="pause-btn" onclick="pauseSpeaking()">⏸️ Pause</button><button class="stop-btn" onclick="stopSpeaking()">⏹️</button></div></div>';
             });
             html += '</div>';
         }
@@ -985,10 +1058,10 @@ async function askQuestion() {
     if (q && !q.error) {
         await apiPost('/history', { userId: currentUser.id, username: currentUser.username, action: 'question', data: { title: title } });
         showNotification('✅ Question publiée !', 'success');
+        // RESET après publication
+        resetQuestionFields();
         hideForms();
         await loadQuestions();
-        document.getElementById('qTitle').value = '';
-        document.getElementById('qContent').value = '';
     }
 }
 
