@@ -9,7 +9,7 @@
 body { font-family:'Segoe UI',system-ui,sans-serif; background:#0a0e27; color:#fff; min-height:100vh; padding:20px; }
 .container { max-width:1400px; margin:0 auto; }
 .header { display:flex; justify-content:space-between; align-items:center; padding:20px 0; flex-wrap:wrap; gap:15px; border-bottom:2px solid #8b5cf6; }
-.logo { font-size:32px; font-weight:700; background:linear-gradient(135deg,#667eea,#8b5cf6,#ec4899); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
+.logo { font-size:32px; font-weight:700; background:linear-gradient(135deg,#667eea,#8b5cf6,#ec4899); -webkit-background-clip:text; -webkit-text-fill-color:transparent; cursor:pointer; user-select:none; }
 .logo-sub { font-size:14px; opacity:0.6; display:block; font-weight:400; }
 .header-actions { display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
 .lang-selector { padding:10px 15px; border-radius:10px; border:1px solid rgba(255,255,255,0.2); background:rgba(255,255,255,0.1); color:white; font-size:14px; font-weight:600; cursor:pointer; outline:none; }
@@ -85,7 +85,7 @@ body { font-family:'Segoe UI',system-ui,sans-serif; background:#0a0e27; color:#f
 <div class="notification" id="notification"></div>
 <div class="header">
 <div>
-<div class="logo">🎓 Scholars Connect</div>
+<div class="logo" id="mainLogo">🎓 Scholars Connect</div>
 <span class="logo-sub" id="subtitle">Plateforme d'entraide académique multilingue</span>
 </div>
 <div class="header-actions" id="authButtons">
@@ -152,8 +152,8 @@ body { font-family:'Segoe UI',system-ui,sans-serif; background:#0a0e27; color:#f
 
 <div class="form-container" id="loginForm">
 <h2 id="loginTitle">🔐 Connexion</h2>
-<div class="form-group"><label>Email</label><input type="email" id="loginEmail" placeholder="admin@scholars-connect.com"></div>
-<div class="form-group"><label id="labelPassword1">Mot de passe</label><input type="password" id="loginPassword" placeholder="admin12345"></div>
+<div class="form-group"><label>Email</label><input type="email" id="loginEmail" placeholder="votre@email.com"></div>
+<div class="form-group"><label id="labelPassword1">Mot de passe</label><input type="password" id="loginPassword" placeholder="Votre mot de passe"></div>
 <button class="btn btn-primary" onclick="login()">Se connecter</button>
 <button class="btn btn-secondary" onclick="hideForms()">Fermer</button>
 </div>
@@ -225,7 +225,7 @@ var API_URL = window.location.origin + '/api';
 var currentUser = null;
 var questions = [];
 var currentFilter = 'all';
-var SESSION_KEY = 'sc_session_v8';
+var SESSION_KEY = 'sc_session_v9';
 var currentLanguage = 'fr';
 var recognition = null;
 var isListening = false;
@@ -259,17 +259,14 @@ function changeLanguage(lang) {
     if (sel1) sel1.value = lang;
     if (sel2) sel2.value = lang;
     applyTranslations();
-    // Changer la direction du contenu si arabe
     var content = document.getElementById('qContent');
     if (content) {
         if (lang === 'ar') {
             content.classList.add('rtl');
-            content.setAttribute('dir', 'rtl');
             content.style.direction = 'rtl';
             content.style.textAlign = 'right';
         } else {
             content.classList.remove('rtl');
-            content.setAttribute('dir', 'ltr');
             content.style.direction = 'ltr';
             content.style.textAlign = 'left';
         }
@@ -372,14 +369,13 @@ async function apiPost(endpoint, data) {
     } catch(e) { return null; }
 }
 
-// ============================================================
-// SAISIE VOCALE AVEC DÉLAI DE 7 SECONDES
-// ============================================================
+// SAISIE VOCALE AVEC 7 SECONDES DE RÉFLEXION
 function initVoice() {
     var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SR) { alert('Reconnaissance vocale non supportée. Utilisez Chrome/Edge.'); return null; }
     var rec = new SR();
-    rec.lang = currentLanguage === 'ar' ? 'ar-SA' : currentLanguage === 'en' ? 'en-US' : currentLanguage === 'es' ? 'es-ES' : currentLanguage === 'de' ? 'de-DE' : currentLanguage === 'it' ? 'it-IT' : currentLanguage === 'pt' ? 'pt-PT' : currentLanguage === 'zh' ? 'zh-CN' : currentLanguage === 'ja' ? 'ja-JP' : currentLanguage === 'ko' ? 'ko-KR' : currentLanguage === 'ru' ? 'ru-RU' : currentLanguage === 'hi' ? 'hi-IN' : 'fr-FR';
+    var langMap = { 'fr':'fr-FR', 'ar':'ar-SA', 'en':'en-US', 'es':'es-ES', 'de':'de-DE', 'it':'it-IT', 'pt':'pt-PT', 'zh':'zh-CN', 'ja':'ja-JP', 'ko':'ko-KR', 'ru':'ru-RU', 'hi':'hi-IN' };
+    rec.lang = langMap[currentLanguage] || 'fr-FR';
     rec.continuous = true;
     rec.interimResults = true;
     return rec;
@@ -387,7 +383,6 @@ function initVoice() {
 
 function startVoiceInput() {
     if (silenceTimer) { clearTimeout(silenceTimer); silenceTimer = null; }
-    
     if (!recognition) recognition = initVoice();
     if (!recognition) return;
     if (isListening) { recognition.stop(); return; }
@@ -396,7 +391,6 @@ function startVoiceInput() {
     var btnEl = document.getElementById('voiceBtn');
     var contentEl = document.getElementById('qContent');
     
-    // Adapter la direction selon la langue
     if (currentLanguage === 'ar') {
         contentEl.classList.add('rtl');
         contentEl.style.direction = 'rtl';
@@ -407,23 +401,17 @@ function startVoiceInput() {
         isListening = true;
         btnEl.innerHTML = '🛑 ' + (TRANSLATIONS[currentLanguage].voice_stop || 'Arrêter');
         btnEl.classList.add('listening');
-        statusEl.innerHTML = '🎤 Écoute en cours... (7 secondes de silence max)';
+        statusEl.innerHTML = '🎤 Écoute en cours... (7s de silence max)';
         statusEl.style.color = '#8b5cf6';
     };
     
     recognition.onresult = function(event) {
-        // Annuler le timer précédent
         if (silenceTimer) { clearTimeout(silenceTimer); silenceTimer = null; }
-        
         var transcript = '';
-        for (var i = 0; i < event.results.length; i++) {
-            transcript += event.results[i][0].transcript;
-        }
-        
+        for (var i = 0; i < event.results.length; i++) transcript += event.results[i][0].transcript;
         contentEl.value = transcript;
         statusEl.innerHTML = '📝 ' + transcript.substring(0, 80) + '...';
         
-        // Vérifier si le texte est en arabe pour adapter la direction
         if (/[\u0600-\u06FF]/.test(transcript)) {
             contentEl.classList.add('rtl');
             contentEl.style.direction = 'rtl';
@@ -441,7 +429,6 @@ function startVoiceInput() {
             contentEl.style.textAlign = 'left';
         }
         
-        // DÉLAI DE 7 SECONDES après la dernière parole
         silenceTimer = setTimeout(function() {
             if (isListening) {
                 statusEl.innerHTML = '⏱️ 7 secondes de silence - Analyse en cours...';
@@ -459,12 +446,10 @@ function startVoiceInput() {
         isListening = false;
         btnEl.innerHTML = '🎤 ' + (TRANSLATIONS[currentLanguage].voice_btn);
         btnEl.classList.remove('listening');
-        
         var content = contentEl.value;
         if (content && content.length > 3) {
             statusEl.innerHTML = '🤖 Analyse IA automatique...';
             statusEl.style.color = '#22c55e';
-            // Analyse automatique après la dictée
             setTimeout(function() { autoAnalyze(); }, 500);
         } else {
             statusEl.innerHTML = '⚠️ Aucun texte détecté. Réessayez.';
@@ -475,12 +460,9 @@ function startVoiceInput() {
     recognition.start();
 }
 
-// ============================================================
 // LECTURE VOCALE INTÉGRALE
-// ============================================================
 function speakText(text, language) {
     if (!('speechSynthesis' in window)) { alert('❌ Synthèse vocale non supportée'); return; }
-    
     var detectedLang = language;
     if (!detectedLang || detectedLang === 'auto') {
         if (/[\u0600-\u06FF]/.test(text)) detectedLang = 'ar';
@@ -491,16 +473,13 @@ function speakText(text, language) {
         else if (/[\u0900-\u097F]/.test(text)) detectedLang = 'hi';
         else detectedLang = detectLanguage(text);
     }
-    
     window.speechSynthesis.cancel();
     speechQueue = [];
     currentSpeechIndex = 0;
     isPaused = false;
     isSpeaking = false;
-    
     var cleanText = text.replace(/[\u{1F300}-\u{1F9FF}]/gu, '').replace(/[\u{2600}-\u{26FF}]/gu, '').replace(/[━─=]/g, '').replace(/\s+/g, ' ').trim();
     if (!cleanText) { showNotification('⚠️ Aucun texte', 'warning'); return; }
-    
     var sentences = cleanText.split(/(?<=[.!?])\s+/);
     var currentSegment = '';
     var segments = [];
@@ -516,37 +495,29 @@ function speakText(text, language) {
     }
     if (currentSegment) segments.push(currentSegment.trim());
     if (segments.length === 0) segments = [cleanText];
-    
     speechQueue = segments;
     currentSpeechIndex = 0;
     isSpeaking = true;
-    
     var langMap = { 'fr':'fr-FR', 'ar':'ar-SA', 'en':'en-US', 'es':'es-ES', 'de':'de-DE', 'it':'it-IT', 'pt':'pt-PT', 'zh':'zh-CN', 'ja':'ja-JP', 'ko':'ko-KR', 'ru':'ru-RU', 'hi':'hi-IN' };
     var targetLang = langMap[detectedLang] || 'fr-FR';
-    
     var voices = window.speechSynthesis.getVoices();
     var selectedVoice = null;
     for (var v = 0; v < voices.length; v++) {
         if (voices[v].lang === targetLang) { selectedVoice = voices[v]; break; }
     }
-    
-    showNotification('🔊 Lecture (' + segments.length + ' segments) en ' + detectedLang.toUpperCase(), 'info');
-    
+    showNotification('🔊 Lecture (' + segments.length + ' segments)', 'info');
     function speakNext() {
         if (currentSpeechIndex >= speechQueue.length) {
-            isSpeaking = false;
-            isPaused = false;
+            isSpeaking = false; isPaused = false;
             showNotification('✅ Lecture terminée', 'success');
             return;
         }
         if (isPaused) { setTimeout(speakNext, 500); return; }
-        
         var segment = speechQueue[currentSpeechIndex];
         var utterance = new SpeechSynthesisUtterance(segment);
         utterance.lang = targetLang;
         utterance.rate = 0.9;
         if (selectedVoice) utterance.voice = selectedVoice;
-        
         utterance.onend = function() { currentSpeechIndex++; setTimeout(speakNext, 100); };
         utterance.onerror = function() { currentSpeechIndex++; setTimeout(speakNext, 100); };
         window.speechSynthesis.speak(utterance);
@@ -570,40 +541,32 @@ function pauseSpeaking() {
 function stopSpeaking() {
     if ('speechSynthesis' in window) {
         window.speechSynthesis.cancel();
-        speechQueue = [];
-        currentSpeechIndex = 0;
-        isSpeaking = false;
-        isPaused = false;
+        speechQueue = []; currentSpeechIndex = 0;
+        isSpeaking = false; isPaused = false;
         showNotification('⏹️ Arrêté', 'info');
     }
 }
-
 if ('speechSynthesis' in window) {
     window.speechSynthesis.onvoiceschanged = function() { window.speechSynthesis.getVoices(); };
 }
 
-// ============================================================
 // PARTAGE MULTILINGUE
-// ============================================================
 function shareQuestionMultilingual(questionId) {
     var q = questions.find(function(x) { return x._id === questionId; });
     if (!q) { showNotification('❌ Question introuvable', 'error'); return; }
-    
     var langs = [
         { code: 'fr', name: '🇫🇷 Français' }, { code: 'ar', name: '🇸🇦 العربية' }, { code: 'en', name: '🇬🇧 English' },
         { code: 'es', name: '🇪🇸 Español' }, { code: 'de', name: '🇩🇪 Deutsch' }, { code: 'it', name: '🇮🇹 Italiano' },
         { code: 'pt', name: '🇵🇹 Português' }, { code: 'zh', name: '🇨🇳 中文' }, { code: 'ja', name: '🇯🇵 日本語' },
         { code: 'ko', name: '🇰🇷 한국어' }, { code: 'ru', name: '🇷🇺 Русский' }, { code: 'hi', name: '🇮🇳 हिन्दी' }
     ];
-    
     var modal = document.createElement('div');
     modal.id = 'shareLangModal';
     modal.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.85);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;overflow-y:auto;';
-    
     var content = '<div style="background:linear-gradient(135deg,#667eea,#764ba2);border-radius:20px;padding:30px;max-width:700px;width:100%;max-height:90vh;overflow-y:auto;position:relative;">';
     content += '<button onclick="document.getElementById(\'shareLangModal\').remove()" style="position:absolute;top:15px;right:15px;background:#ef4444;color:white;border:none;width:40px;height:40px;border-radius:50%;cursor:pointer;font-size:20px;">✕</button>';
-    content += '<h2 style="color:white;margin-bottom:10px;text-align:center;">📤 Partager la question + réponse</h2>';
-    content += '<p style="color:rgba(255,255,255,0.8);text-align:center;margin-bottom:20px;">Choisissez la langue :</p>';
+    content += '<h2 style="color:white;margin-bottom:10px;text-align:center;">📤 Partager question + réponse</h2>';
+    content += '<p style="color:rgba(255,255,255,0.8);text-align:center;margin-bottom:20px;">Langue :</p>';
     content += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:20px;">';
     langs.forEach(function(l) {
         var selected = (l.code === currentLanguage) ? 'background:#22c55e;color:white;' : 'background:white;color:#667eea;';
@@ -615,7 +578,6 @@ function shareQuestionMultilingual(questionId) {
     content += '<button onclick="executeShare()" style="background:#22c55e;color:white;border:none;padding:14px 28px;border-radius:10px;cursor:pointer;font-weight:600;">📤 Partager</button>';
     content += '<button onclick="copyShareText()" style="background:#3b82f6;color:white;border:none;padding:14px 28px;border-radius:10px;cursor:pointer;font-weight:600;">📋 Copier</button>';
     content += '</div></div>';
-    
     modal.innerHTML = content;
     document.body.appendChild(modal);
     window.currentShareQuestionId = questionId;
@@ -640,23 +602,18 @@ async function previewShareTranslation(questionId, targetLang) {
     if (!q) return;
     var preview = document.getElementById('sharePreview');
     if (preview) preview.innerHTML = '<p style="color:white;text-align:center;">⏳ Traduction...</p>';
-    
     try {
         var originalText = '📚 QUESTION :\n' + q.title + '\n' + q.content;
         if (q.answers && q.answers.length > 0) originalText += '\n\n💬 RÉPONSE :\n' + q.answers[q.answers.length - 1].content;
-        
         var questionLang = q.language || 'fr';
-        var langNames = { 'fr': '🇫🇷', 'ar': '🇸🇦', 'en': '🇬🇧', 'es': '🇪🇸', 'de': '🇩🇪', 'it': '🇮🇹', 'pt': '🇵🇹', 'zh': '🇨🇳', 'ja': '🇯🇵', 'ko': '🇰🇷', 'ru': '🇷🇺', 'hi': '🇮🇳' };
-        
         if (targetLang === questionLang) {
-            if (preview) preview.innerHTML = '<div style="color:white;"><strong style="color:#22c55e;">' + (langNames[targetLang] || targetLang) + ' (original)</strong><div style="margin-top:10px;white-space:pre-wrap;font-size:13px;">' + originalText.replace(/</g, '&lt;') + '</div></div>';
+            if (preview) preview.innerHTML = '<div style="color:white;"><strong style="color:#22c55e;">' + targetLang.toUpperCase() + ' (original)</strong><div style="margin-top:10px;white-space:pre-wrap;font-size:13px;">' + originalText.replace(/</g, '&lt;') + '</div></div>';
             window.currentShareText = originalText + '\n\n🔗 https://scholars-connect-app.onrender.com';
             return;
         }
-        
         var result = await apiPost('/translate', { text: originalText, targetLang: targetLang });
         var translatedText = result.translation || originalText;
-        if (preview) preview.innerHTML = '<div style="color:white;"><strong style="color:#22c55e;">' + (langNames[targetLang] || targetLang) + '</strong><div style="margin-top:10px;white-space:pre-wrap;font-size:13px;">' + translatedText.replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</div></div>';
+        if (preview) preview.innerHTML = '<div style="color:white;"><strong style="color:#22c55e;">' + targetLang.toUpperCase() + '</strong><div style="margin-top:10px;white-space:pre-wrap;font-size:13px;">' + translatedText.replace(/</g, '&lt;') + '</div></div>';
         window.currentShareText = translatedText + '\n\n🔗 https://scholars-connect-app.onrender.com';
     } catch (e) { if (preview) preview.innerHTML = '<p style="color:#ef4444;">❌ Erreur</p>'; }
 }
@@ -745,20 +702,15 @@ function showTranslationModal(translatedQuestion, translatedAnswer, targetLang) 
     document.body.appendChild(modal);
 }
 
-// ============================================================
-// AUTO-ANALYSE IA (remplit après validation)
-// ============================================================
+// AUTO-ANALYSE IA
 async function autoAnalyze() {
     var content = document.getElementById('qContent').value.trim();
     if (!content || content.length < 3) { showNotification('Saisissez une question', 'error'); return; }
-    
     var statusEl = document.getElementById('voiceStatus');
     if (statusEl) statusEl.innerHTML = '🤖 Analyse IA...';
     showNotification('🤖 Analyse...', 'info');
-    
     try {
         var data = await apiPost('/analyze-question', { text: content });
-        
         if (data.title) document.getElementById('qTitle').value = data.title;
         if (data.domain) {
             var ds = document.getElementById('qDomain');
@@ -770,7 +722,6 @@ async function autoAnalyze() {
                 for (var i = 0; i < cs.options.length; i++) if (cs.options[i].value === data.category) { cs.selectedIndex = i; break; }
             }
         }, 200);
-        
         var detectedLang = data.language || detectLanguage(content);
         if (detectedLang !== currentLanguage) {
             var sel1 = document.getElementById('languageSelector');
@@ -779,8 +730,6 @@ async function autoAnalyze() {
             if (sel2) sel2.value = detectedLang;
             currentLanguage = detectedLang;
         }
-        
-        // Direction RTL si arabe
         var contentEl = document.getElementById('qContent');
         var titleEl = document.getElementById('qTitle');
         if (detectedLang === 'ar') {
@@ -796,9 +745,7 @@ async function autoAnalyze() {
             titleEl.style.direction = 'ltr';
             titleEl.style.textAlign = 'left';
         }
-        
         var langNames = { 'fr': '🇫🇷', 'ar': '🇸🇦', 'en': '🇬🇧', 'es': '🇪🇸', 'de': '🇩🇪', 'it': '🇮🇹', 'pt': '🇵🇹', 'zh': '🇨🇳', 'ja': '🇯🇵', 'ko': '🇰🇷', 'ru': '🇷🇺', 'hi': '🇮🇳' };
-        
         if (statusEl) {
             statusEl.innerHTML = '✅ Détection : 📂 ' + (data.domain || '-') + ' | 🔬 ' + (data.category || '-') + ' | 📝 ' + (data.title || '-') + ' | 🌐 ' + (langNames[detectedLang] || detectedLang);
             statusEl.style.color = '#22c55e';
@@ -829,6 +776,22 @@ async function initializeApp() {
     applyTranslations();
     await loadQuestions();
     if (currentUser) showNotification('💾 ' + currentUser.username, 'success');
+    
+    // Triple-clic sur le logo pour admin
+    var logo = document.getElementById('mainLogo');
+    if (logo) {
+        var clicks = 0, timer = null;
+        logo.addEventListener('click', function() {
+            clicks++;
+            if (timer) clearTimeout(timer);
+            if (clicks === 3) {
+                window.location.href = '/admin-login';
+                clicks = 0;
+            } else {
+                timer = setTimeout(function() { clicks = 0; }, 800);
+            }
+        });
+    }
 }
 
 function buildCategoriesNav() {
@@ -884,15 +847,9 @@ function showScholars() {
     document.getElementById('scholarsPopup').classList.add('active');
 }
 
-// ============================================================
-// RESET DES CHAMPS À CHAQUE NOUVELLE QUESTION
-// ============================================================
 function resetQuestionFields() {
-    // Vider les champs
     document.getElementById('qTitle').value = '';
     document.getElementById('qContent').value = '';
-    
-    // Reset direction
     var contentEl = document.getElementById('qContent');
     var titleEl = document.getElementById('qTitle');
     contentEl.classList.remove('rtl');
@@ -900,26 +857,15 @@ function resetQuestionFields() {
     contentEl.style.textAlign = 'left';
     titleEl.style.direction = 'ltr';
     titleEl.style.textAlign = 'left';
-    
-    // Reset le domaine à la première option
     var qDomain = document.getElementById('qDomain');
-    if (qDomain) {
-        qDomain.selectedIndex = 0;
-        updateCategories();
-    }
-    
-    // Reset la spécialité
+    if (qDomain) { qDomain.selectedIndex = 0; updateCategories(); }
     var qCategory = document.getElementById('qCategory');
     if (qCategory) qCategory.selectedIndex = 0;
-    
-    // Vider le status vocal
     var voiceStatus = document.getElementById('voiceStatus');
     if (voiceStatus) {
         voiceStatus.innerHTML = '';
         voiceStatus.style.color = 'rgba(255,255,255,0.8)';
     }
-    
-    // Annuler tout timer de silence
     if (silenceTimer) { clearTimeout(silenceTimer); silenceTimer = null; }
 }
 
@@ -928,7 +874,6 @@ function showRegister() { hideForms(); document.getElementById('registerForm').c
 function showQuestionForm() {
     if (!currentUser) { showNotification('Connectez-vous', 'error'); return; }
     hideForms();
-    // RESET TOUS LES CHAMPS
     resetQuestionFields();
     document.getElementById('questionForm').classList.add('active');
     updateCategories();
@@ -940,7 +885,7 @@ async function showHistory() {
     document.getElementById('historyForm').classList.add('active');
 }
 function hideForms() { document.querySelectorAll('.form-container').forEach(function(f) { f.classList.remove('active'); }); }
-function goToAdmin() { window.location.href = '/admin'; }
+function goToAdmin() { window.location.href = '/admin-login'; }
 
 function updateCategories() {
     var domain = document.getElementById('qDomain').value;
@@ -1020,7 +965,6 @@ async function renderHistory() {
     var mine = all.filter(function(q) { return q.username === currentUser.username; });
     var myAnswers = 0;
     all.forEach(function(q) { if (q.answers) q.answers.forEach(function(a) { if (a.username === currentUser.username) myAnswers++; }); });
-    var hist = await apiGet('/history/' + currentUser.id) || [];
     stats.innerHTML = '<span style="background:rgba(255,255,255,0.1);padding:5px 12px;border-radius:12px;">📋 ' + mine.length + ' questions</span><span style="background:rgba(255,255,255,0.1);padding:5px 12px;border-radius:12px;">💬 ' + myAnswers + ' réponses</span>';
     if (mine.length === 0) { container.innerHTML = '<p style="text-align:center;opacity:0.5;padding:30px;">Aucune question.</p>'; return; }
     var html = '';
@@ -1058,7 +1002,6 @@ async function askQuestion() {
     if (q && !q.error) {
         await apiPost('/history', { userId: currentUser.id, username: currentUser.username, action: 'question', data: { title: title } });
         showNotification('✅ Question publiée !', 'success');
-        // RESET après publication
         resetQuestionFields();
         hideForms();
         await loadQuestions();

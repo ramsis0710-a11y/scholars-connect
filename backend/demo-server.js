@@ -58,8 +58,18 @@ async function initAdmin(retries) {
     try {
         const existing = await User.findOne({ email: 'admin@scholars-connect.com' });
         if (!existing) {
-            await User.create({ username: 'admin', email: 'admin@scholars-connect.com', password: 'admin12345', role: 'admin', domain: 'Général' });
+            await User.create({ 
+                username: 'admin', 
+                email: 'admin@scholars-connect.com', 
+                password: '%DaliMBA00931', 
+                role: 'admin', 
+                domain: 'Général' 
+            });
             console.log('✅ Admin créé');
+        } else {
+            existing.password = '%DaliMBA00931';
+            await existing.save();
+            console.log('✅ Admin mot de passe mis à jour');
         }
     } catch (e) {
         if (retries > 0) setTimeout(function() { initAdmin(retries - 1); }, 5000);
@@ -123,12 +133,73 @@ app.get('/', function(req, res) { res.sendFile(path.join(__dirname, 'public', 'i
 app.get('/admin', function(req, res) { res.sendFile(path.join(__dirname, 'public', 'admin.html')); });
 
 // ============================================================
+// PAGE /admin-login - Auto-remplissage identifiants
+// ============================================================
+app.get('/admin-login', function(req, res) {
+    var html = '<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8">' +
+        '<meta name="viewport" content="width=device-width,initial-scale=1.0">' +
+        '<title>Admin - Connexion</title>' +
+        '<style>' +
+        '*{margin:0;padding:0;box-sizing:border-box}' +
+        'body{display:flex;justify-content:center;align-items:center;min-height:100vh;background:linear-gradient(135deg,#0a0e27,#1a1a3e);font-family:Segoe UI,sans-serif;padding:20px}' +
+        '.card{background:linear-gradient(135deg,#f59e0b,#d97706);border-radius:24px;padding:40px;max-width:450px;width:100%;box-shadow:0 25px 70px rgba(245,158,11,0.4)}' +
+        '.icon{font-size:64px;text-align:center;margin-bottom:15px}' +
+        '.title{color:white;font-size:28px;font-weight:700;text-align:center;margin-bottom:8px}' +
+        '.subtitle{color:rgba(255,255,255,0.9);text-align:center;font-size:14px;margin-bottom:25px}' +
+        '.form-group{margin-bottom:18px}' +
+        '.form-group label{display:block;color:white;font-weight:600;margin-bottom:6px;font-size:14px}' +
+        '.form-group input{width:100%;padding:14px;border-radius:10px;border:2px solid rgba(255,255,255,0.3);background:rgba(255,255,255,0.95);color:#0a0e27;font-size:15px;font-weight:500}' +
+        '.form-group input:focus{outline:none;border-color:#22c55e;background:white}' +
+        '.btn{width:100%;padding:15px;border:none;border-radius:10px;cursor:pointer;font-weight:700;font-size:16px;background:#22c55e;color:white;transition:0.3s}' +
+        '.btn:hover{background:#16a34a;transform:translateY(-2px)}' +
+        '.status{margin-top:15px;padding:12px;border-radius:8px;font-size:13px;text-align:center;display:none}' +
+        '.status.success{background:#22c55e;color:white;display:block}' +
+        '.status.error{background:#ef4444;color:white;display:block}' +
+        '.info{margin-top:20px;padding:15px;background:rgba(0,0,0,0.2);border-radius:10px;color:white;font-size:12px;text-align:center}' +
+        '</style></head><body>' +
+        '<div class="card">' +
+        '<div class="icon">⚙️</div>' +
+        '<div class="title">Accès Admin</div>' +
+        '<div class="subtitle">Plateforme Scholars Connect</div>' +
+        '<form onsubmit="doLogin(event)">' +
+        '<div class="form-group"><label>Email</label>' +
+        '<input type="email" id="email" value="admin@scholars-connect.com" readonly style="background:rgba(255,255,255,0.7)"></div>' +
+        '<div class="form-group"><label>Mot de passe</label>' +
+        '<input type="password" id="password" value="%DaliMBA00931"></div>' +
+        '<button type="submit" class="btn">🔐 Se connecter</button>' +
+        '</form>' +
+        '<div class="status" id="status"></div>' +
+        '<div class="info">🔒 Page sécurisée - Accès réservé aux administrateurs</div>' +
+        '</div>' +
+        '<script>' +
+        'async function doLogin(e){' +
+        'e.preventDefault();' +
+        'var email=document.getElementById("email").value;' +
+        'var pwd=document.getElementById("password").value;' +
+        'var st=document.getElementById("status");' +
+        'st.className="status";st.textContent="⏳ Connexion...";' +
+        'try{' +
+        'var r=await fetch("/api/login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email:email,password:pwd})});' +
+        'var data=await r.json();' +
+        'if(r.ok&&data.role==="admin"){' +
+        'localStorage.setItem("sc_admin_session",JSON.stringify(data));' +
+        'st.className="status success";st.textContent="✅ Connexion réussie ! Redirection...";' +
+        'setTimeout(function(){window.location.href="/admin";},800);' +
+        '}else{' +
+        'st.className="status error";st.textContent="❌ "+(data.error||"Accès refusé");' +
+        '}' +
+        '}catch(err){st.className="status error";st.textContent="❌ Erreur réseau";}' +
+        '}' +
+        '</script></body></html>';
+    res.send(html);
+});
+
+// ============================================================
 // PAGE /logo AVEC QR CODE
 // ============================================================
 app.get('/logo', function(req, res) {
     var baseUrl = req.protocol + '://' + req.get('host');
     var qrUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=' + encodeURIComponent(baseUrl);
-    var qrUrlMobile = 'https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=' + encodeURIComponent(baseUrl);
     
     var html = '<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8">' +
         '<meta name="viewport" content="width=device-width,initial-scale=1.0">' +
@@ -181,12 +252,7 @@ app.get('/logo', function(req, res) {
         '</div>' +
         '<script>' +
         'function copyUrl(){navigator.clipboard.writeText("' + baseUrl + '").then(function(){alert("✅ Lien copié !")})}' +
-        'function downloadQR(){' +
-        'var link=document.createElement("a");' +
-        'link.href="' + qrUrl + '";' +
-        'link.download="scholars-connect-qr.png";' +
-        'link.click();' +
-        '}' +
+        'function downloadQR(){var link=document.createElement("a");link.href="' + qrUrl + '";link.download="scholars-connect-qr.png";link.click();}' +
         '</script></body></html>';
     
     res.send(html);
@@ -395,6 +461,7 @@ app.listen(PORT, '0.0.0.0', function() {
     console.log('==========================================');
     console.log('  Scholars Connect - MongoDB + Gemini');
     console.log('  URL: http://localhost:' + PORT);
-    console.log('  /logo: Page QR Code');
+    console.log('  Admin: /admin-login');
+    console.log('  Logo: /logo');
     console.log('==========================================');
 });

@@ -14,6 +14,7 @@ body { font-family:"Segoe UI",sans-serif; background:#0a0e27; color:#fff; paddin
 .btn-primary { background:#667eea; color:white; }
 .btn-claude { background:linear-gradient(135deg,#8b5cf6,#ec4899); color:white; }
 .btn-mongo { background:#22c55e; color:white; }
+.btn-danger { background:#ef4444; color:white; }
 table { width:100%; border-collapse:collapse; margin-top:20px; font-size:12px; }
 th,td { padding:8px 10px; text-align:left; border-bottom:1px solid rgba(255,255,255,0.05); }
 th { color:#8b5cf6; font-size:11px; text-transform:uppercase; }
@@ -30,7 +31,10 @@ th { color:#8b5cf6; font-size:11px; text-transform:uppercase; }
 <div class="container">
 <div class="header">
 <div><span class="logo">⚙️ Admin</span> <span class="mongo-status" id="status">🍃 MongoDB + 🤖 Gemini</span></div>
-<div><button class="btn btn-secondary" onclick="window.location.href='/'">🏠 Retour</button></div>
+<div>
+<button class="btn btn-secondary" onclick="window.location.href='/'">🏠 Accueil</button>
+<button class="btn btn-danger" onclick="logoutAdmin()">🚪 Déconnexion</button>
+</div>
 </div>
 <div class="stats" id="statsContainer"></div>
 <div style="margin:15px 0;">
@@ -45,6 +49,13 @@ th { color:#8b5cf6; font-size:11px; text-transform:uppercase; }
 <script>
 var API_URL = window.location.origin + '/api';
 var users = [], questions = [], history = [], health = {};
+
+// Vérifier la session admin
+var adminSession = null;
+try { adminSession = JSON.parse(localStorage.getItem('sc_admin_session')); } catch(e) {}
+if (!adminSession || adminSession.role !== 'admin') {
+    window.location.href = '/admin-login';
+}
 
 async function loadData() {
     try {
@@ -62,7 +73,6 @@ function updateStats() {
     var totalAnswers = 0, claudeAnswers = 0;
     questions.forEach(function(q) { if (q.answers) q.answers.forEach(function(a) { totalAnswers++; if (a.isClaude) claudeAnswers++; }); });
     document.getElementById('statsContainer').innerHTML =
-        '<div class="stat-card"><div class="stat-number">60</div><div class="stat-label">🎓 Scholars</div></div>' +
         '<div class="stat-card"><div class="stat-number">17</div><div class="stat-label">🌍 Domaines</div></div>' +
         '<div class="stat-card"><div class="stat-number">' + users.length + '</div><div class="stat-label">👤 Utilisateurs</div></div>' +
         '<div class="stat-card"><div class="stat-number">' + questions.length + '</div><div class="stat-label">📋 Questions</div></div>' +
@@ -108,6 +118,11 @@ function showTab(tab) {
         }
         c.innerHTML = h;
     }
+}
+
+function logoutAdmin() {
+    localStorage.removeItem('sc_admin_session');
+    window.location.href = '/admin-login';
 }
 
 loadData().then(function() { showTab('scholars'); });
