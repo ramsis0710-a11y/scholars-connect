@@ -160,50 +160,83 @@ app.get('/logo', function(req, res) {
 // ============================================================
 // API - ANALYSE AUTO-REMPLISSAGE
 // ============================================================
+// ============================================================
+// API - ANALYSE INTELLIGENTE COMPLÈTE
+// Détecte : Domaine + Spécialité + Titre + Langue
+// ============================================================
 app.post('/api/analyze-question', async function(req, res) {
     try {
         var questionText = req.body.text;
         if (!questionText) return res.status(400).json({ error: 'Texte manquant' });
         
+        // Détecter la langue par script
+        var detectedLang = 'fr';
+        if (/[\u0600-\u06FF]/.test(questionText)) detectedLang = 'ar';
+        else if (/[\u4E00-\u9FFF]/.test(questionText)) detectedLang = 'zh';
+        else if (/[\u3040-\u309F\u30A0-\u30FF]/.test(questionText)) detectedLang = 'ja';
+        else if (/[\uAC00-\uD7AF]/.test(questionText)) detectedLang = 'ko';
+        else if (/[\u0400-\u04FF]/.test(questionText)) detectedLang = 'ru';
+        else if (/[\u0900-\u097F]/.test(questionText)) detectedLang = 'hi';
+        
         if (!geminiModel) {
-            var lower = questionText.toLowerCase();
-            var domain = 'Général', category = 'Histoire';
-            if (lower.match(/islam|coran|hadith|fiqh|prière/)) { domain = 'Islam'; category = 'Fiqh (Jurisprudence)'; }
-            else if (lower.match(/médecine|maladie|santé|cardiaque/)) { domain = 'Médecine'; category = 'Cardiologie'; }
-            else if (lower.match(/pharmacie|médicament/)) { domain = 'Pharmacie'; category = 'Pharmacologie clinique'; }
-            else if (lower.match(/chimie|molécule/)) { domain = 'Chimie'; category = 'Chimie organique'; }
-            else if (lower.match(/ia|intelligence|deep learning|neurone/)) { domain = 'IA'; category = 'Deep Learning'; }
-            else if (lower.match(/iot|objet connecté/)) { domain = 'IoT'; category = 'Architecture IoT'; }
-            else if (lower.match(/gmao|gpao|maintenance/)) { domain = 'GMAO'; category = 'GMAO (Maintenance Assistée)'; }
-            else if (lower.match(/pétrole|forage|cnc|usinage|vanne|turbine|filetage/)) { domain = 'Mécanique Pétrole'; category = 'Usinage CNC haute précision'; }
-            else if (lower.match(/gestion|management|marketing/)) { domain = 'Gestion'; category = 'Management stratégique'; }
-            else if (lower.match(/comptab|audit|fiscal/)) { domain = 'Expertise Comptable'; category = 'Comptabilité générale'; }
-            else if (lower.match(/droit|loi|juridique/)) { domain = 'Droit'; category = 'Droit des affaires'; }
-            else if (lower.match(/économ|inflation/)) { domain = 'Économie'; category = 'Macroéconomie'; }
-            else if (lower.match(/art|peinture|musique|cinéma/)) { domain = 'Art'; category = 'Peinture'; }
-            else if (lower.match(/architect|urbanisme/)) { domain = 'Architecture'; category = 'Architecture moderne'; }
-            else if (lower.match(/restaur|cuisine|gastronomie/)) { domain = 'Restauration'; category = 'Gastronomie française'; }
-            
-            var cleanTitle = questionText.replace(/^(quel est|qu'est-ce que|qui est|qui était|comment|pourquoi|quand|où)\s+/i, '').trim();
-            if (cleanTitle.length > 80) cleanTitle = cleanTitle.substring(0, 77) + '...';
-            
-            return res.json({ title: cleanTitle, domain: domain, category: category, language: 'fr' });
+            return res.json({ 
+                title: questionText.substring(0, 80),
+                domain: 'Général',
+                category: 'Histoire',
+                language: detectedLang,
+                content: questionText
+            });
         }
         
-        var prompt = 'Analyse cette question et retourne UNIQUEMENT un JSON :\n\n' +
+        // PROMPT INTELLIGENT : détecte TOUT
+        var prompt = 'Tu es un assistant académique expert. Analyse la question suivante et détecte TOUS ses indicateurs.\n\n' +
             'QUESTION : "' + questionText + '"\n\n' +
-            'Format JSON :\n' +
-            '{"title":"Titre court max 80 car","domain":"Islam|Médecine|Pharmacie|Chimie|IA|IoT|GMAO|Mécanique Pétrole|Gestion|Expertise Comptable|Droit|Économie|Culture Générale|Art|Architecture|Restauration|Général","category":"Spécialité précise","language":"fr|en|ar"}\n\n' +
-            'Réponds UNIQUEMENT avec le JSON.';
+            'Retourne UNIQUEMENT un JSON valide (rien d\'autre) avec cette structure EXACTE :\n' +
+            '{\n' +
+            '  "title": "Titre court et clair (max 80 caractères, SANS point final)",\n' +
+            '  "domain": "UN SEUL domaine parmi : Islam, Médecine, Pharmacie, Chimie, IA, IoT, GMAO, Mécanique Pétrole, Gestion, Expertise Comptable, Droit, Économie, Culture Générale, Art, Architecture, Restauration, Général",\n' +
+            '  "category": "La spécialité précise (ex: Cardiologie, Deep Learning, Fiqh, etc.)",\n' +
+            '  "language": "Code ISO de la langue détectée : fr, ar, en, es, de, it, pt, zh, ja, ko, ru, hi",\n' +
+            '  "content": "Reformulation propre et complète de la question en ' + detectedLang + ' (conserve le sens original)",\n' +
+            '  "confidence": "Score de confiance 0-100 (100 = certitude maximale)"\n' +
+            '}\n\n' +
+            'IMPORTANT :\n' +
+            '- Le titre doit être court et sans point final\n' +
+            '- Le domaine doit être EXACTEMENT dans la liste\n' +
+            '- La langue DOIT être détectée automatiquement\n' +
+            '- Réponds en JSON pur, sans markdown';
         
         const result = await geminiModel.generateContent(prompt);
         const response = await result.response;
         var text = response.text();
-        text = text.split('`json').join('').split('`').join('').trim();
         
-        try { res.json(JSON.parse(text)); }
-        catch (e) { res.json({ title: questionText.substring(0, 80), domain: 'Général', category: 'Histoire', language: 'fr' }); }
+        // Nettoyer le JSON
+        text = text.split('```json').join('').split('```').join('').trim();
+        
+        try {
+            var parsed = JSON.parse(text);
+            
+            // Valeurs par défaut si manquantes
+            if (!parsed.title) parsed.title = questionText.substring(0, 80);
+            if (!parsed.domain) parsed.domain = 'Général';
+            if (!parsed.category) parsed.category = 'Général';
+            if (!parsed.language) parsed.language = detectedLang;
+            if (!parsed.content) parsed.content = questionText;
+            
+            res.json(parsed);
+        } catch (e) {
+            console.error('Erreur parsing JSON:', e.message);
+            res.json({
+                title: questionText.substring(0, 80),
+                domain: 'Général',
+                category: 'Histoire',
+                language: detectedLang,
+                content: questionText
+            });
+        }
+        
     } catch (e) {
+        console.error('Erreur analyze:', e.message);
         res.status(500).json({ error: e.message });
     }
 });
@@ -338,3 +371,4 @@ app.listen(PORT, '0.0.0.0', function() {
     console.log('  📱 /logo: Page QR Code disponible');
     console.log('==========================================');
 });
+

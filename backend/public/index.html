@@ -396,10 +396,24 @@ function speakText(text, language) {
         return; 
     }
     
+    // DÉTECTION AUTOMATIQUE DE LA LANGUE DU TEXTE
+    var detectedLang = language;
+    if (!detectedLang || detectedLang === 'auto') {
+        // Détecter par script
+        if (/[\u0600-\u06FF]/.test(text)) detectedLang = 'ar';
+        else if (/[\u4E00-\u9FFF]/.test(text)) detectedLang = 'zh';
+        else if (/[\u3040-\u309F\u30A0-\u30FF]/.test(text)) detectedLang = 'ja';
+        else if (/[\uAC00-\uD7AF]/.test(text)) detectedLang = 'ko';
+        else if (/[\u0400-\u04FF]/.test(text)) detectedLang = 'ru';
+        else if (/[\u0900-\u097F]/.test(text)) detectedLang = 'hi';
+        else detectedLang = detectLanguage(text);
+    }
+    
     window.speechSynthesis.cancel();
     speechQueue = [];
     currentSpeechIndex = 0;
     isPaused = false;
+    isSpeaking = false;
     
     // Nettoyer le texte
     var cleanText = text
@@ -438,8 +452,8 @@ function speakText(text, language) {
     currentSpeechIndex = 0;
     isSpeaking = true;
     
-    var langMap = { 'fr':'fr-FR', 'ar':'ar-SA', 'en':'en-US', 'es':'es-ES', 'de':'de-DE', 'it':'it-IT', 'pt':'pt-PT' };
-    var targetLang = langMap[language] || 'fr-FR';
+    var langMap = { 'fr':'fr-FR', 'ar':'ar-SA', 'en':'en-US', 'es':'es-ES', 'de':'de-DE', 'it':'it-IT', 'pt':'pt-PT', 'zh':'zh-CN', 'ja':'ja-JP', 'ko':'ko-KR', 'ru':'ru-RU', 'hi':'hi-IN' };
+    var targetLang = langMap[detectedLang] || 'fr-FR';
     
     var voices = window.speechSynthesis.getVoices();
     var selectedVoice = null;
@@ -521,28 +535,89 @@ if ('speechSynthesis' in window) {
 // ============================================================
 // AUTO-ANALYSE IA
 // ============================================================
+// ============================================================
+// ANALYSE IA COMPLÈTE (Domaine + Spécialité + Titre + Langue)
+// ============================================================
 async function autoAnalyze() {
     var content = document.getElementById('qContent').value.trim();
-    if (!content || content.length < 10) { showNotification('Saisissez d\'abord votre question', 'error'); return; }
+    if (!content || content.length < 5) { 
+        showNotification('Saisissez d\'abord votre question', 'error'); 
+        return; 
+    }
+    
     var statusEl = document.getElementById('voiceStatus');
-    if (statusEl) statusEl.innerHTML = '🤖 Analyse IA...';
+    if (statusEl) statusEl.innerHTML = '🤖 Analyse IA complète en cours...';
+    showNotification('🤖 Analyse intelligente...', 'info');
     
     try {
         var data = await apiPost('/analyze-question', { text: content });
-        if (data.title) document.getElementById('qTitle').value = data.title;
+        
+        // 1. Titre
+        if (data.title) {
+            document.getElementById('qTitle').value = data.title;
+        }
+        
+        // 2. Domaine
         if (data.domain) {
             var ds = document.getElementById('qDomain');
-            for (var i = 0; i < ds.options.length; i++) if (ds.options[i].value === data.domain) { ds.selectedIndex = i; updateCategories(); break; }
+            for (var i = 0; i < ds.options.length; i++) {
+                if (ds.options[i].value === data.domain) {
+                    ds.selectedIndex = i;
+                    updateCategories();
+                    break;
+                }
+            }
         }
+        
+        // 3. Spécialité (après chargement des catégories)
         setTimeout(function() {
             if (data.category) {
                 var cs = document.getElementById('qCategory');
-                for (var i = 0; i < cs.options.length; i++) if (cs.options[i].value === data.category) { cs.selectedIndex = i; break; }
+                for (var i = 0; i < cs.options.length; i++) {
+                    if (cs.options[i].value === data.category) {
+                        cs.selectedIndex = i;
+                        break;
+                    }
+                }
             }
-        }, 100);
-        if (statusEl) statusEl.innerHTML = '✅ IA : Titre + Domaine remplis';
-        showNotification('🤖 Question analysée !', 'success');
-    } catch (e) { if (statusEl) statusEl.innerHTML = '❌ Erreur analyse'; }
+        }, 200);
+        
+        // 4. Langue détectée
+        var detectedLang = data.language || detectLanguage(content);
+        
+        // Mettre à jour le sélecteur de langue si détecté
+        if (detectedLang !== currentLanguage) {
+            var sel1 = document.getElementById('languageSelector');
+            var sel2 = document.getElementById('languageSelector2');
+            if (sel1) sel1.value = detectedLang;
+            if (sel2) sel2.value = detectedLang;
+            currentLanguage = detectedLang;
+        }
+        
+        // 5. Contenu reformulé (optionnel)
+        if (data.content && data.content.length > content.length) {
+            document.getElementById('qContent').value = data.content;
+        }
+        
+        // Afficher le résumé
+        var langNames = { 'fr': '🇫🇷 Français', 'ar': '🇸🇦 العربية', 'en': '🇬🇧 English', 'es': '🇪🇸 Español', 'de': '🇩🇪 Deutsch', 'it': '🇮🇹 Italiano', 'pt': '🇵🇹 Português', 'zh': '🇨🇳 中文', 'ja': '🇯🇵 日本語', 'ko': '🇰🇷 한국어', 'ru': '🇷🇺 Русский', 'hi': '🇮🇳 हिन्दी' };
+        
+        if (statusEl) {
+            statusEl.innerHTML = 
+                '✅ <strong>Détection complète :</strong><br>' +
+                '📂 Domaine : <b>' + (data.domain || 'Général') + '</b><br>' +
+                '🔬 Spécialité : <b>' + (data.category || '-') + '</b><br>' +
+                '📝 Titre : <b>' + (data.title || '-') + '</b><br>' +
+                '🌐 Langue : <b>' + (langNames[detectedLang] || detectedLang) + '</b>';
+            statusEl.style.color = '#22c55e';
+        }
+        
+        showNotification('✅ Analyse complète réussie !', 'success');
+        
+    } catch (e) {
+        if (statusEl) statusEl.innerHTML = '❌ Erreur analyse: ' + e.message;
+        showNotification('❌ Erreur analyse', 'error');
+    }
 }
 
 function showNotification(msg, type) {
@@ -746,10 +821,14 @@ async function askQuestion() {
     var content = document.getElementById('qContent').value;
     if (!title || !content) { showNotification('Titre et contenu obligatoires', 'error'); return; }
     var scholar = assignScholar(domain, category);
+    
+    // DÉTECTION AUTOMATIQUE DE LA LANGUE DU CONTENU
+    var contentLang = detectLanguage(content);
+    
     var q = await apiPost('/questions', {
         title: title, content: content, domain: domain, category: category,
         username: currentUser.username, userId: currentUser.id,
-        language: currentLanguage, date: new Date().toLocaleDateString('fr-FR'),
+        language: contentLang, date: new Date().toLocaleDateString('fr-FR'),
         status: scholar ? 'assigned' : 'pending',
         scholar: scholar, answers: []
     });
@@ -818,3 +897,4 @@ initializeApp();
 </script>
 </body>
 </html>
+
