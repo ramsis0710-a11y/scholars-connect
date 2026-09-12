@@ -81,10 +81,10 @@ function showTab(tab) {
         c.innerHTML = h;
     } else if (tab === 'questions') {
         if (questions.length === 0) { c.innerHTML = '<p style="text-align:center;padding:30px;opacity:0.5;">Aucune question.</p>'; return; }
-        var h = '<h3>📋 Questions (' + questions.length + ')</h3><table><thead><tr><th>Titre</th><th>Domaine</th><th>Auteur</th><th>Statut</th><th>Réponses</th><th>Date</th></tr></thead><tbody>';
+        var h = '<h3>📋 Questions (' + questions.length + ')</h3><table><thead><tr><th>Titre</th><th>Domaine</th><th>Langue</th><th>Auteur</th><th>Statut</th><th>Réponses</th></tr></thead><tbody>';
         questions.forEach(function(q) {
             var ac = q.answers ? q.answers.length : 0;
-            h += '<tr><td>' + q.title + '</td><td><span class="badge">' + q.domain + '</span></td><td>' + q.username + '</td><td>' + q.status + '</td><td>' + ac + '</td><td>' + (q.date || '') + '</td></tr>';
+            h += '<tr><td>' + q.title + '</td><td><span class="badge">' + q.domain + '</span></td><td>' + (q.language || 'fr') + '</td><td>' + q.username + '</td><td>' + q.status + '</td><td>' + ac + '</td></tr>';
         });
         h += '</tbody></table>';
         c.innerHTML = h;
@@ -92,23 +92,23 @@ function showTab(tab) {
         var list = [];
         questions.forEach(function(q) { if (q.answers) q.answers.forEach(function(a) { if (a.isClaude) list.push({ q: q, a: a }); }); });
         var h = '<h3>🤖 Réponses Claude (' + list.length + ')</h3>';
-        if (list.length === 0) h += '<p style="text-align:center;padding:30px;opacity:0.5;">Aucune réponse Claude.</p>';
+        if (list.length === 0) h += '<p style="text-align:center;padding:30px;opacity:0.5;">Aucune.</p>';
         else list.forEach(function(item) {
-            var r = item.a.claudeReason === 'no_literature' ? '❌ Sans littérature' : '⏱️ Timeout 5 min';
+            var r = item.a.claudeReason === 'no_literature' ? '❌ Sans littérature' : '⏱️ Timeout';
             h += '<div style="background:linear-gradient(135deg,rgba(139,92,246,0.1),rgba(236,72,153,0.05));padding:15px;border-radius:10px;margin:10px 0;border-left:4px solid #8b5cf6;"><strong>' + item.q.title + '</strong> <span class="badge badge-claude">' + r + '</span><div style="margin-top:10px;white-space:pre-wrap;font-size:12px;">' + item.a.content + '</div></div>';
         });
         c.innerHTML = h;
     } else if (tab === 'users') {
-        var h = '<h3>👤 Utilisateurs (' + users.length + ')</h3><table><thead><tr><th>Nom</th><th>Email</th><th>Rôle</th><th>Inscrit</th></tr></thead><tbody>';
-        users.forEach(function(u) { h += '<tr><td>' + u.username + '</td><td>' + u.email + '</td><td>' + u.role + '</td><td>' + (u.createdAt ? new Date(u.createdAt).toLocaleString('fr-FR') : '-') + '</td></tr>'; });
+        var h = '<h3>👤 Utilisateurs (' + users.length + ')</h3><table><thead><tr><th>Nom</th><th>Email</th><th>Rôle</th><th>Langue</th></tr></thead><tbody>';
+        users.forEach(function(u) { h += '<tr><td>' + u.username + '</td><td>' + u.email + '</td><td>' + u.role + '</td><td>' + (u.language || 'fr') + '</td></tr>'; });
         h += '</tbody></table>';
         c.innerHTML = h;
     } else if (tab === 'history') {
         var h = '<h3>📜 Historique (' + history.length + ')</h3>';
-        if (history.length === 0) h += '<p style="text-align:center;padding:30px;opacity:0.5;">Aucune action.</p>';
+        if (history.length === 0) h += '<p style="text-align:center;padding:30px;opacity:0.5;">Aucune.</p>';
         else {
-            h += '<table><thead><tr><th>Utilisateur</th><th>Action</th><th>Détails</th><th>Date</th></tr></thead><tbody>';
-            history.slice(0, 200).forEach(function(e) { h += '<tr><td>' + e.username + '</td><td>' + e.action + '</td><td>' + JSON.stringify(e.data).substring(0, 50) + '</td><td>' + (e.date || '') + '</td></tr>'; });
+            h += '<table><thead><tr><th>Utilisateur</th><th>Action</th><th>Date</th></tr></thead><tbody>';
+            history.slice(0, 200).forEach(function(e) { h += '<tr><td>' + e.username + '</td><td>' + e.action + '</td><td>' + (e.date || '') + '</td></tr>'; });
             h += '</tbody></table>';
         }
         c.innerHTML = h;

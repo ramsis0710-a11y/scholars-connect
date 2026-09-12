@@ -18,7 +18,7 @@ if (GEMINI_API_KEY) {
         const { GoogleGenerativeAI } = require('@google/generative-ai');
         genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
         geminiModel = genAI.getGenerativeModel({ model: 'gemini-3.6-flash' });
-        console.log('✅ Gemini API initialisée (gemini-3.6-flash)');
+        console.log('✅ Gemini API initialisée');
     } catch (e) { console.error('❌ Gemini:', e.message); }
 }
 
@@ -74,27 +74,35 @@ mongoose.connection.once('connected', function() { initAdmin(); });
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
+// ============================================================
+// GEMINI - RÉPONSE DANS LA LANGUE DE LA QUESTION
+// ============================================================
 async function generateGeminiResponse(question, scholar, reason) {
     if (!geminiModel) return generateLocalFallback(question, scholar, reason);
     try {
+        var qLang = question.language || 'fr';
+        var langInstruction = 'IMPORTANT: Reponds OBLIGATOIREMENT dans la meme langue que la question (code: ' + qLang + ').';
+        
         var prompt = '';
         if (reason === 'no_literature') {
-            prompt = 'Tu es un Juge Académique expert nommé "Juge Claude".\n\n' +
-                'DOMAINE : ' + question.domain + '\nSPÉCIALITÉ : ' + question.category + '\n' +
-                'QUESTION : ' + question.title + '\nDÉTAILS : ' + question.content + '\n\n' +
-                'Le scholar assigné "' + scholar.name + '" ne dispose pas de littérature spécifique.\n\n' +
-                'Donne une réponse COMPLÈTE et EXPERTE.\n\n' +
-                'Structure :\n1. 📖 DÉFINITION / CONTEXTE\n2. 🎯 RÉPONSE DÉTAILLÉE (3-5 paragraphes)\n' +
-                '3. ✅ POINTS CLÉS (3-5 points)\n4. 💡 POUR ALLER PLUS LOIN\n5. 📚 SOURCES (2-3 ouvrages)\n\n' +
-                'Réponds en FRANÇAIS. Pas de Markdown complexe.';
+            prompt = 'Tu es un Juge Academique expert nomme "Juge Claude".\n' +
+                langInstruction + '\n\n' +
+                'DOMAINE : ' + question.domain + '\nSPECIALITE : ' + question.category + '\n' +
+                'QUESTION : ' + question.title + '\nDETAILS : ' + question.content + '\n\n' +
+                'Le scholar "' + scholar.name + '" ne dispose pas de litterature specifique.\n\n' +
+                'Donne une reponse COMPLETE et EXPERTE dans la langue de la question.\n\n' +
+                'Structure :\n1. DEFINITION / CONTEXTE\n2. REPONSE DETAILLEE (3-5 paragraphes)\n' +
+                '3. POINTS CLES (3-5 points)\n4. POUR ALLER PLUS LOIN\n5. SOURCES (2-3 ouvrages)\n\n' +
+                'Pas de Markdown complexe. Utilise emojis et tirets.';
         } else {
-            prompt = 'Tu es un Juge Académique expert "Juge Claude".\n\n' +
-                'DOMAINE : ' + question.domain + '\nSPÉCIALITÉ : ' + question.category + '\n' +
-                'QUESTION : ' + question.title + '\nDÉTAILS : ' + question.content + '\n\n' +
-                'Le scholar "' + scholar.name + '" n\'a pas répondu dans 5 min.\n' +
-                'Sa littérature : ' + (scholar.literature ? scholar.literature.join(', ') : 'Non spécifiée') + '\n\n' +
-                'Structure : 1. DÉFINITION, 2. RÉPONSE DÉTAILLÉE, 3. POINTS CLÉS, 4. RÉFÉRENCES\n\n' +
-                'Réponds en FRANÇAIS. Pas de Markdown.';
+            prompt = 'Tu es un Juge Academique expert "Juge Claude".\n' +
+                langInstruction + '\n\n' +
+                'DOMAINE : ' + question.domain + '\nSPECIALITE : ' + question.category + '\n' +
+                'QUESTION : ' + question.title + '\nDETAILS : ' + question.content + '\n\n' +
+                'Le scholar "' + scholar.name + '" n\'a pas repondu dans 5 min.\n' +
+                'Sa litterature : ' + (scholar.literature ? scholar.literature.join(', ') : 'Non specifiee') + '\n\n' +
+                'Reponds dans la langue de la question.\n\n' +
+                'Structure : 1. DEFINITION, 2. REPONSE DETAILLEE, 3. POINTS CLES, 4. REFERENCES';
         }
 
         const result = await geminiModel.generateContent(prompt);
@@ -103,15 +111,18 @@ async function generateGeminiResponse(question, scholar, reason) {
 
         var header = '';
         if (reason === 'no_literature') {
-            header = '🤖 RÉPONSE COMPLÈTE DU JUGE CLAUDE\n\n📋 Question : "' + question.title + '"\n';
-            header += 'Le scholar ' + scholar.name + ' n\'a pas de littérature spécifique.\n\n━━━━━━━━━━━━━━━━━━━━\n\n';
+            header = '🤖 REPONSE COMPLETE DU JUGE CLAUDE\n\n';
+            header += '📋 Question : "' + question.title + '"\n';
+            header += 'Le scholar ' + scholar.name + ' n\'a pas de litterature specifique.\n\n';
+            header += '━━━━━━━━━━━━━━━━━━━━\n\n';
         } else {
-            header = '⏱️ RÉPONSE COMPLÈTE DU JUGE CLAUDE (5 min)\n\n👨‍🎓 Scholar : ' + scholar.name + '\n';
-            if (scholar.literature) header += '📖 Références : ' + scholar.literature.join(', ') + '\n';
+            header = '⏱️ REPONSE COMPLETE DU JUGE CLAUDE (5 min)\n\n';
+            header += '👨‍🎓 Scholar : ' + scholar.name + '\n';
+            if (scholar.literature) header += '📖 References : ' + scholar.literature.join(', ') + '\n';
             header += '\n━━━━━━━━━━━━━━━━━━━━\n\n';
         }
 
-        const footer = '\n\n━━━━━━━━━━━━━━━━━━━━\n💡 Le scholar ' + scholar.name + ' pourra compléter cette réponse.';
+        const footer = '\n\n━━━━━━━━━━━━━━━━━━━━\n💡 Le scholar ' + scholar.name + ' pourra completer cette reponse.';
         return header + text + footer;
     } catch (e) {
         console.error('Erreur Gemini:', e.message);
@@ -120,13 +131,16 @@ async function generateGeminiResponse(question, scholar, reason) {
 }
 
 function generateLocalFallback(question, scholar, reason) {
-    var header = reason === 'no_literature' ? '🤖 RÉPONSE DU JUGE CLAUDE\n\n' : '⏱️ RÉPONSE DU JUGE CLAUDE (5 min)\n\n';
-    var body = '📖 Cette question relève du domaine ' + question.domain + ' (' + question.category + ').\n\n';
+    var header = reason === 'no_literature' ? '🤖 REPONSE DU JUGE CLAUDE\n\n' : '⏱️ REPONSE DU JUGE CLAUDE (5 min)\n\n';
+    var body = '📖 Cette question releve du domaine ' + question.domain + ' (' + question.category + ').\n\n';
     body += '✅ Scholar : ' + scholar.name + ' (' + scholar.expertise + ')\n';
-    body += '📚 Références : ' + (scholar.literature ? scholar.literature.join(', ') : 'Non spécifiées') + '\n\n';
-    return header + body + '💡 Le scholar pourra compléter.';
+    body += '📚 References : ' + (scholar.literature ? scholar.literature.join(', ') : 'Non specifiees') + '\n\n';
+    return header + body + '💡 Le scholar pourra completer.';
 }
 
+// ============================================================
+// ROUTES HTML
+// ============================================================
 app.get('/', function(req, res) { res.sendFile(path.join(__dirname, 'public', 'index.html')); });
 app.get('/admin', function(req, res) { res.sendFile(path.join(__dirname, 'public', 'admin.html')); });
 
@@ -158,18 +172,13 @@ app.get('/logo', function(req, res) {
 });
 
 // ============================================================
-// API - ANALYSE AUTO-REMPLISSAGE
-// ============================================================
-// ============================================================
 // API - ANALYSE INTELLIGENTE COMPLÈTE
-// Détecte : Domaine + Spécialité + Titre + Langue
 // ============================================================
 app.post('/api/analyze-question', async function(req, res) {
     try {
         var questionText = req.body.text;
         if (!questionText) return res.status(400).json({ error: 'Texte manquant' });
         
-        // Détecter la langue par script
         var detectedLang = 'fr';
         if (/[\u0600-\u06FF]/.test(questionText)) detectedLang = 'ar';
         else if (/[\u4E00-\u9FFF]/.test(questionText)) detectedLang = 'zh';
@@ -179,68 +188,74 @@ app.post('/api/analyze-question', async function(req, res) {
         else if (/[\u0900-\u097F]/.test(questionText)) detectedLang = 'hi';
         
         if (!geminiModel) {
-            return res.json({ 
-                title: questionText.substring(0, 80),
-                domain: 'Général',
-                category: 'Histoire',
-                language: detectedLang,
-                content: questionText
-            });
+            return res.json({ title: questionText.substring(0, 80), domain: 'Général', category: 'Histoire', language: detectedLang, content: questionText });
         }
         
-        // PROMPT INTELLIGENT : détecte TOUT
-        var prompt = 'Tu es un assistant académique expert. Analyse la question suivante et détecte TOUS ses indicateurs.\n\n' +
+        var prompt = 'Tu es un assistant academique expert. Analyse cette question et detecte TOUS ses indicateurs.\n\n' +
             'QUESTION : "' + questionText + '"\n\n' +
-            'Retourne UNIQUEMENT un JSON valide (rien d\'autre) avec cette structure EXACTE :\n' +
+            'Retourne UNIQUEMENT un JSON valide :\n' +
             '{\n' +
-            '  "title": "Titre court et clair (max 80 caractères, SANS point final)",\n' +
-            '  "domain": "UN SEUL domaine parmi : Islam, Médecine, Pharmacie, Chimie, IA, IoT, GMAO, Mécanique Pétrole, Gestion, Expertise Comptable, Droit, Économie, Culture Générale, Art, Architecture, Restauration, Général",\n' +
-            '  "category": "La spécialité précise (ex: Cardiologie, Deep Learning, Fiqh, etc.)",\n' +
-            '  "language": "Code ISO de la langue détectée : fr, ar, en, es, de, it, pt, zh, ja, ko, ru, hi",\n' +
-            '  "content": "Reformulation propre et complète de la question en ' + detectedLang + ' (conserve le sens original)",\n' +
-            '  "confidence": "Score de confiance 0-100 (100 = certitude maximale)"\n' +
+            '  "title": "Titre court et clair (max 80 car, SANS point final)",\n' +
+            '  "domain": "UN SEUL parmi : Islam, Medecine, Pharmacie, Chimie, IA, IoT, GMAO, Mecanique Petrole, Gestion, Expertise Comptable, Droit, Economie, Culture Generale, Art, Architecture, Restauration, General",\n' +
+            '  "category": "Specialite precise",\n' +
+            '  "language": "fr|ar|en|es|de|it|pt|zh|ja|ko|ru|hi",\n' +
+            '  "content": "Reformulation propre en ' + detectedLang + '",\n' +
+            '  "confidence": 0-100\n' +
             '}\n\n' +
-            'IMPORTANT :\n' +
-            '- Le titre doit être court et sans point final\n' +
-            '- Le domaine doit être EXACTEMENT dans la liste\n' +
-            '- La langue DOIT être détectée automatiquement\n' +
-            '- Réponds en JSON pur, sans markdown';
+            'IMPORTANT : Reponds en JSON pur, sans markdown.';
         
         const result = await geminiModel.generateContent(prompt);
         const response = await result.response;
         var text = response.text();
-        
-        // Nettoyer le JSON
-        text = text.split('```json').join('').split('```').join('').trim();
+        text = text.split('`json').join('').split('`').join('').trim();
         
         try {
             var parsed = JSON.parse(text);
-            
-            // Valeurs par défaut si manquantes
             if (!parsed.title) parsed.title = questionText.substring(0, 80);
             if (!parsed.domain) parsed.domain = 'Général';
             if (!parsed.category) parsed.category = 'Général';
             if (!parsed.language) parsed.language = detectedLang;
             if (!parsed.content) parsed.content = questionText;
-            
             res.json(parsed);
         } catch (e) {
-            console.error('Erreur parsing JSON:', e.message);
-            res.json({
-                title: questionText.substring(0, 80),
-                domain: 'Général',
-                category: 'Histoire',
-                language: detectedLang,
-                content: questionText
-            });
+            res.json({ title: questionText.substring(0, 80), domain: 'Général', category: 'Histoire', language: detectedLang, content: questionText });
         }
-        
     } catch (e) {
-        console.error('Erreur analyze:', e.message);
         res.status(500).json({ error: e.message });
     }
 });
 
+// ============================================================
+// API - TRADUCTION
+// ============================================================
+app.post('/api/translate', async function(req, res) {
+    try {
+        const text = req.body.text;
+        const targetLang = req.body.targetLang;
+        
+        if (!text || !targetLang) return res.status(400).json({ error: 'Text et targetLang requis' });
+        
+        if (!geminiModel) return res.json({ translation: text, error: 'Gemini non disponible' });
+        
+        const langNames = { 'fr': 'Francais', 'ar': 'Arabe', 'en': 'Anglais', 'es': 'Espagnol', 'de': 'Allemand', 'it': 'Italien', 'pt': 'Portugais', 'zh': 'Chinois', 'ja': 'Japonais', 'ko': 'Coreen', 'ru': 'Russe', 'hi': 'Hindi' };
+        const targetName = langNames[targetLang] || targetLang;
+        
+        const prompt = 'Traduis ce texte en ' + targetName + ' de maniere precise et naturelle.\n\n' +
+            'TEXTE :\n' + text + '\n\n' +
+            'Retourne UNIQUEMENT la traduction en ' + targetName + '.';
+        
+        const result = await geminiModel.generateContent(prompt);
+        const response = await result.response;
+        
+        res.json({ translation: response.text(), targetLang: targetLang, targetName: targetName });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// ============================================================
+// API - AUTH
+// ============================================================
 app.post('/api/login', async function(req, res) {
     try {
         const user = await User.findOne({ email: req.body.email, password: req.body.password });
@@ -263,6 +278,9 @@ app.get('/api/users', async function(req, res) {
     catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// ============================================================
+// API - QUESTIONS
+// ============================================================
 app.get('/api/questions', async function(req, res) {
     try { res.json(await Question.find().sort({ timestamp: -1 })); }
     catch (e) { res.status(500).json({ error: e.message }); }
@@ -286,7 +304,7 @@ async function triggerClaudeJudge(question) {
                 const answer = await generateGeminiResponse(question, scholar, 'no_literature');
                 const q = await Question.findById(question._id);
                 if (!q) return;
-                q.answers.push({ username: 'Juge Claude', userId: 0, content: answer, language: 'fr', date: new Date().toLocaleDateString('fr-FR'), isClaude: true, claudeReason: 'no_literature' });
+                q.answers.push({ username: 'Juge Claude', userId: 0, content: answer, language: q.language || 'fr', date: new Date().toLocaleDateString('fr-FR'), isClaude: true, claudeReason: 'no_literature' });
                 q.status = 'claude_answered';
                 await q.save();
                 console.log('✅ Juge Claude Q#' + q._id);
@@ -303,7 +321,7 @@ async function triggerClaudeJudge(question) {
             for (var i = 0; i < q.answers.length; i++) if (q.answers[i].isScholarResponse) { responded = true; break; }
             if (!responded) {
                 const answer = await generateGeminiResponse(q, q.scholar, 'timeout_5min');
-                q.answers.push({ username: 'Juge Claude', userId: 0, content: answer, language: 'fr', date: new Date().toLocaleDateString('fr-FR'), isClaude: true, claudeReason: 'timeout_5min' });
+                q.answers.push({ username: 'Juge Claude', userId: 0, content: answer, language: q.language || 'fr', date: new Date().toLocaleDateString('fr-FR'), isClaude: true, claudeReason: 'timeout_5min' });
                 q.status = 'claude_answered';
                 await q.save();
                 console.log('✅ Juge Claude (5min) Q#' + q._id);
@@ -324,6 +342,9 @@ app.post('/api/questions/:id/answers', async function(req, res) {
     } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// ============================================================
+// API - HISTORIQUE
+// ============================================================
 app.get('/api/history', async function(req, res) {
     try { res.json(await History.find().sort({ timestamp: -1 }).limit(500)); }
     catch (e) { res.status(500).json({ error: e.message }); }
@@ -339,6 +360,9 @@ app.post('/api/history', async function(req, res) {
     catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// ============================================================
+// API - SANTÉ ET TEST
+// ============================================================
 app.get('/api/health', async function(req, res) {
     try {
         res.json({
@@ -366,9 +390,8 @@ app.listen(PORT, '0.0.0.0', function() {
     console.log('==========================================');
     console.log('  Scholars Connect - MongoDB + Gemini');
     console.log('  URL: http://localhost:' + PORT);
-    console.log('  🍃 MongoDB: ' + (mongoose.connection.readyState === 1 ? 'Connecté' : 'Connexion...'));
-    console.log('  🤖 Gemini: ' + (geminiModel ? 'Actif' : 'Inactif'));
-    console.log('  📱 /logo: Page QR Code disponible');
+    console.log('  MongoDB: ' + (mongoose.connection.readyState === 1 ? 'Connecté' : 'Connexion...'));
+    console.log('  Gemini: ' + (geminiModel ? 'Actif' : 'Inactif'));
+    console.log('  /logo: Page QR Code');
     console.log('==========================================');
 });
-

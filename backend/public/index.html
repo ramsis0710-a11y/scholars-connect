@@ -21,7 +21,6 @@ body { font-family:'Segoe UI',system-ui,sans-serif; background:#0a0e27; color:#f
 .btn-secondary { background:rgba(255,255,255,0.1); color:white; }
 .btn-admin { background:#f59e0b; color:#0a0e27; }
 .btn-voice { background:linear-gradient(135deg,#8b5cf6,#ec4899); color:white; }
-.btn-pause { background:#f59e0b; color:#0a0e27; }
 .btn:hover { transform:scale(1.05); opacity:0.9; }
 .categories-nav { display:flex; gap:8px; padding:15px 0; flex-wrap:wrap; border-bottom:1px solid rgba(255,255,255,0.05); overflow-x:auto; }
 .cat-btn { padding:6px 12px; border-radius:20px; border:1px solid rgba(255,255,255,0.15); background:transparent; color:white; cursor:pointer; font-size:11px; transition:0.3s; white-space:nowrap; }
@@ -61,7 +60,7 @@ body { font-family:'Segoe UI',system-ui,sans-serif; background:#0a0e27; color:#f
 .claude-status { display:inline-block; padding:3px 12px; border-radius:12px; font-size:11px; font-weight:600; background:#f59e0b; color:#0a0e27; }
 .timer-badge { display:inline-block; padding:3px 12px; border-radius:12px; font-size:11px; font-weight:600; background:#3b82f6; color:white; }
 .domain-tag { display:inline-block; padding:2px 10px; border-radius:12px; font-size:11px; font-weight:600; margin-left:5px; background:#667eea; color:white; }
-.notification { position:fixed; top:20px; right:20px; padding:15px 25px; border-radius:12px; z-index:1000; display:none; }
+.notification { position:fixed; top:20px; right:20px; padding:15px 25px; border-radius:12px; z-index:10000; display:none; }
 .notification.success { background:#22c55e; color:#0a0e27; display:block; }
 .notification.error { background:#ef4444; color:white; display:block; }
 .notification.info { background:#3b82f6; color:white; display:block; }
@@ -73,10 +72,12 @@ body { font-family:'Segoe UI',system-ui,sans-serif; background:#0a0e27; color:#f
 .badge-claude { background:linear-gradient(135deg,#8b5cf6,#ec4899); color:white; }
 .scholar-card { background:rgba(255,255,255,0.05); padding:15px; border-radius:10px; border:1px solid rgba(255,255,255,0.1); }
 .claude-response { white-space:pre-wrap; line-height:1.7; font-size:14px; }
-.speak-btn { background:#3b82f6; color:white; border:none; padding:6px 12px; border-radius:8px; font-size:11px; cursor:pointer; margin-right:5px; }
-.pause-btn { background:#f59e0b; color:#0a0e27; border:none; padding:6px 12px; border-radius:8px; font-size:11px; cursor:pointer; margin-right:5px; }
-.stop-btn { background:#ef4444; color:white; border:none; padding:6px 12px; border-radius:8px; font-size:11px; cursor:pointer; }
 .speak-controls { margin-top:8px; display:flex; gap:5px; flex-wrap:wrap; }
+.speak-btn { background:#3b82f6; color:white; border:none; padding:6px 12px; border-radius:8px; font-size:11px; cursor:pointer; }
+.pause-btn { background:#f59e0b; color:#0a0e27; border:none; padding:6px 12px; border-radius:8px; font-size:11px; cursor:pointer; }
+.stop-btn { background:#ef4444; color:white; border:none; padding:6px 12px; border-radius:8px; font-size:11px; cursor:pointer; }
+.share-lang-btn { transition: all 0.3s ease !important; }
+.share-lang-btn:hover { transform: scale(1.05) !important; }
 @media (max-width:600px) { .header { flex-direction:column; align-items:stretch; } }
 </style>
 </head>
@@ -97,6 +98,11 @@ body { font-family:'Segoe UI',system-ui,sans-serif; background:#0a0e27; color:#f
 <option value="de">🇩🇪 Deutsch</option>
 <option value="it">🇮🇹 Italiano</option>
 <option value="pt">🇵🇹 Português</option>
+<option value="zh">🇨🇳 中文</option>
+<option value="ja">🇯🇵 日本語</option>
+<option value="ko">🇰🇷 한국어</option>
+<option value="ru">🇷🇺 Русский</option>
+<option value="hi">🇮🇳 हिन्दी</option>
 </select>
 <button class="btn btn-primary" id="btnLogin" onclick="showLogin()">🔐 Connexion</button>
 <button class="btn btn-success" id="btnRegister" onclick="showRegister()">📝 Inscription</button>
@@ -110,6 +116,11 @@ body { font-family:'Segoe UI',system-ui,sans-serif; background:#0a0e27; color:#f
 <option value="de">🇩🇪 Deutsch</option>
 <option value="it">🇮🇹 Italiano</option>
 <option value="pt">🇵🇹 Português</option>
+<option value="zh">🇨🇳 中文</option>
+<option value="ja">🇯🇵 日本語</option>
+<option value="ko">🇰🇷 한국어</option>
+<option value="ru">🇷🇺 Русский</option>
+<option value="hi">🇮🇳 हिन्दी</option>
 </select>
 <span class="user-info" id="userDisplay"></span>
 <button class="btn btn-admin" onclick="goToAdmin()" id="adminBtn" style="display:none;">⚙️ Admin</button>
@@ -215,7 +226,7 @@ var API_URL = window.location.origin + '/api';
 var currentUser = null;
 var questions = [];
 var currentFilter = 'all';
-var SESSION_KEY = 'sc_session_v6';
+var SESSION_KEY = 'sc_session_v7';
 var currentLanguage = 'fr';
 var recognition = null;
 var isListening = false;
@@ -223,10 +234,8 @@ var speechQueue = [];
 var currentSpeechIndex = 0;
 var isSpeaking = false;
 var isPaused = false;
+var selectedShareLang = 'fr';
 
-// ============================================================
-// TRADUCTIONS (7 LANGUES)
-// ============================================================
 var TRANSLATIONS = {
     'fr': { 'subtitle': "Plateforme d'entraide académique multilingue", 'login': 'Connexion', 'register': 'Inscription', 'logout': 'Déconnexion', 'admin': 'Admin', 'new_question': 'Poser une question', 'voice_title': 'Mode Vocal', 'voice_desc': "Dictez votre question - L'IA remplira le titre", 'voice_btn': 'Démarrer la dictée vocale', 'voice_stop': 'Arrêter', 'or_manual': 'OU remplissez manuellement', 'domain': 'Domaine', 'speciality': 'Spécialité', 'title': 'Titre (auto-rempli)', 'content': 'Contenu', 'analyze': 'Analyser avec l\'IA', 'publish': 'Publier', 'close': 'Fermer', 'password': 'Mot de passe', 'username': 'Nom d\'utilisateur', 'login_title': 'Connexion', 'register_title': 'Inscription', 'question_title': 'Poser une question', 'history_title': 'Mon historique', 'domain_int': 'Domaine d\'intérêt', 'online': 'En ligne', 'visitor': 'Visiteur' },
     'ar': { 'subtitle': 'منصة المساعدة الأكاديمية', 'login': 'تسجيل الدخول', 'register': 'إنشاء حساب', 'logout': 'خروج', 'admin': 'لوحة التحكم', 'new_question': 'طرح سؤال', 'voice_title': 'الوضع الصوتي', 'voice_desc': 'أملِ سؤالك', 'voice_btn': 'بدء الإملاء', 'voice_stop': 'إيقاف', 'or_manual': 'أو املأ يدوياً', 'domain': 'المجال', 'speciality': 'التخصص', 'title': 'العنوان', 'content': 'المحتوى', 'analyze': 'تحليل بالذكاء', 'publish': 'نشر', 'close': 'إغلاق', 'password': 'كلمة المرور', 'username': 'اسم المستخدم', 'login_title': 'دخول', 'register_title': 'إنشاء حساب', 'question_title': 'طرح سؤال', 'history_title': 'سجلي', 'domain_int': 'المجال المفضل', 'online': 'متصل', 'visitor': 'زائر' },
@@ -234,7 +243,12 @@ var TRANSLATIONS = {
     'es': { 'subtitle': 'Plataforma Académica', 'login': 'Iniciar', 'register': 'Registrarse', 'logout': 'Salir', 'admin': 'Admin', 'new_question': 'Hacer Pregunta', 'voice_title': 'Modo Voz', 'voice_desc': 'Dicte su pregunta', 'voice_btn': 'Iniciar Dictado', 'voice_stop': 'Detener', 'or_manual': 'O complete', 'domain': 'Dominio', 'speciality': 'Especialidad', 'title': 'Título', 'content': 'Contenido', 'analyze': 'Analizar IA', 'publish': 'Publicar', 'close': 'Cerrar', 'password': 'Contraseña', 'username': 'Usuario', 'login_title': 'Iniciar', 'register_title': 'Registrarse', 'question_title': 'Pregunta', 'history_title': 'Historial', 'domain_int': 'Dominio', 'online': 'En línea', 'visitor': 'Visitante' },
     'de': { 'subtitle': 'Akademische Hilfe', 'login': 'Anmelden', 'register': 'Registrieren', 'logout': 'Abmelden', 'admin': 'Admin', 'new_question': 'Frage', 'voice_title': 'Sprachmodus', 'voice_desc': 'Diktieren', 'voice_btn': 'Sprache starten', 'voice_stop': 'Stopp', 'or_manual': 'ODER manuell', 'domain': 'Bereich', 'speciality': 'Fach', 'title': 'Titel', 'content': 'Inhalt', 'analyze': 'KI analysieren', 'publish': 'Senden', 'close': 'Schließen', 'password': 'Passwort', 'username': 'Benutzer', 'login_title': 'Anmelden', 'register_title': 'Registrieren', 'question_title': 'Frage', 'history_title': 'Verlauf', 'domain_int': 'Bereich', 'online': 'Online', 'visitor': 'Besucher' },
     'it': { 'subtitle': 'Piattaforma Accademica', 'login': 'Accedi', 'register': 'Registrati', 'logout': 'Esci', 'admin': 'Admin', 'new_question': 'Domanda', 'voice_title': 'Modalità Vocale', 'voice_desc': 'Dettare', 'voice_btn': 'Avvia', 'voice_stop': 'Ferma', 'or_manual': 'O manuale', 'domain': 'Dominio', 'speciality': 'Specialità', 'title': 'Titolo', 'content': 'Contenuto', 'analyze': 'Analizza IA', 'publish': 'Pubblica', 'close': 'Chiudi', 'password': 'Password', 'username': 'Utente', 'login_title': 'Accedi', 'register_title': 'Registrati', 'question_title': 'Domanda', 'history_title': 'Cronologia', 'domain_int': 'Dominio', 'online': 'Online', 'visitor': 'Visitatore' },
-    'pt': { 'subtitle': 'Plataforma Acadêmica', 'login': 'Entrar', 'register': 'Registrar', 'logout': 'Sair', 'admin': 'Admin', 'new_question': 'Pergunta', 'voice_title': 'Modo Voz', 'voice_desc': 'Ditar', 'voice_btn': 'Iniciar', 'voice_stop': 'Parar', 'or_manual': 'OU manual', 'domain': 'Domínio', 'speciality': 'Especialidade', 'title': 'Título', 'content': 'Conteúdo', 'analyze': 'Analisar IA', 'publish': 'Publicar', 'close': 'Fechar', 'password': 'Senha', 'username': 'Usuário', 'login_title': 'Entrar', 'register_title': 'Registrar', 'question_title': 'Pergunta', 'history_title': 'Histórico', 'domain_int': 'Domínio', 'online': 'Online', 'visitor': 'Visitante' }
+    'pt': { 'subtitle': 'Plataforma Acadêmica', 'login': 'Entrar', 'register': 'Registrar', 'logout': 'Sair', 'admin': 'Admin', 'new_question': 'Pergunta', 'voice_title': 'Modo Voz', 'voice_desc': 'Ditar', 'voice_btn': 'Iniciar', 'voice_stop': 'Parar', 'or_manual': 'OU manual', 'domain': 'Domínio', 'speciality': 'Especialidade', 'title': 'Título', 'content': 'Conteúdo', 'analyze': 'Analisar IA', 'publish': 'Publicar', 'close': 'Fechar', 'password': 'Senha', 'username': 'Usuário', 'login_title': 'Entrar', 'register_title': 'Registrar', 'question_title': 'Pergunta', 'history_title': 'Histórico', 'domain_int': 'Domínio', 'online': 'Online', 'visitor': 'Visitante' },
+    'zh': { 'subtitle': '学术帮助平台', 'login': '登录', 'register': '注册', 'logout': '退出', 'admin': '管理员', 'new_question': '提问', 'voice_title': '语音模式', 'voice_desc': '口述您的问题', 'voice_btn': '开始语音', 'voice_stop': '停止', 'or_manual': '或手动填写', 'domain': '领域', 'speciality': '专业', 'title': '标题', 'content': '内容', 'analyze': 'AI分析', 'publish': '发布', 'close': '关闭', 'password': '密码', 'username': '用户名', 'login_title': '登录', 'register_title': '注册', 'question_title': '提问', 'history_title': '我的历史', 'domain_int': '兴趣领域', 'online': '在线', 'visitor': '访客' },
+    'ja': { 'subtitle': '学術支援プラットフォーム', 'login': 'ログイン', 'register': '登録', 'logout': 'ログアウト', 'admin': '管理者', 'new_question': '質問する', 'voice_title': '音声モード', 'voice_desc': '質問を口述', 'voice_btn': '音声開始', 'voice_stop': '停止', 'or_manual': 'または手動', 'domain': '分野', 'speciality': '専門', 'title': 'タイトル', 'content': '内容', 'analyze': 'AI分析', 'publish': '公開', 'close': '閉じる', 'password': 'パスワード', 'username': 'ユーザー名', 'login_title': 'ログイン', 'register_title': '登録', 'question_title': '質問', 'history_title': '履歴', 'domain_int': '興味分野', 'online': 'オンライン', 'visitor': '訪問者' },
+    'ko': { 'subtitle': '학술 지원 플랫폼', 'login': '로그인', 'register': '가입', 'logout': '로그아웃', 'admin': '관리자', 'new_question': '질문하기', 'voice_title': '음성 모드', 'voice_desc': '질문을 말하세요', 'voice_btn': '음성 시작', 'voice_stop': '중지', 'or_manual': '또는 수동 입력', 'domain': '분야', 'speciality': '전문', 'title': '제목', 'content': '내용', 'analyze': 'AI 분석', 'publish': '게시', 'close': '닫기', 'password': '비밀번호', 'username': '사용자명', 'login_title': '로그인', 'register_title': '가입', 'question_title': '질문', 'history_title': '내 기록', 'domain_int': '관심 분야', 'online': '온라인', 'visitor': '방문자' },
+    'ru': { 'subtitle': 'Академическая платформа', 'login': 'Вход', 'register': 'Регистрация', 'logout': 'Выход', 'admin': 'Админ', 'new_question': 'Задать вопрос', 'voice_title': 'Голосовой режим', 'voice_desc': 'Продиктуйте вопрос', 'voice_btn': 'Начать голос', 'voice_stop': 'Стоп', 'or_manual': 'ИЛИ вручную', 'domain': 'Область', 'speciality': 'Специальность', 'title': 'Заголовок', 'content': 'Содержание', 'analyze': 'Анализ ИИ', 'publish': 'Опубликовать', 'close': 'Закрыть', 'password': 'Пароль', 'username': 'Имя', 'login_title': 'Вход', 'register_title': 'Регистрация', 'question_title': 'Вопрос', 'history_title': 'История', 'domain_int': 'Область', 'online': 'Онлайн', 'visitor': 'Гость' },
+    'hi': { 'subtitle': 'शैक्षिक सहायता मंच', 'login': 'लॉगिन', 'register': 'पंजीकरण', 'logout': 'लॉगआउट', 'admin': 'व्यवस्थापक', 'new_question': 'प्रश्न पूछें', 'voice_title': 'आवाज मोड', 'voice_desc': 'अपना प्रश्न बोलें', 'voice_btn': 'आवाज शुरू', 'voice_stop': 'रोकें', 'or_manual': 'या मैन्युअल', 'domain': 'क्षेत्र', 'speciality': 'विशेषता', 'title': 'शीर्षक', 'content': 'सामग्री', 'analyze': 'AI विश्लेषण', 'publish': 'प्रकाशित', 'close': 'बंद करें', 'password': 'पासवर्ड', 'username': 'उपयोगकर्ता', 'login_title': 'लॉगिन', 'register_title': 'पंजीकरण', 'question_title': 'प्रश्न', 'history_title': 'मेरा इतिहास', 'domain_int': 'रुचि क्षेत्र', 'online': 'ऑनलाइन', 'visitor': 'आगंतुक' }
 };
 
 function changeLanguage(lang) {
@@ -245,8 +259,7 @@ function changeLanguage(lang) {
     if (sel1) sel1.value = lang;
     if (sel2) sel2.value = lang;
     applyTranslations();
-    var names = { 'fr': 'Français', 'ar': 'العربية', 'en': 'English', 'es': 'Español', 'de': 'Deutsch', 'it': 'Italiano', 'pt': 'Português' };
-    showNotification('🌐 ' + names[lang], 'info');
+    showNotification('🌐 ' + lang.toUpperCase(), 'info');
 }
 
 function applyTranslations() {
@@ -283,22 +296,26 @@ function applyTranslations() {
 function saveSession() { try { localStorage.setItem(SESSION_KEY, JSON.stringify(currentUser)); } catch(e) {} }
 function loadSession() { try { var d = localStorage.getItem(SESSION_KEY); return d ? JSON.parse(d) : null; } catch(e) { return null; } }
 
-// ============================================================
-// SCHOLARS
-// ============================================================
+function detectLanguage(text) {
+    if (!text) return 'fr';
+    if (/[\u0600-\u06FF]/.test(text)) return 'ar';
+    if (/[\u4E00-\u9FFF]/.test(text)) return 'zh';
+    if (/[\u3040-\u309F\u30A0-\u30FF]/.test(text)) return 'ja';
+    if (/[\uAC00-\uD7AF]/.test(text)) return 'ko';
+    if (/[\u0400-\u04FF]/.test(text)) return 'ru';
+    if (/[\u0900-\u097F]/.test(text)) return 'hi';
+    return 'fr';
+}
+
 var scholarsData = [
     { id: 1, name: 'Dr. Ahmed Al-Faqih', domain: 'Islam', expertise: 'Fiqh (Jurisprudence)', languages: ['ar','fr','en'], rating: 4.9, literature: ['Fiqh al-Islami'] },
-    { id: 3, name: 'Dr. Omar Al-Hadith', domain: 'Islam', expertise: 'Hadith (Prophétique)', languages: ['ar','en'], rating: 4.9, literature: ['Sahih Bukhari'] },
     { id: 7, name: 'Dr. Marie Dupont', domain: 'Médecine', expertise: 'Cardiologie', languages: ['fr','en'], rating: 4.9, literature: ['Harrison Cardiology'] },
-    { id: 9, name: 'Dr. Sophie Martin', domain: 'Médecine', expertise: 'Pédiatrie', languages: ['fr','en'], rating: 4.9, literature: ['Nelson Pediatrics'] },
     { id: 12, name: 'Dr. Isabelle Rousseau', domain: 'Pharmacie', expertise: 'Pharmacologie clinique', languages: ['fr','en'], rating: 4.8, literature: ['Goodman & Gilman'] },
     { id: 15, name: 'Dr. Pierre Laurent', domain: 'Chimie', expertise: 'Chimie organique', languages: ['fr','en'], rating: 4.8, literature: ['Clayden'] },
     { id: 18, name: 'Dr. Yann LeCun Jr.', domain: 'IA', expertise: 'Deep Learning', languages: ['fr','en'], rating: 5.0, literature: ['Deep Learning'] },
-    { id: 19, name: 'Dr. Amina Khalil', domain: 'IA', expertise: 'NLP & Traitement du langage', languages: ['fr','ar'], rating: 4.9, literature: ['Speech & Language'] },
     { id: 22, name: 'Dr. Julien Moreau', domain: 'IoT', expertise: 'Architecture IoT', languages: ['fr','en'], rating: 4.8, literature: ['IoT Architecture'] },
     { id: 25, name: 'Dr. Olivier Dubois', domain: 'GMAO', expertise: 'GMAO (Maintenance Assistée)', languages: ['fr','en'], rating: 4.9, literature: ['Maintenance Industrielle'] },
     { id: 28, name: 'Dr. Jean-Pierre Durand', domain: 'Mécanique Pétrole', expertise: 'Usinage CNC haute précision', languages: ['fr','en'], rating: 5.0, literature: ['CNC Handbook'] },
-    { id: 29, name: 'Dr. Abdelkader Ziani', domain: 'Mécanique Pétrole', expertise: 'Vannes et équipements pétroliers', languages: ['fr','ar'], rating: 4.9, literature: ['Valve Handbook'] },
     { id: 33, name: 'Dr. Marc Dupont', domain: 'Gestion', expertise: 'Management stratégique', languages: ['fr','en'], rating: 4.8, literature: ['Strategic Management'] },
     { id: 36, name: 'Dr. Isabelle Martin', domain: 'Expertise Comptable', expertise: 'Comptabilité générale', languages: ['fr','en'], rating: 4.9, literature: ['PCG'] },
     { id: 39, name: 'Dr. Pierre Dubois', domain: 'Droit', expertise: 'Droit des affaires', languages: ['fr','en'], rating: 4.9, literature: ['Droit des Sociétés'] },
@@ -341,14 +358,14 @@ async function apiPost(endpoint, data) {
 }
 
 // ============================================================
-// SAISIE VOCALE (RECONNAISSANCE)
+// SAISIE VOCALE
 // ============================================================
 function initVoice() {
     var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SR) { alert('Reconnaissance vocale non supportée. Utilisez Chrome/Edge.'); return null; }
     var rec = new SR();
     rec.lang = currentLanguage === 'ar' ? 'ar-SA' : currentLanguage === 'en' ? 'en-US' : 'fr-FR';
-    rec.continuous = true;
+    rec.continuous = false;
     rec.interimResults = true;
     return rec;
 }
@@ -363,7 +380,7 @@ function startVoiceInput() {
     
     recognition.onstart = function() {
         isListening = true;
-        btnEl.innerHTML = '🛑 ' + (TRANSLATIONS[currentLanguage].voice_stop || 'Arrêter');
+        btnEl.innerHTML = '🛑 Arrêter';
         btnEl.classList.add('listening');
         statusEl.innerHTML = '🎤 Écoute en cours...';
     };
@@ -381,25 +398,22 @@ function startVoiceInput() {
         btnEl.innerHTML = '🎤 ' + (TRANSLATIONS[currentLanguage].voice_btn);
         btnEl.classList.remove('listening');
         var content = document.getElementById('qContent').value;
-        if (content && content.length > 10) { statusEl.innerHTML = '🤖 Analyse IA...'; autoAnalyze(); }
+        if (content && content.length > 5) {
+            statusEl.innerHTML = '✅ Dictée terminée. Cliquez sur 🤖 Analyser';
+        }
     };
     
     recognition.start();
 }
 
 // ============================================================
-// LECTURE VOCALE INTÉGRALE
+// LECTURE VOCALE INTÉGRALE MULTILINGUE
 // ============================================================
 function speakText(text, language) {
-    if (!('speechSynthesis' in window)) { 
-        alert('❌ Synthèse vocale non supportée'); 
-        return; 
-    }
+    if (!('speechSynthesis' in window)) { alert('❌ Synthèse vocale non supportée'); return; }
     
-    // DÉTECTION AUTOMATIQUE DE LA LANGUE DU TEXTE
     var detectedLang = language;
     if (!detectedLang || detectedLang === 'auto') {
-        // Détecter par script
         if (/[\u0600-\u06FF]/.test(text)) detectedLang = 'ar';
         else if (/[\u4E00-\u9FFF]/.test(text)) detectedLang = 'zh';
         else if (/[\u3040-\u309F\u30A0-\u30FF]/.test(text)) detectedLang = 'ja';
@@ -415,37 +429,23 @@ function speakText(text, language) {
     isPaused = false;
     isSpeaking = false;
     
-    // Nettoyer le texte
-    var cleanText = text
-        .replace(/[\u{1F300}-\u{1F9FF}]/gu, '')
-        .replace(/[\u{2600}-\u{26FF}]/gu, '')
-        .replace(/[━─=]/g, '')
-        .replace(/\s+/g, ' ')
-        .trim();
+    var cleanText = text.replace(/[\u{1F300}-\u{1F9FF}]/gu, '').replace(/[\u{2600}-\u{26FF}]/gu, '').replace(/[━─=]/g, '').replace(/\s+/g, ' ').trim();
+    if (!cleanText) { showNotification('⚠️ Aucun texte', 'warning'); return; }
     
-    if (!cleanText) {
-        showNotification('⚠️ Aucun texte à lire', 'warning');
-        return;
-    }
-    
-    // Découper en segments
     var sentences = cleanText.split(/(?<=[.!?])\s+/);
     var currentSegment = '';
     var segments = [];
-    
     for (var i = 0; i < sentences.length; i++) {
-        var sentence = sentences[i].trim();
-        if (!sentence) continue;
-        
-        if ((currentSegment + ' ' + sentence).length > 200) {
+        var s = sentences[i].trim();
+        if (!s) continue;
+        if ((currentSegment + ' ' + s).length > 200) {
             if (currentSegment) segments.push(currentSegment.trim());
-            currentSegment = sentence;
+            currentSegment = s;
         } else {
-            currentSegment = currentSegment ? currentSegment + ' ' + sentence : sentence;
+            currentSegment = currentSegment ? currentSegment + ' ' + s : s;
         }
     }
     if (currentSegment) segments.push(currentSegment.trim());
-    
     if (segments.length === 0) segments = [cleanText];
     
     speechQueue = segments;
@@ -461,7 +461,7 @@ function speakText(text, language) {
         if (voices[v].lang === targetLang) { selectedVoice = voices[v]; break; }
     }
     
-    showNotification('🔊 Lecture (' + segments.length + ' segments)...', 'info');
+    showNotification('🔊 Lecture (' + segments.length + ' segments)', 'info');
     
     function speakNext() {
         if (currentSpeechIndex >= speechQueue.length) {
@@ -470,11 +470,7 @@ function speakText(text, language) {
             showNotification('✅ Lecture terminée', 'success');
             return;
         }
-        
-        if (isPaused) {
-            setTimeout(speakNext, 500);
-            return;
-        }
+        if (isPaused) { setTimeout(speakNext, 500); return; }
         
         var segment = speechQueue[currentSpeechIndex];
         var utterance = new SpeechSynthesisUtterance(segment);
@@ -482,35 +478,23 @@ function speakText(text, language) {
         utterance.rate = 0.9;
         if (selectedVoice) utterance.voice = selectedVoice;
         
-        utterance.onend = function() {
-            currentSpeechIndex++;
-            setTimeout(speakNext, 100);
-        };
-        
-        utterance.onerror = function() {
-            currentSpeechIndex++;
-            setTimeout(speakNext, 100);
-        };
-        
+        utterance.onend = function() { currentSpeechIndex++; setTimeout(speakNext, 100); };
+        utterance.onerror = function() { currentSpeechIndex++; setTimeout(speakNext, 100); };
         window.speechSynthesis.speak(utterance);
     }
-    
     speakNext();
 }
 
 function pauseSpeaking() {
     if (!('speechSynthesis' in window)) return;
-    
     if (isPaused) {
-        // Reprendre
         isPaused = false;
         window.speechSynthesis.resume();
-        showNotification('▶️ Lecture reprise', 'info');
+        showNotification('▶️ Reprise', 'info');
     } else {
-        // Pause
         isPaused = true;
         window.speechSynthesis.pause();
-        showNotification('⏸️ Lecture en pause', 'warning');
+        showNotification('⏸️ Pause', 'warning');
     }
 }
 
@@ -521,71 +505,257 @@ function stopSpeaking() {
         currentSpeechIndex = 0;
         isSpeaking = false;
         isPaused = false;
-        showNotification('⏹️ Lecture arrêtée', 'info');
+        showNotification('⏹️ Arrêté', 'info');
     }
 }
 
-// Charger les voix
 if ('speechSynthesis' in window) {
-    window.speechSynthesis.onvoiceschanged = function() {
-        window.speechSynthesis.getVoices();
-    };
+    window.speechSynthesis.onvoiceschanged = function() { window.speechSynthesis.getVoices(); };
+}
+
+// ============================================================
+// PARTAGE MULTILINGUE
+// ============================================================
+function shareQuestionMultilingual(questionId) {
+    var q = questions.find(function(x) { return x._id === questionId; });
+    if (!q) { showNotification('❌ Question introuvable', 'error'); return; }
+    
+    var langs = [
+        { code: 'fr', name: '🇫🇷 Français' },
+        { code: 'ar', name: '🇸🇦 العربية' },
+        { code: 'en', name: '🇬🇧 English' },
+        { code: 'es', name: '🇪🇸 Español' },
+        { code: 'de', name: '🇩🇪 Deutsch' },
+        { code: 'it', name: '🇮🇹 Italiano' },
+        { code: 'pt', name: '🇵🇹 Português' },
+        { code: 'zh', name: '🇨🇳 中文' },
+        { code: 'ja', name: '🇯🇵 日本語' },
+        { code: 'ko', name: '🇰🇷 한국어' },
+        { code: 'ru', name: '🇷🇺 Русский' },
+        { code: 'hi', name: '🇮🇳 हिन्दी' }
+    ];
+    
+    var modal = document.createElement('div');
+    modal.id = 'shareLangModal';
+    modal.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.85);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;overflow-y:auto;';
+    
+    var content = '<div style="background:linear-gradient(135deg,#667eea,#764ba2);border-radius:20px;padding:30px;max-width:700px;width:100%;max-height:90vh;overflow-y:auto;position:relative;">';
+    content += '<button onclick="document.getElementById(\'shareLangModal\').remove()" style="position:absolute;top:15px;right:15px;background:#ef4444;color:white;border:none;width:40px;height:40px;border-radius:50%;cursor:pointer;font-size:20px;">✕</button>';
+    content += '<h2 style="color:white;margin-bottom:10px;text-align:center;">📤 Partager la question + réponse</h2>';
+    content += '<p style="color:rgba(255,255,255,0.8);text-align:center;margin-bottom:20px;">Choisissez la langue :</p>';
+    content += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:20px;">';
+    langs.forEach(function(l) {
+        var selected = (l.code === currentLanguage) ? 'background:#22c55e;color:white;' : 'background:white;color:#667eea;';
+        content += '<button onclick="selectShareLang(\'' + l.code + '\',\'' + questionId + '\')" data-lang="' + l.code + '" class="share-lang-btn" style="' + selected + 'border:2px solid transparent;padding:12px;border-radius:10px;cursor:pointer;font-size:14px;font-weight:600;">' + l.name + '</button>';
+    });
+    content += '</div>';
+    content += '<div id="sharePreview" style="background:rgba(255,255,255,0.1);padding:20px;border-radius:12px;margin-bottom:20px;max-height:300px;overflow-y:auto;">';
+    content += '<p style="color:white;text-align:center;opacity:0.6;">Sélectionnez une langue pour prévisualiser</p>';
+    content += '</div>';
+    content += '<div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center;">';
+    content += '<button onclick="executeShare()" style="background:#22c55e;color:white;border:none;padding:14px 28px;border-radius:10px;cursor:pointer;font-weight:600;">📤 Partager</button>';
+    content += '<button onclick="copyShareText()" style="background:#3b82f6;color:white;border:none;padding:14px 28px;border-radius:10px;cursor:pointer;font-weight:600;">📋 Copier</button>';
+    content += '<button onclick="document.getElementById(\'shareLangModal\').remove()" style="background:rgba(255,255,255,0.2);color:white;border:none;padding:14px 28px;border-radius:10px;cursor:pointer;font-weight:600;">❌ Annuler</button>';
+    content += '</div></div>';
+    
+    modal.innerHTML = content;
+    document.body.appendChild(modal);
+    
+    window.currentShareQuestionId = questionId;
+    selectedShareLang = currentLanguage;
+    previewShareTranslation(questionId, currentLanguage);
+}
+
+function selectShareLang(lang, questionId) {
+    selectedShareLang = lang;
+    document.querySelectorAll('.share-lang-btn').forEach(function(btn) {
+        if (btn.dataset.lang === lang) {
+            btn.style.background = '#22c55e';
+            btn.style.color = 'white';
+            btn.style.transform = 'scale(1.05)';
+        } else {
+            btn.style.background = 'white';
+            btn.style.color = '#667eea';
+            btn.style.transform = 'scale(1)';
+        }
+    });
+    previewShareTranslation(questionId || window.currentShareQuestionId, lang);
+}
+
+async function previewShareTranslation(questionId, targetLang) {
+    var q = questions.find(function(x) { return x._id === questionId; });
+    if (!q) return;
+    
+    var preview = document.getElementById('sharePreview');
+    if (preview) preview.innerHTML = '<p style="color:white;text-align:center;">⏳ Traduction...</p>';
+    
+    try {
+        var originalText = '📚 QUESTION :\n' + q.title + '\n' + q.content;
+        if (q.answers && q.answers.length > 0) {
+            originalText += '\n\n💬 RÉPONSE :\n' + q.answers[q.answers.length - 1].content;
+        }
+        
+        var questionLang = q.language || 'fr';
+        var langNames = { 'fr': '🇫🇷 Français', 'ar': '🇸🇦 العربية', 'en': '🇬🇧 English', 'es': '🇪🇸 Español', 'de': '🇩🇪 Deutsch', 'it': '🇮🇹 Italiano', 'pt': '🇵🇹 Português', 'zh': '🇨🇳 中文', 'ja': '🇯🇵 日本語', 'ko': '🇰🇷 한국어', 'ru': '🇷🇺 Русский', 'hi': '🇮🇳 हिन्दी' };
+        
+        if (targetLang === questionLang) {
+            if (preview) preview.innerHTML = '<div style="color:white;"><strong style="color:#22c55e;">' + (langNames[targetLang] || targetLang) + ' (original)</strong><div style="margin-top:10px;white-space:pre-wrap;font-size:13px;">' + originalText.replace(/</g, '&lt;') + '</div></div>';
+            window.currentShareText = originalText + '\n\n🔗 https://scholars-connect-app.onrender.com';
+            return;
+        }
+        
+        var result = await apiPost('/translate', { text: originalText, targetLang: targetLang });
+        var translatedText = result.translation || originalText;
+        
+        if (preview) {
+            preview.innerHTML = '<div style="color:white;"><strong style="color:#22c55e;">' + (langNames[targetLang] || targetLang) + '</strong><div style="margin-top:10px;white-space:pre-wrap;font-size:13px;">' + translatedText.replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</div></div>';
+        }
+        window.currentShareText = translatedText + '\n\n🔗 https://scholars-connect-app.onrender.com';
+    } catch (e) {
+        if (preview) preview.innerHTML = '<p style="color:#ef4444;">❌ Erreur traduction</p>';
+    }
+}
+
+async function executeShare() {
+    var text = window.currentShareText;
+    if (!text) { showNotification('⚠️ Sélectionnez une langue', 'warning'); return; }
+    
+    if (navigator.share) {
+        try {
+            await navigator.share({ title: '📚 Scholars Connect', text: text, url: 'https://scholars-connect-app.onrender.com' });
+            showNotification('✅ Partage réussi !', 'success');
+            document.getElementById('shareLangModal').remove();
+        } catch (e) {
+            if (e.name !== 'AbortError') copyToClipboard(text);
+        }
+    } else {
+        copyToClipboard(text);
+    }
+}
+
+function copyShareText() {
+    var text = window.currentShareText;
+    if (!text) { showNotification('⚠️ Sélectionnez une langue', 'warning'); return; }
+    copyToClipboard(text);
+}
+
+function copyToClipboard(text) {
+    if (navigator.clipboard) {
+        navigator.clipboard.writeText(text).then(function() {
+            showNotification('✅ Copié !', 'success');
+        }).catch(function() { fallbackCopy(text); });
+    } else { fallbackCopy(text); }
+}
+
+function fallbackCopy(text) {
+    var ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.left = '-9999px';
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand('copy'); showNotification('✅ Copié !', 'success'); }
+    catch(e) { showNotification('❌ Erreur', 'error'); }
+    document.body.removeChild(ta);
+}
+
+function showTranslateMenu(questionId) {
+    var langs = [
+        { code: 'fr', name: '🇫🇷 Français' },
+        { code: 'ar', name: '🇸🇦 العربية' },
+        { code: 'en', name: '🇬🇧 English' },
+        { code: 'es', name: '🇪🇸 Español' },
+        { code: 'de', name: '🇩🇪 Deutsch' },
+        { code: 'it', name: '🇮🇹 Italiano' },
+        { code: 'pt', name: '🇵🇹 Português' },
+        { code: 'zh', name: '🇨🇳 中文' },
+        { code: 'ja', name: '🇯🇵 日本語' },
+        { code: 'ko', name: '🇰🇷 한국어' },
+        { code: 'ru', name: '🇷🇺 Русский' },
+        { code: 'hi', name: '🇮🇳 हिन्दी' }
+    ];
+    
+    var modal = document.createElement('div');
+    modal.id = 'transModal';
+    modal.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.8);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;';
+    
+    var content = '<div style="background:linear-gradient(135deg,#8b5cf6,#ec4899);border-radius:16px;padding:30px;max-width:500px;width:100%;position:relative;">';
+    content += '<button onclick="document.getElementById(\'transModal\').remove()" style="position:absolute;top:15px;right:15px;background:#ef4444;color:white;border:none;width:35px;height:35px;border-radius:50%;cursor:pointer;font-size:18px;">✕</button>';
+    content += '<h2 style="color:white;margin-bottom:20px;text-align:center;">🌐 Traduire en :</h2>';
+    content += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;">';
+    langs.forEach(function(l) {
+        content += '<button onclick="document.getElementById(\'transModal\').remove(); translateQuestion(\'' + questionId + '\',\'' + l.code + '\')" style="background:white;color:#8b5cf6;border:none;padding:15px;border-radius:10px;cursor:pointer;font-size:14px;font-weight:600;">' + l.name + '</button>';
+    });
+    content += '</div></div>';
+    modal.innerHTML = content;
+    document.body.appendChild(modal);
+}
+
+async function translateQuestion(questionId, targetLang) {
+    var q = questions.find(function(x) { return x._id === questionId; });
+    if (!q) return;
+    showNotification('🌐 Traduction...', 'info');
+    
+    try {
+        var qResult = await apiPost('/translate', { text: q.title + '\n' + q.content, targetLang: targetLang });
+        var translatedQ = qResult.translation || (q.title + '\n' + q.content);
+        var translatedA = '';
+        if (q.answers && q.answers.length > 0) {
+            var aResult = await apiPost('/translate', { text: q.answers[q.answers.length - 1].content, targetLang: targetLang });
+            translatedA = aResult.translation || q.answers[q.answers.length - 1].content;
+        }
+        showTranslationModal(q.title, translatedQ, translatedA, targetLang);
+    } catch (e) { showNotification('❌ Erreur', 'error'); }
+}
+
+function showTranslationModal(originalTitle, translatedQuestion, translatedAnswer, targetLang) {
+    var langNames = { 'fr': '🇫🇷 Français', 'ar': '🇸🇦 العربية', 'en': '🇬🇧 English', 'es': '🇪🇸 Español', 'de': '🇩🇪 Deutsch', 'it': '🇮🇹 Italiano', 'pt': '🇵🇹 Português', 'zh': '🇨🇳 中文', 'ja': '🇯🇵 日本語', 'ko': '🇰🇷 한국어', 'ru': '🇷🇺 Русский', 'hi': '🇮🇳 हिन्दी' };
+    var modal = document.createElement('div');
+    modal.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.8);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;';
+    var content = '<div style="background:linear-gradient(135deg,#667eea,#764ba2);border-radius:16px;padding:30px;max-width:700px;width:100%;max-height:90vh;overflow-y:auto;position:relative;">';
+    content += '<button onclick="this.parentElement.parentElement.remove()" style="position:absolute;top:15px;right:15px;background:#ef4444;color:white;border:none;width:35px;height:35px;border-radius:50%;cursor:pointer;font-size:18px;">✕</button>';
+    content += '<h2 style="color:white;margin-bottom:20px;">🌐 ' + (langNames[targetLang] || targetLang) + '</h2>';
+    content += '<div style="background:rgba(255,255,255,0.1);padding:15px;border-radius:10px;margin-bottom:15px;">';
+    content += '<h3 style="color:#e0e7ff;margin-bottom:10px;">📋 Question :</h3>';
+    content += '<p style="color:white;white-space:pre-wrap;line-height:1.6;">' + translatedQuestion.replace(/</g, '&lt;') + '</p></div>';
+    if (translatedAnswer) {
+        content += '<div style="background:rgba(255,255,255,0.1);padding:15px;border-radius:10px;">';
+        content += '<h3 style="color:#e0e7ff;margin-bottom:10px;">💬 Réponse :</h3>';
+        content += '<p style="color:white;white-space:pre-wrap;line-height:1.6;">' + translatedAnswer.replace(/</g, '&lt;') + '</p></div>';
+    }
+    content += '<button onclick="copyToClipboard(this.dataset.text)" data-text="' + (translatedQuestion + '\n\n' + translatedAnswer).replace(/"/g, '&quot;') + '" style="background:#22c55e;color:white;border:none;padding:12px 24px;border-radius:8px;cursor:pointer;font-weight:600;margin-top:15px;">📋 Copier</button>';
+    content += '</div>';
+    modal.innerHTML = content;
+    document.body.appendChild(modal);
 }
 
 // ============================================================
 // AUTO-ANALYSE IA
 // ============================================================
-// ============================================================
-// ANALYSE IA COMPLÈTE (Domaine + Spécialité + Titre + Langue)
-// ============================================================
 async function autoAnalyze() {
     var content = document.getElementById('qContent').value.trim();
-    if (!content || content.length < 5) { 
-        showNotification('Saisissez d\'abord votre question', 'error'); 
-        return; 
-    }
+    if (!content || content.length < 5) { showNotification('Saisissez une question', 'error'); return; }
     
     var statusEl = document.getElementById('voiceStatus');
-    if (statusEl) statusEl.innerHTML = '🤖 Analyse IA complète en cours...';
-    showNotification('🤖 Analyse intelligente...', 'info');
+    if (statusEl) statusEl.innerHTML = '🤖 Analyse IA...';
+    showNotification('🤖 Analyse...', 'info');
     
     try {
         var data = await apiPost('/analyze-question', { text: content });
         
-        // 1. Titre
-        if (data.title) {
-            document.getElementById('qTitle').value = data.title;
-        }
-        
-        // 2. Domaine
+        if (data.title) document.getElementById('qTitle').value = data.title;
         if (data.domain) {
             var ds = document.getElementById('qDomain');
-            for (var i = 0; i < ds.options.length; i++) {
-                if (ds.options[i].value === data.domain) {
-                    ds.selectedIndex = i;
-                    updateCategories();
-                    break;
-                }
-            }
+            for (var i = 0; i < ds.options.length; i++) if (ds.options[i].value === data.domain) { ds.selectedIndex = i; updateCategories(); break; }
         }
-        
-        // 3. Spécialité (après chargement des catégories)
         setTimeout(function() {
             if (data.category) {
                 var cs = document.getElementById('qCategory');
-                for (var i = 0; i < cs.options.length; i++) {
-                    if (cs.options[i].value === data.category) {
-                        cs.selectedIndex = i;
-                        break;
-                    }
-                }
+                for (var i = 0; i < cs.options.length; i++) if (cs.options[i].value === data.category) { cs.selectedIndex = i; break; }
             }
         }, 200);
         
-        // 4. Langue détectée
         var detectedLang = data.language || detectLanguage(content);
-        
-        // Mettre à jour le sélecteur de langue si détecté
         if (detectedLang !== currentLanguage) {
             var sel1 = document.getElementById('languageSelector');
             var sel2 = document.getElementById('languageSelector2');
@@ -594,30 +764,14 @@ async function autoAnalyze() {
             currentLanguage = detectedLang;
         }
         
-        // 5. Contenu reformulé (optionnel)
-        if (data.content && data.content.length > content.length) {
-            document.getElementById('qContent').value = data.content;
-        }
-        
-        // Afficher le résumé
-        var langNames = { 'fr': '🇫🇷 Français', 'ar': '🇸🇦 العربية', 'en': '🇬🇧 English', 'es': '🇪🇸 Español', 'de': '🇩🇪 Deutsch', 'it': '🇮🇹 Italiano', 'pt': '🇵🇹 Português', 'zh': '🇨🇳 中文', 'ja': '🇯🇵 日本語', 'ko': '🇰🇷 한국어', 'ru': '🇷🇺 Русский', 'hi': '🇮🇳 हिन्दी' };
+        var langNames = { 'fr': '🇫🇷', 'ar': '🇸🇦', 'en': '🇬🇧', 'es': '🇪🇸', 'de': '🇩🇪', 'it': '🇮🇹', 'pt': '🇵🇹', 'zh': '🇨🇳', 'ja': '🇯🇵', 'ko': '🇰🇷', 'ru': '🇷🇺', 'hi': '🇮🇳' };
         
         if (statusEl) {
-            statusEl.innerHTML = 
-                '✅ <strong>Détection complète :</strong><br>' +
-                '📂 Domaine : <b>' + (data.domain || 'Général') + '</b><br>' +
-                '🔬 Spécialité : <b>' + (data.category || '-') + '</b><br>' +
-                '📝 Titre : <b>' + (data.title || '-') + '</b><br>' +
-                '🌐 Langue : <b>' + (langNames[detectedLang] || detectedLang) + '</b>';
+            statusEl.innerHTML = '✅ Détection :<br>📂 ' + (data.domain || '-') + '<br>🔬 ' + (data.category || '-') + '<br>📝 ' + (data.title || '-') + '<br>🌐 ' + (langNames[detectedLang] || detectedLang);
             statusEl.style.color = '#22c55e';
         }
-        
-        showNotification('✅ Analyse complète réussie !', 'success');
-        
-    } catch (e) {
-        if (statusEl) statusEl.innerHTML = '❌ Erreur analyse: ' + e.message;
-        showNotification('❌ Erreur analyse', 'error');
-    }
+        showNotification('✅ Analyse complète !', 'success');
+    } catch (e) { if (statusEl) statusEl.innerHTML = '❌ Erreur'; }
 }
 
 function showNotification(msg, type) {
@@ -690,8 +844,7 @@ function showScholars() {
     var filtered = currentFilter === 'all' ? scholarsData : scholarsData.filter(function(s) { return s.domain === currentFilter; });
     var html = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:15px;">';
     filtered.forEach(function(s) {
-        var lit = s.literature ? s.literature.length : 0;
-        html += '<div class="scholar-card"><strong>' + getDomainIcon(s.domain) + ' ' + s.name + '</strong> <span class="domain-tag">' + s.domain + '</span><div style="opacity:0.7;font-size:14px;margin-top:5px;">📂 ' + s.expertise + '</div><div style="color:#f59e0b;">⭐ ' + s.rating + ' · 📚 ' + lit + '</div></div>';
+        html += '<div class="scholar-card"><strong>' + getDomainIcon(s.domain) + ' ' + s.name + '</strong> <span class="domain-tag">' + s.domain + '</span><div style="opacity:0.7;font-size:14px;margin-top:5px;">📂 ' + s.expertise + '</div><div style="color:#f59e0b;">⭐ ' + s.rating + '</div></div>';
     });
     container.innerHTML = html + '</div>';
     hideForms();
@@ -748,7 +901,7 @@ async function register() {
     var password = document.getElementById('regPassword').value;
     var domain = document.getElementById('regDomain').value;
     if (!username || !email || !password) { showNotification('Remplir tous les champs', 'error'); return; }
-    if (password.length < 6) { showNotification('6 caractères minimum', 'error'); return; }
+    if (password.length < 6) { showNotification('6 caractères min', 'error'); return; }
     var newUser = await apiPost('/users', { username: username, email: email, password: password, role: 'user', language: currentLanguage, domain: domain });
     if (newUser && !newUser.error) {
         currentUser = newUser;
@@ -803,8 +956,8 @@ async function renderHistory() {
             html += '<div class="answers-section"><strong>💬 ' + q.answers.length + ' réponses</strong>';
             q.answers.forEach(function(a) {
                 var cls = a.isClaude ? 'claude-answer' : (a.isScholarResponse ? 'scholar-answer' : '');
-                var textContent = a.content.replace(/"/g, '&quot;').replace(/\n/g, ' ');
-                html += '<div class="answer-item ' + cls + '"><div class="claude-response">' + a.content + '</div><div class="speak-controls"><button class="speak-btn" onclick="speakText(\'' + textContent.replace(/'/g, '\\\'') + '\', \'' + (a.language || 'fr') + '\')">🔊 Écouter</button><button class="pause-btn" onclick="pauseSpeaking()">⏸️ Pause</button><button class="stop-btn" onclick="stopSpeaking()">⏹️ Arrêter</button></div></div>';
+                var txt = a.content.replace(/"/g, '&quot;').replace(/\n/g, ' ');
+                html += '<div class="answer-item ' + cls + '"><div class="claude-response">' + a.content + '</div><div class="speak-controls"><button class="speak-btn" onclick="speakText(this.parentElement.previousElementSibling.textContent, \'' + (a.language || 'auto') + '\')">🔊 Écouter</button><button class="pause-btn" onclick="pauseSpeaking()">⏸️ Pause</button><button class="stop-btn" onclick="stopSpeaking()">⏹️</button></div></div>';
             });
             html += '</div>';
         }
@@ -821,10 +974,7 @@ async function askQuestion() {
     var content = document.getElementById('qContent').value;
     if (!title || !content) { showNotification('Titre et contenu obligatoires', 'error'); return; }
     var scholar = assignScholar(domain, category);
-    
-    // DÉTECTION AUTOMATIQUE DE LA LANGUE DU CONTENU
     var contentLang = detectLanguage(content);
-    
     var q = await apiPost('/questions', {
         title: title, content: content, domain: domain, category: category,
         username: currentUser.username, userId: currentUser.id,
@@ -865,13 +1015,23 @@ function renderQuestions() {
                 var aCls = a.isClaude ? 'claude-answer' : (a.isScholarResponse ? 'scholar-answer' : '');
                 var badge = '';
                 if (a.isClaude) { badge = '<span class="claude-badge">🤖 Juge Claude</span> '; if (a.claudeReason === 'no_literature') badge += '<span class="claude-status">Sans littérature</span>'; if (a.claudeReason === 'timeout_5min') badge += '<span class="timer-badge">⏱️ 5 min</span>'; }
-                var textContent = a.content.replace(/"/g, '&quot;').replace(/\n/g, ' ');
-                answersHtml += '<div class="answer-item ' + aCls + '"><div style="margin-bottom:5px;">' + badge + '</div><div class="claude-response">' + a.content + '</div><div class="answer-meta">👤 ' + a.username + ' | ' + a.date + '</div><div class="speak-controls"><button class="speak-btn" onclick="speakText(\'' + textContent.replace(/'/g, '\\\'') + '\', \'' + (a.language || 'fr') + '\')">🔊 Écouter</button><button class="pause-btn" onclick="pauseSpeaking()">⏸️ Pause</button><button class="stop-btn" onclick="stopSpeaking()">⏹️ Arrêter</button></div></div>';
+                answersHtml += '<div class="answer-item ' + aCls + '"><div style="margin-bottom:5px;">' + badge + '</div><div class="claude-response">' + a.content + '</div><div class="answer-meta">👤 ' + a.username + ' | ' + a.date + '</div><div class="speak-controls"><button class="speak-btn" onclick="speakText(this.parentElement.previousElementSibling.textContent, \'' + (q.language || 'auto') + '\')">🔊 Écouter</button><button class="pause-btn" onclick="pauseSpeaking()">⏸️ Pause</button><button class="stop-btn" onclick="stopSpeaking()">⏹️ Arrêter</button></div></div>';
             });
             answersHtml += '</div>';
         } else answersHtml = '<div style="margin-top:10px;opacity:0.5;font-size:13px;">💬 En attente...</div>';
         var ansBtn = currentUser ? '<button class="btn btn-secondary" onclick="showAnswerForm(\'' + q._id + '\')">💬 Répondre</button>' : '';
-        html += '<div class="question-card ' + cardClass + '"><div class="question-title">' + getDomainIcon(q.domain) + ' ' + q.title + '</div><div class="question-meta"><span class="domain-tag">' + q.domain + '</span> 👤 ' + q.username + ' | ' + q.category + ' | ' + q.date + ' | <span class="badge ' + stClass + '">' + stLabel + '</span></div><div class="question-content">' + q.content + '</div><div class="question-actions">' + ansBtn + '</div>' + answersHtml + '</div>';
+        html += '<div class="question-card ' + cardClass + '">';
+        html += '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid rgba(255,255,255,0.05);flex-wrap:wrap;">';
+        html += '<div style="display:flex;gap:8px;flex-wrap:wrap;">';
+        html += '<button class="btn btn-secondary" onclick="shareQuestionMultilingual(\'' + q._id + '\')" style="background:linear-gradient(135deg,#22c55e,#10b981);color:white;font-size:12px;padding:8px 16px;">📤 Partager</button>';
+        html += '<button class="btn btn-secondary" onclick="showTranslateMenu(\'' + q._id + '\')" style="background:linear-gradient(135deg,#8b5cf6,#ec4899);color:white;font-size:12px;padding:8px 16px;">🌐 Traduire</button>';
+        html += '</div>';
+        html += '<span style="opacity:0.5;font-size:11px;">' + (q.language || 'fr').toUpperCase() + '</span>';
+        html += '</div>';
+        html += '<div class="question-title">' + getDomainIcon(q.domain) + ' ' + q.title + '</div>';
+        html += '<div class="question-meta"><span class="domain-tag">' + q.domain + '</span> 👤 ' + q.username + ' | ' + q.category + ' | ' + q.date + ' | <span class="badge ' + stClass + '">' + stLabel + '</span></div>';
+        html += '<div class="question-content">' + q.content + '</div>';
+        html += '<div class="question-actions">' + ansBtn + '</div>' + answersHtml + '</div>';
     });
     container.innerHTML = html;
 }
@@ -881,9 +1041,11 @@ async function showAnswerForm(questionId) {
     var content = prompt('Votre réponse :');
     if (!content) return;
     var isScholar = scholarsData.some(function(s) { return s.name === currentUser.username; });
+    var q = questions.find(function(x) { return x._id === questionId; });
+    var lang = q ? (q.language || 'fr') : currentLanguage;
     await apiPost('/questions/' + questionId + '/answers', {
         username: currentUser.username, userId: currentUser.id,
-        content: content, language: currentLanguage, date: new Date().toLocaleDateString('fr-FR'),
+        content: content, language: lang, date: new Date().toLocaleDateString('fr-FR'),
         aiVerified: isScholar, isScholarResponse: isScholar
     });
     await apiPost('/history', { userId: currentUser.id, username: currentUser.username, action: 'answer', data: { content: content.substring(0, 50) } });
@@ -897,4 +1059,3 @@ initializeApp();
 </script>
 </body>
 </html>
-
