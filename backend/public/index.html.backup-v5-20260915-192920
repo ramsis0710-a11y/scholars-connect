@@ -463,8 +463,7 @@ function startVoiceInput() {
 
 // LECTURE VOCALE INTÉGRALE
 function speakText(text, language) {
-    if (!('speechSynthesis' in window)) { alert('Synthese vocale non supportee'); return; }
-    window.speechSynthesis.cancel();
+    if (!('speechSynthesis' in window)) { alert('❌ Synthèse vocale non supportée'); return; }
     var detectedLang = language;
     if (!detectedLang || detectedLang === 'auto') {
         if (/[\u0600-\u06FF]/.test(text)) detectedLang = 'ar';
@@ -473,33 +472,33 @@ function speakText(text, language) {
         else if (/[\uAC00-\uD7AF]/.test(text)) detectedLang = 'ko';
         else if (/[\u0400-\u04FF]/.test(text)) detectedLang = 'ru';
         else if (/[\u0900-\u097F]/.test(text)) detectedLang = 'hi';
-        else detectedLang = 'fr';
+        else detectedLang = detectLanguage(text);
     }
-    var cleanText = text.replace(/[\u{1F300}-\u{1F9FF}]/gu, '')
-        .replace(/[\u{2600}-\u{26FF}]/gu, '')
-        .replace(/[\u{2700}-\u{27BF}]/gu, '')
-        .replace(/[━─=]{2,}/g, '')
-        .replace(/\s+/g, ' ')
-        .trim();
-    if (!cleanText || cleanText.length < 2) {
-        if (typeof showNotification === 'function') showNotification('Aucun texte a lire', 'warning');
-        return;
-    }
-    var sentences = cleanText.split(/(?<=[.!?\u3002\u061F])\s+/);
+    window.speechSynthesis.cancel();
+    speechQueue = [];
+    currentSpeechIndex = 0;
+    isPaused = false;
+    isSpeaking = false;
+    var cleanText = text.replace(/[\u{1F300}-\u{1F9FF}]/gu, '').replace(/[\u{2600}-\u{26FF}]/gu, '').replace(/[━─=]/g, '').replace(/\s+/g, ' ').trim();
+    if (!cleanText) { showNotification('⚠️ Aucun texte', 'warning'); return; }
+    var sentences = cleanText.split(/(?<=[.!?])\s+/);
+    var currentSegment = '';
     var segments = [];
-    var currentSeg = '';
     for (var i = 0; i < sentences.length; i++) {
         var s = sentences[i].trim();
         if (!s) continue;
-        if ((currentSeg + ' ' + s).length > 180) {
-            if (currentSeg) segments.push(currentSeg.trim());
-            currentSeg = s;
+        if ((currentSegment + ' ' + s).length > 200) {
+            if (currentSegment) segments.push(currentSegment.trim());
+            currentSegment = s;
         } else {
-            currentSeg = currentSeg ? currentSeg + ' ' + s : s;
+            currentSegment = currentSegment ? currentSegment + ' ' + s : s;
         }
     }
-    if (currentSeg) segments.push(currentSeg.trim());
+    if (currentSegment) segments.push(currentSegment.trim());
     if (segments.length === 0) segments = [cleanText];
+    speechQueue = segments;
+    currentSpeechIndex = 0;
+    isSpeaking = true;
     var langMap = { 'fr':'fr-FR', 'ar':'ar-SA', 'en':'en-US', 'es':'es-ES', 'de':'de-DE', 'it':'it-IT', 'pt':'pt-PT', 'zh':'zh-CN', 'ja':'ja-JP', 'ko':'ko-KR', 'ru':'ru-RU', 'hi':'hi-IN' };
     var targetLang = langMap[detectedLang] || 'fr-FR';
     var voices = window.speechSynthesis.getVoices();
@@ -507,29 +506,22 @@ function speakText(text, language) {
     for (var v = 0; v < voices.length; v++) {
         if (voices[v].lang === targetLang) { selectedVoice = voices[v]; break; }
     }
-    if (!selectedVoice) {
-        var shortLang = targetLang.split('-')[0];
-        for (var v2 = 0; v2 < voices.length; v2++) {
-            if (voices[v2].lang && voices[v2].lang.indexOf(shortLang) === 0) { selectedVoice = voices[v2]; break; }
-        }
-    }
-    if (typeof showNotification === 'function') showNotification('Lecture en cours (' + detectedLang.toUpperCase() + ')', 'info');
-    var idx = 0;
+    showNotification('🔊 Lecture (' + segments.length + ' segments)', 'info');
     function speakNext() {
-        if (idx >= segments.length) {
-            if (typeof showNotification === 'function') showNotification('Lecture terminee', 'success');
+        if (currentSpeechIndex >= speechQueue.length) {
+            isSpeaking = false; isPaused = false;
+            showNotification('✅ Lecture terminée', 'success');
             return;
         }
-        var seg = segments[idx];
-        var utter = new SpeechSynthesisUtterance(seg);
-        utter.lang = targetLang;
-        utter.rate = 0.92;
-        utter.pitch = 1.0;
-        utter.volume = 1.0;
-        if (selectedVoice) utter.voice = selectedVoice;
-        utter.onend = function() { idx++; setTimeout(speakNext, 120); };
-        utter.onerror = function(ev) { console.error('TTS error', ev); idx++; setTimeout(speakNext, 120); };
-        window.speechSynthesis.speak(utter);
+        if (isPaused) { setTimeout(speakNext, 500); return; }
+        var segment = speechQueue[currentSpeechIndex];
+        var utterance = new SpeechSynthesisUtterance(segment);
+        utterance.lang = targetLang;
+        utterance.rate = 0.9;
+        if (selectedVoice) utterance.voice = selectedVoice;
+        utterance.onend = function() { currentSpeechIndex++; setTimeout(speakNext, 100); };
+        utterance.onerror = function() { currentSpeechIndex++; setTimeout(speakNext, 100); };
+        window.speechSynthesis.speak(utterance);
     }
     speakNext();
 }
