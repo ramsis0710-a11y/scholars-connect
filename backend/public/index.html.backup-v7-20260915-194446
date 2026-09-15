@@ -462,32 +462,6 @@ function startVoiceInput() {
 }
 
 // LECTURE VOCALE INTÉGRALE
-function speakAnswer(btn) {
-    try {
-        var item = btn.closest('.answer-item');
-        if (!item) { console.error('answer-item non trouve'); return; }
-        var resp = item.querySelector('.claude-response');
-        if (!resp) { console.error('claude-response non trouve'); return; }
-        var text = resp.textContent || resp.innerText || '';
-        text = text.trim();
-        if (!text || text.length < 3) {
-            if (typeof showNotification === 'function') showNotification('Reponse vide', 'warning');
-            return;
-        }
-        var lang = 'auto';
-        var meta = item.querySelector('.answer-meta');
-        if (meta && meta.getAttribute('data-lang')) lang = meta.getAttribute('data-lang');
-        if (typeof speakText === 'function') {
-            speakText(text, lang);
-        } else {
-            console.error('speakText non disponible');
-        }
-    } catch (e) {
-        console.error('speakAnswer error:', e);
-        if (typeof showNotification === 'function') showNotification('Erreur lecture: ' + e.message, 'error');
-    }
-}
-
 function speakText(text, language) {
     if (!('speechSynthesis' in window)) { alert('Synthese vocale non supportee'); return; }
     window.speechSynthesis.cancel();
@@ -1071,7 +1045,7 @@ async function renderHistory() {
             html += '<div class="answers-section"><strong>💬 ' + q.answers.length + ' réponses</strong>';
             q.answers.forEach(function(a) {
                 var cls = a.isClaude ? 'claude-answer' : (a.isScholarResponse ? 'scholar-answer' : '');
-                html += '<div class="answer-item ' + cls + '"><div class="claude-response">' + a.content + '</div><div class="speak-controls"><button class="speak-btn" onclick="speakAnswer(this)">🔊 Écouter</button><button class="pause-btn" onclick="pauseSpeaking()">⏸️ Pause</button><button class="stop-btn" onclick="stopSpeaking()">⏹️</button></div></div>';
+                html += '<div class="answer-item ' + cls + '"><div class="claude-response">' + a.content + '</div><div class="speak-controls"><button class="speak-btn" onclick="speakText(this.closest('.answer-item').querySelector('.claude-response').textContent, \'' + (q.language || 'auto') + '\')">🔊 Écouter</button><button class="pause-btn" onclick="pauseSpeaking()">⏸️ Pause</button><button class="stop-btn" onclick="stopSpeaking()">⏹️</button></div></div>';
             });
             html += '</div>';
         }
@@ -1128,7 +1102,7 @@ function renderQuestions() {
                 var aCls = a.isClaude ? 'claude-answer' : (a.isScholarResponse ? 'scholar-answer' : '');
                 var badge = '';
                 if (a.isClaude) { badge = '<span class="claude-badge">🤖 Juge Claude</span> '; if (a.claudeReason === 'no_literature') badge += '<span class="claude-status">Sans littérature</span>'; if (a.claudeReason === 'timeout_5min') badge += '<span class="timer-badge">⏱️ 5 min</span>'; }
-                answersHtml += '<div class="answer-item ' + aCls + '"><div style="margin-bottom:5px;">' + badge + '</div><div class="claude-response">' + a.content + '</div><div class="answer-meta">👤 ' + a.username + ' | ' + a.date + '</div><div class="speak-controls"><button class="speak-btn" onclick="speakAnswer(this)">🔊 Écouter</button><button class="pause-btn" onclick="pauseSpeaking()">⏸️ Pause</button><button class="stop-btn" onclick="stopSpeaking()">⏹️ Arrêter</button></div></div>';
+                answersHtml += '<div class="answer-item ' + aCls + '"><div style="margin-bottom:5px;">' + badge + '</div><div class="claude-response">' + a.content + '</div><div class="answer-meta">👤 ' + a.username + ' | ' + a.date + '</div><div class="speak-controls"><button class="speak-btn" onclick="speakText(this.closest('.answer-item').querySelector('.claude-response').textContent, \'' + (q.language || 'auto') + '\')">🔊 Écouter</button><button class="pause-btn" onclick="pauseSpeaking()">⏸️ Pause</button><button class="stop-btn" onclick="stopSpeaking()">⏹️ Arrêter</button></div></div>';
             });
             answersHtml += '</div>';
         } else answersHtml = '<div style="margin-top:10px;opacity:0.5;font-size:13px;">💬 En attente...</div>';
