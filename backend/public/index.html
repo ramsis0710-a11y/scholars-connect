@@ -195,8 +195,8 @@ body { font-family:'Segoe UI',system-ui,sans-serif; background:#0a0e27; color:#f
 <p style="opacity:0.8;font-size:13px;margin-bottom:15px;" id="voiceDesc">Dictez votre question - L'IA remplira le titre et le domaine</p>
 <button class="voice-btn" onclick="startVoiceInput()" id="voiceBtn">🎤 Démarrer la dictée vocale</button>
 <div style="margin-top:15px;padding-top:15px;border-top:1px dashed rgba(255,255,255,0.2);">
-<div style="font-size:13px;opacity:0.8;margin-bottom:10px;" id="uploadDesc">📎 OU joignez un fichier (max 200 Mo : PDF, TXT, DOCX, image, code source...)</div>
-<input type="file" id="fileInput" accept="*/*" style="display:none;" onchange="uploadFile()">
+<div style="font-size:13px;opacity:0.8;margin-bottom:10px;" id="uploadDesc">📎 OU joignez un ou plusieurs fichiers (max 200 Mo chacun : PDF, TXT, DOCX, image, code source...)</div>
+<input type="file" id="fileInput" accept="*/*" multiple style="display:none;" onchange="uploadFile()">
 <button type="button" class="voice-btn" onclick="document.getElementById('fileInput').click()" id="uploadBtn" style="background:linear-gradient(135deg,#3b82f6,#22c55e);">📎 Joindre un fichier</button>
 <div id="uploadStatus" style="margin-top:12px;font-size:13px;opacity:0.8;"></div>
 </div>
@@ -864,39 +864,69 @@ function uploadFile() {
         if (statusEl) statusEl.innerHTML = 'Aucun fichier selectionne';
         return;
     }
-    var file = input.files[0];
+    var files = Array.from(input.files);
     var maxSize = 200 * 1024 * 1024;
-    if (file.size > maxSize) {
-        if (statusEl) statusEl.innerHTML = 'Fichier trop volumineux (max 200 Mo)';
-        statusEl.style.color = '#ef4444';
+    var totalSize = 0;
+    var validFiles = [];
+    for (var i = 0; i < files.length; i++) {
+        if (files[i].size > maxSize) {
+            if (statusEl) {
+                statusEl.innerHTML = 'Le fichier ' + files[i].name + ' depasse 200 Mo';
+                statusEl.style.color = '#ef4444';
+            }
+            continue;
+        }
+        totalSize += files[i].size;
+        validFiles.push(files[i]);
+    }
+    if (validFiles.length === 0) {
+        if (statusEl) {
+            statusEl.innerHTML = 'Aucun fichier valide';
+            statusEl.style.color = '#ef4444';
+        }
         return;
     }
     if (statusEl) {
-        statusEl.innerHTML = 'Envoi en cours... (' + (file.size/1024).toFixed(1) + ' Ko)';
+        statusEl.innerHTML = 'Envoi de ' + validFiles.length + ' fichier(s) en cours... (' + (totalSize/1024/1024).toFixed(2) + ' Mo)';
         statusEl.style.color = '#3b82f6';
     }
     var formData = new FormData();
-    formData.append('file', file);
-    fetch(API_URL + '/upload-file', {
+    for (var j = 0; j < validFiles.length; j++) {
+        formData.append('files', validFiles[j]);
+    }
+    fetch(API_URL + '/upload-files', {
         method: 'POST',
         body: formData
     }).then(function(r) { return r.json(); }).then(function(data) {
-        if (data.success && data.file) {
-            window.uploadedFile = data.file;
-            var info = 'Fichier analyse : ' + data.file.originalName + ' (' + (data.file.size/1024).toFixed(1) + ' Ko)';
+        if (data.success && data.files && data.files.length > 0) {
+            window.uploadedFiles = data.files;
+            var info = data.files.length + ' fichier(s) analyse(s) : ';
+            var names = [];
+            var combinedAnalysis = '';
+            for (var k = 0; k < data.files.length; k++) {
+                names.push(data.files[k].originalName);
+                if (data.files[k].analysis) {
+                    combinedAnalysis += '=== ' + data.files[k].originalName + ' ===\n' + data.files[k].analysis + '\n\n';
+                }
+            }
+            info += names.join(', ');
             if (statusEl) {
                 statusEl.innerHTML = info;
                 statusEl.style.color = '#22c55e';
             }
-            showNotification('Fichier analyse par l IA', 'success');
+            showNotification(data.files.length + ' fichier(s) analyse(s)', 'success');
             var qContent = document.getElementById('qContent');
-            if (qContent && data.file.analysis) {
+            if (qContent && combinedAnalysis) {
                 var prefix = qContent.value ? qContent.value + '\n\n' : '';
-                qContent.value = prefix + '[Fichier joint : ' + data.file.originalName + ']\n' + data.file.analysis.substring(0, 2000);
+                qContent.value = prefix + combinedAnalysis.substring(0, 5000);
             }
             var qTitle = document.getElementById('qTitle');
             if (qTitle && !qTitle.value) {
-                qTitle.value = 'Analyse de ' + data.file.originalName;
+                if (data.files.length === 1) {
+                    qTitle.value = 'Analyse de ' + data.files[0].originalName;
+                } else {
+                    qTitle.value = 'Analyse de ' + data.files.length + ' fichiers';
+                }
             }
         } else {
             if (statusEl) {
@@ -1009,7 +1039,7 @@ function showScholars() {
 function resetQuestionFields() {
     document.getElementById('qTitle').value = '';
     document.getElementById('qContent').value = '';
-    window.uploadedFile = null;
+    window.uploadedFiles = [];
     var upSt = document.getElementById('uploadStatus'); if (upSt) upSt.innerHTML = '';
     var fi = document.getElementById('fileInput'); if (fi) fi.value = '';
     var contentEl = document.getElementById('qContent');
@@ -1159,7 +1189,7 @@ async function askQuestion() {
         username: currentUser.username, userId: currentUser.id,
         language: contentLang, date: new Date().toLocaleDateString('fr-FR'),
         status: scholar ? 'assigned' : 'pending',
-        scholar: scholar, answers: [], attachedFile: window.uploadedFile || null
+        scholar: scholar, answers: [], attachedFiles: window.uploadedFiles || []
     });
     if (q && !q.error) {
         await apiPost('/history', { userId: currentUser.id, username: currentUser.username, action: 'question', data: { title: title } });

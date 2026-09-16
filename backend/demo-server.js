@@ -170,6 +170,45 @@ app.post('/api/analyze-question', async function(req, res) {
     } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+app.post('/api/upload-files', upload.array('files', 20), async function(req, res) {
+    try {
+        if (!req.files || req.files.length === 0) return res.status(400).json({ error: 'Aucun fichier' });
+        var results = [];
+        for (var idx = 0; idx < req.files.length; idx++) {
+            var f = req.files[idx];
+            var fp = f.path, fn = f.originalname, fsz = f.size;
+            var ext = path.extname(fn).toLowerCase().replace('.', '');
+            console.log('Upload [' + (idx+1) + '/' + req.files.length + ']: ' + fn + ' (' + fsz + ' octets)');
+            var exTxt = '', fType = 'unknown';
+            var textExts = ['txt','md','csv','json','xml','html','js','css','log','sql','py','java','c','cpp','cs','php','rb','go','rs','ts','yml','yaml'];
+            if (textExts.indexOf(ext) !== -1) {
+                fType = 'text';
+                exTxt = fs.readFileSync(fp, 'utf8').substring(0, 50000);
+            } else {
+                fType = 'binary';
+                exTxt = '[Fichier binaire ' + ext + ' - ' + (fsz/1024).toFixed(2) + ' Ko]';
+                try {
+                    var buf = fs.readFileSync(fp);
+                    var raw = buf.toString('binary');
+                    var rd = '', cur = '';
+                    for (var i = 0; i < Math.min(raw.length, 200000); i++) {
+                        var c = raw.charCodeAt(i);
+                        if ((c >= 32 && c <= 126) || c === 10 || c === 13 || c === 9) cur += raw[i];
+                        else { if (cur.length >= 4) rd += cur + ' '; cur = ''; }
+                    }
+                    if (rd.length > 100) exTxt += ' Extrait: ' + rd.substring(0, 5000);
+                } catch (e) {}
+            }
+            var aiAn = '';
+            if (aiAvailable && exTxt.length > 10) {
+                var pr = 'Analyze this file in its language. NAME: ' + fn + ' TYPE: ' + ext + ' SIZE: ' + (fsz/1024).toFixed(2) + ' KB CONTENT: ' + exTxt.substring(0, 6000) + ' Provide: 1. Type 2. Topics 3. Key points 4. Language 5. Domain 6. Specialty. Be concise.';
+                aiAn = await callOpenRouter(pr, { temperature: 0.4, max_tokens: 1200 }) || '';
+            }
+            results.push({ originalName: fn, storedName: f.filename, size: fsz, type: ext, fileType: fType, uploadedAt: new Date().toISOString(), extractedPreview: exTxt.substring(0, 500), analysis: aiAn });
+        }
+        res.json({ success: true, files: results, count: results.length });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
 app.post('/api/upload-file', upload.single('file'), async function(req, res) {
     try {
         if (!req.file) return res.status(400).json({ error: 'Aucun fichier' });
