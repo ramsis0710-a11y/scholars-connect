@@ -194,12 +194,6 @@ body { font-family:'Segoe UI',system-ui,sans-serif; background:#0a0e27; color:#f
 <h3 style="color:#8b5cf6;margin-bottom:10px;" id="voiceTitle">🎤 Mode Vocal</h3>
 <p style="opacity:0.8;font-size:13px;margin-bottom:15px;" id="voiceDesc">Dictez votre question - L'IA remplira le titre et le domaine</p>
 <button class="voice-btn" onclick="startVoiceInput()" id="voiceBtn">🎤 Démarrer la dictée vocale</button>
-<div style="margin-top:15px;padding-top:15px;border-top:1px dashed rgba(255,255,255,0.2);">
-<div style="font-size:13px;opacity:0.8;margin-bottom:10px;" id="uploadDesc">📎 OU joignez un fichier (max 200 Mo : PDF, TXT, DOCX, image, code source...)</div>
-<input type="file" id="fileInput" accept="*/*" style="display:none;" onchange="uploadFile()">
-<button type="button" class="voice-btn" onclick="document.getElementById('fileInput').click()" id="uploadBtn" style="background:linear-gradient(135deg,#3b82f6,#22c55e);">📎 Joindre un fichier</button>
-<div id="uploadStatus" style="margin-top:12px;font-size:13px;opacity:0.8;"></div>
-</div>
 <div id="voiceStatus" style="margin-top:12px;font-size:13px;opacity:0.8;"></div>
 </div>
 <div style="opacity:0.7;text-align:center;margin:15px 0;font-size:13px;" id="orManual">— OU remplissez manuellement —</div>
@@ -857,62 +851,6 @@ function askConfirmationBeforeClose() {
     };
 }
 
-function uploadFile() {
-    var input = document.getElementById('fileInput');
-    var statusEl = document.getElementById('uploadStatus');
-    if (!input || !input.files || input.files.length === 0) {
-        if (statusEl) statusEl.innerHTML = 'Aucun fichier selectionne';
-        return;
-    }
-    var file = input.files[0];
-    var maxSize = 200 * 1024 * 1024;
-    if (file.size > maxSize) {
-        if (statusEl) statusEl.innerHTML = 'Fichier trop volumineux (max 200 Mo)';
-        statusEl.style.color = '#ef4444';
-        return;
-    }
-    if (statusEl) {
-        statusEl.innerHTML = 'Envoi en cours... (' + (file.size/1024).toFixed(1) + ' Ko)';
-        statusEl.style.color = '#3b82f6';
-    }
-    var formData = new FormData();
-    formData.append('file', file);
-    fetch(API_URL + '/upload-file', {
-        method: 'POST',
-        body: formData
-    }).then(function(r) { return r.json(); }).then(function(data) {
-        if (data.success && data.file) {
-            window.uploadedFile = data.file;
-            var info = 'Fichier analyse : ' + data.file.originalName + ' (' + (data.file.size/1024).toFixed(1) + ' Ko)';
-            if (statusEl) {
-                statusEl.innerHTML = info;
-                statusEl.style.color = '#22c55e';
-            }
-            showNotification('Fichier analyse par l IA', 'success');
-            var qContent = document.getElementById('qContent');
-            if (qContent && data.file.analysis) {
-                var prefix = qContent.value ? qContent.value + '\n\n' : '';
-                qContent.value = prefix + '[Fichier joint : ' + data.file.originalName + ']\n' + data.file.analysis.substring(0, 2000);
-            }
-            var qTitle = document.getElementById('qTitle');
-            if (qTitle && !qTitle.value) {
-                qTitle.value = 'Analyse de ' + data.file.originalName;
-            }
-        } else {
-            if (statusEl) {
-                statusEl.innerHTML = 'Erreur : ' + (data.error || 'inconnue');
-                statusEl.style.color = '#ef4444';
-            }
-            showNotification('Erreur upload', 'error');
-        }
-    }).catch(function(e) {
-        if (statusEl) {
-            statusEl.innerHTML = 'Erreur reseau : ' + e.message;
-            statusEl.style.color = '#ef4444';
-        }
-        showNotification('Erreur reseau', 'error');
-    });
-}
 function showNotification(msg, type) {
     var el = document.getElementById('notification');
     el.textContent = msg;
@@ -1009,9 +947,6 @@ function showScholars() {
 function resetQuestionFields() {
     document.getElementById('qTitle').value = '';
     document.getElementById('qContent').value = '';
-    window.uploadedFile = null;
-    var upSt = document.getElementById('uploadStatus'); if (upSt) upSt.innerHTML = '';
-    var fi = document.getElementById('fileInput'); if (fi) fi.value = '';
     var contentEl = document.getElementById('qContent');
     var titleEl = document.getElementById('qTitle');
     contentEl.classList.remove('rtl');
@@ -1159,7 +1094,7 @@ async function askQuestion() {
         username: currentUser.username, userId: currentUser.id,
         language: contentLang, date: new Date().toLocaleDateString('fr-FR'),
         status: scholar ? 'assigned' : 'pending',
-        scholar: scholar, answers: [], attachedFile: window.uploadedFile || null
+        scholar: scholar, answers: []
     });
     if (q && !q.error) {
         await apiPost('/history', { userId: currentUser.id, username: currentUser.username, action: 'question', data: { title: title } });

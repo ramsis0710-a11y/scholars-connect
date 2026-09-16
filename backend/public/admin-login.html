@@ -1,0 +1,49 @@
+﻿<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>Admin - Connexion</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{display:flex;justify-content:center;align-items:center;min-height:100vh;background:linear-gradient(135deg,#0a0e27,#1a1a3e);font-family:Segoe UI,sans-serif;padding:20px}
+.card{background:linear-gradient(135deg,#f59e0b,#d97706);border-radius:24px;padding:40px;max-width:450px;width:100%;box-shadow:0 25px 70px rgba(245,158,11,0.4)}
+.title{color:white;font-size:28px;font-weight:700;text-align:center;margin-bottom:20px}
+.form-group{margin-bottom:18px}
+.form-group label{display:block;color:white;font-weight:600;margin-bottom:6px;font-size:14px}
+.form-group input{width:100%;padding:14px;border-radius:10px;border:2px solid rgba(255,255,255,0.3);background:rgba(255,255,255,0.95);color:#0a0e27;font-size:15px}
+.btn{width:100%;padding:15px;border:none;border-radius:10px;cursor:pointer;font-weight:700;font-size:16px;background:#22c55e;color:white}
+.status{margin-top:15px;padding:12px;border-radius:8px;font-size:13px;text-align:center;display:none}
+.status.success{background:#22c55e;color:white;display:block}
+.status.error{background:#ef4444;color:white;display:block}
+</style>
+</head>
+<body>
+<div class="card">
+<div class="title">Acces Admin</div>
+<form onsubmit="doLogin(event)">
+<div class="form-group"><label>Email</label><input type="email" id="email" value="admin@scholars-connect.com" readonly></div>
+<div class="form-group"><label>Mot de passe</label><input type="password" id="password"></div>
+<button type="submit" class="btn">Se connecter</button>
+</form>
+<div class="status" id="status"></div>
+</div>
+<script>
+async function doLogin(e){
+e.preventDefault();
+var email=document.getElementById('email').value;
+var pwd=document.getElementById('password').value;
+var st=document.getElementById('status');
+st.className='status';st.textContent='Connexion...';
+try{
+var r=await fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:email,password:pwd})});
+var data=await r.json();
+if(r.ok&&data.role==='admin'){
+localStorage.setItem('sc_admin_session',JSON.stringify(data));
+st.className='status success';st.textContent='Connexion reussie !';
+setTimeout(function(){window.location.href='/admin';},800);
+}else{st.className='status error';st.textContent=(data.error||'Acces refuse');}
+}catch(err){st.className='status error';st.textContent='Erreur reseau';}
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,36 @@
+﻿<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>Scholars Connect - QR Code</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{display:flex;justify-content:center;align-items:center;min-height:100vh;background:linear-gradient(135deg,#0a0e27,#1a1a3e);font-family:Segoe UI,sans-serif;padding:20px}
+.card{background:linear-gradient(135deg,#667eea,#764ba2);border-radius:24px;padding:40px;max-width:600px;width:100%;text-align:center;box-shadow:0 25px 70px rgba(102,126,234,0.5)}
+.title{color:white;font-size:38px;font-weight:700;margin-bottom:20px}
+.qr-container{background:white;padding:20px;border-radius:20px;display:inline-block;margin:25px 0}
+.qr-container img{display:block;width:350px;height:350px}
+.url{background:rgba(0,0,0,0.3);color:white;padding:15px 20px;border-radius:12px;font-family:monospace;font-size:14px;word-break:break-all;margin:20px 0}
+.status{display:inline-block;background:#22c55e;color:white;padding:8px 24px;border-radius:25px;font-weight:700;margin:10px 0}
+.btn{background:white;border:none;padding:15px 30px;border-radius:12px;font-weight:700;cursor:pointer;color:#667eea;font-size:15px;text-decoration:none;display:inline-block;margin:5px}
+.btn-green{background:#22c55e;color:white}
+</style>
+</head>
+<body>
+<div class="card">
+<div class="title">Scholars Connect</div>
+<div class="qr-container" id="qrContainer"></div>
+<div class="url" id="urlDisplay"></div>
+<div class="status">EN LIGNE</div>
+<div style="margin-top:20px;">
+<a href="/" class="btn btn-green">Ouvrir l'application</a>
+</div>
+</div>
+<script>
+var baseUrl = window.location.origin;
+document.getElementById('urlDisplay').textContent = baseUrl;
+var qrUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=' + encodeURIComponent(baseUrl);
+document.getElementById('qrContainer').innerHTML = '<img src="' + qrUrl + '" alt="QR Code">';
+</script>
+</body>
+</html>

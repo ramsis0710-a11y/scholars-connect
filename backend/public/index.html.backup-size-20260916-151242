@@ -195,8 +195,8 @@ body { font-family:'Segoe UI',system-ui,sans-serif; background:#0a0e27; color:#f
 <p style="opacity:0.8;font-size:13px;margin-bottom:15px;" id="voiceDesc">Dictez votre question - L'IA remplira le titre et le domaine</p>
 <button class="voice-btn" onclick="startVoiceInput()" id="voiceBtn">🎤 Démarrer la dictée vocale</button>
 <div style="margin-top:15px;padding-top:15px;border-top:1px dashed rgba(255,255,255,0.2);">
-<div style="font-size:13px;opacity:0.8;margin-bottom:10px;" id="uploadDesc">📎 OU joignez un fichier (max 200 Mo : PDF, TXT, DOCX, image, code source...)</div>
-<input type="file" id="fileInput" accept="*/*" style="display:none;" onchange="uploadFile()">
+<div style="font-size:13px;opacity:0.8;margin-bottom:10px;" id="uploadDesc">📎 OU joignez un fichier (PDF, TXT, DOCX, image, code source...) pour analyse IA</div>
+<input type="file" id="fileInput" style="display:none;" onchange="uploadFile()">
 <button type="button" class="voice-btn" onclick="document.getElementById('fileInput').click()" id="uploadBtn" style="background:linear-gradient(135deg,#3b82f6,#22c55e);">📎 Joindre un fichier</button>
 <div id="uploadStatus" style="margin-top:12px;font-size:13px;opacity:0.8;"></div>
 </div>
@@ -865,9 +865,9 @@ function uploadFile() {
         return;
     }
     var file = input.files[0];
-    var maxSize = 200 * 1024 * 1024;
+    var maxSize = 20 * 1024 * 1024;
     if (file.size > maxSize) {
-        if (statusEl) statusEl.innerHTML = 'Fichier trop volumineux (max 200 Mo)';
+        if (statusEl) statusEl.innerHTML = 'Fichier trop volumineux (max 20 Mo)';
         statusEl.style.color = '#ef4444';
         return;
     }
