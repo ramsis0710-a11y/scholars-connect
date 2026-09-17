@@ -107,6 +107,7 @@ async function callOpenRouter(prompt, options) {
                 const data = await response.json();
                 const text = data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content;
                 if (text && text.length > 30) { console.log('OK: ' + model); return text; }
+                if (text && text.length > 1 && (options.allowShort === true || options.minLength === 0)) { console.log('OK short: ' + model); return text; }
             }
         } catch (e) { console.error(model + ': ' + e.message); }
     }
@@ -245,7 +246,7 @@ app.post('/api/translate', async function(req, res) {
         if (!aiAvailable) return res.json({ translation: text, targetLang: tl });
         const tn = LANG_NAMES[tl] || tl;
         const pr = 'Translate into ' + tn + '. Return ONLY the translation. ' + text;
-        const tr = await callOpenRouter(pr, { temperature: 0.2, max_tokens: 2000 });
+        const tr = await callOpenRouter(pr, { temperature: 0.2, max_tokens: 2000, allowShort: true });
         if (tr) return res.json({ translation: tr, targetLang: tl });
         res.json({ translation: text, targetLang: tl });
     } catch (e) { res.status(500).json({ error: e.message }); }
@@ -314,6 +315,8 @@ app.get('/api/test-ai', async function(req, res) {
     try { const t = await callOpenRouter('Qui etait Hannibal ? Une phrase.', { temperature: 0.5 }); res.json({ success: !!t, response: t || 'Aucune' }); }
     catch (e) { res.json({ success: false, error: e.message }); }
 });
+
+app.get('/admin', function(req, res) { res.sendFile(path.join(__dirname, 'public', 'admin.html')); });
 
 app.get('/admin-login', function(req, res) { res.sendFile(path.join(__dirname, 'public', 'admin-login.html')); });
 
