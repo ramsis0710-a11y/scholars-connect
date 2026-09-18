@@ -95,10 +95,8 @@ const LANG_NAMES = { 'fr':'French','ar':'Arabic','en':'English','es':'Spanish','
 
 async function callGemini(prompt, options) {
     options = options || {};
-    
     console.log('[callGemini] === DEBUT ===');
     console.log('[callGemini] Prompt : ' + prompt.length + ' caracteres');
-    console.log('[callGemini] Timeout : 120 secondes');
     
     if (!GEMINI_API_KEY) {
         console.log('[callGemini] ERREUR : GEMINI_API_KEY manquante');
@@ -106,23 +104,28 @@ async function callGemini(prompt, options) {
     }
     
     try {
-        console.log('[callGemini] Appel API OpenRouter...');
+        console.log('[callGemini] Appel API Gemini 3.6 Flash...');
         
-        const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        const url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent';
+        
+        const body = {
+            contents: [{
+                parts: [{ text: prompt }]
+            }],
+            generationConfig: {
+                temperature: options.temperature !== undefined ? options.temperature : 0.7,
+                maxOutputTokens: options.max_tokens || 2500
+            }
+        };
+        
+        const response = await fetch(url, {
             method: 'POST',
             timeout: 120000,
             headers: {
-                'Authorization': 'Bearer ' + GEMINI_API_KEY,
                 'Content-Type': 'application/json',
-                'HTTP-Referer': 'https://scholars-connect-app.onrender.com',
-                'X-Title': 'Scholars Connect'
+                'x-goog-api-key': GEMINI_API_KEY
             },
-            body: JSON.stringify({
-                model: 'meta-llama/llama-3.3-70b-instruct:free',
-                messages: [{ role: 'user', content: prompt }],
-                temperature: options.temperature !== undefined ? options.temperature : 0.7,
-                max_tokens: options.max_tokens || 2500
-            })
+            body: JSON.stringify(body)
         });
         
         console.log('[callGemini] HTTP ' + response.status);
@@ -134,15 +137,13 @@ async function callGemini(prompt, options) {
         }
         
         const data = await response.json();
-        console.log('[callGemini] Modele : ' + (data.model || 'inconnu'));
-        console.log('[callGemini] Tokens : ' + (data.usage ? data.usage.total_tokens : 'N/A'));
         
-        if (!data.choices || !data.choices[0] || !data.choices[0].message) {
+        if (!data.candidates || !data.candidates[0] || !data.candidates[0].content) {
             console.log('[callGemini] ERREUR : structure invalide');
             return null;
         }
         
-        const text = data.choices[0].message.content;
+        const text = data.candidates[0].content.parts[0].text;
         console.log('[callGemini] Reponse : ' + (text ? text.length : 0) + ' caracteres');
         
         if (text && text.length > 50) {
@@ -152,7 +153,6 @@ async function callGemini(prompt, options) {
         
         console.log('[callGemini] Reponse trop courte');
         return null;
-        
     } catch (e) {
         console.log('[callGemini] EXCEPTION : ' + e.message);
         return null;
@@ -226,7 +226,7 @@ async function generateAIResponse(question, scholar, reason) {
     console.log('[IA] Prompt construit (' + prompt.length + ' caracteres)');
     console.log('[IA] Appel callGemini...');
     
-    // Appeler OpenRouter avec TIMEOUT LONG
+    // Appeler Gemini avec TIMEOUT LONG
     let aiText = null;
     try {
         aiText = await callGemini(prompt, { 
@@ -239,12 +239,12 @@ async function generateAIResponse(question, scholar, reason) {
     }
     
     if (aiText && aiText.length > 50) {
-        console.log('[IA] [OK] Reponse OpenRouter : ' + aiText.length + ' caracteres');
+        console.log('[IA] [OK] Reponse Gemini : ' + aiText.length + ' caracteres');
         console.log('[IA] ========================================');
         return buildResponse(aiText, question, scholar, reason);
     }
     
-    console.log('[IA] Echec OpenRouter - utilisation du fallback');
+    console.log('[IA] Echec Gemini - utilisation du fallback');
     console.log('[IA] ========================================');
     return generateLocalFallback(question, scholar, reason);
 }
@@ -570,7 +570,7 @@ app.get('/api/history/:userId', async function(req, res) { try { res.json(await 
 app.post('/api/history', async function(req, res) { try { res.json(await History.create(req.body)); } catch (e) { res.status(500).json({ error: e.message }); } });
 
 app.get('/api/health', async function(req, res) {
-    try { res.json({ status: 'healthy', mongodb: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected', ai: aiAvailable ? 'openrouter' : 'inactive', users: await User.countDocuments(), questions: await Question.countDocuments(), history: await History.countDocuments() }); }
+    try { res.json({ status: 'healthy', mongodb: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected', ai: aiAvailable ? 'gemini' : 'inactive', users: await User.countDocuments(), questions: await Question.countDocuments(), history: await History.countDocuments() }); }
     catch (e) { res.json({ status: 'error', error: e.message }); }
 });
 
@@ -589,7 +589,7 @@ app.get('/api/test-islamic', async function(req, res) {
     } catch (e) { res.status(500).json({ error: e.message }); }
 });
 app.get('/api/test-ai', async function(req, res) {
-    if (!aiAvailable) return res.json({ error: 'OpenRouter non configuree' });
+    if (!aiAvailable) return res.json({ error: 'Gemini non configuree' });
     try { const t = await callGemini('Qui etait Hannibal ? Une phrase.', { temperature: 0.5 }); res.json({ success: !!t, response: t || 'Aucune' }); }
     catch (e) { res.json({ success: false, error: e.message }); }
 });
