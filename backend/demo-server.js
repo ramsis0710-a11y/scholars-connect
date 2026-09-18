@@ -2,6 +2,7 @@
 const path = require('path');
 const mongoose = require('mongoose');
 const fetch = require('node-fetch');
+const { searchIslamicSources, formatIslamicResults } = require('./islamic-sources');
 const multer = require('multer');
 const fs = require('fs');
 require('dotenv').config();
@@ -114,11 +115,51 @@ async function callOpenRouter(prompt, options) {
     return null;
 }
 
+
+// ============================================================
+// DETECTION DES QUESTIONS ISLAMIQUES
+// ============================================================
+function isIslamicQuestion(question) {
+    const text = ((question.title || '') + ' ' + (question.content || '')).toLowerCase();
+    const islamicKeywords = [
+        'islam', 'coran', 'quran', 'hadith', 'sunnah', 'fiqh', 'fatwa', 
+        'sourate', 'verset', 'prophete', 'muhammad', 'priere', 'salat',
+        'ramadan', 'jeune', 'zakat', 'hajj', 'pelerinage', 'halal', 'haram',
+        'tawhid', 'aqida', 'tafsir', 'sira', 'fiqh', 'charia', 'sharia',
+        'ibn baz', 'albani', 'othaymeen', 'ben achour', 'karadhaoui', 'qaradawi',
+        'oic', 'iifa', 'fiqh academy', 'mecque', 'medine', 'mosquee'
+    ];
+    return islamicKeywords.some(function(kw) { return text.indexOf(kw) !== -1; });
+}
+
 async function generateAIResponse(question, scholar, reason) {
+    // Detection : question islamique ?
+        let islamicContext = '';
+    if (isIslamicQuestion(question)) {
+        try {
+            console.log('Question islamique detectee - recherche dans les sources...');
+            const results = await searchIslamicSources(question.title + ' ' + question.content);
+            if (results && results.length > 0) {
+                islamicContext = formatIslamicResults(results);
+                console.log('Sources islamiques utilisees : ' + results.length);
+            } else {
+                console.log('Aucune source islamique accessible - reponse IA normale');
+                islamicContext = '\n\n=== INSTRUCTION SPECIALE ===\n';
+                islamicContext += 'Cette question est de nature islamique.\n';
+                islamicContext += 'Reponds en te basant sur les enseignements reconnus de l\'Islam (Coran, Sunna, consensus des savants).\n';
+                islamicContext += 'Mentionne les avis des 4 ecoles juridiques (Hanafite, Malikite, Chaféite, Hanbalite) si applicable.\n';
+                islamicContext += 'Cite des savants reconnus : Ibn Baz, Al-Albani, Ibn Othaymeen, Ben Achour, El Karadhaoui.\n';
+                islamicContext += '=== FIN INSTRUCTION ===\n';
+            }
+        } catch (e) {
+            console.log('Erreur recherche islamique : ' + e.message);
+        }
+    }
     const qLang = question.language || 'fr';
     const langName = LANG_NAMES[qLang] || 'French';
     let prompt = 'You are Juge Claude, expert academic judge. Respond ONLY in ' + langName + '. DOMAIN: ' + question.domain + ' SPECIALTY: ' + question.category + ' QUESTION: ' + question.title + ' DETAILS: ' + question.content;
     if (question.attachedFile && question.attachedFile.analysis) { prompt += ' ATTACHED DOCUMENT: ' + question.attachedFile.analysis.substring(0, 3000); }
+    if (islamicContext) { prompt += islamicContext; }
     prompt += ' Provide COMPLETE answer in ' + langName + '. Structure: DEFINITION, DETAILED ANSWER, KEY POINTS, SOURCES';
     if (aiAvailable) {
         const text = await callOpenRouter(prompt, { temperature: 0.7, max_tokens: 2500 });
@@ -310,6 +351,20 @@ app.get('/api/health', async function(req, res) {
     catch (e) { res.json({ status: 'error', error: e.message }); }
 });
 
+
+app.get('/api/test-islamic', async function(req, res) {
+    try {
+        const query = req.query.q || 'priere';
+        const results = await searchIslamicSources(query);
+        res.json({ 
+            success: true, 
+            query: query,
+            count: results.length,
+            sources: results.map(function(r) { return r.source; }),
+            results: results
+        });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
 app.get('/api/test-ai', async function(req, res) {
     if (!aiAvailable) return res.json({ error: 'OpenRouter non configuree' });
     try { const t = await callOpenRouter('Qui etait Hannibal ? Une phrase.', { temperature: 0.5 }); res.json({ success: !!t, response: t || 'Aucune' }); }
