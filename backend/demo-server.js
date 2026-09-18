@@ -61,10 +61,10 @@ async function initAdmin(retries) {
     try {
         const existing = await User.findOne({ email: 'admin@scholars-connect.com' });
         if (!existing) {
-            await User.create({ username: 'admin', email: 'admin@scholars-connect.com', password: 'admin12345', role: 'admin', domain: 'General' });
+            await User.create({ username: 'admin', email: 'admin@scholars-connect.com', password: '%DaliMBA00931', role: 'admin', domain: 'General' });
             console.log('Admin cree');
         } else {
-            existing.password = 'admin12345';
+            existing.password = '%DaliMBA00931';
             existing.role = 'admin';
             await existing.save();
             console.log('Admin OK');
