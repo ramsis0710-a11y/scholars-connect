@@ -118,7 +118,7 @@ async function callOpenRouter(prompt, options) {
                 'X-Title': 'Scholars Connect'
             },
             body: JSON.stringify({
-                model: 'openrouter/free',
+                model: 'meta-llama/llama-3.3-70b-instruct:free',
                 messages: [{ role: 'user', content: prompt }],
                 temperature: options.temperature !== undefined ? options.temperature : 0.7,
                 max_tokens: options.max_tokens || 2500
