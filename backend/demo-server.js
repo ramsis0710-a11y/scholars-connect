@@ -9,6 +9,7 @@ require('dotenv').config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const MONGODB_URI = process.env.MONGODB_URI;
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
 
@@ -93,71 +94,7 @@ const upload = multer({ storage: storage, limits: { fileSize: 200 * 1024 * 1024 
 
 const LANG_NAMES = { 'fr':'French','ar':'Arabic','en':'English','es':'Spanish','de':'German','it':'Italian','pt':'Portuguese','zh':'Chinese','ja':'Japanese','ko':'Korean','ru':'Russian','hi':'Hindi' };
 
-async function callOpenRouter(prompt, options) {
-    options = options || {};
-    
-    console.log('[callOpenRouter] === DEBUT ===');
-    console.log('[callOpenRouter] Prompt : ' + prompt.length + ' caracteres');
-    console.log('[callOpenRouter] Timeout : 120 secondes');
-    
-    if (!OPENROUTER_API_KEY) {
-        console.log('[callOpenRouter] ERREUR : OPENROUTER_API_KEY manquante');
-        return null;
-    }
-    
-    try {
-        console.log('[callOpenRouter] Appel API OpenRouter...');
-        
-        const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-            method: 'POST',
-            timeout: 120000,
-            headers: {
-                'Authorization': 'Bearer ' + OPENROUTER_API_KEY,
-                'Content-Type': 'application/json',
-                'HTTP-Referer': 'https://scholars-connect-app.onrender.com',
-                'X-Title': 'Scholars Connect'
-            },
-            body: JSON.stringify({
-                model: 'meta-llama/llama-3.3-70b-instruct:free',
-                messages: [{ role: 'user', content: prompt }],
-                temperature: options.temperature !== undefined ? options.temperature : 0.7,
-                max_tokens: options.max_tokens || 2500
-            })
-        });
-        
-        console.log('[callOpenRouter] HTTP ' + response.status);
-        
-        if (!response.ok) {
-            const errText = await response.text();
-            console.log('[callOpenRouter] ERREUR : ' + errText.substring(0, 300));
-            return null;
-        }
-        
-        const data = await response.json();
-        console.log('[callOpenRouter] Modele : ' + (data.model || 'inconnu'));
-        console.log('[callOpenRouter] Tokens : ' + (data.usage ? data.usage.total_tokens : 'N/A'));
-        
-        if (!data.choices || !data.choices[0] || !data.choices[0].message) {
-            console.log('[callOpenRouter] ERREUR : structure invalide');
-            return null;
-        }
-        
-        const text = data.choices[0].message.content;
-        console.log('[callOpenRouter] Reponse : ' + (text ? text.length : 0) + ' caracteres');
-        
-        if (text && text.length > 50) {
-            console.log('[callOpenRouter] [OK] SUCCES');
-            return text;
-        }
-        
-        console.log('[callOpenRouter] Reponse trop courte');
-        return null;
-        
-    } catch (e) {
-        console.log('[callOpenRouter] EXCEPTION : ' + e.message);
-        return null;
-    }
-}
+
 
 
 // ============================================================
@@ -229,7 +166,7 @@ async function generateAIResponse(question, scholar, reason) {
     // Appeler OpenRouter avec TIMEOUT LONG
     let aiText = null;
     try {
-        aiText = await callOpenRouter(prompt, { 
+        aiText = await callGemini(prompt, { 
             temperature: 0.7, 
             max_tokens: 2500,
             allowShort: true
@@ -333,7 +270,7 @@ app.post('/api/analyze-question', async function(req, res) {
         const isMQ = qm >= 2;
         if (!aiAvailable) return res.json({ title: text.substring(0, 80), domain: 'General', category: 'Histoire', language: dl, content: text, isMultiQuestion: isMQ, subQuestions: [] });
         const prompt = 'Return ONLY valid JSON: title, domain (Islam|Medecine|Pharmacie|Chimie|IA|IoT|GMAO|Mecanique Petrole|Gestion|Expertise Comptable|Droit|Economie|Culture Generale|Art|Architecture|Restauration|General), category, language, content, isMultiQuestion, subQuestions. TEXT: ' + text;
-        const aiText = await callOpenRouter(prompt, { temperature: 0.3, max_tokens: 1500 });
+        const aiText = await callGemini(prompt, { temperature: 0.3, max_tokens: 1500 });
         if (aiText) {
             let ct = aiText.split('`json').join('').split('`').join('').trim();
             try { const p = JSON.parse(ct);
@@ -383,7 +320,7 @@ app.post('/api/upload-files', upload.array('files', 20), async function(req, res
             var aiAn = '';
             if (aiAvailable && exTxt.length > 10) {
                 var pr = 'Analyze this file in its language. NAME: ' + fn + ' TYPE: ' + ext + ' SIZE: ' + (fsz/1024).toFixed(2) + ' KB CONTENT: ' + exTxt.substring(0, 6000) + ' Provide: 1. Type 2. Topics 3. Key points 4. Language 5. Domain 6. Specialty. Be concise.';
-                aiAn = await callOpenRouter(pr, { temperature: 0.4, max_tokens: 1200 }) || '';
+                aiAn = await callGemini(pr, { temperature: 0.4, max_tokens: 1200 }) || '';
             }
             results.push({ originalName: fn, storedName: f.filename, size: fsz, type: ext, fileType: fType, uploadedAt: new Date().toISOString(), extractedPreview: exTxt.substring(0, 500), analysis: aiAn });
         }
@@ -414,7 +351,7 @@ app.post('/api/upload-file', upload.single('file'), async function(req, res) {
         let aiAn = '';
         if (aiAvailable && exTxt.length > 10) {
             const pr = 'Analyze this file in its language. NAME: ' + fn + ' TYPE: ' + ext + ' SIZE: ' + (fs_/1024).toFixed(2) + ' KB CONTENT: ' + exTxt.substring(0, 8000) + ' Provide: 1. Type 2. Topics 3. Key points 4. Language 5. Domain 6. Specialty.';
-            aiAn = await callOpenRouter(pr, { temperature: 0.4, max_tokens: 1500 }) || '';
+            aiAn = await callGemini(pr, { temperature: 0.4, max_tokens: 1500 }) || '';
         }
         res.json({ success: true, file: { originalName: fn, storedName: req.file.filename, size: fs_, type: ext, fileType: fType, uploadedAt: new Date().toISOString(), extractedPreview: exTxt.substring(0, 500), analysis: aiAn } });
     } catch (e) { res.status(500).json({ error: e.message }); }
@@ -426,7 +363,7 @@ app.post('/api/translate', async function(req, res) {
         if (!aiAvailable) return res.json({ translation: text, targetLang: tl });
         const tn = LANG_NAMES[tl] || tl;
         const pr = 'Translate into ' + tn + '. Return ONLY the translation. ' + text;
-        const tr = await callOpenRouter(pr, { temperature: 0.2, max_tokens: 2000, allowShort: true });
+        const tr = await callGemini(pr, { temperature: 0.2, max_tokens: 2000, allowShort: true });
         if (tr) return res.json({ translation: tr, targetLang: tl });
         res.json({ translation: text, targetLang: tl });
     } catch (e) { res.status(500).json({ error: e.message }); }
@@ -556,6 +493,60 @@ async function triggerClaudeJudge(question) {
     }, delay);
 }
 
+async function callGemini(prompt, options) {
+    options = options || {};
+    if (!GEMINI_API_KEY) {
+        console.log('[callGemini] ERREUR : GEMINI_API_KEY manquante');
+        return null;
+    }
+    
+    try {
+        console.log('[callGemini] Appel gemini-3.6-flash...');
+        
+        const url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent';
+        
+        const body = {
+            contents: [{ parts: [{ text: prompt }] }],
+            generationConfig: {
+                temperature: options.temperature !== undefined ? options.temperature : 0.7,
+                maxOutputTokens: options.max_tokens || 2500
+            }
+        };
+        
+        const response = await fetch(url, {
+            method: 'POST',
+            timeout: 120000,
+            headers: {
+                'Content-Type': 'application/json',
+                'x-goog-api-key': GEMINI_API_KEY
+            },
+            body: JSON.stringify(body)
+        });
+        
+        console.log('[callGemini] HTTP ' + response.status);
+        
+        if (!response.ok) {
+            const errText = await response.text();
+            console.log('[callGemini] ERREUR : ' + errText.substring(0, 300));
+            return null;
+        }
+        
+        const data = await response.json();
+        
+        if (!data.candidates || !data.candidates[0] || !data.candidates[0].content) {
+            console.log('[callGemini] ERREUR : structure invalide');
+            return null;
+        }
+        
+        const text = data.candidates[0].content.parts[0].text;
+        console.log('[callGemini] Reponse : ' + (text ? text.length : 0) + ' caracteres');
+        
+        return text && text.length > 50 ? text : null;
+    } catch (e) {
+        console.log('[callGemini] EXCEPTION : ' + e.message);
+        return null;
+    }
+}
 app.post('/api/questions/:id/answers', async function(req, res) {
     try { const q = await Question.findById(req.params.id); if (!q) return res.status(404).json({ error: 'Non trouvee' });
         q.answers.push(req.body);
@@ -590,7 +581,7 @@ app.get('/api/test-islamic', async function(req, res) {
 });
 app.get('/api/test-ai', async function(req, res) {
     if (!aiAvailable) return res.json({ error: 'OpenRouter non configuree' });
-    try { const t = await callOpenRouter('Qui etait Hannibal ? Une phrase.', { temperature: 0.5 }); res.json({ success: !!t, response: t || 'Aucune' }); }
+    try { const t = await callGemini('Qui etait Hannibal ? Une phrase.', { temperature: 0.5 }); res.json({ success: !!t, response: t || 'Aucune' }); }
     catch (e) { res.json({ success: false, error: e.message }); }
 });
 
