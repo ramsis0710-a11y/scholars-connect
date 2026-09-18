@@ -460,6 +460,12 @@ app.post('/api/questions', async function(req, res) {
 // ============================================================
 // TRIGGER CLAUDE JUDGE - Version definitive robuste
 // ============================================================
+
+
+
+// ============================================================
+// TRIGGER CLAUDE JUDGE - Version PROPRE (sans doublon)
+// ============================================================
 async function triggerClaudeJudge(question) {
     console.log('');
     console.log('========================================');
@@ -467,6 +473,7 @@ async function triggerClaudeJudge(question) {
     console.log('  Question : ' + (question.title || 'sans titre'));
     console.log('  ID : ' + question._id);
     
+    // Verification du scholar
     if (!question.scholar) {
         console.log('  [SKIP] Pas de scholar assigne');
         return;
@@ -475,8 +482,9 @@ async function triggerClaudeJudge(question) {
     const scholar = question.scholar;
     const hasLiterature = scholar.literature && scholar.literature.length > 0;
     
-    // Delai : 2 secondes si scholar a de la litterature, sinon 1 seconde
+    // UN SEUL delay (pas de doublon)
     const delay = hasLiterature ? 2000 : 1000;
+    
     console.log('  Scholar : ' + scholar.name);
     console.log('  Litterature : ' + (hasLiterature ? 'Oui' : 'Non'));
     console.log('  Delai avant IA : ' + delay + 'ms');
