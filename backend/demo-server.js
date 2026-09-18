@@ -316,20 +316,96 @@ app.post('/api/questions', async function(req, res) {
     catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+
+
+// ============================================================
+// TRIGGER CLAUDE JUDGE - Version definitive robuste
+// ============================================================
 async function triggerClaudeJudge(question) {
-    if (!question.scholar) return;
+    console.log('');
+    console.log('========================================');
+    console.log('[TRIGGER] Claude Judge declenche');
+    console.log('  Question : ' + (question.title || 'sans titre'));
+    console.log('  ID : ' + question._id);
+    
+    if (!question.scholar) {
+        console.log('  [SKIP] Pas de scholar assigne');
+        return;
+    }
+    
     const scholar = question.scholar;
-    const hasLit = scholar.literature && scholar.literature.length > 0;
-    const delay = hasLit ? 30000 : 3000;
+    const hasLiterature = scholar.literature && scholar.literature.length > 0;
+    
+    // Delai : 2 secondes si scholar a de la litterature, sinon 1 seconde
+    const delay = hasLiterature ? 2000 : 1000;
+    console.log('  Scholar : ' + scholar.name);
+    console.log('  Litterature : ' + (hasLiterature ? 'Oui' : 'Non'));
+    console.log('  Delai avant IA : ' + delay + 'ms');
+    console.log('========================================');
+    
     setTimeout(async function() {
-        try { const q = await Question.findById(question._id); if (!q) return;
-            if (hasLit) { let r = false; for (let i = 0; i < q.answers.length; i++) { if (q.answers[i].isScholarResponse) { r = true; break; } } if (r) return; }
-            const reason = hasLit ? 'timeout_5min' : 'no_literature';
-            const ans = await generateAIResponse(q, scholar, reason);
-            q.answers.push({ username: 'Juge Claude', userId: 0, content: ans, language: q.language || 'fr', date: new Date().toLocaleDateString('fr-FR'), isClaude: true, claudeReason: reason });
-            q.status = 'claude_answered'; await q.save();
-            console.log('Claude: ' + q.title);
-        } catch (e) { console.error('trigger: ' + e.message); }
+        console.log('');
+        console.log('[TIMEOUT] Delai atteint - debut de la generation IA');
+        
+        try {
+            // 1. Recuperer la question
+            const q = await Question.findById(question._id);
+            if (!q) {
+                console.log('  [ERREUR] Question introuvable');
+                return;
+            }
+            
+            // 2. Verifier si un scholar a deja repondu
+            if (hasLiterature) {
+                let responded = false;
+                for (let i = 0; i < q.answers.length; i++) {
+                    if (q.answers[i].isScholarResponse) { responded = true; break; }
+                }
+                if (responded) {
+                    console.log('  [SKIP] Scholar a deja repondu');
+                    return;
+                }
+            }
+            
+            // 3. Determiner la raison
+            const reason = hasLiterature ? 'timeout_5min' : 'no_literature';
+            console.log('  [GENERATION] Appel de generateAIResponse...');
+            
+            // 4. Generer la reponse IA
+            let answer;
+            try {
+                answer = await generateAIResponse(q, scholar, reason);
+                console.log('  [OK] Reponse generee (' + (answer ? answer.length : 0) + ' caracteres)');
+            } catch (err) {
+                console.error('  [ERREUR] generateAIResponse : ' + err.message);
+                answer = 'Reponse temporairement indisponible. Le scholar ' + scholar.name + ' pourra repondre ulterieurement.';
+            }
+            
+            if (!answer || answer.length < 10) {
+                console.log('  [WARN] Reponse trop courte - utilisation du fallback');
+                answer = 'Reponse en preparation. Scholar : ' + scholar.name;
+            }
+            
+            // 5. Sauvegarder la reponse
+            q.answers.push({
+                username: 'Juge Claude',
+                userId: 0,
+                content: answer,
+                language: q.language || 'fr',
+                date: new Date().toLocaleDateString('fr-FR'),
+                isClaude: true,
+                claudeReason: reason
+            });
+            q.status = 'claude_answered';
+            await q.save();
+            
+            console.log('  [OK] Reponse sauvegardee en base');
+            console.log('  [SUCCESS] Claude a repondu a : ' + q.title);
+            console.log('========================================');
+        } catch (e) {
+            console.error('  [ERREUR CRITIQUE] triggerClaudeJudge : ' + e.message);
+            console.error('  Stack : ' + e.stack);
+        }
     }, delay);
 }
 
