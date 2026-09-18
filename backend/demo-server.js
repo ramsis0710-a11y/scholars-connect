@@ -161,44 +161,75 @@ function isIslamicQuestion(question) {
 }
 
 async function generateAIResponse(question, scholar, reason) {
-    console.log('[generateAIResponse] Debut pour : ' + (question.title || 'sans titre'));
+    console.log('');
+    console.log('[IA] ========================================');
+    console.log('[IA] Debut generation pour : ' + (question.title || 'sans titre'));
+    console.log('[IA] Domaine : ' + (question.domain || 'N/A'));
+    console.log('[IA] Langue : ' + (question.language || 'fr'));
     
     const qLang = question.language || 'fr';
-    const langName = LANG_NAMES[qLang] || 'French';
+    const langNames = { fr: 'French', ar: 'Arabic', en: 'English', es: 'Spanish', de: 'German', it: 'Italian' };
+    const langName = langNames[qLang] || 'French';
     
-    let prompt = 'You are Juge Claude, an expert academic judge. Respond ONLY in ' + langName + '.\n\n';
-    prompt += 'DOMAIN: ' + (question.domain || 'General') + '\n';
-    prompt += 'SPECIALTY: ' + (question.category || 'General') + '\n';
-    prompt += 'QUESTION: ' + (question.title || '') + '\n';
-    prompt += 'DETAILS: ' + (question.content || '') + '\n\n';
+    // Verifier que la cle API est disponible
+    if (!OPENROUTER_API_KEY) {
+        console.log('[IA] ERREUR : OPENROUTER_API_KEY non configuree');
+        return generateLocalFallback(question, scholar, reason);
+    }
+    
+    console.log('[IA] Cle API : ' + OPENROUTER_API_KEY.substring(0, 15) + '...');
+    
+    // Construire un prompt COMPLET et INTELLIGENT
+    let prompt = '';
+    prompt += 'You are "Juge Claude", an expert academic judge with deep knowledge.\n';
+    prompt += 'CRITICAL: Respond ONLY in ' + langName + '.\n\n';
+    prompt += '=== CONTEXTE ===\n';
+    prompt += 'Domain: ' + (question.domain || 'General') + '\n';
+    prompt += 'Specialty: ' + (question.category || 'General') + '\n';
+    prompt += 'Scholar assigned: ' + (scholar.name || 'Expert') + '\n\n';
+    prompt += '=== QUESTION ===\n';
+    prompt += (question.title || '') + '\n';
+    prompt += (question.content || '') + '\n\n';
     
     if (question.attachedFile && question.attachedFile.analysis) {
-        prompt += 'ATTACHED DOCUMENT: ' + question.attachedFile.analysis.substring(0, 3000) + '\n\n';
+        prompt += '=== DOCUMENT ATTACHE ===\n';
+        prompt += question.attachedFile.analysis.substring(0, 2000) + '\n\n';
     }
     
-    prompt += 'Provide a COMPLETE answer in ' + langName + '.\n';
-    prompt += 'Structure: DEFINITION, DETAILED ANSWER, KEY POINTS, SOURCES';
+    prompt += '=== INSTRUCTIONS ===\n';
+    prompt += 'Provide a COMPLETE, DETAILED, and EXPERT answer in ' + langName + '.\n';
+    prompt += 'Structure your response as follows:\n';
+    prompt += '1. DEFINITION - Explain the key concepts\n';
+    prompt += '2. DETAILED ANSWER - Give a thorough explanation (3-5 paragraphs)\n';
+    prompt += '3. KEY POINTS - List important facts as bullet points\n';
+    prompt += '4. APPLICATIONS - Give practical examples if applicable\n';
+    prompt += '5. SOURCES - Mention authoritative references\n\n';
+    prompt += 'Be SPECIFIC and INFORMATIVE. Do NOT be vague.\n';
+    prompt += 'Respond in ' + langName + ' ONLY.\n';
     
-    // Tenter OpenRouter avec timeout strict
-    if (aiAvailable) {
-        try {
-            console.log('[generateAIResponse] Appel OpenRouter...');
-            const text = await callOpenRouter(prompt, { temperature: 0.7, max_tokens: 2500 });
-            if (text && text.length > 30) {
-                console.log('[generateAIResponse] [OK] Reponse OpenRouter : ' + text.length + ' caracteres');
-                return buildResponse(text, question, scholar, reason);
-            } else {
-                console.log('[generateAIResponse] Reponse trop courte - fallback');
-            }
-        } catch (e) {
-            console.log('[generateAIResponse] Erreur OpenRouter : ' + e.message);
-        }
-    } else {
-        console.log('[generateAIResponse] OpenRouter non disponible - fallback');
+    console.log('[IA] Prompt construit (' + prompt.length + ' caracteres)');
+    console.log('[IA] Appel callOpenRouter...');
+    
+    // Appeler OpenRouter avec TIMEOUT LONG
+    let aiText = null;
+    try {
+        aiText = await callOpenRouter(prompt, { 
+            temperature: 0.7, 
+            max_tokens: 2500,
+            allowShort: true
+        });
+    } catch (e) {
+        console.log('[IA] Erreur callOpenRouter : ' + e.message);
     }
     
-    // FALLBACK : reponse locale garantie
-    console.log('[generateAIResponse] Utilisation du fallback local');
+    if (aiText && aiText.length > 50) {
+        console.log('[IA] [OK] Reponse OpenRouter : ' + aiText.length + ' caracteres');
+        console.log('[IA] ========================================');
+        return buildResponse(aiText, question, scholar, reason);
+    }
+    
+    console.log('[IA] Echec OpenRouter - utilisation du fallback');
+    console.log('[IA] ========================================');
     return generateLocalFallback(question, scholar, reason);
 }
 
