@@ -95,52 +95,67 @@ const LANG_NAMES = { 'fr':'French','ar':'Arabic','en':'English','es':'Spanish','
 
 async function callOpenRouter(prompt, options) {
     options = options || {};
-    const models = [
-        'openrouter/free',
-        'deepseek/deepseek-chat-v3.1:free',
-        'meta-llama/llama-3.3-70b-instruct:free'
-    ];
     
-    for (let i = 0; i < models.length; i++) {
-        const model = models[i];
-        try {
-            console.log('[callOpenRouter] Tentative : ' + model);
-            
-            const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-                method: 'POST',
-                timeout: 20000,
-                headers: {
-                    'Authorization': 'Bearer ' + OPENROUTER_API_KEY,
-                    'Content-Type': 'application/json',
-                    'HTTP-Referer': 'https://scholars-connect-app.onrender.com',
-                    'X-Title': 'Scholars Connect'
-                },
-                body: JSON.stringify({
-                    model: model,
-                    messages: [{ role: 'user', content: prompt }],
-                    temperature: options.temperature !== undefined ? options.temperature : 0.7,
-                    max_tokens: options.max_tokens || 2500
-                })
-            });
-            
-            if (response.ok) {
-                const data = await response.json();
-                const text = data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content;
-                if (text && text.length > 30) {
-                    console.log('[callOpenRouter] [OK] ' + model + ' : ' + text.length + ' car.');
-                    return text;
-                } else {
-                    console.log('[callOpenRouter] Reponse trop courte');
-                }
-            } else {
-                console.log('[callOpenRouter] Erreur HTTP ' + response.status);
-            }
-        } catch (e) {
-            console.log('[callOpenRouter] Erreur : ' + e.message);
-        }
+    console.log('[callOpenRouter] === DEBUT ===');
+    console.log('[callOpenRouter] Prompt : ' + prompt.length + ' caracteres');
+    
+    if (!OPENROUTER_API_KEY) {
+        console.log('[callOpenRouter] ERREUR : OPENROUTER_API_KEY manquante');
+        return null;
     }
-    console.log('[callOpenRouter] Tous les modeles ont echoue');
-    return null;
+    
+    try {
+        console.log('[callOpenRouter] Appel API OpenRouter...');
+        
+        const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+            method: 'POST',
+            timeout: 60000,
+            headers: {
+                'Authorization': 'Bearer ' + OPENROUTER_API_KEY,
+                'Content-Type': 'application/json',
+                'HTTP-Referer': 'https://scholars-connect-app.onrender.com',
+                'X-Title': 'Scholars Connect'
+            },
+            body: JSON.stringify({
+                model: 'openrouter/free',
+                messages: [{ role: 'user', content: prompt }],
+                temperature: options.temperature !== undefined ? options.temperature : 0.7,
+                max_tokens: options.max_tokens || 2500
+            })
+        });
+        
+        console.log('[callOpenRouter] HTTP ' + response.status);
+        
+        if (!response.ok) {
+            const errText = await response.text();
+            console.log('[callOpenRouter] ERREUR : ' + errText.substring(0, 300));
+            return null;
+        }
+        
+        const data = await response.json();
+        console.log('[callOpenRouter] Modele : ' + (data.model || 'inconnu'));
+        console.log('[callOpenRouter] Tokens : ' + (data.usage ? data.usage.total_tokens : 'N/A'));
+        
+        if (!data.choices || !data.choices[0] || !data.choices[0].message) {
+            console.log('[callOpenRouter] ERREUR : structure invalide');
+            return null;
+        }
+        
+        const text = data.choices[0].message.content;
+        console.log('[callOpenRouter] Reponse : ' + (text ? text.length : 0) + ' caracteres');
+        
+        if (text && text.length > 50) {
+            console.log('[callOpenRouter] [OK] SUCCES');
+            return text;
+        }
+        
+        console.log('[callOpenRouter] Reponse trop courte');
+        return null;
+        
+    } catch (e) {
+        console.log('[callOpenRouter] EXCEPTION : ' + e.message);
+        return null;
+    }
 }
 
 
