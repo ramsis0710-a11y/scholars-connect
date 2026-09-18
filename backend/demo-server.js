@@ -96,23 +96,23 @@ const LANG_NAMES = { 'fr':'French','ar':'Arabic','en':'English','es':'Spanish','
 async function callGemini(prompt, options) {
     options = options || {};
     
-    console.log('[callOpenRouter] === DEBUT ===');
-    console.log('[callOpenRouter] Prompt : ' + prompt.length + ' caracteres');
-    console.log('[callOpenRouter] Timeout : 120 secondes');
+    console.log('[callGemini] === DEBUT ===');
+    console.log('[callGemini] Prompt : ' + prompt.length + ' caracteres');
+    console.log('[callGemini] Timeout : 120 secondes');
     
     if (!GEMINI_API_KEY) {
-        console.log('[callOpenRouter] ERREUR : OPENROUTER_API_KEY manquante');
+        console.log('[callGemini] ERREUR : GEMINI_API_KEY manquante');
         return null;
     }
     
     try {
-        console.log('[callOpenRouter] Appel API OpenRouter...');
+        console.log('[callGemini] Appel API OpenRouter...');
         
         const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
             method: 'POST',
             timeout: 120000,
             headers: {
-                'Authorization': 'Bearer ' + OPENROUTER_API_KEY,
+                'Authorization': 'Bearer ' + GEMINI_API_KEY,
                 'Content-Type': 'application/json',
                 'HTTP-Referer': 'https://scholars-connect-app.onrender.com',
                 'X-Title': 'Scholars Connect'
@@ -125,36 +125,36 @@ async function callGemini(prompt, options) {
             })
         });
         
-        console.log('[callOpenRouter] HTTP ' + response.status);
+        console.log('[callGemini] HTTP ' + response.status);
         
         if (!response.ok) {
             const errText = await response.text();
-            console.log('[callOpenRouter] ERREUR : ' + errText.substring(0, 300));
+            console.log('[callGemini] ERREUR : ' + errText.substring(0, 300));
             return null;
         }
         
         const data = await response.json();
-        console.log('[callOpenRouter] Modele : ' + (data.model || 'inconnu'));
-        console.log('[callOpenRouter] Tokens : ' + (data.usage ? data.usage.total_tokens : 'N/A'));
+        console.log('[callGemini] Modele : ' + (data.model || 'inconnu'));
+        console.log('[callGemini] Tokens : ' + (data.usage ? data.usage.total_tokens : 'N/A'));
         
         if (!data.choices || !data.choices[0] || !data.choices[0].message) {
-            console.log('[callOpenRouter] ERREUR : structure invalide');
+            console.log('[callGemini] ERREUR : structure invalide');
             return null;
         }
         
         const text = data.choices[0].message.content;
-        console.log('[callOpenRouter] Reponse : ' + (text ? text.length : 0) + ' caracteres');
+        console.log('[callGemini] Reponse : ' + (text ? text.length : 0) + ' caracteres');
         
         if (text && text.length > 50) {
-            console.log('[callOpenRouter] [OK] SUCCES');
+            console.log('[callGemini] [OK] SUCCES');
             return text;
         }
         
-        console.log('[callOpenRouter] Reponse trop courte');
+        console.log('[callGemini] Reponse trop courte');
         return null;
         
     } catch (e) {
-        console.log('[callOpenRouter] EXCEPTION : ' + e.message);
+        console.log('[callGemini] EXCEPTION : ' + e.message);
         return null;
     }
 }
@@ -189,7 +189,7 @@ async function generateAIResponse(question, scholar, reason) {
     
     // Verifier que la cle API est disponible
     if (!GEMINI_API_KEY) {
-        console.log('[IA] ERREUR : OPENROUTER_API_KEY non configuree');
+        console.log('[IA] ERREUR : GEMINI_API_KEY non configuree');
         return generateLocalFallback(question, scholar, reason);
     }
     
@@ -224,7 +224,7 @@ async function generateAIResponse(question, scholar, reason) {
     prompt += 'Respond in ' + langName + ' ONLY.\n';
     
     console.log('[IA] Prompt construit (' + prompt.length + ' caracteres)');
-    console.log('[IA] Appel callOpenRouter...');
+    console.log('[IA] Appel callGemini...');
     
     // Appeler OpenRouter avec TIMEOUT LONG
     let aiText = null;
@@ -235,7 +235,7 @@ async function generateAIResponse(question, scholar, reason) {
             allowShort: true
         });
     } catch (e) {
-        console.log('[IA] Erreur callOpenRouter : ' + e.message);
+        console.log('[IA] Erreur callGemini : ' + e.message);
     }
     
     if (aiText && aiText.length > 50) {
