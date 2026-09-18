@@ -106,11 +106,9 @@ async function callOpenRouter(prompt, options) {
         try {
             console.log('[callOpenRouter] Tentative : ' + model);
             
-            const controller = new AbortController();
-            const timeoutId = setTimeout(function() { controller.abort(); }, 25000);
-            
             const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
                 method: 'POST',
+                timeout: 20000,
                 headers: {
                     'Authorization': 'Bearer ' + OPENROUTER_API_KEY,
                     'Content-Type': 'application/json',
@@ -122,11 +120,8 @@ async function callOpenRouter(prompt, options) {
                     messages: [{ role: 'user', content: prompt }],
                     temperature: options.temperature !== undefined ? options.temperature : 0.7,
                     max_tokens: options.max_tokens || 2500
-                }),
-                signal: controller.signal
+                })
             });
-            
-            clearTimeout(timeoutId);
             
             if (response.ok) {
                 const data = await response.json();
@@ -134,12 +129,14 @@ async function callOpenRouter(prompt, options) {
                 if (text && text.length > 30) {
                     console.log('[callOpenRouter] [OK] ' + model + ' : ' + text.length + ' car.');
                     return text;
+                } else {
+                    console.log('[callOpenRouter] Reponse trop courte');
                 }
             } else {
-                console.log('[callOpenRouter] Erreur ' + response.status + ' : ' + model);
+                console.log('[callOpenRouter] Erreur HTTP ' + response.status);
             }
         } catch (e) {
-            console.log('[callOpenRouter] Exception ' + model + ' : ' + e.message);
+            console.log('[callOpenRouter] Erreur : ' + e.message);
         }
     }
     console.log('[callOpenRouter] Tous les modeles ont echoue');
