@@ -9,6 +9,7 @@ require('dotenv').config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const MONGODB_URI = process.env.MONGODB_URI;
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
@@ -93,71 +94,7 @@ const upload = multer({ storage: storage, limits: { fileSize: 200 * 1024 * 1024 
 
 const LANG_NAMES = { 'fr':'French','ar':'Arabic','en':'English','es':'Spanish','de':'German','it':'Italian','pt':'Portuguese','zh':'Chinese','ja':'Japanese','ko':'Korean','ru':'Russian','hi':'Hindi' };
 
-async function callGemini(prompt, options) {
-    options = options || {};
-    
-    console.log('[callOpenRouter] === DEBUT ===');
-    console.log('[callOpenRouter] Prompt : ' + prompt.length + ' caracteres');
-    console.log('[callOpenRouter] Timeout : 120 secondes');
-    
-    if (!GEMINI_API_KEY) {
-        console.log('[callOpenRouter] ERREUR : OPENROUTER_API_KEY manquante');
-        return null;
-    }
-    
-    try {
-        console.log('[callOpenRouter] Appel API OpenRouter...');
-        
-        const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-            method: 'POST',
-            timeout: 120000,
-            headers: {
-                'Authorization': 'Bearer ' + OPENROUTER_API_KEY,
-                'Content-Type': 'application/json',
-                'HTTP-Referer': 'https://scholars-connect-app.onrender.com',
-                'X-Title': 'Scholars Connect'
-            },
-            body: JSON.stringify({
-                model: 'meta-llama/llama-3.3-70b-instruct:free',
-                messages: [{ role: 'user', content: prompt }],
-                temperature: options.temperature !== undefined ? options.temperature : 0.7,
-                max_tokens: options.max_tokens || 2500
-            })
-        });
-        
-        console.log('[callOpenRouter] HTTP ' + response.status);
-        
-        if (!response.ok) {
-            const errText = await response.text();
-            console.log('[callOpenRouter] ERREUR : ' + errText.substring(0, 300));
-            return null;
-        }
-        
-        const data = await response.json();
-        console.log('[callOpenRouter] Modele : ' + (data.model || 'inconnu'));
-        console.log('[callOpenRouter] Tokens : ' + (data.usage ? data.usage.total_tokens : 'N/A'));
-        
-        if (!data.choices || !data.choices[0] || !data.choices[0].message) {
-            console.log('[callOpenRouter] ERREUR : structure invalide');
-            return null;
-        }
-        
-        const text = data.choices[0].message.content;
-        console.log('[callOpenRouter] Reponse : ' + (text ? text.length : 0) + ' caracteres');
-        
-        if (text && text.length > 50) {
-            console.log('[callOpenRouter] [OK] SUCCES');
-            return text;
-        }
-        
-        console.log('[callOpenRouter] Reponse trop courte');
-        return null;
-        
-    } catch (e) {
-        console.log('[callOpenRouter] EXCEPTION : ' + e.message);
-        return null;
-    }
-}
+
 
 
 // ============================================================
@@ -556,6 +493,60 @@ async function triggerClaudeJudge(question) {
     }, delay);
 }
 
+async function callGemini(prompt, options) {
+    options = options || {};
+    if (!GEMINI_API_KEY) {
+        console.log('[callGemini] ERREUR : GEMINI_API_KEY manquante');
+        return null;
+    }
+    
+    try {
+        console.log('[callGemini] Appel gemini-3.6-flash...');
+        
+        const url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent';
+        
+        const body = {
+            contents: [{ parts: [{ text: prompt }] }],
+            generationConfig: {
+                temperature: options.temperature !== undefined ? options.temperature : 0.7,
+                maxOutputTokens: options.max_tokens || 2500
+            }
+        };
+        
+        const response = await fetch(url, {
+            method: 'POST',
+            timeout: 120000,
+            headers: {
+                'Content-Type': 'application/json',
+                'x-goog-api-key': GEMINI_API_KEY
+            },
+            body: JSON.stringify(body)
+        });
+        
+        console.log('[callGemini] HTTP ' + response.status);
+        
+        if (!response.ok) {
+            const errText = await response.text();
+            console.log('[callGemini] ERREUR : ' + errText.substring(0, 300));
+            return null;
+        }
+        
+        const data = await response.json();
+        
+        if (!data.candidates || !data.candidates[0] || !data.candidates[0].content) {
+            console.log('[callGemini] ERREUR : structure invalide');
+            return null;
+        }
+        
+        const text = data.candidates[0].content.parts[0].text;
+        console.log('[callGemini] Reponse : ' + (text ? text.length : 0) + ' caracteres');
+        
+        return text && text.length > 50 ? text : null;
+    } catch (e) {
+        console.log('[callGemini] EXCEPTION : ' + e.message);
+        return null;
+    }
+}
 app.post('/api/questions/:id/answers', async function(req, res) {
     try { const q = await Question.findById(req.params.id); if (!q) return res.status(404).json({ error: 'Non trouvee' });
         q.answers.push(req.body);
