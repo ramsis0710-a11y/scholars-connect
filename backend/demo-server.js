@@ -11,15 +11,18 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const MONGODB_URI = process.env.MONGODB_URI;
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-
-if (!MONGODB_URI) { console.error('MONGODB_URI non definie'); process.exit(1); }
-
+const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-flash-latest';
 let aiAvailable = false;
+console.log('[INIT] GEMINI_API_KEY present : ' + (GEMINI_API_KEY ? 'OUI' : 'NON'));
+if (GEMINI_API_KEY) {
+    console.log('[INIT] Longueur cle : ' + GEMINI_API_KEY.length);
+}
+console.log('[INIT] GEMINI_MODEL : ' + GEMINI_MODEL);
 if (GEMINI_API_KEY && GEMINI_API_KEY.length > 20) {
     aiAvailable = true;
-    console.log('Gemini configure (cle ' + GEMINI_API_KEY.substring(0, 15) + '...)');
+    console.log('[INIT] Gemini configure (cle ' + GEMINI_API_KEY.substring(0, 15) + '...)');
 } else {
-    console.log('GEMINI_API_KEY absente ou invalide');
+    console.log('[INIT] GEMINI_API_KEY absente ou invalide');
 }
 
 mongoose.connect(MONGODB_URI, { serverSelectionTimeoutMS: 30000, socketTimeoutMS: 45000, family: 4 })
@@ -106,7 +109,7 @@ async function callGemini(prompt, options) {
     try {
         console.log('[callGemini] Appel API Gemini 3.6 Flash...');
         
-        const url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent';
+        const url = 'https://generativelanguage.googleapis.com/v1beta/models/' + GEMINI_MODEL + ':generateContent';
         
         const body = {
             contents: [{
