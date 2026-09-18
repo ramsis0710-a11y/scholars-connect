@@ -361,8 +361,7 @@ var scholarsData = [
     { id: 48, name: 'Dr. Isabelle Art', domain: 'Art', expertise: 'Peinture', languages: ['fr','en'], rating: 4.8, literature: ["Histoire de l'Art"] },
     { id: 51, name: 'Dr. Pierre Architecte', domain: 'Architecture', expertise: 'Architecture moderne', languages: ['fr','en'], rating: 4.9, literature: ['Le Corbusier'] },
     { id: 54, name: 'Dr. Amira Cuisine', domain: 'Restauration', expertise: 'Gastronomie française', languages: ['fr','en'], rating: 4.9, literature: ['Escoffier'] },
-    { id: 57, name: 'Dr. Amira Math G', domain: 'Général', expertise: 'Mathématiques', languages: ['fr','en'], rating: 4.9, literature: ['Stewart'] }
-];
+    ];
 
 var categoriesByDomain = {
     'Islam': ['Fiqh (Jurisprudence)','Aqida (Croyance)','Hadith (Prophétique)','Tafsir (Exégèse)','Sira (Biographie)','Soufisme (Spiritualité)'],
@@ -377,7 +376,10 @@ var categoriesByDomain = {
     'Expertise Comptable': ['Comptabilité générale','Audit financier','Fiscalité'],
     'Droit': ['Droit des affaires','Droit international','Droit pénal'],
     'Économie': ['Macroéconomie','Microéconomie','Économie internationale'],
-    'Culture Générale': ['Histoire','Philosophie','Littérature'],
+'Mathématiques': ['Algèbre', 'Analyse', 'Géométrie', 'Probabilités et Statistiques', 'Mathématiques appliquées'],
+    'Physique': ['Mécanique', 'Électromagnétisme', 'Thermodynamique', 'Physique quantique', 'Relativité'],
+    'Histoire': ['Histoire ancienne', 'Histoire médiévale', 'Histoire moderne', 'Histoire contemporaine', 'Histoire islamique'],
+    'Culture Générale': ['Philosophie', 'Littérature', 'Arts', 'Civilisations', 'Géographie'],
     'Art': ['Peinture','Musicologie','Cinéma'],
     'Architecture': ['Architecture moderne','Urbanisme','Patrimoine'],
     'Restauration': ['Gastronomie française','Pâtisserie','Gestion restauration'],
@@ -513,7 +515,9 @@ function speakAnswer(btn) {
     }
 }
 
-function speakText(text, language) {
+function speakText(text, language, domain) {
+    // Detection du domaine islamique pour voix masculine grave
+    var isIslamicDomain = (domain === 'Islam' || domain === 'islam');
     if (!('speechSynthesis' in window)) { alert('Synthese vocale non supportee'); return; }
     window.speechSynthesis.cancel();
     var detectedLang = language;
