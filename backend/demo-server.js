@@ -98,6 +98,7 @@ async function callOpenRouter(prompt, options) {
     
     console.log('[callOpenRouter] === DEBUT ===');
     console.log('[callOpenRouter] Prompt : ' + prompt.length + ' caracteres');
+    console.log('[callOpenRouter] Timeout : 120 secondes');
     
     if (!OPENROUTER_API_KEY) {
         console.log('[callOpenRouter] ERREUR : OPENROUTER_API_KEY manquante');
@@ -109,7 +110,7 @@ async function callOpenRouter(prompt, options) {
         
         const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
             method: 'POST',
-            timeout: 60000,
+            timeout: 120000,
             headers: {
                 'Authorization': 'Bearer ' + OPENROUTER_API_KEY,
                 'Content-Type': 'application/json',
