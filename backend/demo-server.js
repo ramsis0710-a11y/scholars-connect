@@ -106,7 +106,7 @@ async function callGemini(prompt, options) {
     try {
         console.log('[callGemini] Appel API Gemini 3.6 Flash...');
         
-        const url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent';
+        const url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent';
         
         const body = {
             contents: [{
