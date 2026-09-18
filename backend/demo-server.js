@@ -95,23 +95,54 @@ const LANG_NAMES = { 'fr':'French','ar':'Arabic','en':'English','es':'Spanish','
 
 async function callOpenRouter(prompt, options) {
     options = options || {};
-    const models = ['deepseek/deepseek-chat-v3.1:free','meta-llama/llama-3.3-70b-instruct:free','qwen/qwen3-235b-a22b:free','openrouter/free'];
+    const models = [
+        'openrouter/free',
+        'deepseek/deepseek-chat-v3.1:free',
+        'meta-llama/llama-3.3-70b-instruct:free'
+    ];
+    
     for (let i = 0; i < models.length; i++) {
         const model = models[i];
         try {
+            console.log('[callOpenRouter] Tentative : ' + model);
+            
+            const controller = new AbortController();
+            const timeoutId = setTimeout(function() { controller.abort(); }, 25000);
+            
             const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
                 method: 'POST',
-                headers: { 'Authorization': 'Bearer ' + OPENROUTER_API_KEY, 'Content-Type': 'application/json', 'HTTP-Referer': 'https://scholars-connect-app.onrender.com', 'X-Title': 'Scholars Connect' },
-                body: JSON.stringify({ model: model, messages: [{ role: 'user', content: prompt }], temperature: options.temperature !== undefined ? options.temperature : 0.7, max_tokens: options.max_tokens || 2500 })
+                headers: {
+                    'Authorization': 'Bearer ' + OPENROUTER_API_KEY,
+                    'Content-Type': 'application/json',
+                    'HTTP-Referer': 'https://scholars-connect-app.onrender.com',
+                    'X-Title': 'Scholars Connect'
+                },
+                body: JSON.stringify({
+                    model: model,
+                    messages: [{ role: 'user', content: prompt }],
+                    temperature: options.temperature !== undefined ? options.temperature : 0.7,
+                    max_tokens: options.max_tokens || 2500
+                }),
+                signal: controller.signal
             });
+            
+            clearTimeout(timeoutId);
+            
             if (response.ok) {
                 const data = await response.json();
                 const text = data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content;
-                if (text && text.length > 30) { console.log('OK: ' + model); return text; }
-                if (text && text.length > 1 && (options.allowShort === true || options.minLength === 0)) { console.log('OK short: ' + model); return text; }
+                if (text && text.length > 30) {
+                    console.log('[callOpenRouter] [OK] ' + model + ' : ' + text.length + ' car.');
+                    return text;
+                }
+            } else {
+                console.log('[callOpenRouter] Erreur ' + response.status + ' : ' + model);
             }
-        } catch (e) { console.error(model + ': ' + e.message); }
+        } catch (e) {
+            console.log('[callOpenRouter] Exception ' + model + ' : ' + e.message);
+        }
     }
+    console.log('[callOpenRouter] Tous les modeles ont echoue');
     return null;
 }
 
@@ -133,38 +164,44 @@ function isIslamicQuestion(question) {
 }
 
 async function generateAIResponse(question, scholar, reason) {
-    // Detection : question islamique ?
-        let islamicContext = '';
-    if (isIslamicQuestion(question)) {
-        try {
-            console.log('Question islamique detectee - recherche dans les sources...');
-            const results = await searchIslamicSources(question.title + ' ' + question.content);
-            if (results && results.length > 0) {
-                islamicContext = formatIslamicResults(results);
-                console.log('Sources islamiques utilisees : ' + results.length);
-            } else {
-                console.log('Aucune source islamique accessible - reponse IA normale');
-                islamicContext = '\n\n=== INSTRUCTION SPECIALE ===\n';
-                islamicContext += 'Cette question est de nature islamique.\n';
-                islamicContext += 'Reponds en te basant sur les enseignements reconnus de l\'Islam (Coran, Sunna, consensus des savants).\n';
-                islamicContext += 'Mentionne les avis des 4 ecoles juridiques (Hanafite, Malikite, Chaféite, Hanbalite) si applicable.\n';
-                islamicContext += 'Cite des savants reconnus : Ibn Baz, Al-Albani, Ibn Othaymeen, Ben Achour, El Karadhaoui.\n';
-                islamicContext += '=== FIN INSTRUCTION ===\n';
-            }
-        } catch (e) {
-            console.log('Erreur recherche islamique : ' + e.message);
-        }
-    }
+    console.log('[generateAIResponse] Debut pour : ' + (question.title || 'sans titre'));
+    
     const qLang = question.language || 'fr';
     const langName = LANG_NAMES[qLang] || 'French';
-    let prompt = 'You are Juge Claude, expert academic judge. Respond ONLY in ' + langName + '. DOMAIN: ' + question.domain + ' SPECIALTY: ' + question.category + ' QUESTION: ' + question.title + ' DETAILS: ' + question.content;
-    if (question.attachedFile && question.attachedFile.analysis) { prompt += ' ATTACHED DOCUMENT: ' + question.attachedFile.analysis.substring(0, 3000); }
-    if (islamicContext) { prompt += islamicContext; }
-    prompt += ' Provide COMPLETE answer in ' + langName + '. Structure: DEFINITION, DETAILED ANSWER, KEY POINTS, SOURCES';
-    if (aiAvailable) {
-        const text = await callOpenRouter(prompt, { temperature: 0.7, max_tokens: 2500 });
-        if (text) return buildResponse(text, question, scholar, reason);
+    
+    let prompt = 'You are Juge Claude, an expert academic judge. Respond ONLY in ' + langName + '.\n\n';
+    prompt += 'DOMAIN: ' + (question.domain || 'General') + '\n';
+    prompt += 'SPECIALTY: ' + (question.category || 'General') + '\n';
+    prompt += 'QUESTION: ' + (question.title || '') + '\n';
+    prompt += 'DETAILS: ' + (question.content || '') + '\n\n';
+    
+    if (question.attachedFile && question.attachedFile.analysis) {
+        prompt += 'ATTACHED DOCUMENT: ' + question.attachedFile.analysis.substring(0, 3000) + '\n\n';
     }
+    
+    prompt += 'Provide a COMPLETE answer in ' + langName + '.\n';
+    prompt += 'Structure: DEFINITION, DETAILED ANSWER, KEY POINTS, SOURCES';
+    
+    // Tenter OpenRouter avec timeout strict
+    if (aiAvailable) {
+        try {
+            console.log('[generateAIResponse] Appel OpenRouter...');
+            const text = await callOpenRouter(prompt, { temperature: 0.7, max_tokens: 2500 });
+            if (text && text.length > 30) {
+                console.log('[generateAIResponse] [OK] Reponse OpenRouter : ' + text.length + ' caracteres');
+                return buildResponse(text, question, scholar, reason);
+            } else {
+                console.log('[generateAIResponse] Reponse trop courte - fallback');
+            }
+        } catch (e) {
+            console.log('[generateAIResponse] Erreur OpenRouter : ' + e.message);
+        }
+    } else {
+        console.log('[generateAIResponse] OpenRouter non disponible - fallback');
+    }
+    
+    // FALLBACK : reponse locale garantie
+    console.log('[generateAIResponse] Utilisation du fallback local');
     return generateLocalFallback(question, scholar, reason);
 }
 
@@ -174,9 +211,67 @@ function buildResponse(text, question, scholar, reason) {
 }
 
 function generateLocalFallback(question, scholar, reason) {
+    console.log('[generateLocalFallback] Generation fallback local');
+    
     var qLang = question.language || 'fr';
-    var generic = { fr: 'Domaine ' + question.domain + '. Scholar: ' + scholar.name, ar: 'المجال ' + question.domain + '. العالم: ' + scholar.name, en: 'Domain ' + question.domain + '. Scholar: ' + scholar.name };
-    return 'REPONSE DU JUGE CLAUDE: ' + (generic[qLang] || generic.fr);
+    var scholarName = (scholar && scholar.name) ? scholar.name : 'Scholar';
+    var domain = question.domain || 'General';
+    var category = question.category || 'General';
+    var title = question.title || 'Question';
+    
+    var responses = {
+        fr: '📖 **RÉPONSE DU JUGE CLAUDE**\n\n' +
+            '**Question :** ' + title + '\n\n' +
+            '**Domaine :** ' + domain + '\n' +
+            '**Spécialité :** ' + category + '\n\n' +
+            '**Analyse :**\n' +
+            'Cette question relève du domaine ' + domain + ' (' + category + '). ' +
+            'Le scholar ' + scholarName + ' a été consulté pour apporter son expertise.\n\n' +
+            '**Points clés :**\n' +
+            '• Domaine : ' + domain + '\n' +
+            '• Spécialité : ' + category + '\n' +
+            '• Scholar assigné : ' + scholarName + '\n\n' +
+            '**Recommandation :**\n' +
+            'Consultez la littérature spécialisée pour une réponse complète. ' +
+            'Le scholar ' + scholarName + ' pourra compléter cette réponse.\n\n' +
+            '— Juge Claude',
+        
+        ar: '📖 **رد القاضي كلود**\n\n' +
+            '**السؤال :** ' + title + '\n\n' +
+            '**المجال :** ' + domain + '\n' +
+            '**التخصص :** ' + category + '\n\n' +
+            '**التحليل :**\n' +
+            'هذا السؤال يتعلق بمجال ' + domain + ' (' + category + '). ' +
+            'تم استشارة الشيخ ' + scholarName + ' لتقديم خبرته.\n\n' +
+            '**النقاط الرئيسية :**\n' +
+            '• المجال : ' + domain + '\n' +
+            '• التخصص : ' + category + '\n' +
+            '• الشيخ المكلف : ' + scholarName + '\n\n' +
+            '**التوصية :**\n' +
+            'راجع الأدبيات المتخصصة للحصول على إجابة كاملة. ' +
+            'يمكن للشيخ ' + scholarName + ' إكمال هذه الإجابة.\n\n' +
+            '— القاضي كلود',
+        
+        en: '📖 **RESPONSE FROM JUDGE CLAUDE**\n\n' +
+            '**Question:** ' + title + '\n\n' +
+            '**Domain:** ' + domain + '\n' +
+            '**Specialty:** ' + category + '\n\n' +
+            '**Analysis:**\n' +
+            'This question belongs to ' + domain + ' (' + category + '). ' +
+            'Scholar ' + scholarName + ' has been consulted for expertise.\n\n' +
+            '**Key points:**\n' +
+            '• Domain: ' + domain + '\n' +
+            '• Specialty: ' + category + '\n' +
+            '• Assigned scholar: ' + scholarName + '\n\n' +
+            '**Recommendation:**\n' +
+            'Consult specialized literature for a complete answer. ' +
+            'Scholar ' + scholarName + ' may complete this response.\n\n' +
+            '— Judge Claude'
+    };
+    
+    var result = responses[qLang] || responses.fr;
+    console.log('[generateLocalFallback] Fallback genere : ' + result.length + ' caracteres');
+    return result;
 }
 
 app.post('/api/analyze-question', async function(req, res) {
