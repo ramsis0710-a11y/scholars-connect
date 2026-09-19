@@ -1,50 +1,73 @@
 ﻿const express = require('express');
 const cors = require('cors');
-require('dotenv').config();
+const { GoogleGenerativeAI } = require('@google/generative-ai');
 
 const app = express();
-app.use(cors());
-app.use(express.json());
 
-const PORT = process.env.PORT || 10000;
+app.use(cors());
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true }));
+
+const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
+
+if (!apiKey) {
+  console.warn("ATTENTION: Aucune cle GEMINI_API_KEY ou GOOGLE_API_KEY trouvee dans l environnement !");
+}
+
+const genAI = new GoogleGenerativeAI(apiKey || '');
 
 app.get('/', (req, res) => {
   res.send('Scholars Connect API is running');
 });
 
-app.get('/api/generate', (req, res) => {
-  res.json({ success: true, message: "Route /api/generate operationnelle." });
+app.get('/api/health', (req, res) => {
+  res.json({
+    status: 'ok',
+    message: 'Serveur Scholars Connect fonctionnel',
+    hasApiKey: !!apiKey
+  });
 });
 
 app.post('/api/generate', async (req, res) => {
   try {
-    const { prompt } = req.body;
-    const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
-      return res.status(500).json({ success: false, error: "Cle GEMINI_API_KEY non definie dans Render." });
+      return res.status(500).json({
+        success: false,
+        error: "La cle d'API Gemini n'est pas configuree dans Render."
+      });
     }
 
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt || "Hello" }] }]
-      })
+    const promptText = req.body.prompt || req.body.message || req.body.text || req.body.contents;
+
+    if (!promptText) {
+      return res.status(400).json({
+        success: false,
+        error: "Veuillez fournir un texte via 'prompt', 'message' ou 'text'."
+      });
+    }
+
+    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+    const result = await model.generateContent(promptText);
+    const response = await result.response;
+    const responseText = response.text();
+
+    return res.json({
+      success: true,
+      result: responseText,
+      data: responseText
     });
 
-    const data = await response.json();
-    if (!response.ok) {
-      throw new Error(data.error?.message || "Erreur lors de l appel Gemini API");
-    }
-
-    const textReply = data.candidates?.[0]?.content?.parts?.[0]?.text || "Aucune reponse generee.";
-    res.json({ success: true, data: textReply });
-  } catch (err) {
-    console.error("Erreur /api/generate :", err.message);
-    res.status(500).json({ success: false, error: err.message });
+  } catch (error) {
+    console.error("Erreur Gemini backend :", error.message);
+    return res.status(500).json({
+      success: false,
+      error: "Erreur lors du traitement de la requete Gemini",
+      details: error.message
+    });
   }
 });
 
+const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+  console.log(`Serveur Scholars Connect a l ecoute sur le port ${PORT}`);
 });
