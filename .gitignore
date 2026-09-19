@@ -1,20 +1,2 @@
-﻿# Dossiers ignorés
-node_modules/
-backend/uploads/
-backend/node_modules/
-
-# Fichiers de sauvegarde
-*.backup
-*.backup-*
-*.backup-upload-*
-*.backup-size-*
-*.backup-v*
-
-# Fichiers système
-.DS_Store
-Thumbs.db
-*.log
-
-# Environnement
-.env.local
-.env.*.local
+﻿node_modules/
+.env

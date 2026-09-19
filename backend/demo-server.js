@@ -614,3 +614,191 @@ app.listen(PORT, '0.0.0.0', function() {
     console.log('  /admin       : Panneau admin');
     console.log('==========================================');
 });
+
+
+async function callOpenRouter(prompt, options = {}) {
+
+    const timeoutMs = options.timeoutMs || 120000;
+    const temperature =
+        options.temperature !== undefined
+            ? options.temperature
+            : 0.4;
+
+    const maxTokens =
+        options.max_tokens || 2500;
+
+    console.log("");
+    console.log("========================================");
+    console.log("[OpenRouter] APPEL IA");
+    console.log("========================================");
+
+    if (!process.env.OPENROUTER_API_KEY) {
+        console.error(
+            "[OpenRouter] OPENROUTER_API_KEY absente"
+        );
+        return null;
+    }
+
+    const controller = new AbortController();
+
+    const timer = setTimeout(() => {
+        console.error(
+            "[OpenRouter] TIMEOUT apres " +
+            timeoutMs +
+            " ms"
+        );
+
+        controller.abort();
+    }, timeoutMs);
+
+    try {
+
+        const response = await fetch(
+            "https://openrouter.ai/api/v1/chat/completions",
+            {
+                method: "POST",
+
+                headers: {
+                    "Authorization":
+                        "Bearer " +
+                        process.env.OPENROUTER_API_KEY,
+
+                    "Content-Type":
+                        "application/json",
+
+                    "HTTP-Referer":
+                        "https://scholars-connect-app.onrender.com",
+
+                    "X-Title":
+                        "Scholars Connect"
+                },
+
+                body: JSON.stringify({
+
+                    model:
+                        process.env.OPENROUTER_MODEL ||
+                        "openrouter/free",
+
+                    messages: [
+
+                        {
+                            role: "system",
+
+                            content:
+                                "Tu es l'assistant academique " +
+                                "de Scholars Connect. " +
+                                "Reponds de maniere precise, " +
+                                "structuree, pedagogique et " +
+                                "dans la langue demandee. " +
+                                "N'invente jamais une source."
+                        },
+
+                        {
+                            role: "user",
+                            content: prompt
+                        }
+
+                    ],
+
+                    temperature: temperature,
+
+                    max_tokens: maxTokens
+
+                }),
+
+                signal: controller.signal
+            }
+        );
+
+        clearTimeout(timer);
+
+        console.log(
+            "[OpenRouter] HTTP:",
+            response.status
+        );
+
+        const raw = await response.text();
+
+        if (!response.ok) {
+
+            console.error(
+                "[OpenRouter] ERREUR:",
+                raw.substring(0, 1000)
+            );
+
+            return null;
+        }
+
+        let data;
+
+        try {
+            data = JSON.parse(raw);
+        }
+        catch (parseError) {
+
+            console.error(
+                "[OpenRouter] JSON invalide"
+            );
+
+            return null;
+        }
+
+        const answer =
+            data &&
+            data.choices &&
+            data.choices[0] &&
+            data.choices[0].message &&
+            data.choices[0].message.content;
+
+        if (!answer) {
+
+            console.error(
+                "[OpenRouter] Reponse vide"
+            );
+
+            return null;
+        }
+
+        console.log(
+            "[OpenRouter] Modele:",
+            data.model || "inconnu"
+        );
+
+        console.log(
+            "[OpenRouter] Reponse:",
+            answer.length,
+            "caracteres"
+        );
+
+        console.log(
+            "[OpenRouter] SUCCES"
+        );
+
+        return answer;
+
+    }
+    catch (error) {
+
+        clearTimeout(timer);
+
+        if (error.name === "AbortError") {
+
+            console.error(
+                "[OpenRouter] Requete interrompue apres " +
+                timeoutMs +
+                " ms"
+            );
+
+        }
+        else {
+
+            console.error(
+                "[OpenRouter] Exception:",
+                error.message
+            );
+        }
+
+        return null;
+    }
+}
+
