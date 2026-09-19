@@ -1,27 +1,50 @@
-﻿require('dotenv').config();
-const express = require('express');
-const { GoogleGenerativeAI } = require('@google/generative-ai');
+﻿const express = require('express');
+const cors = require('cors');
+require('dotenv').config();
 
 const app = express();
+app.use(cors());
 app.use(express.json());
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-const model = genAI.getGenerativeModel({ model: 'gemini-flash-latest' });
+const PORT = process.env.PORT || 10000;
+
+app.get('/', (req, res) => {
+  res.send('Scholars Connect API is running');
+});
+
+app.get('/api/generate', (req, res) => {
+  res.json({ success: true, message: "Route /api/generate operationnelle." });
+});
 
 app.post('/api/generate', async (req, res) => {
   try {
     const { prompt } = req.body;
-    if (!prompt) return res.status(400).json({ error: 'Le champ prompt est obligatoire.' });
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      return res.status(500).json({ success: false, error: "Cle GEMINI_API_KEY non definie dans Render." });
+    }
 
-    const result = await model.generateContent(prompt);
-    const text = result.response.text();
-    res.json({ success: true, data: text });
-  } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt || "Hello" }] }]
+      })
+    });
+
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.error?.message || "Erreur lors de l appel Gemini API");
+    }
+
+    const textReply = data.candidates?.[0]?.content?.parts?.[0]?.text || "Aucune reponse generee.";
+    res.json({ success: true, data: textReply });
+  } catch (err) {
+    console.error("Erreur /api/generate :", err.message);
+    res.status(500).json({ success: false, error: err.message });
   }
 });
 
-const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  console.log(`Serveur actif sur le port ${PORT}`);
+  console.log(`Server running on port ${PORT}`);
 });
