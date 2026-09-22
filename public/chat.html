@@ -81,7 +81,11 @@ textarea:focus{border-color:#1e5aa8}
             <option value="th">&#3652;&#3607;&#3618;</option>
             <option value="id">Bahasa</option>
           </select></label>
-        <label>Domaine : <select id="domain"><option>General</option><option>Religion</option><option>Education</option><option>Technique</option><option>Analyse</option></select></label>
+        <label>Domaine :
+          <input list="domain-list" id="domain" value="General" style="width:180px;padding:6px 10px;border-radius:8px;border:1px solid #e5e7eb;font-size:.85rem">
+          <datalist id="domain-list"></datalist>
+        </label>
+        <button type="button" onclick="addNewDomain()" title="Ajouter un domaine" style="background:#f5f7fa;border:1px solid #e5e7eb;padding:6px 10px;border-radius:8px;cursor:pointer;font-size:.85rem">+</button>
         <label><input type="checkbox" id="autoSpeak" checked> Lecture vocale auto</label>
       </div>
       <div id="scholar-area" style="display:none">
@@ -91,7 +95,7 @@ textarea:focus{border-color:#1e5aa8}
       <div class="row-input">
         <textarea id="input" placeholder="Posez votre question... (dictee ou texte)" rows="1"></textarea>
         <div class="btn-group">
-          <button class="btn-mic" id="mic" onclick="toggleDictation()" title="Dictee orale">ðŸŽ¤</button>
+          <button class="btn-mic" id="mic" onclick="toggleDictation()" title="Dictee orale">Ã°Å¸Å½Â¤</button>
           <button class="btn-doc" onclick="openAnalyzeDialog()" title="Analyser un document" style="background:#1e5aa8;color:white;border:none;padding:14px;border-radius:12px;cursor:pointer;font-size:1.1rem;width:52px">&#128196;</button>
           <button class="primary" id="send" onclick="send()">Envoyer</button>
         </div>
@@ -151,9 +155,9 @@ function addBotMsg(text, scholar) {
   const actions = document.createElement('div');
   actions.className = 'msg-actions';
   actions.innerHTML = `
-    <button onclick="speak(this.parentElement.parentElement.querySelector('div').textContent, document.getElementById('lang').value + '-FR')">ðŸ”Š Lire</button>
-    <button onclick="shareText(this.parentElement.parentElement.querySelector('div').textContent)">ðŸ”— Partager</button>
-    <button onclick="translateMsg(this.parentElement.parentElement.querySelector('div'))">ðŸŒ Traduire</button>
+    <button onclick="speak(this.parentElement.parentElement.querySelector('div').textContent, document.getElementById('lang').value + '-FR')">Ã°Å¸â€Å  Lire</button>
+    <button onclick="shareText(this.parentElement.parentElement.querySelector('div').textContent)">Ã°Å¸â€â€” Partager</button>
+    <button onclick="translateMsg(this.parentElement.parentElement.querySelector('div'))">Ã°Å¸Å’Â Traduire</button>
   `;
   div.appendChild(actions);
   if (scholar) {
@@ -283,6 +287,44 @@ async function analyzeContent(){
   }catch(e){loading.textContent='Erreur : '+e.message;}
 }
 document.addEventListener('keydown',function(e){if(e.key==='Escape')closeAnalyzeDialog();});
+
+// ========== V3 - Domaines illimites ==========
+async function loadDomains() {
+  try {
+    const r = await apiCall('/domains');
+    const list = document.getElementById('domain-list');
+    if (!list) return;
+    list.innerHTML = '';
+    r.domains.forEach(d => {
+      const opt = document.createElement('option');
+      opt.value = d;
+      list.appendChild(opt);
+    });
+  } catch (e) { console.warn('Domains load error:', e.message); }
+}
+
+async function addNewDomain() {
+  const name = prompt('Nouveau domaine (ex: Medecine, Astronomie...)');
+  if (!name || !name.trim()) return;
+  try {
+    const r = await apiCall('/domains', { method:'POST', body: JSON.stringify({ name: name.trim() }) });
+    await loadDomains();
+    document.getElementById('domain').value = r.name;
+    alert(r.created ? 'Domaine ajoute : ' + r.name : 'Ce domaine existe deja');
+  } catch (e) { alert('Erreur : ' + e.message); }
+}
+
+// Charger au demarrage
+loadDomains();
+
+// V3 - Afficher les scholars si domaine contient "relig"
+document.getElementById('domain').addEventListener('input', function(e) {
+  const v = e.target.value.toLowerCase();
+  const area = document.getElementById('scholar-area');
+  if (area) {
+    area.style.display = (v.includes('relig') || v.includes('islam') || v.includes('theo') || v.includes('sunnah') || v.includes('hadith')) ? 'block' : 'none';
+  }
+});
 // Charger l'historique au demarrage
 (async () => {
   try {
