@@ -487,29 +487,7 @@ app.post('/api/domains', requireAuth, async (req, res) => {
 });
 
 
-// BEGIN-PROMOTE-ADMIN
-// Route temporaire - a supprimer apres usage
-app.post('/api/promote-admin', async (req, res) => {
-    try {
-        const { secret, email } = req.body || {};
-        const EXPECTED = 'OE95xKm2qltu7XSvjs3kwWpVNBIH1dCQJneMLibo';
-        if (!secret || secret !== EXPECTED) {
-            return res.status(403).json({ error: 'secret invalide' });
-        }
-        if (!email) return res.status(400).json({ error: 'email requis' });
-        if (!mongoReady) return res.status(503).json({ error: 'MongoDB non connecte' });
 
-        const r = await User.updateOne({ email }, { $set: { role: 'admin' } });
-        if (r.matchedCount === 0) {
-            return res.status(404).json({ error: 'Utilisateur introuvable', email });
-        }
-        console.log('PROMOTION ADMIN:', email);
-        res.json({ ok: true, email, matched: r.matchedCount, modified: r.modifiedCount });
-    } catch (e) {
-        res.status(500).json({ error: e.message });
-    }
-});
-// END-PROMOTE-ADMIN
 
 app.use((req, res) => res.status(404).json({ error: "Endpoint introuvable", path: req.path }));
 
