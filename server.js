@@ -1,431 +1,348 @@
-﻿// ================================================================
-// MBA-CONSULT AI CORE - Helper central (ajoute automatiquement)
-// ================================================================
-const MBA_CONSULT_API = process.env.MBA_CONSULT_API || 'https://api.mba-consult.tn';
-
-async function callMBAConsult(prompt, domain = 'General') {
-    try {
-        const r = await fetch(`${MBA_CONSULT_API}/api/ai`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ prompt, domain })
-        });
-        if (!r.ok) {
-            const txt = await r.text();
-            throw new Error(`MBA-CONSULT HTTP ${r.status}: ${txt.slice(0, 200)}`);
-        }
-        const data = await r.json();
-        return data.answer || '';
-    } catch (e) {
-        console.error('MBA-CONSULT API error:', e.message);
-        throw e;
-    }
-}
-// ================================================================
-const express = require('express');
-const path = require('path');
-const mongoose = require('mongoose');
-const fetch = require('node-fetch');
-require('dotenv').config();
+﻿require("dotenv").config();
+const express  = require("express");
+const cors     = require("cors");
+const mongoose = require("mongoose");
+const jwt      = require("jsonwebtoken");
+const bcrypt   = require("bcryptjs");
+const multer   = require("multer");
+const path     = require("path");
+const crypto   = require("crypto");
+const fetch    = require("node-fetch");
 
 const app = express();
-const PORT = process.env.PORT || 3000;
-const MONGODB_URI = process.env.MONGODB_URI;
-const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
+const PORT = Number(process.env.PORT || 10000);
+const HOST = process.env.HOST || "0.0.0.0";
+const JWT_SECRET = process.env.JWT_SECRET || crypto.randomBytes(32).toString("hex");
+const MONGODB_URI = process.env.MONGODB_URI || "";
+const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY || "";
+const OPENROUTER_MODEL = process.env.OPENROUTER_MODEL || "openai/gpt-4o-mini";
+const MBA_CONSULT_API = process.env.MBA_CONSULT_API || "https://api.mba-consult.tn";
 
-// Vérification de la clé OpenRouter
-if (!OPENROUTER_API_KEY || OPENROUTER_API_KEY === 'VOTRE_CLE_OPENROUTER_ICI') {
-    console.error('❌ ERREUR : Veuillez configurer votre clé OpenRouter dans le fichier .env');
-    console.error('🔑 Obtenez une clé GRATUITE sur : https://openrouter.ai/keys');
-    process.exit(1);
+app.use(cors({ origin: true, credentials: true }));
+app.use(express.json({ limit: "20mb" }));
+app.use(express.static("public"));
+app.use("/uploads", express.static("uploads"));
+
+if (!OPENROUTER_API_KEY) {
+    console.error("OpenRouter non configure - mode IA degrade");
 }
 
-let aiAvailable = false;
+// ---------------- MongoDB Schema ----------------
+let mongoReady = false;
 
-// Vérification simple que la clé est configurée
-if (OPENROUTER_API_KEY && OPENROUTER_API_KEY.length > 10) {
-    aiAvailable = true;
-    console.log('✅ OpenRouter configuré (clé ' + OPENROUTER_API_KEY.substring(0, 8) + '...)');
-}
-
-mongoose.connect(MONGODB_URI, { 
-    serverSelectionTimeoutMS: 30000, 
-    socketTimeoutMS: 45000, 
-    family: 4 
-})
-.then(() => console.log('✅ MongoDB Atlas connecté'))
-.catch(err => console.error('❌ MongoDB:', err.message));
-
-// Schémas MongoDB (simplifiés pour démarrage rapide)
-const UserSchema = new mongoose.Schema({
-    username: String, 
-    email: { type: String, unique: true }, 
-    password: String,
-    role: { type: String, default: 'user' }, 
-    domain: { type: String, default: 'Général' }
+const userSchema = new mongoose.Schema({
+    email:      { type: String, required: true, unique: true, index: true },
+    password:   { type: String, required: true },
+    name:       { type: String, default: "" },
+    role:       { type: String, default: "user" },
+    createdAt:  { type: Date, default: Date.now }
 });
 
-const QuestionSchema = new mongoose.Schema({
-    title: String, 
-    content: String, 
-    domain: String, 
-    category: String,
-    username: String, 
-    language: String, 
-    date: String,
-    timestamp: { type: Date, default: Date.now }, 
-    status: { type: String, default: 'pending' },
-    answers: [{ 
-        username: String, 
-        content: String, 
-        language: String, 
-        timestamp: { type: Date, default: Date.now } 
-    }]
+const qaSchema = new mongoose.Schema({
+    userId:     { type: mongoose.Schema.Types.ObjectId, ref: "User", index: true },
+    question:   { type: String, required: true },
+    answer:     { type: String, required: true },
+    language:   { type: String, default: "fr" },
+    scholar:    { type: String, default: null },
+    domain:     { type: String, default: "General" },
+    sourceDoc:  { type: String, default: null },
+    createdAt:  { type: Date, default: Date.now }
 });
 
-const User = mongoose.model('User', UserSchema);
-const Question = mongoose.model('Question', QuestionSchema);
+const documentSchema = new mongoose.Schema({
+    userId:     { type: mongoose.Schema.Types.ObjectId, ref: "User", index: true },
+    filename:   { type: String, required: true },
+    original:   { type: String, required: true },
+    mimetype:   { type: String },
+    size:       { type: Number },
+    extracted:  { type: String, default: "" },
+    createdAt:  { type: Date, default: Date.now }
+});
 
-// Initialiser l'admin
-mongoose.connection.once('connected', async () => {
+const User = mongoose.model("User", userSchema);
+const QA   = mongoose.model("QA", qaSchema);
+const Doc  = mongoose.model("Doc", documentSchema);
+
+async function connectMongo() {
+    if (!MONGODB_URI) { console.warn("MONGODB_URI absente"); return; }
     try {
-        const existing = await User.findOne({ email: 'admin@scholars-connect.com' });
-        if (!existing) {
-            await User.create({ 
-                username: 'admin', 
-                email: 'admin@scholars-connect.com', 
-                password: '%DaliMBA00931', 
-                role: 'admin', 
-                domain: 'Général' 
-            });
-            console.log('✅ Admin créé');
-        }
-    } catch (e) { 
-        console.error('Erreur admin:', e.message); 
-    }
-});
+        await mongoose.connect(MONGODB_URI, { serverSelectionTimeoutMS: 8000 });
+        mongoReady = true;
+        console.log("MongoDB CONNECTE");
+    } catch (e) { console.warn("MongoDB KO:", e.message); }
+}
 
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true }));
-app.use(express.static(path.join(__dirname, 'public')));
-
-// ============================================================
-// BASE DE CONNAISSANCES LOCALE (Fallback d'urgence)
-// ============================================================
-const KNOWLEDGE_BASE = {
-    'hannibal': {
-        fr: '📖 Hannibal Barca (247-183 av. J.-C.) était un général carthaginois.\n\n🎯 Célèbre pour avoir traversé les Alpes avec ses éléphants en 218 av. J.-C.\n\n✅ Points clés :\n- Général de Carthage\n- Victoires à Trébie, Trasimène et Cannes\n- Battu par Scipion à Zama en 202 av. J.-C.\n\n📚 Sources : Tite-Live, Polybe',
-        ar: '📖 حنبعل برقا (247-183 ق.م) كان جنرالاً قرطاجياً.\n\n🎯 اشتهر بعبور جبال الألب مع الفيلة سنة 218 ق.م.\n\n✅ نقاط رئيسية:\n- جنرال قرطاجي\n- انتصارات في تريبيا وتراسيمين وكاناي\n- هُزم في زاما سنة 202 ق.م',
-        en: '📖 Hannibal Barca (247-183 BC) was a Carthaginian general.\n\n🎯 Famous for crossing the Alps with elephants in 218 BC.\n\n✅ Key points:\n- Carthaginian general\n- Victories at Trebia, Trasimene, and Cannae\n- Defeated at Zama in 202 BC'
+// ---------------- Multer (upload) ----------------
+const storage = multer.diskStorage({
+    destination: (req, file, cb) => {
+        const dir = path.join(__dirname, "uploads");
+        require("fs").mkdirSync(dir, { recursive: true });
+        cb(null, dir);
     },
-    'cnc': {
-        fr: '📖 Le CNC (Computer Numerical Control) est un système de commande numérique.\n\n🎯 Exigences :\n- Précision (±0.01mm)\n- Programmation G-code\n- Gestion thermique\n\n✅ Avantages :\n- Répétabilité élevée\n- Pièces complexes\n- Automatisation',
-        ar: '📖 CNC هو نظام تحكم رقمي.\n\n🎯 المتطلبات:\n- دقة (±0.01مم)\n- برمجة G-code\n\n✅ المزايا:\n- تكرارية عالية\n- قطع معقدة',
-        en: '📖 CNC (Computer Numerical Control) is a numerical control system.\n\n🎯 Requirements:\n- Accuracy (±0.01mm)\n- G-code programming\n\n✅ Advantages:\n- High repeatability\n- Complex parts'
+    filename: (req, file, cb) => {
+        const safe = file.originalname.replace(/[^a-zA-Z0-9._-]/g, "_");
+        cb(null, Date.now() + "_" + safe);
     }
-};
+});
+const upload = multer({ storage, limits: { fileSize: 20 * 1024 * 1024 } });
+
+// ---------------- Auth middleware ----------------
+function requireAuth(req, res, next) {
+    const h = req.headers.authorization || "";
+    if (!h.startsWith("Bearer ")) return res.status(401).json({ error: "Auth requise" });
+    try { req.user = jwt.verify(h.slice(7), JWT_SECRET); next(); }
+    catch { return res.status(401).json({ error: "Token invalide" }); }
+}
+function requireAdmin(req, res, next) {
+    requireAuth(req, res, () => {
+        if (req.user.role !== "admin") return res.status(403).json({ error: "Admin uniquement" });
+        next();
+    });
+}
+
+// ---------------- IA centrale ----------------
+async function askAI(prompt, opts = {}) {
+    const { domain = "General", context = "", language = "fr", scholar = null } = opts;
+
+    let system = `Tu es l'assistant Scholars Connect, propulse par MBA-CONSULT AI CORE.
+Reponds dans la langue : ${language}.
+Sois precis, structure, et professionnel.`;
+    if (scholar) system += `\nCite les positions du scholar : ${scholar}.`;
+    if (domain === "Religion") system += `\nPour les questions religieuses, cite les sources (Coran, Sunna, consensus des savants).`;
+    if (context) system += `\nUtilise ce contexte prioritairement:\n${context}`;
+
+    if (!OPENROUTER_API_KEY) {
+        return "[Mode degrade] OPENROUTER_API_KEY non configuree sur le serveur.";
+    }
+
+    const r = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+        method: "POST",
+        headers: {
+            "Authorization": `Bearer ${OPENROUTER_API_KEY}`,
+            "Content-Type": "application/json",
+            "HTTP-Referer": "https://mba-consult.tn",
+            "X-Title": "Scholars Connect"
+        },
+        body: JSON.stringify({
+            model: OPENROUTER_MODEL,
+            temperature: 0.3,
+            messages: [
+                { role: "system", content: system },
+                { role: "user", content: prompt }
+            ]
+        })
+    });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data?.error?.message || "OpenRouter error");
+    return data?.choices?.[0]?.message?.content || "";
+}
 
 // ============================================================
-// APPEL OPENROUTER (avec fallback local)
+// ROUTES PUBLIQUES
 // ============================================================
-async function generateAIResponse(question, scholar, reason) {
-    const qLang = question.language || 'fr';
-    const langNames = { fr: 'French', ar: 'Arabic', en: 'English', es: 'Spanish', de: 'German' };
-    const langName = langNames[qLang] || 'French';
-    
-    const prompt = `You are an expert academic judge named "Juge Claude".
-CRITICAL: You MUST respond in ${langName} (language code: ${qLang}).
 
-DOMAIN: ${question.domain}
-SPECIALTY: ${question.category}
-QUESTION: ${question.title}
-DETAILS: ${question.content}
+app.get("/api/health", (req, res) => res.json({
+    ok: true,
+    service: "Scholars Connect V2",
+    version: "2.0.0",
+    mongo: mongoReady ? "connected" : "memory-mode",
+    ai: OPENROUTER_API_KEY ? "configured" : "not-configured"
+}));
 
-The scholar "${scholar.name}" ${reason === 'no_literature' ? 'has no specific literature.' : 'did not respond in time.'}
+// ---------------- 1. AUTH ----------------
+app.post("/api/auth/register", async (req, res) => {
+    try {
+        const { email, password, name } = req.body || {};
+        if (!email || !password) return res.status(400).json({ error: "email et password requis" });
+        if (!mongoReady) return res.status(503).json({ error: "MongoDB non connecte" });
 
-Provide a COMPLETE and EXPERT answer in ${langName}.
-Structure: 1. DEFINITION 2. DETAILED ANSWER 3. KEY POINTS 4. SOURCES`;
+        const exists = await User.findOne({ email });
+        if (exists) return res.status(409).json({ error: "Utilisateur deja existant" });
 
-    // Tenter OpenRouter
-    if (aiAvailable) {
-        try {
-            console.log('🤖 Appel OpenRouter pour:', question.title, '| Langue:', qLang);
-            
-            const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
-                    'Content-Type': 'application/json',
-                    'HTTP-Referer': 'https://scholars-connect.app',
-                    'X-Title': 'Scholars Connect'
-                },
-                body: JSON.stringify({
-                    model: 'openrouter/free', // Routeur automatique vers les modèles gratuits
-                    messages: [{ role: 'user', content: prompt }],
-                    temperature: 0.7,
-                    max_tokens: 2000
-                })
+        const hash = await bcrypt.hash(password, 10);
+        const user = await User.create({ email, password: hash, name: name || email, role: "user" });
+        const token = jwt.sign({ id: user._id, email: user.email, role: user.role }, JWT_SECRET, { expiresIn: "30d" });
+        res.status(201).json({ token, user: { id: user._id, email: user.email, name: user.name, role: user.role } });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post("/api/auth/login", async (req, res) => {
+    try {
+        const { email, password } = req.body || {};
+        if (!email || !password) return res.status(400).json({ error: "email et password requis" });
+        if (!mongoReady) return res.status(503).json({ error: "MongoDB non connecte" });
+
+        const user = await User.findOne({ email });
+        if (!user) return res.status(401).json({ error: "Identifiants invalides" });
+
+        const ok = await bcrypt.compare(password, user.password);
+        if (!ok) return res.status(401).json({ error: "Identifiants invalides" });
+
+        const token = jwt.sign({ id: user._id, email: user.email, role: user.role }, JWT_SECRET, { expiresIn: "30d" });
+        res.json({ token, user: { id: user._id, email: user.email, name: user.name, role: user.role } });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.get("/api/auth/me", requireAuth, async (req, res) => {
+    try {
+        const user = await User.findById(req.user.id).lean();
+        if (!user) return res.status(404).json({ error: "Utilisateur introuvable" });
+        res.json({ user: { id: user._id, email: user.email, name: user.name, role: user.role } });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ---------------- 2-5. IA avec historique ----------------
+app.post("/api/ask", requireAuth, async (req, res) => {
+    try {
+        const { question, language, domain, scholar, sourceDoc } = req.body || {};
+        if (!question) return res.status(400).json({ error: "question requise" });
+
+        const answer = await askAI(question, { domain, language, scholar });
+
+        if (mongoReady) {
+            await QA.create({
+                userId: req.user.id,
+                question, answer,
+                language: language || "fr",
+                domain:   domain || "General",
+                scholar:  scholar || null,
+                sourceDoc: sourceDoc || null
             });
-
-            if (response.ok) {
-                const data = await response.json();
-                const text = data.choices?.[0]?.message?.content;
-                if (text && text.length > 50) {
-                    console.log('✅ Réponse OpenRouter reçue (' + text.length + ' caractères)');
-                    return buildResponse(text, question, scholar, reason);
-                }
-            } else {
-                const errorText = await response.text();
-                console.error('❌ OpenRouter erreur:', response.status, errorText);
-            }
-        } catch (e) {
-            console.error('❌ Erreur OpenRouter:', e.message);
         }
-    }
-
-    // Fallback local
-    console.log('📚 Utilisation du fallback local');
-    return generateLocalFallback(question, scholar, reason);
-}
-
-function buildResponse(text, question, scholar, reason) {
-    let header = '';
-    if (reason === 'no_literature') {
-        header = `🤖 RÉPONSE DU JUGE CLAUDE\n\n📋 Question : "${question.title}"\n\n━━━━━━━━━━━━━━━━━━━━\n\n`;
-    } else {
-        header = `⏱️ RÉPONSE DU JUGE CLAUDE\n\n👨‍🎓 Scholar : ${scholar.name}\n\n━━━━━━━━━━━━━━━━━━━━\n\n`;
-    }
-    return header + text + `\n\n━━━━━━━━━━━━━━━━━━━━\n💡 Le scholar ${scholar.name} pourra compléter.`;
-}
-
-function generateLocalFallback(question, scholar, reason) {
-    const qLang = question.language || 'fr';
-    const questionText = (question.title + ' ' + question.content).toLowerCase();
-    
-    let found = null;
-    for (const key in KNOWLEDGE_BASE) {
-        if (questionText.includes(key)) {
-            found = KNOWLEDGE_BASE[key];
-            break;
-        }
-    }
-    
-    const header = `🤖 RÉPONSE DU JUGE CLAUDE\n\n📋 Question : "${question.title}"\n\n━━━━━━━━━━━━━━━━━━━━\n\n`;
-    
-    if (found && found[qLang]) {
-        return header + found[qLang] + '\n\n━━━━━━━━━━━━━━━━━━━━\n💡 Le scholar pourra compléter.';
-    }
-    
-    const generic = {
-        fr: `📖 DÉFINITION : Cette question relève du domaine ${question.domain}.\n\n🎯 RÉPONSE : Le sujet "${question.title}" nécessite une expertise spécialisée.\n\n✅ POINTS CLÉS :\n   • Domaine : ${question.domain}\n   • Spécialité : ${question.category}\n   • Scholar : ${scholar.name}\n\n💡 Consultez la littérature spécialisée.`,
-        ar: `📖 التعريف : هذا السؤال يتعلق بمجال ${question.domain}.\n\n🎯 الإجابة : موضوع "${question.title}" يتطلب خبرة متخصصة.\n\n✅ النقاط الرئيسية :\n   • المجال : ${question.domain}\n   • التخصص : ${question.category}\n   • العالم : ${scholar.name}`,
-        en: `📖 DEFINITION: This question belongs to ${question.domain}.\n\n🎯 ANSWER: The topic "${question.title}" requires specialized expertise.\n\n✅ KEY POINTS:\n   • Domain: ${question.domain}\n   • Specialty: ${question.category}\n   • Scholar: ${scholar.name}`
-    };
-    
-    return header + (generic[qLang] || generic.fr) + '\n\n━━━━━━━━━━━━━━━━━━━━\n💡 Le scholar pourra compléter.';
-}
-
-// ============================================================
-// ROUTES API
-// ============================================================
-
-app.post('/api/analyze-question', async (req, res) => {
-    try {
-        const { text } = req.body;
-        if (!text) return res.status(400).json({ error: 'Texte manquant' });
-        
-        // Détection de langue
-        let detectedLang = 'fr';
-        if (/[\u0600-\u06FF]/.test(text)) detectedLang = 'ar';
-        else if (/[\u4E00-\u9FFF]/.test(text)) detectedLang = 'zh';
-        else if (/[\u0400-\u04FF]/.test(text)) detectedLang = 'ru';
-        
-        // Analyse basique sans IA (pour démarrage rapide)
-        const lower = text.toLowerCase();
-        let domain = 'Général', category = 'Histoire';
-        
-        if (lower.match(/islam|coran|hadith|fiqh|sourate|fatiha/)) { 
-            domain = 'Islam'; category = 'Fiqh'; 
-        } else if (lower.match(/médecine|maladie|santé/)) { 
-            domain = 'Médecine'; category = 'Général'; 
-        } else if (lower.match(/ia|intelligence|deep learning/)) { 
-            domain = 'IA'; category = 'Deep Learning'; 
-        } else if (lower.match(/pétrole|forage|cnc|filetage/)) { 
-            domain = 'Mécanique Pétrole'; category = 'Usinage CNC'; 
-        }
-        
-        res.json({ 
-            title: text.substring(0, 80), 
-            domain, 
-            category, 
-            language: detectedLang, 
-            content: text 
-        });
-    } catch (e) { 
-        res.status(500).json({ error: e.message }); 
-    }
+        res.json({ answer, language: language || "fr", scholar: scholar || null });
+    } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-app.post('/api/generate-answer', async (req, res) => {
+// Historique
+app.get("/api/history", requireAuth, async (req, res) => {
     try {
-        const { question, scholar, reason } = req.body;
-        if (!question) return res.status(400).json({ error: 'Question manquante' });
-        
-        const answer = await generateAIResponse(question, scholar || { name: 'Expert' }, reason || 'no_response');
+        if (!mongoReady) return res.json({ items: [] });
+        const items = await QA.find({ userId: req.user.id }).sort({ createdAt: -1 }).limit(200).lean();
+        res.json({ items });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.delete("/api/history/:id", requireAuth, async (req, res) => {
+    try {
+        await QA.deleteOne({ _id: req.params.id, userId: req.user.id });
+        res.json({ ok: true });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ---------------- 4. Upload documents ----------------
+app.post("/api/upload", requireAuth, upload.single("file"), async (req, res) => {
+    try {
+        if (!req.file) return res.status(400).json({ error: "Aucun fichier" });
+        let extracted = "";
+        // Extraction basique pour txt et json
+        if (req.file.mimetype === "text/plain" || req.file.originalname.endsWith(".txt")) {
+            extracted = require("fs").readFileSync(req.file.path, "utf-8").slice(0, 20000);
+        }
+        if (mongoReady) {
+            await Doc.create({
+                userId: req.user.id,
+                filename: req.file.filename,
+                original: req.file.originalname,
+                mimetype: req.file.mimetype,
+                size: req.file.size,
+                extracted
+            });
+        }
+        res.json({ ok: true, file: req.file.filename, original: req.file.originalname, extracted });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.get("/api/documents", requireAuth, async (req, res) => {
+    try {
+        if (!mongoReady) return res.json({ items: [] });
+        const items = await Doc.find({ userId: req.user.id }).sort({ createdAt: -1 }).lean();
+        res.json({ items });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Analyser un document avec l'IA
+app.post("/api/analyze-doc", requireAuth, async (req, res) => {
+    try {
+        const { docId, question } = req.body || {};
+        if (!mongoReady) return res.status(503).json({ error: "MongoDB non connecte" });
+        const doc = await Doc.findOne({ _id: docId, userId: req.user.id }).lean();
+        if (!doc) return res.status(404).json({ error: "Document introuvable" });
+        const prompt = `${question || "Analyse ce document et fais un resume detaille"}\n\n---\n${doc.extracted || "[Document non extractible en texte]"}`;
+        const answer = await askAI(prompt, { domain: "Analyse", language: "fr" });
+        res.json({ answer, original: doc.original });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ---------------- 7-8. Traduction ----------------
+app.post("/api/translate", requireAuth, async (req, res) => {
+    try {
+        const { text, targetLanguage } = req.body || {};
+        if (!text || !targetLanguage) return res.status(400).json({ error: "text et targetLanguage requis" });
+        const prompt = `Traduis le texte suivant en ${targetLanguage}. Reponds uniquement avec la traduction, sans commentaire.\n\n${text}`;
+        const answer = await askAI(prompt, { domain: "Translation", language: targetLanguage });
+        res.json({ translation: answer, targetLanguage });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ---------------- 10. Chat admin ----------------
+app.post("/api/admin/chat", requireAdmin, async (req, res) => {
+    try {
+        const { message } = req.body || {};
+        if (!message) return res.status(400).json({ error: "message requis" });
+        const answer = await askAI(message, { domain: "General", language: "fr" });
         res.json({ answer });
-    } catch (e) { 
-        res.status(500).json({ error: e.message }); 
-    }
+    } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-app.get('/api/questions', async (req, res) => {
+// ---------------- 9. Dashboard admin ----------------
+app.get("/api/admin/users", requireAdmin, async (req, res) => {
     try {
-        const questions = await Question.find().sort({ timestamp: -1 }).limit(50);
-        res.json(questions);
-    } catch (e) { 
-        res.status(500).json({ error: e.message }); 
-    }
+        if (!mongoReady) return res.json({ items: [] });
+        const items = await User.find().sort({ createdAt: -1 }).lean();
+        res.json({ items: items.map(u => ({ id: u._id, email: u.email, name: u.name, role: u.role, createdAt: u.createdAt })) });
+    } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-app.post('/api/questions', async (req, res) => {
+app.get("/api/admin/history", requireAdmin, async (req, res) => {
     try {
-        const question = await Question.create(req.body);
-        res.json(question);
-    } catch (e) { 
-        res.status(500).json({ error: e.message }); 
-    }
+        if (!mongoReady) return res.json({ items: [] });
+        const items = await QA.find().sort({ createdAt: -1 }).limit(500)
+            .populate("userId", "email name").lean();
+        res.json({ items });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.get("/api/admin/documents", requireAdmin, async (req, res) => {
+    try {
+        if (!mongoReady) return res.json({ items: [] });
+        const items = await Doc.find().sort({ createdAt: -1 }).limit(500)
+            .populate("userId", "email name").lean();
+        res.json({ items });
+    } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 // ============================================================
-// PAGE HTML MINIMALE POUR TESTER
+// PAGES HTML
 // ============================================================
-app.get('/', (req, res) => {
-    res.send(`
-<!DOCTYPE html>
-<html lang="fr">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Scholars Connect - Test</title>
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: linear-gradient(135deg, #0a0e27 0%, #1a1a3e 100%); min-height: 100vh; display: flex; justify-content: center; align-items: center; padding: 20px; }
-        .card { background: white; border-radius: 24px; padding: 40px; max-width: 600px; width: 100%; box-shadow: 0 25px 70px rgba(0,0,0,0.3); }
-        h1 { color: #0a0e27; margin-bottom: 8px; }
-        .subtitle { color: #666; margin-bottom: 30px; }
-        .status { display: inline-block; padding: 8px 20px; border-radius: 20px; font-weight: 700; margin-bottom: 20px; }
-        .status.green { background: #22c55e; color: white; }
-        .form-group { margin-bottom: 18px; }
-        label { display: block; color: #333; font-weight: 600; margin-bottom: 6px; }
-        input, textarea { width: 100%; padding: 14px; border: 2px solid #e5e7eb; border-radius: 10px; font-size: 15px; font-family: inherit; }
-        textarea { min-height: 120px; resize: vertical; }
-        button { width: 100%; padding: 15px; background: #667eea; color: white; border: none; border-radius: 10px; font-size: 16px; font-weight: 700; cursor: pointer; }
-        button:hover { background: #5a6fd6; }
-        .result { margin-top: 20px; padding: 20px; background: #f9fafb; border-radius: 10px; white-space: pre-wrap; display: none; }
-        .result.show { display: block; }
-    </style>
-</head>
-<body>
-    <div class="card">
-        <h1>🎓 Scholars Connect</h1>
-        <div class="subtitle">Test de l'API OpenRouter</div>
-        <div class="status green">🟢 Serveur en ligne</div>
-        
-        <div class="form-group">
-            <label>Domaine</label>
-            <input type="text" id="domain" value="Islam" placeholder="Ex: Islam, Médecine, IA...">
-        </div>
-        <div class="form-group">
-            <label>Catégorie</label>
-            <input type="text" id="category" value="Fiqh" placeholder="Ex: Fiqh, CNC, Deep Learning...">
-        </div>
-        <div class="form-group">
-            <label>Votre question</label>
-            <textarea id="question" placeholder="Posez votre question ici...">Quelle est la cause de la révélation de la sourate Al-Fatiha ?</textarea>
-        </div>
-        <button onclick="askQuestion()">🚀 Poser la question</button>
-        
-        <div class="result" id="result"></div>
-    </div>
-    
-    <script>
-        async function askQuestion() {
-            const domain = document.getElementById('domain').value;
-            const category = document.getElementById('category').value;
-            const question = document.getElementById('question').value;
-            const resultDiv = document.getElementById('result');
-            
-            resultDiv.className = 'result show';
-            resultDiv.textContent = '⏳ Analyse en cours...';
-            
-            try {
-                const response = await fetch('/api/generate-answer', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        question: { title: question, content: question, domain, category, language: 'fr' },
-                        scholar: { name: 'Expert' },
-                        reason: 'no_response'
-                    })
-                });
-                
-                const data = await response.json();
-                resultDiv.textContent = data.answer || data.error;
-            } catch (e) {
-                resultDiv.textContent = '❌ Erreur : ' + e.message;
-            }
-        }
-    </script>
-</body>
-</html>
-    `);
+
+app.get("/chat", (req, res) => res.sendFile(path.join(__dirname, "public", "chat.html")));
+app.get("/login", (req, res) => res.sendFile(path.join(__dirname, "public", "login.html")));
+app.get("/register", (req, res) => res.sendFile(path.join(__dirname, "public", "register.html")));
+app.get("/presentation", (req, res) => res.sendFile(path.join(__dirname, "public", "presentation.html")));
+app.get("/admin", (req, res) => res.sendFile(path.join(__dirname, "public", "admin.html")));
+app.get("/", (req, res) => res.sendFile(path.join(__dirname, "public", "index.html")));
+
+app.use((req, res) => res.status(404).json({ error: "Endpoint introuvable", path: req.path }));
+
+// ============================================================
+// DEMARRAGE
+// ============================================================
+connectMongo().finally(() => {
+    app.listen(PORT, HOST, () => {
+        console.log("================================================");
+        console.log(` Scholars Connect V2 - PORT ${PORT}`);
+        console.log(` MongoDB: ${mongoReady ? "CONNECTED" : "MEMORY"}`);
+        console.log(` OpenRouter: ${OPENROUTER_API_KEY ? "CONFIGURED" : "NOT"}`);
+        console.log("================================================");
+    });
 });
-
-// Démarrer le serveur
-
-// ================================================================
-// MBA-CONSULT AI CORE - Routes IA
-// ================================================================
-app.post('/api/ai', async (req, res) => {
-    try {
-        const { prompt, domain } = req.body || {};
-        if (!prompt) return res.status(400).json({ error: 'prompt requis' });
-        const answer = await callMBAConsult(prompt, domain || 'General');
-        res.json({ answer, provider: 'mba-consult-ai-core' });
-    } catch (e) {
-        res.status(500).json({ error: e.message });
-    }
-});
-
-app.post('/api/chat', async (req, res) => {
-    try {
-        const { message, domain } = req.body || {};
-        if (!message) return res.status(400).json({ error: 'message requis' });
-        const answer = await callMBAConsult(message, domain || 'General');
-        res.json({ answer, provider: 'mba-consult-ai-core' });
-    } catch (e) {
-        res.status(500).json({ error: e.message });
-    }
-});
-
-// Page d'accueil avec interface web
-app.get('/chat', (req, res) => {
-    res.sendFile(require('path').join(__dirname, 'public', 'chat.html'));
-});
-
-app.listen(PORT, () => {
-    console.log('');
-    console.log('========================================');
-    console.log('🎓 SCHOLARS CONNECT - SERVEUR DÉMARRÉ');
-    console.log('========================================');
-    console.log('📍 http://localhost:' + PORT);
-    console.log('🔑 Clé OpenRouter : ' + (aiAvailable ? '✅ Configurée' : '❌ Manquante'));
-    console.log('========================================');
-    console.log('');
-    console.log('⚠️  IMPORTANT : Modifiez le fichier .env');
-    console.log('   et ajoutez votre clé OpenRouter GRATUITE');
-    console.log('   Obtenez-la sur : https://openrouter.ai/keys');
-    console.log('');
-});
-
-

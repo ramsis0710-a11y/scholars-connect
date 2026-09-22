@@ -1,0 +1,30 @@
+﻿<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Connexion - Scholars Connect</title><link rel="stylesheet" href="/style.css"></head><body>
+<div class="header"><div class="logo"><div class="mark">SC</div><div><h1>Scholars Connect</h1><p>Connexion</p></div></div><div class="nav"><a href="/presentation">Presentation</a></div></div>
+<div class="container" style="max-width:450px">
+  <div class="card">
+    <h2>Connexion</h2>
+    <div id="err" class="error" style="display:none"></div>
+    <input id="email" type="email" placeholder="Email" autocomplete="email">
+    <input id="password" type="password" placeholder="Mot de passe" autocomplete="current-password">
+    <button class="primary" style="width:100%" onclick="doLogin()">Se connecter</button>
+    <p style="text-align:center;margin-top:15px" class="muted">Pas de compte ? <a href="/register">Creer un compte</a></p>
+  </div>
+</div>
+<script src="/app.js"></script>
+<script>
+async function doLogin() {
+  const email = document.getElementById('email').value.trim();
+  const password = document.getElementById('password').value;
+  if (!email || !password) return showErr('Email et mot de passe requis');
+  try {
+    const r = await apiCall('/auth/login', { method:'POST', body: JSON.stringify({ email, password }) });
+    saveSession(r.token, r.user);
+    window.location.href = '/chat';
+  } catch (e) { showErr(e.message); }
+}
+function showErr(m) {
+  const el = document.getElementById('err'); el.textContent = m; el.style.display='block';
+}
+document.getElementById('password').addEventListener('keydown', e => { if (e.key==='Enter') doLogin(); });
+</script></body></html>
