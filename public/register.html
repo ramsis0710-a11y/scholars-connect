@@ -1,0 +1,29 @@
+﻿<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Inscription - Scholars Connect</title><link rel="stylesheet" href="/style.css"></head><body>
+<div class="header"><div class="logo"><div class="mark">SC</div><div><h1>Scholars Connect</h1><p>Inscription</p></div></div><div class="nav"><a href="/presentation">Presentation</a></div></div>
+<div class="container" style="max-width:450px">
+  <div class="card">
+    <h2>Creer un compte</h2>
+    <div id="err" class="error" style="display:none"></div>
+    <input id="name" type="text" placeholder="Nom complet">
+    <input id="email" type="email" placeholder="Email">
+    <input id="password" type="password" placeholder="Mot de passe (min 6 car.)">
+    <button class="primary" style="width:100%" onclick="doRegister()">Creer mon compte</button>
+    <p style="text-align:center;margin-top:15px" class="muted">Deja inscrit ? <a href="/login">Se connecter</a></p>
+  </div>
+</div>
+<script src="/app.js"></script>
+<script>
+async function doRegister() {
+  const name = document.getElementById('name').value.trim();
+  const email = document.getElementById('email').value.trim();
+  const password = document.getElementById('password').value;
+  if (!email || password.length < 6) return showErr('Email et mot de passe (min 6 car.) requis');
+  try {
+    const r = await apiCall('/auth/register', { method:'POST', body: JSON.stringify({ name, email, password }) });
+    saveSession(r.token, r.user);
+    window.location.href = '/chat';
+  } catch (e) { showErr(e.message); }
+}
+function showErr(m) { const el = document.getElementById('err'); el.textContent = m; el.style.display='block'; }
+</script></body></html>

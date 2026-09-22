@@ -1,0 +1,431 @@
+﻿// ================================================================
+// MBA-CONSULT AI CORE - Helper central (ajoute automatiquement)
+// ================================================================
+const MBA_CONSULT_API = process.env.MBA_CONSULT_API || 'https://api.mba-consult.tn';
+
+async function callMBAConsult(prompt, domain = 'General') {
+    try {
+        const r = await fetch(`${MBA_CONSULT_API}/api/ai`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ prompt, domain })
+        });
+        if (!r.ok) {
+            const txt = await r.text();
+            throw new Error(`MBA-CONSULT HTTP ${r.status}: ${txt.slice(0, 200)}`);
+        }
+        const data = await r.json();
+        return data.answer || '';
+    } catch (e) {
+        console.error('MBA-CONSULT API error:', e.message);
+        throw e;
+    }
+}
+// ================================================================
+const express = require('express');
+const path = require('path');
+const mongoose = require('mongoose');
+const fetch = require('node-fetch');
+require('dotenv').config();
+
+const app = express();
+const PORT = process.env.PORT || 3000;
+const MONGODB_URI = process.env.MONGODB_URI;
+const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
+
+// Vérification de la clé OpenRouter
+if (!OPENROUTER_API_KEY || OPENROUTER_API_KEY === 'VOTRE_CLE_OPENROUTER_ICI') {
+    console.error('❌ ERREUR : Veuillez configurer votre clé OpenRouter dans le fichier .env');
+    console.error('🔑 Obtenez une clé GRATUITE sur : https://openrouter.ai/keys');
+    process.exit(1);
+}
+
+let aiAvailable = false;
+
+// Vérification simple que la clé est configurée
+if (OPENROUTER_API_KEY && OPENROUTER_API_KEY.length > 10) {
+    aiAvailable = true;
+    console.log('✅ OpenRouter configuré (clé ' + OPENROUTER_API_KEY.substring(0, 8) + '...)');
+}
+
+mongoose.connect(MONGODB_URI, { 
+    serverSelectionTimeoutMS: 30000, 
+    socketTimeoutMS: 45000, 
+    family: 4 
+})
+.then(() => console.log('✅ MongoDB Atlas connecté'))
+.catch(err => console.error('❌ MongoDB:', err.message));
+
+// Schémas MongoDB (simplifiés pour démarrage rapide)
+const UserSchema = new mongoose.Schema({
+    username: String, 
+    email: { type: String, unique: true }, 
+    password: String,
+    role: { type: String, default: 'user' }, 
+    domain: { type: String, default: 'Général' }
+});
+
+const QuestionSchema = new mongoose.Schema({
+    title: String, 
+    content: String, 
+    domain: String, 
+    category: String,
+    username: String, 
+    language: String, 
+    date: String,
+    timestamp: { type: Date, default: Date.now }, 
+    status: { type: String, default: 'pending' },
+    answers: [{ 
+        username: String, 
+        content: String, 
+        language: String, 
+        timestamp: { type: Date, default: Date.now } 
+    }]
+});
+
+const User = mongoose.model('User', UserSchema);
+const Question = mongoose.model('Question', QuestionSchema);
+
+// Initialiser l'admin
+mongoose.connection.once('connected', async () => {
+    try {
+        const existing = await User.findOne({ email: 'admin@scholars-connect.com' });
+        if (!existing) {
+            await User.create({ 
+                username: 'admin', 
+                email: 'admin@scholars-connect.com', 
+                password: '%DaliMBA00931', 
+                role: 'admin', 
+                domain: 'Général' 
+            });
+            console.log('✅ Admin créé');
+        }
+    } catch (e) { 
+        console.error('Erreur admin:', e.message); 
+    }
+});
+
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true }));
+app.use(express.static(path.join(__dirname, 'public')));
+
+// ============================================================
+// BASE DE CONNAISSANCES LOCALE (Fallback d'urgence)
+// ============================================================
+const KNOWLEDGE_BASE = {
+    'hannibal': {
+        fr: '📖 Hannibal Barca (247-183 av. J.-C.) était un général carthaginois.\n\n🎯 Célèbre pour avoir traversé les Alpes avec ses éléphants en 218 av. J.-C.\n\n✅ Points clés :\n- Général de Carthage\n- Victoires à Trébie, Trasimène et Cannes\n- Battu par Scipion à Zama en 202 av. J.-C.\n\n📚 Sources : Tite-Live, Polybe',
+        ar: '📖 حنبعل برقا (247-183 ق.م) كان جنرالاً قرطاجياً.\n\n🎯 اشتهر بعبور جبال الألب مع الفيلة سنة 218 ق.م.\n\n✅ نقاط رئيسية:\n- جنرال قرطاجي\n- انتصارات في تريبيا وتراسيمين وكاناي\n- هُزم في زاما سنة 202 ق.م',
+        en: '📖 Hannibal Barca (247-183 BC) was a Carthaginian general.\n\n🎯 Famous for crossing the Alps with elephants in 218 BC.\n\n✅ Key points:\n- Carthaginian general\n- Victories at Trebia, Trasimene, and Cannae\n- Defeated at Zama in 202 BC'
+    },
+    'cnc': {
+        fr: '📖 Le CNC (Computer Numerical Control) est un système de commande numérique.\n\n🎯 Exigences :\n- Précision (±0.01mm)\n- Programmation G-code\n- Gestion thermique\n\n✅ Avantages :\n- Répétabilité élevée\n- Pièces complexes\n- Automatisation',
+        ar: '📖 CNC هو نظام تحكم رقمي.\n\n🎯 المتطلبات:\n- دقة (±0.01مم)\n- برمجة G-code\n\n✅ المزايا:\n- تكرارية عالية\n- قطع معقدة',
+        en: '📖 CNC (Computer Numerical Control) is a numerical control system.\n\n🎯 Requirements:\n- Accuracy (±0.01mm)\n- G-code programming\n\n✅ Advantages:\n- High repeatability\n- Complex parts'
+    }
+};
+
+// ============================================================
+// APPEL OPENROUTER (avec fallback local)
+// ============================================================
+async function generateAIResponse(question, scholar, reason) {
+    const qLang = question.language || 'fr';
+    const langNames = { fr: 'French', ar: 'Arabic', en: 'English', es: 'Spanish', de: 'German' };
+    const langName = langNames[qLang] || 'French';
+    
+    const prompt = `You are an expert academic judge named "Juge Claude".
+CRITICAL: You MUST respond in ${langName} (language code: ${qLang}).
+
+DOMAIN: ${question.domain}
+SPECIALTY: ${question.category}
+QUESTION: ${question.title}
+DETAILS: ${question.content}
+
+The scholar "${scholar.name}" ${reason === 'no_literature' ? 'has no specific literature.' : 'did not respond in time.'}
+
+Provide a COMPLETE and EXPERT answer in ${langName}.
+Structure: 1. DEFINITION 2. DETAILED ANSWER 3. KEY POINTS 4. SOURCES`;
+
+    // Tenter OpenRouter
+    if (aiAvailable) {
+        try {
+            console.log('🤖 Appel OpenRouter pour:', question.title, '| Langue:', qLang);
+            
+            const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
+                    'Content-Type': 'application/json',
+                    'HTTP-Referer': 'https://scholars-connect.app',
+                    'X-Title': 'Scholars Connect'
+                },
+                body: JSON.stringify({
+                    model: 'openrouter/free', // Routeur automatique vers les modèles gratuits
+                    messages: [{ role: 'user', content: prompt }],
+                    temperature: 0.7,
+                    max_tokens: 2000
+                })
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                const text = data.choices?.[0]?.message?.content;
+                if (text && text.length > 50) {
+                    console.log('✅ Réponse OpenRouter reçue (' + text.length + ' caractères)');
+                    return buildResponse(text, question, scholar, reason);
+                }
+            } else {
+                const errorText = await response.text();
+                console.error('❌ OpenRouter erreur:', response.status, errorText);
+            }
+        } catch (e) {
+            console.error('❌ Erreur OpenRouter:', e.message);
+        }
+    }
+
+    // Fallback local
+    console.log('📚 Utilisation du fallback local');
+    return generateLocalFallback(question, scholar, reason);
+}
+
+function buildResponse(text, question, scholar, reason) {
+    let header = '';
+    if (reason === 'no_literature') {
+        header = `🤖 RÉPONSE DU JUGE CLAUDE\n\n📋 Question : "${question.title}"\n\n━━━━━━━━━━━━━━━━━━━━\n\n`;
+    } else {
+        header = `⏱️ RÉPONSE DU JUGE CLAUDE\n\n👨‍🎓 Scholar : ${scholar.name}\n\n━━━━━━━━━━━━━━━━━━━━\n\n`;
+    }
+    return header + text + `\n\n━━━━━━━━━━━━━━━━━━━━\n💡 Le scholar ${scholar.name} pourra compléter.`;
+}
+
+function generateLocalFallback(question, scholar, reason) {
+    const qLang = question.language || 'fr';
+    const questionText = (question.title + ' ' + question.content).toLowerCase();
+    
+    let found = null;
+    for (const key in KNOWLEDGE_BASE) {
+        if (questionText.includes(key)) {
+            found = KNOWLEDGE_BASE[key];
+            break;
+        }
+    }
+    
+    const header = `🤖 RÉPONSE DU JUGE CLAUDE\n\n📋 Question : "${question.title}"\n\n━━━━━━━━━━━━━━━━━━━━\n\n`;
+    
+    if (found && found[qLang]) {
+        return header + found[qLang] + '\n\n━━━━━━━━━━━━━━━━━━━━\n💡 Le scholar pourra compléter.';
+    }
+    
+    const generic = {
+        fr: `📖 DÉFINITION : Cette question relève du domaine ${question.domain}.\n\n🎯 RÉPONSE : Le sujet "${question.title}" nécessite une expertise spécialisée.\n\n✅ POINTS CLÉS :\n   • Domaine : ${question.domain}\n   • Spécialité : ${question.category}\n   • Scholar : ${scholar.name}\n\n💡 Consultez la littérature spécialisée.`,
+        ar: `📖 التعريف : هذا السؤال يتعلق بمجال ${question.domain}.\n\n🎯 الإجابة : موضوع "${question.title}" يتطلب خبرة متخصصة.\n\n✅ النقاط الرئيسية :\n   • المجال : ${question.domain}\n   • التخصص : ${question.category}\n   • العالم : ${scholar.name}`,
+        en: `📖 DEFINITION: This question belongs to ${question.domain}.\n\n🎯 ANSWER: The topic "${question.title}" requires specialized expertise.\n\n✅ KEY POINTS:\n   • Domain: ${question.domain}\n   • Specialty: ${question.category}\n   • Scholar: ${scholar.name}`
+    };
+    
+    return header + (generic[qLang] || generic.fr) + '\n\n━━━━━━━━━━━━━━━━━━━━\n💡 Le scholar pourra compléter.';
+}
+
+// ============================================================
+// ROUTES API
+// ============================================================
+
+app.post('/api/analyze-question', async (req, res) => {
+    try {
+        const { text } = req.body;
+        if (!text) return res.status(400).json({ error: 'Texte manquant' });
+        
+        // Détection de langue
+        let detectedLang = 'fr';
+        if (/[\u0600-\u06FF]/.test(text)) detectedLang = 'ar';
+        else if (/[\u4E00-\u9FFF]/.test(text)) detectedLang = 'zh';
+        else if (/[\u0400-\u04FF]/.test(text)) detectedLang = 'ru';
+        
+        // Analyse basique sans IA (pour démarrage rapide)
+        const lower = text.toLowerCase();
+        let domain = 'Général', category = 'Histoire';
+        
+        if (lower.match(/islam|coran|hadith|fiqh|sourate|fatiha/)) { 
+            domain = 'Islam'; category = 'Fiqh'; 
+        } else if (lower.match(/médecine|maladie|santé/)) { 
+            domain = 'Médecine'; category = 'Général'; 
+        } else if (lower.match(/ia|intelligence|deep learning/)) { 
+            domain = 'IA'; category = 'Deep Learning'; 
+        } else if (lower.match(/pétrole|forage|cnc|filetage/)) { 
+            domain = 'Mécanique Pétrole'; category = 'Usinage CNC'; 
+        }
+        
+        res.json({ 
+            title: text.substring(0, 80), 
+            domain, 
+            category, 
+            language: detectedLang, 
+            content: text 
+        });
+    } catch (e) { 
+        res.status(500).json({ error: e.message }); 
+    }
+});
+
+app.post('/api/generate-answer', async (req, res) => {
+    try {
+        const { question, scholar, reason } = req.body;
+        if (!question) return res.status(400).json({ error: 'Question manquante' });
+        
+        const answer = await generateAIResponse(question, scholar || { name: 'Expert' }, reason || 'no_response');
+        res.json({ answer });
+    } catch (e) { 
+        res.status(500).json({ error: e.message }); 
+    }
+});
+
+app.get('/api/questions', async (req, res) => {
+    try {
+        const questions = await Question.find().sort({ timestamp: -1 }).limit(50);
+        res.json(questions);
+    } catch (e) { 
+        res.status(500).json({ error: e.message }); 
+    }
+});
+
+app.post('/api/questions', async (req, res) => {
+    try {
+        const question = await Question.create(req.body);
+        res.json(question);
+    } catch (e) { 
+        res.status(500).json({ error: e.message }); 
+    }
+});
+
+// ============================================================
+// PAGE HTML MINIMALE POUR TESTER
+// ============================================================
+app.get('/', (req, res) => {
+    res.send(`
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scholars Connect - Test</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: linear-gradient(135deg, #0a0e27 0%, #1a1a3e 100%); min-height: 100vh; display: flex; justify-content: center; align-items: center; padding: 20px; }
+        .card { background: white; border-radius: 24px; padding: 40px; max-width: 600px; width: 100%; box-shadow: 0 25px 70px rgba(0,0,0,0.3); }
+        h1 { color: #0a0e27; margin-bottom: 8px; }
+        .subtitle { color: #666; margin-bottom: 30px; }
+        .status { display: inline-block; padding: 8px 20px; border-radius: 20px; font-weight: 700; margin-bottom: 20px; }
+        .status.green { background: #22c55e; color: white; }
+        .form-group { margin-bottom: 18px; }
+        label { display: block; color: #333; font-weight: 600; margin-bottom: 6px; }
+        input, textarea { width: 100%; padding: 14px; border: 2px solid #e5e7eb; border-radius: 10px; font-size: 15px; font-family: inherit; }
+        textarea { min-height: 120px; resize: vertical; }
+        button { width: 100%; padding: 15px; background: #667eea; color: white; border: none; border-radius: 10px; font-size: 16px; font-weight: 700; cursor: pointer; }
+        button:hover { background: #5a6fd6; }
+        .result { margin-top: 20px; padding: 20px; background: #f9fafb; border-radius: 10px; white-space: pre-wrap; display: none; }
+        .result.show { display: block; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h1>🎓 Scholars Connect</h1>
+        <div class="subtitle">Test de l'API OpenRouter</div>
+        <div class="status green">🟢 Serveur en ligne</div>
+        
+        <div class="form-group">
+            <label>Domaine</label>
+            <input type="text" id="domain" value="Islam" placeholder="Ex: Islam, Médecine, IA...">
+        </div>
+        <div class="form-group">
+            <label>Catégorie</label>
+            <input type="text" id="category" value="Fiqh" placeholder="Ex: Fiqh, CNC, Deep Learning...">
+        </div>
+        <div class="form-group">
+            <label>Votre question</label>
+            <textarea id="question" placeholder="Posez votre question ici...">Quelle est la cause de la révélation de la sourate Al-Fatiha ?</textarea>
+        </div>
+        <button onclick="askQuestion()">🚀 Poser la question</button>
+        
+        <div class="result" id="result"></div>
+    </div>
+    
+    <script>
+        async function askQuestion() {
+            const domain = document.getElementById('domain').value;
+            const category = document.getElementById('category').value;
+            const question = document.getElementById('question').value;
+            const resultDiv = document.getElementById('result');
+            
+            resultDiv.className = 'result show';
+            resultDiv.textContent = '⏳ Analyse en cours...';
+            
+            try {
+                const response = await fetch('/api/generate-answer', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        question: { title: question, content: question, domain, category, language: 'fr' },
+                        scholar: { name: 'Expert' },
+                        reason: 'no_response'
+                    })
+                });
+                
+                const data = await response.json();
+                resultDiv.textContent = data.answer || data.error;
+            } catch (e) {
+                resultDiv.textContent = '❌ Erreur : ' + e.message;
+            }
+        }
+    </script>
+</body>
+</html>
+    `);
+});
+
+// Démarrer le serveur
+
+// ================================================================
+// MBA-CONSULT AI CORE - Routes IA
+// ================================================================
+app.post('/api/ai', async (req, res) => {
+    try {
+        const { prompt, domain } = req.body || {};
+        if (!prompt) return res.status(400).json({ error: 'prompt requis' });
+        const answer = await callMBAConsult(prompt, domain || 'General');
+        res.json({ answer, provider: 'mba-consult-ai-core' });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+app.post('/api/chat', async (req, res) => {
+    try {
+        const { message, domain } = req.body || {};
+        if (!message) return res.status(400).json({ error: 'message requis' });
+        const answer = await callMBAConsult(message, domain || 'General');
+        res.json({ answer, provider: 'mba-consult-ai-core' });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// Page d'accueil avec interface web
+app.get('/chat', (req, res) => {
+    res.sendFile(require('path').join(__dirname, 'public', 'chat.html'));
+});
+
+app.listen(PORT, () => {
+    console.log('');
+    console.log('========================================');
+    console.log('🎓 SCHOLARS CONNECT - SERVEUR DÉMARRÉ');
+    console.log('========================================');
+    console.log('📍 http://localhost:' + PORT);
+    console.log('🔑 Clé OpenRouter : ' + (aiAvailable ? '✅ Configurée' : '❌ Manquante'));
+    console.log('========================================');
+    console.log('');
+    console.log('⚠️  IMPORTANT : Modifiez le fichier .env');
+    console.log('   et ajoutez votre clé OpenRouter GRATUITE');
+    console.log('   Obtenez-la sur : https://openrouter.ai/keys');
+    console.log('');
+});
+
+
