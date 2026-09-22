@@ -420,12 +420,78 @@ app.get('/ar', (req, res) => res.sendFile(path.join(__dirname, 'public', 'presen
 app.get('/en', (req, res) => res.sendFile(path.join(__dirname, 'public', 'presentation-en.html')));
 app.get('/fr', (req, res) => res.sendFile(path.join(__dirname, 'public', 'presentation-fr.html')));
 
+
+// ============================================================
+// V3 - Domaines illimites (base de donnees)
+// ============================================================
+const domainSchema = new mongoose.Schema({
+    name:      { type: String, required: true, unique: true, index: true },
+    createdBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+    isDefault: { type: Boolean, default: false },
+    usage:     { type: Number, default: 0 },
+    createdAt: { type: Date, default: Date.now }
+});
+const Domain = mongoose.model("Domain", domainSchema);
+
+// Domaines par defaut (crees au premier demarrage)
+const DEFAULT_DOMAINS = [
+    "General", "Religion", "Education", "Technique", "Analyse",
+    "Sante", "Droit", "Economie", "Histoire", "Philosophie",
+    "Sciences", "Litterature", "Arts", "Langues", "Sport"
+];
+
+async function ensureDefaultDomains() {
+    if (!mongoReady) return;
+    try {
+        for (const name of DEFAULT_DOMAINS) {
+            await Domain.updateOne(
+                { name },
+                { $setOnInsert: { name, isDefault: true } },
+                { upsert: true }
+            );
+        }
+        console.log("Domaines par defaut verifies");
+    } catch (e) {
+        console.warn("Erreur domaines:", e.message);
+    }
+}
+
+// ============================================================
+// Routes domaines
+// ============================================================
+app.get('/api/domains', async (req, res) => {
+    if (!mongoReady) return res.json({ domains: DEFAULT_DOMAINS });
+    try {
+        const list = await Domain.find().sort({ usage: -1, name: 1 }).lean();
+        res.json({ domains: list.map(d => d.name) });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+app.post('/api/domains', requireAuth, async (req, res) => {
+    try {
+        const { name } = req.body || {};
+        if (!name || !name.trim()) return res.status(400).json({ error: "name requis" });
+        const clean = name.trim().slice(0, 50);
+        if (!mongoReady) return res.status(503).json({ error: "MongoDB non connecte" });
+
+        const existing = await Domain.findOne({ name: clean });
+        if (existing) return res.json({ ok: true, name: clean, created: false });
+
+        await Domain.create({ name: clean, createdBy: req.user.id });
+        res.json({ ok: true, name: clean, created: true });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
 app.use((req, res) => res.status(404).json({ error: "Endpoint introuvable", path: req.path }));
 
 // ============================================================
 // DEMARRAGE
 // ============================================================
-connectMongo().finally(() => {
+connectMongo().then(ensureDefaultDomains).finally(() => {
     app.listen(PORT, HOST, () => {
         console.log("================================================");
         console.log(` Scholars Connect V2 - PORT ${PORT}`);
