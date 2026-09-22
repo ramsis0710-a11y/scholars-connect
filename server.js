@@ -1,4 +1,4 @@
-﻿require("dotenv").config();
+require("dotenv").config();
 const express  = require("express");
 const cors     = require("cors");
 const mongoose = require("mongoose");
@@ -331,6 +331,94 @@ app.get("/register", (req, res) => res.sendFile(path.join(__dirname, "public", "
 app.get("/presentation", (req, res) => res.sendFile(path.join(__dirname, "public", "presentation.html")));
 app.get("/admin", (req, res) => res.sendFile(path.join(__dirname, "public", "admin.html")));
 app.get("/", (req, res) => res.sendFile(path.join(__dirname, "public", "index.html")));
+
+
+// ============================================================
+// V3 - Langues supportees
+// ============================================================
+const SUPPORTED_LANGUAGES = [
+    { code: "ar", name: "\u0627\u0644\u0639\u0631\u0628\u064a\u0629", nameFr: "Arabe", nameEn: "Arabic" },
+    { code: "fr", name: "Fran\u00e7ais", nameFr: "Fran\u00e7ais", nameEn: "French" },
+    { code: "en", name: "English", nameFr: "Anglais", nameEn: "English" },
+    { code: "es", name: "Espa\u00f1ol", nameFr: "Espagnol", nameEn: "Spanish" },
+    { code: "de", name: "Deutsch", nameFr: "Allemand", nameEn: "German" },
+    { code: "it", name: "Italiano", nameFr: "Italien", nameEn: "Italian" },
+    { code: "pt", name: "Portugu\u00eas", nameFr: "Portugais", nameEn: "Portuguese" },
+    { code: "ru", name: "\u0420\u0443\u0441\u0441\u043a\u0438\u0439", nameFr: "Russe", nameEn: "Russian" },
+    { code: "zh", name: "\u4e2d\u6587", nameFr: "Chinois", nameEn: "Chinese" },
+    { code: "ja", name: "\u65e5\u672c\u8a9e", nameFr: "Japonais", nameEn: "Japanese" },
+    { code: "ko", name: "\ud55c\uad6d\uc5b4", nameFr: "Coreen", nameEn: "Korean" },
+    { code: "tr", name: "T\u00fcrk\u00e7e", nameFr: "Turc", nameEn: "Turkish" },
+    { code: "fa", name: "\u0641\u0627\u0631\u0633\u06cc", nameFr: "Persan", nameEn: "Persian" },
+    { code: "ur", name: "\u0627\u0631\u062f\u0648", nameFr: "Ourdou", nameEn: "Urdu" },
+    { code: "hi", name: "\u0939\u093f\u0928\u094d\u0926\u0940", nameFr: "Hindi", nameEn: "Hindi" },
+    { code: "he", name: "\u05e2\u05d1\u05e8\u05d9\u05ea", nameFr: "Hebreu", nameEn: "Hebrew" },
+    { code: "nl", name: "Nederlands", nameFr: "Neerlandais", nameEn: "Dutch" },
+    { code: "pl", name: "Polski", nameFr: "Polonais", nameEn: "Polish" },
+    { code: "el", name: "\u0395\u03bb\u03bb\u03b7\u03bd\u03b9\u03ba\u03ac", nameFr: "Grec", nameEn: "Greek" },
+    { code: "vi", name: "Ti\u1ebfng Vi\u1ec7t", nameFr: "Vietnamien", nameEn: "Vietnamese" },
+    { code: "th", name: "\u0e44\u0e17\u0e22", nameFr: "Thai", nameEn: "Thai" },
+    { code: "id", name: "Bahasa Indonesia", nameFr: "Indonesien", nameEn: "Indonesian" }
+];
+
+// ============================================================
+// V3 - Analyse de contenu (contourne upload fichier)
+// ============================================================
+app.post('/api/analyze-content', requireAuth, async (req, res) => {
+    try {
+        const { content, type, question, language, sourceName } = req.body || {};
+        if (!content) return res.status(400).json({ error: "content requis" });
+
+        let textToAnalyze = content;
+        let autoSource = sourceName || "Saisie directe";
+
+        if (type === "url") {
+            try {
+                const r = await fetch(content, { redirect: "follow" });
+                const html = await r.text();
+                textToAnalyze = html
+                    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "")
+                    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "")
+                    .replace(/<[^>]+>/g, " ")
+                    .replace(/&nbsp;/g, " ")
+                    .replace(/&amp;/g, "&")
+                    .replace(/\s+/g, " ")
+                    .trim()
+                    .slice(0, 20000);
+                autoSource = "URL : " + content;
+            } catch (e) {
+                return res.status(400).json({ error: "Impossible de charger l'URL : " + e.message });
+            }
+        }
+
+        const finalQuestion = question || "Analyse ce document en detail et fais-en un resume structure.";
+        const prompt = finalQuestion + "\n\n--- CONTENU A ANALYSER ---\n" + textToAnalyze;
+        const answer = await askAI(prompt, { domain: "Analyse", language: language || "fr" });
+
+        if (mongoReady) {
+            await QA.create({
+                userId: req.user.id,
+                question: `[Document] ${finalQuestion}`,
+                answer,
+                language: language || "fr",
+                domain: "Analyse",
+                sourceDoc: autoSource.slice(0, 200)
+            });
+        }
+
+        res.json({ answer, source: autoSource, length: textToAnalyze.length });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+app.get('/api/languages', (req, res) => {
+    res.json({ languages: SUPPORTED_LANGUAGES });
+});
+
+app.get('/ar', (req, res) => res.sendFile(path.join(__dirname, 'public', 'presentation-ar.html')));
+app.get('/en', (req, res) => res.sendFile(path.join(__dirname, 'public', 'presentation-en.html')));
+app.get('/fr', (req, res) => res.sendFile(path.join(__dirname, 'public', 'presentation-fr.html')));
 
 app.use((req, res) => res.status(404).json({ error: "Endpoint introuvable", path: req.path }));
 
