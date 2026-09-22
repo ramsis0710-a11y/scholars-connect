@@ -1,4 +1,4 @@
-﻿<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Chat - Scholars Connect</title><link rel="stylesheet" href="/style.css">
 <style>
 .chat-wrap{max-width:1000px;margin:0 auto;padding:20px}
@@ -30,6 +30,20 @@ textarea:focus{border-color:#1e5aa8}
 .dict-badge.active{display:block}
 .confirm-btn{background:#16a34a;color:white;border:none;padding:10px 20px;border-radius:10px;font-weight:600;cursor:pointer;display:none;margin-top:8px}
 .confirm-btn.active{display:inline-block}
+.dialog-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;justify-content:center;align-items:center;z-index:1000}
+.dialog-overlay.active{display:flex}
+.dialog-box{background:white;border-radius:16px;padding:30px;max-width:650px;width:90%;max-height:85vh;overflow-y:auto}
+.dialog-box h3{color:#0a2540;margin-bottom:20px}
+.dialog-tabs{display:flex;gap:8px;margin-bottom:20px;border-bottom:2px solid #e5e7eb}
+.dialog-tab{padding:10px 18px;cursor:pointer;font-weight:600;font-size:.9rem;color:#6b7280;border-bottom:3px solid transparent;margin-bottom:-2px}
+.dialog-tab.active{color:#1e5aa8;border-bottom-color:#1e5aa8}
+.dialog-panel{display:none}
+.dialog-panel.active{display:block}
+.dialog-box textarea{width:100%;min-height:200px;padding:12px;border:2px solid #e5e7eb;border-radius:10px;font-family:monospace;font-size:.9rem;resize:vertical}
+.dialog-box input[type="url"],.dialog-box input[type="text"]{width:100%;padding:12px;border:2px solid #e5e7eb;border-radius:10px;font-size:.95rem}
+.dialog-btns{display:flex;gap:10px;justify-content:flex-end;margin-top:20px}
+.btn-cancel{background:#f5f7fa;border:2px solid #e5e7eb;color:#0a2540;padding:12px 24px;border-radius:10px;font-weight:600;cursor:pointer}
+.btn-ok{background:linear-gradient(135deg,#0a2540,#1e5aa8);color:white;border:none;padding:12px 24px;border-radius:10px;font-weight:600;cursor:pointer}
 </style></head><body>
 <div class="header">
   <div class="logo"><div class="mark">SC</div><div><h1>Scholars Connect</h1><p>Assistant IA</p></div></div>
@@ -41,7 +55,32 @@ textarea:focus{border-color:#1e5aa8}
     <div class="input-area">
       <div class="dict-badge" id="dict-status">Dictee en cours... Parlez puis faites une pause de 10 secondes.</div>
       <div class="options-bar">
-        <label>Langue : <select id="lang"><option value="fr">Francais</option><option value="en">English</option><option value="ar">Ø§Ù„Ø¹Ø±Ø¨ÙŠØ©</option><option value="es">Espanol</option></select></label>
+        <label>Langue :
+          <select id="lang" style="min-width:180px">
+            <option value="ar">&#1575;&#1604;&#1593;&#1585;&#1576;&#1610;&#1577;</option>
+            <option value="fr" selected>Fran&ccedil;ais</option>
+            <option value="en">English</option>
+            <option disabled>---------------</option>
+            <option value="es">Espa&ntilde;ol</option>
+            <option value="de">Deutsch</option>
+            <option value="it">Italiano</option>
+            <option value="pt">Portugu&ecirc;s</option>
+            <option value="ru">&#1056;&#1091;&#1089;&#1089;&#1082;&#1080;&#1081;</option>
+            <option value="zh">&#20013;&#25991;</option>
+            <option value="ja">&#26085;&#26412;&#35486;</option>
+            <option value="ko">&#54620;&#44397;&#50612;</option>
+            <option value="tr">T&uuml;rk&ccedil;e</option>
+            <option value="fa">&#1601;&#1575;&#1585;&#1587;&#1740;</option>
+            <option value="ur">&#1575;&#1585;&#1583;&#1608;</option>
+            <option value="hi">&#2361;&#2367;&#2344;&#2381;&#2342;&#2368;</option>
+            <option value="he">&#1506;&#1489;&#1512;&#1497;&#1514;</option>
+            <option value="nl">Nederlands</option>
+            <option value="pl">Polski</option>
+            <option value="el">&#917;&#955;&#955;&#951;&#957;&#953;&#954;&#940;</option>
+            <option value="vi">Ti&#7871;ng Vi&#7879;t</option>
+            <option value="th">&#3652;&#3607;&#3618;</option>
+            <option value="id">Bahasa</option>
+          </select></label>
         <label>Domaine : <select id="domain"><option>General</option><option>Religion</option><option>Education</option><option>Technique</option><option>Analyse</option></select></label>
         <label><input type="checkbox" id="autoSpeak" checked> Lecture vocale auto</label>
       </div>
@@ -53,6 +92,7 @@ textarea:focus{border-color:#1e5aa8}
         <textarea id="input" placeholder="Posez votre question... (dictee ou texte)" rows="1"></textarea>
         <div class="btn-group">
           <button class="btn-mic" id="mic" onclick="toggleDictation()" title="Dictee orale">ðŸŽ¤</button>
+          <button class="btn-doc" onclick="openAnalyzeDialog()" title="Analyser un document" style="background:#1e5aa8;color:white;border:none;padding:14px;border-radius:12px;cursor:pointer;font-size:1.1rem;width:52px">&#128196;</button>
           <button class="primary" id="send" onclick="send()">Envoyer</button>
         </div>
       </div>
@@ -212,6 +252,37 @@ async function translateMsg(el) {
   } catch (e) { alert('Erreur traduction : ' + e.message); }
 }
 
+
+function openAnalyzeDialog(){document.getElementById('analyze-dialog').classList.add('active');}
+function closeAnalyzeDialog(){document.getElementById('analyze-dialog').classList.remove('active');}
+function switchDialogTab(tab,el){
+  document.querySelectorAll('.dialog-tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.dialog-panel').forEach(p=>p.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('panel-'+tab).classList.add('active');
+}
+async function analyzeContent(){
+  var tab=document.querySelector('.dialog-tab.active').getAttribute('data-tab');
+  var content='',type='text';
+  if(tab==='url'){content=document.getElementById('content-url').value.trim();type='url';}
+  else if(tab==='pdf'){content=document.getElementById('content-pdf').value.trim();}
+  else{content=document.getElementById('content-text').value.trim();}
+  if(!content){alert('Contenu vide');return;}
+  var question=document.getElementById('content-question').value.trim();
+  var language=document.getElementById('lang').value;
+  closeAnalyzeDialog();
+  addMsg('[Document] '+(question||'Analyse ce document'),'user');
+  var loading=addMsg('Analyse en cours...','bot');
+  try{
+    var r=await apiCall('/analyze-content',{method:'POST',body:JSON.stringify({content:content,type:type,question:question,language:language,sourceName:type==='url'?'URL':'Collage direct'})});
+    loading.remove();
+    addBotMsg(r.answer,null);
+    if(document.getElementById('autoSpeak').checked){
+      speak(r.answer,language==='ar'?'ar-SA':(language==='en'?'en-US':'fr-FR'));
+    }
+  }catch(e){loading.textContent='Erreur : '+e.message;}
+}
+document.addEventListener('keydown',function(e){if(e.key==='Escape')closeAnalyzeDialog();});
 // Charger l'historique au demarrage
 (async () => {
   try {
@@ -225,4 +296,32 @@ async function translateMsg(el) {
     }
   } catch {}
 })();
-</script></body></html>
+</script><div class="dialog-overlay" id="analyze-dialog">
+  <div class="dialog-box">
+    <h3>&#128196; Analyser un contenu</h3>
+    <div class="dialog-tabs">
+      <div class="dialog-tab active" data-tab="text" onclick="switchDialogTab('text', this)">Coller du texte</div>
+      <div class="dialog-tab" data-tab="url" onclick="switchDialogTab('url', this)">Coller une URL</div>
+      <div class="dialog-tab" data-tab="pdf" onclick="switchDialogTab('pdf', this)">Extrait PDF / DOCX</div>
+    </div>
+    <div class="dialog-panel active" id="panel-text">
+      <p style="color:#6b7280;font-size:.85rem;margin-bottom:10px">Colle le contenu a analyser (max 20 000 caracteres) :</p>
+      <textarea id="content-text" placeholder="Colle ici le contenu du document..."></textarea>
+    </div>
+    <div class="dialog-panel" id="panel-url">
+      <p style="color:#6b7280;font-size:.85rem;margin-bottom:10px">Entre l'URL complete :</p>
+      <input type="url" id="content-url" placeholder="https://exemple.com/article">
+    </div>
+    <div class="dialog-panel" id="panel-pdf">
+      <p style="color:#6b7280;font-size:.85rem;margin-bottom:10px">Ouvre ton PDF/DOCX, Ctrl+A, Ctrl+C, colle ici :</p>
+      <textarea id="content-pdf" placeholder="Colle ici l'extrait..."></textarea>
+    </div>
+    <p style="color:#6b7280;font-size:.85rem;margin-top:15px">Question specifique (optionnel)</p>
+    <input type="text" id="content-question" placeholder="Ex : Resume en 5 points" style="margin-top:5px">
+    <div class="dialog-btns">
+      <button class="btn-cancel" onclick="closeAnalyzeDialog()">Annuler</button>
+      <button class="btn-ok" onclick="analyzeContent()">Analyser avec l'IA</button>
+    </div>
+  </div>
+</div>
+</body></html>
