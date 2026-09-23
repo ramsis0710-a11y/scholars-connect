@@ -63,13 +63,13 @@ textarea:focus{border-color:#1e5aa8}
   t = t.replace(/(\d)\s*\*\s*(\d)/g, '</head> fois $2');
   t = t.replace(/(\d)\s*x\s*(\d)/g, '</head> fois $2');
   t = t.replace(/(\d)\s*\/\s*(\d)/g, '</head> divise par $2');
-  t = t.replace(/Â²/g, ' au carre ');
-  t = t.replace(/Â³/g, ' au cube ');
-  t = t.replace(/âˆš/g, ' racine carree de ');
-  t = t.replace(/Ï€/g, ' pi ');
-  t = t.replace(/Â°/g, ' degres ');
+  t = t.replace(/Ã‚Â²/g, ' au carre ');
+  t = t.replace(/Ã‚Â³/g, ' au cube ');
+  t = t.replace(/Ã¢Ë†Å¡/g, ' racine carree de ');
+  t = t.replace(/Ãâ‚¬/g, ' pi ');
+  t = t.replace(/Ã‚Â°/g, ' degres ');
   t = t.replace(/%/g, ' pour cent ');
-  t = t.replace(/^[-â€¢Â·]\s*/gm, '');
+  t = t.replace(/^[-Ã¢â‚¬Â¢Ã‚Â·]\s*/gm, '');
   t = t.replace(/^\d+\.\s*/gm, '');
   t = t.replace(/\s+/g, ' ');
   return t.trim();
@@ -173,7 +173,7 @@ if (speechSynthesis.onvoiceschanged !== undefined) {
       <div class="row-input">
         <textarea id="input" placeholder="Posez votre question... (dictee ou texte)" rows="1"></textarea>
         <div class="btn-group">
-          <button class="btn-mic" id="mic" onclick="toggleDictation()" title="Dictee orale">ÃƒÆ’Ã‚Â°Ãƒâ€¦Ã‚Â¸Ãƒâ€¦Ã‚Â½Ãƒâ€šÃ‚Â¤</button>
+          <button class="btn-mic" id="mic" onclick="toggleDictation()" title="Dictee orale">ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â°ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¸ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â½ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¤</button>
           <button class="btn-doc" onclick="openAnalyzeDialog()" title="Analyser un document" style="background:#1e5aa8;color:white;border:none;padding:14px;border-radius:12px;cursor:pointer;font-size:1.1rem;width:52px">&#128196;</button>
           <button class="primary" id="send" onclick="send()">Envoyer</button>
         </div>
@@ -233,9 +233,9 @@ function addBotMsg(text, scholar) {
   const actions = document.createElement('div');
   actions.className = 'msg-actions';
   actions.innerHTML = `
-    <button onclick="speak(this.parentElement.parentElement.querySelector('div').textContent, document.getElementById('lang').value + '-FR')">ÃƒÆ’Ã‚Â°Ãƒâ€¦Ã‚Â¸ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒâ€¦Ã‚Â  Lire</button>
-    <button onclick="shareText(this.parentElement.parentElement.querySelector('div').textContent)">ÃƒÆ’Ã‚Â°Ãƒâ€¦Ã‚Â¸ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â Partager</button>
-    <button onclick="translateMsg(this.parentElement.parentElement.querySelector('div'))">ÃƒÆ’Ã‚Â°Ãƒâ€¦Ã‚Â¸Ãƒâ€¦Ã¢â‚¬â„¢Ãƒâ€šÃ‚Â Traduire</button>
+    <button onclick="speak(this.parentElement.parentElement.querySelector('div').textContent, document.getElementById('lang').value + '-FR')">ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â°ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¸ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â  Lire</button>
+    <button onclick="shareText(this.parentElement.parentElement.querySelector('div').textContent)">ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â°ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¸ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â Partager</button>
+    <button onclick="translateMsg(this.parentElement.parentElement.querySelector('div'))">ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â°ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¸ÃƒÆ’Ã¢â‚¬Â¦ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â Traduire</button>
   `;
   div.appendChild(actions);
   if (scholar) {
@@ -410,6 +410,159 @@ document.getElementById('domain').addEventListener('input', function(e) {
     area.style.display = (v.includes('relig') || v.includes('islam') || v.includes('theo') || v.includes('sunnah') || v.includes('hadith')) ? 'block' : 'none';
   }
 });
+
+// ============================================================
+// DICTEE VOCALE MULTILINGUE (ar-SA / fr-FR / en-US)
+// ============================================================
+let recognition = null;
+let dictationBuffer = '';
+let silenceTimer = null;
+let currentDictationLang = 'fr-FR';
+
+function startDictation(onResult, onEnd, langCode) {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) {
+    alert('La dictee vocale n est pas supportee par ce navigateur. Utilisez Chrome ou Edge.');
+    return null;
+  }
+
+  recognition = new SR();
+  currentDictationLang = langCode || 'fr-FR';
+  recognition.lang = currentDictationLang;
+  recognition.continuous = true;
+  recognition.interimResults = true;
+  recognition.maxAlternatives = 1;
+
+  dictationBuffer = '';
+
+  recognition.onresult = (ev) => {
+    let interim = '', final = '';
+    for (let i = ev.resultIndex; i < ev.results.length; i++) {
+      const t = ev.results[i][0].transcript;
+      if (ev.results[i].isFinal) {
+        final += t + ' ';
+      } else {
+        interim += t;
+      }
+    }
+    if (final) dictationBuffer += final;
+
+    // Mise a jour du champ texte
+    if (onResult) {
+      onResult((dictationBuffer + interim).trim());
+    }
+
+    // Timer de silence : 10 secondes
+    if (silenceTimer) clearTimeout(silenceTimer);
+    silenceTimer = setTimeout(() => {
+      if (onEnd) onEnd(dictationBuffer.trim());
+    }, 10000);
+  };
+
+  recognition.onerror = (e) => {
+    console.error('Erreur dictee :', e.error);
+    if (e.error === 'language-not-supported') {
+      alert('La langue ' + currentDictationLang + ' n est pas supportee par votre navigateur.');
+    } else if (e.error === 'not-allowed') {
+      alert('Vous devez autoriser l acces au microphone.');
+    } else if (e.error === 'no-speech') {
+      console.warn('Aucune parole detectee.');
+    }
+  };
+
+  recognition.onend = () => {
+    if (silenceTimer) {
+      clearTimeout(silenceTimer);
+      silenceTimer = null;
+    }
+  };
+
+  try {
+    recognition.start();
+    console.log('Dictee demarree en ' + currentDictationLang);
+  } catch (e) {
+    console.error('Erreur demarrage dictee :', e.message);
+    return null;
+  }
+
+  return recognition;
+}
+
+function stopDictation() {
+  if (recognition) {
+    try { recognition.stop(); } catch (e) {}
+    recognition = null;
+  }
+  if (silenceTimer) {
+    clearTimeout(silenceTimer);
+    silenceTimer = null;
+  }
+  dictationBuffer = '';
+}
+
+// ============================================================
+// BOUTON MICRO : toggle dictation avec la langue selectionnee
+// ============================================================
+let currentRecognition = null;
+
+function toggleDictation() {
+  const langSelect = document.getElementById('lang');
+  const selectedLang = langSelect ? langSelect.value : 'fr';
+
+  // Determiner la langue de dictee
+  let dictLang = 'fr-FR';
+  if (selectedLang === 'ar') dictLang = 'ar-SA';
+  else if (selectedLang === 'en') dictLang = 'en-US';
+  else if (selectedLang === 'es') dictLang = 'es-ES';
+  else if (selectedLang === 'tr') dictLang = 'tr-TR';
+  else if (selectedLang === 'fa') dictLang = 'fa-IR';
+  else if (selectedLang === 'ur') dictLang = 'ur-PK';
+
+  const micBtn = document.getElementById('mic');
+  const dictStatus = document.getElementById('dict-status');
+  const confirmBtn = document.getElementById('confirm-dict');
+
+  if (currentRecognition) {
+    // Arreter la dictee
+    stopDictation();
+    currentRecognition = null;
+    if (micBtn) micBtn.classList.remove('active');
+    if (dictStatus) dictStatus.classList.remove('active');
+    if (confirmBtn) confirmBtn.classList.remove('active');
+  } else {
+    // Demarrer la dictee
+    currentRecognition = startDictation(
+      (text) => {
+        const input = document.getElementById('input');
+        if (input) input.value = text;
+      },
+      (finalText) => {
+        const input = document.getElementById('input');
+        if (input) input.value = finalText;
+        if (confirmBtn) confirmBtn.classList.add('active');
+      },
+      dictLang
+    );
+
+    if (currentRecognition) {
+      if (micBtn) micBtn.classList.add('active');
+      if (dictStatus) dictStatus.classList.add('active');
+    }
+  }
+}
+
+function confirmDictation() {
+  stopDictation();
+  currentRecognition = null;
+  const micBtn = document.getElementById('mic');
+  const dictStatus = document.getElementById('dict-status');
+  const confirmBtn = document.getElementById('confirm-dict');
+  if (micBtn) micBtn.classList.remove('active');
+  if (dictStatus) dictStatus.classList.remove('active');
+  if (confirmBtn) confirmBtn.classList.remove('active');
+  if (typeof send === 'function') send();
+}
+
 // Charger l'historique au demarrage
 (async () => {
   try {
