@@ -63,13 +63,13 @@ textarea:focus{border-color:#1e5aa8}
   t = t.replace(/(\d)\s*\*\s*(\d)/g, '</head> fois $2');
   t = t.replace(/(\d)\s*x\s*(\d)/g, '</head> fois $2');
   t = t.replace(/(\d)\s*\/\s*(\d)/g, '</head> divise par $2');
-  t = t.replace(/²/g, ' au carre ');
-  t = t.replace(/³/g, ' au cube ');
-  t = t.replace(/√/g, ' racine carree de ');
-  t = t.replace(/π/g, ' pi ');
-  t = t.replace(/°/g, ' degres ');
+  t = t.replace(/Â²/g, ' au carre ');
+  t = t.replace(/Â³/g, ' au cube ');
+  t = t.replace(/âˆš/g, ' racine carree de ');
+  t = t.replace(/Ï€/g, ' pi ');
+  t = t.replace(/Â°/g, ' degres ');
   t = t.replace(/%/g, ' pour cent ');
-  t = t.replace(/^[-•·]\s*/gm, '');
+  t = t.replace(/^[-â€¢Â·]\s*/gm, '');
   t = t.replace(/^\d+\.\s*/gm, '');
   t = t.replace(/\s+/g, ' ');
   return t.trim();
@@ -82,21 +82,45 @@ function speak(text, lang = 'fr-FR') {
   }
   const cleanText = cleanForSpeech(text);
   if (!cleanText) return;
+
   speechSynthesis.cancel();
   const u = new SpeechSynthesisUtterance(cleanText);
   u.lang = lang;
-  u.rate = 0.88;
-  u.pitch = 0.85;
+  u.rate = 0.9;
+  u.pitch = 0.85;  // Grave
   u.volume = 1.0;
+
   const voices = speechSynthesis.getVoices();
-  const langPrefix = lang.split('-')[0];
-  const preferred = voices.find(v => v.lang.startsWith(langPrefix) && /Thomas|Henri|Paul|Guillaume|Yannick/i.test(v.name));
-  const maleAny = voices.find(v => v.lang.startsWith(langPrefix) && /male|homme/i.test(v.name));
-  const langVoice = voices.find(v => v.lang.startsWith(langPrefix));
-  if (preferred) u.voice = preferred;
-  else if (maleAny) u.voice = maleAny;
-  else if (langVoice) u.voice = langVoice;
+  const langPrefix = lang.split('-')[0];  // 'ar', 'fr', 'en'
+
+  let chosenVoice = null;
+
+  if (langPrefix === 'ar') {
+    // Chercher la voix arabe masculine "Majed" (ar-001 ou ar-SA)
+    chosenVoice = voices.find(v => v.lang.startsWith('ar') && /Majed/i.test(v.name)) ||
+                  voices.find(v => v.lang === 'ar-001') ||
+                  voices.find(v => v.lang.startsWith('ar-SA')) ||
+                  voices.find(v => v.lang.startsWith('ar'));
+  } else {
+    // Autres langues : preference masculine
+    chosenVoice = voices.find(v => v.lang.startsWith(langPrefix) && /Thomas|Henri|Paul|Guillaume|Yannick/i.test(v.name)) ||
+                  voices.find(v => v.lang.startsWith(langPrefix) && /male|homme/i.test(v.name)) ||
+                  voices.find(v => v.lang.startsWith(langPrefix));
+  }
+
+  if (chosenVoice) {
+    u.voice = chosenVoice;
+    console.log('Voix utilisee :', chosenVoice.name, chosenVoice.lang);
+  } else {
+    console.warn('Aucune voix trouvee pour', lang);
+  }
+
   speechSynthesis.speak(u);
+}
+
+// Recharger les voix si necessaire (iOS/Safari)
+if (speechSynthesis.onvoiceschanged !== undefined) {
+  speechSynthesis.onvoiceschanged = () => { speechSynthesis.getVoices(); };
 }
 </head><body>
 <div class="header">
@@ -149,7 +173,7 @@ function speak(text, lang = 'fr-FR') {
       <div class="row-input">
         <textarea id="input" placeholder="Posez votre question... (dictee ou texte)" rows="1"></textarea>
         <div class="btn-group">
-          <button class="btn-mic" id="mic" onclick="toggleDictation()" title="Dictee orale">ÃƒÂ°Ã…Â¸Ã…Â½Ã‚Â¤</button>
+          <button class="btn-mic" id="mic" onclick="toggleDictation()" title="Dictee orale">ÃƒÆ’Ã‚Â°Ãƒâ€¦Ã‚Â¸Ãƒâ€¦Ã‚Â½Ãƒâ€šÃ‚Â¤</button>
           <button class="btn-doc" onclick="openAnalyzeDialog()" title="Analyser un document" style="background:#1e5aa8;color:white;border:none;padding:14px;border-radius:12px;cursor:pointer;font-size:1.1rem;width:52px">&#128196;</button>
           <button class="primary" id="send" onclick="send()">Envoyer</button>
         </div>
@@ -209,9 +233,9 @@ function addBotMsg(text, scholar) {
   const actions = document.createElement('div');
   actions.className = 'msg-actions';
   actions.innerHTML = `
-    <button onclick="speak(this.parentElement.parentElement.querySelector('div').textContent, document.getElementById('lang').value + '-FR')">ÃƒÂ°Ã…Â¸Ã¢â‚¬ÂÃ…Â  Lire</button>
-    <button onclick="shareText(this.parentElement.parentElement.querySelector('div').textContent)">ÃƒÂ°Ã…Â¸Ã¢â‚¬ÂÃ¢â‚¬â€ Partager</button>
-    <button onclick="translateMsg(this.parentElement.parentElement.querySelector('div'))">ÃƒÂ°Ã…Â¸Ã…â€™Ã‚Â Traduire</button>
+    <button onclick="speak(this.parentElement.parentElement.querySelector('div').textContent, document.getElementById('lang').value + '-FR')">ÃƒÆ’Ã‚Â°Ãƒâ€¦Ã‚Â¸ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒâ€¦Ã‚Â  Lire</button>
+    <button onclick="shareText(this.parentElement.parentElement.querySelector('div').textContent)">ÃƒÆ’Ã‚Â°Ãƒâ€¦Ã‚Â¸ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â Partager</button>
+    <button onclick="translateMsg(this.parentElement.parentElement.querySelector('div'))">ÃƒÆ’Ã‚Â°Ãƒâ€¦Ã‚Â¸Ãƒâ€¦Ã¢â‚¬â„¢Ãƒâ€šÃ‚Â Traduire</button>
   `;
   div.appendChild(actions);
   if (scholar) {
@@ -255,6 +279,12 @@ async function send() {
 }
 
 function toggleDictation() {
+  // Determiner la langue selon le selecteur
+  const langSelect = document.getElementById('lang');
+  const dictLang = (langSelect && langSelect.value === 'ar') ? 'ar-SA' : 
+                   (langSelect && langSelect.value === 'en') ? 'en-US' : 'fr-FR';
+
+  if (currentRecognition) {
   if (currentRecognition) {
     stopDictation();
     currentRecognition = null;
@@ -262,7 +292,8 @@ function toggleDictation() {
     dictStatus.classList.remove('active');
     confirmBtn.classList.remove('active');
   } else {
-    currentRecognition = startDictation(
+    currentRecognition = startDictation(  // lang : dictLang
+      
       (text) => { input.value = text; },
       (finalText) => {
         input.value = finalText;
