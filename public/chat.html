@@ -44,7 +44,61 @@ textarea:focus{border-color:#1e5aa8}
 .dialog-btns{display:flex;gap:10px;justify-content:flex-end;margin-top:20px}
 .btn-cancel{background:#f5f7fa;border:2px solid #e5e7eb;color:#0a2540;padding:12px 24px;border-radius:10px;font-weight:600;cursor:pointer}
 .btn-ok{background:linear-gradient(135deg,#0a2540,#1e5aa8);color:white;border:none;padding:12px 24px;border-radius:10px;font-weight:600;cursor:pointer}
-</style></head><body>
+</style>function cleanForSpeech(text) {
+  if (!text) return '';
+  let t = String(text);
+  t = t.replace(/\*\*/g, '');
+  t = t.replace(/\*/g, '');
+  t = t.replace(/^#+\s*/gm, '');
+  t = t.replace(/_/g, ' ');
+  t = t.replace(/~/g, ' ');
+  t = t.replace(/\|/g, ' ');
+  t = t.replace(/->/g, ' vers ');
+  t = t.replace(/=>/g, ' donne ');
+  t = t.replace(/<=/g, ' inferieur ou egal a ');
+  t = t.replace(/>=/g, ' superieur ou egal a ');
+  t = t.replace(/=/g, ' egale ');
+  t = t.replace(/\+/g, ' plus ');
+  t = t.replace(/(\d)\s*-\s*(\d)/g, '</head> moins $2');
+  t = t.replace(/(\d)\s*\*\s*(\d)/g, '</head> fois $2');
+  t = t.replace(/(\d)\s*x\s*(\d)/g, '</head> fois $2');
+  t = t.replace(/(\d)\s*\/\s*(\d)/g, '</head> divise par $2');
+  t = t.replace(/²/g, ' au carre ');
+  t = t.replace(/³/g, ' au cube ');
+  t = t.replace(/√/g, ' racine carree de ');
+  t = t.replace(/π/g, ' pi ');
+  t = t.replace(/°/g, ' degres ');
+  t = t.replace(/%/g, ' pour cent ');
+  t = t.replace(/^[-•·]\s*/gm, '');
+  t = t.replace(/^\d+\.\s*/gm, '');
+  t = t.replace(/\s+/g, ' ');
+  return t.trim();
+}
+
+function speak(text, lang = 'fr-FR') {
+  if (!('speechSynthesis' in window)) {
+    alert('Synthese vocale non supportee.');
+    return;
+  }
+  const cleanText = cleanForSpeech(text);
+  if (!cleanText) return;
+  speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(cleanText);
+  u.lang = lang;
+  u.rate = 0.88;
+  u.pitch = 0.85;
+  u.volume = 1.0;
+  const voices = speechSynthesis.getVoices();
+  const langPrefix = lang.split('-')[0];
+  const preferred = voices.find(v => v.lang.startsWith(langPrefix) && /Thomas|Henri|Paul|Guillaume|Yannick/i.test(v.name));
+  const maleAny = voices.find(v => v.lang.startsWith(langPrefix) && /male|homme/i.test(v.name));
+  const langVoice = voices.find(v => v.lang.startsWith(langPrefix));
+  if (preferred) u.voice = preferred;
+  else if (maleAny) u.voice = maleAny;
+  else if (langVoice) u.voice = langVoice;
+  speechSynthesis.speak(u);
+}
+</head><body>
 <div class="header">
   <div class="logo"><div class="mark">SC</div><div><h1>Scholars Connect</h1><p>Assistant IA</p></div></div>
   <div class="nav" id="nav-user"></div>
@@ -95,7 +149,7 @@ textarea:focus{border-color:#1e5aa8}
       <div class="row-input">
         <textarea id="input" placeholder="Posez votre question... (dictee ou texte)" rows="1"></textarea>
         <div class="btn-group">
-          <button class="btn-mic" id="mic" onclick="toggleDictation()" title="Dictee orale">Ã°Å¸Å½Â¤</button>
+          <button class="btn-mic" id="mic" onclick="toggleDictation()" title="Dictee orale">ÃƒÂ°Ã…Â¸Ã…Â½Ã‚Â¤</button>
           <button class="btn-doc" onclick="openAnalyzeDialog()" title="Analyser un document" style="background:#1e5aa8;color:white;border:none;padding:14px;border-radius:12px;cursor:pointer;font-size:1.1rem;width:52px">&#128196;</button>
           <button class="primary" id="send" onclick="send()">Envoyer</button>
         </div>
@@ -155,9 +209,9 @@ function addBotMsg(text, scholar) {
   const actions = document.createElement('div');
   actions.className = 'msg-actions';
   actions.innerHTML = `
-    <button onclick="speak(this.parentElement.parentElement.querySelector('div').textContent, document.getElementById('lang').value + '-FR')">Ã°Å¸â€Å  Lire</button>
-    <button onclick="shareText(this.parentElement.parentElement.querySelector('div').textContent)">Ã°Å¸â€â€” Partager</button>
-    <button onclick="translateMsg(this.parentElement.parentElement.querySelector('div'))">Ã°Å¸Å’Â Traduire</button>
+    <button onclick="speak(this.parentElement.parentElement.querySelector('div').textContent, document.getElementById('lang').value + '-FR')">ÃƒÂ°Ã…Â¸Ã¢â‚¬ÂÃ…Â  Lire</button>
+    <button onclick="shareText(this.parentElement.parentElement.querySelector('div').textContent)">ÃƒÂ°Ã…Â¸Ã¢â‚¬ÂÃ¢â‚¬â€ Partager</button>
+    <button onclick="translateMsg(this.parentElement.parentElement.querySelector('div'))">ÃƒÂ°Ã…Â¸Ã…â€™Ã‚Â Traduire</button>
   `;
   div.appendChild(actions);
   if (scholar) {
