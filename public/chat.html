@@ -44,6 +44,8 @@ textarea:focus{border-color:#1e5aa8}
 .dialog-btns{display:flex;gap:10px;justify-content:flex-end;margin-top:20px}
 .btn-cancel{background:#f5f7fa;border:2px solid #e5e7eb;color:#0a2540;padding:12px 24px;border-radius:10px;font-weight:600;cursor:pointer}
 .btn-ok{background:linear-gradient(135deg,#0a2540,#1e5aa8);color:white;border:none;padding:12px 24px;border-radius:10px;font-weight:600;cursor:pointer}
+.btn-mic { font-weight: bold; font-size: 0.9rem; letter-spacing: 1px; }
+.btn-mic.active { background: #16a34a !important; }
 </style>function cleanForSpeech(text) {
   if (!text) return '';
   let t = String(text);
@@ -63,13 +65,13 @@ textarea:focus{border-color:#1e5aa8}
   t = t.replace(/(\d)\s*\*\s*(\d)/g, '</head> fois $2');
   t = t.replace(/(\d)\s*x\s*(\d)/g, '</head> fois $2');
   t = t.replace(/(\d)\s*\/\s*(\d)/g, '</head> divise par $2');
-  t = t.replace(/Ã‚Â²/g, ' au carre ');
-  t = t.replace(/Ã‚Â³/g, ' au cube ');
-  t = t.replace(/Ã¢Ë†Å¡/g, ' racine carree de ');
-  t = t.replace(/Ãâ‚¬/g, ' pi ');
-  t = t.replace(/Ã‚Â°/g, ' degres ');
+  t = t.replace(/Ãƒâ€šÃ‚Â²/g, ' au carre ');
+  t = t.replace(/Ãƒâ€šÃ‚Â³/g, ' au cube ');
+  t = t.replace(/ÃƒÂ¢Ã‹â€ Ã…Â¡/g, ' racine carree de ');
+  t = t.replace(/ÃƒÂÃ¢â€šÂ¬/g, ' pi ');
+  t = t.replace(/Ãƒâ€šÃ‚Â°/g, ' degres ');
   t = t.replace(/%/g, ' pour cent ');
-  t = t.replace(/^[-Ã¢â‚¬Â¢Ã‚Â·]\s*/gm, '');
+  t = t.replace(/^[-ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¢Ãƒâ€šÃ‚Â·]\s*/gm, '');
   t = t.replace(/^\d+\.\s*/gm, '');
   t = t.replace(/\s+/g, ' ');
   return t.trim();
@@ -173,7 +175,7 @@ if (speechSynthesis.onvoiceschanged !== undefined) {
       <div class="row-input">
         <textarea id="input" placeholder="Posez votre question... (dictee ou texte)" rows="1"></textarea>
         <div class="btn-group">
-          <button class="btn-mic" id="mic" onclick="toggleDictation()" title="Dictee orale">ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â°ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¸ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â½ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¤</button>
+          <button class="btn-mic" id="mic" onclick="toggleDictation()" title="Dictee orale">MIC</button>
           <button class="btn-doc" onclick="openAnalyzeDialog()" title="Analyser un document" style="background:#1e5aa8;color:white;border:none;padding:14px;border-radius:12px;cursor:pointer;font-size:1.1rem;width:52px">&#128196;</button>
           <button class="primary" id="send" onclick="send()">Envoyer</button>
         </div>
@@ -195,126 +197,7 @@ const confirmBtn = document.getElementById('confirm-dict');
 const scholarArea = document.getElementById('scholar-area');
 const scholarList = document.getElementById('scholar-list');
 let busy = false;
-let currentRecognition = null;
-let selectedScholar = null;
 
-const scholars = ['Ibn Taymiyya','Ibn Kathir','Al-Ghazali','An-Nawawi','Ibn Baz','Al-Albani','Ibn Qayyim','Ash-Shafi\'i','Malik','Ahmad ibn Hanbal'];
-scholars.forEach(s => {
-  const c = document.createElement('div');
-  c.className = 'scholar-chip';
-  c.textContent = s;
-  c.onclick = () => {
-    document.querySelectorAll('.scholar-chip').forEach(x => x.classList.remove('selected'));
-    if (selectedScholar === s) { selectedScholar = null; }
-    else { selectedScholar = s; c.classList.add('selected'); }
-  };
-  scholarList.appendChild(c);
-});
-
-document.getElementById('domain').addEventListener('change', e => {
-  scholarArea.style.display = e.target.value === 'Religion' ? 'block' : 'none';
-});
-
-input.addEventListener('keydown', e => { if (e.key==='Enter' && !e.shiftKey) { e.preventDefault(); send(); }});
-input.addEventListener('input', () => { input.style.height='auto'; input.style.height=Math.min(input.scrollHeight,150)+'px'; });
-
-function addMsg(text, who, meta = '') {
-  const div = document.createElement('div');
-  div.className = 'msg ' + who;
-  div.innerHTML = `<div>${escapeHtml(text).replace(/\n/g,'<br>')}</div>${meta?`<div class="meta">${meta}</div>`:''}`;
-  messages.appendChild(div);
-  messages.scrollTop = messages.scrollHeight;
-  return div;
-}
-function escapeHtml(s) { return String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
-
-function addBotMsg(text, scholar) {
-  const div = addMsg(text, 'bot');
-  const actions = document.createElement('div');
-  actions.className = 'msg-actions';
-  actions.innerHTML = `
-    <button onclick="speak(this.parentElement.parentElement.querySelector('div').textContent, document.getElementById('lang').value + '-FR')">ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â°ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¸ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â  Lire</button>
-    <button onclick="shareText(this.parentElement.parentElement.querySelector('div').textContent)">ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â°ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¸ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â Partager</button>
-    <button onclick="translateMsg(this.parentElement.parentElement.querySelector('div'))">ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â°ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¸ÃƒÆ’Ã¢â‚¬Â¦ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â Traduire</button>
-  `;
-  div.appendChild(actions);
-  if (scholar) {
-    const m = document.createElement('div');
-    m.className = 'meta';
-    m.textContent = 'Source : ' + scholar;
-    div.appendChild(m);
-  }
-  return div;
-}
-
-async function send() {
-  const text = input.value.trim();
-  if (!text || busy) return;
-  busy = true;
-  document.getElementById('send').disabled = true;
-  input.value = ''; input.style.height = 'auto';
-
-  addMsg(text, 'user');
-  const lang = document.getElementById('lang').value;
-  const domain = document.getElementById('domain').value;
-  const loading = addMsg('Reflexion...', 'bot');
-
-  try {
-    const r = await apiCall('/ask', {
-      method: 'POST',
-      body: JSON.stringify({ question: text, language: lang, domain, scholar: selectedScholar })
-    });
-    loading.remove();
-    addBotMsg(r.answer, r.scholar);
-    if (document.getElementById('autoSpeak').checked) {
-      speak(r.answer, lang === 'ar' ? 'ar-SA' : (lang === 'en' ? 'en-US' : 'fr-FR'));
-    }
-  } catch (e) {
-    loading.textContent = 'Erreur : ' + e.message;
-  } finally {
-    busy = false;
-    document.getElementById('send').disabled = false;
-    input.focus();
-  }
-}
-
-function toggleDictation() {
-  // Determiner la langue selon le selecteur
-  const langSelect = document.getElementById('lang');
-  const dictLang = (langSelect && langSelect.value === 'ar') ? 'ar-SA' : 
-                   (langSelect && langSelect.value === 'en') ? 'en-US' : 'fr-FR';
-
-  if (currentRecognition) {
-  if (currentRecognition) {
-    stopDictation();
-    currentRecognition = null;
-    micBtn.classList.remove('active');
-    dictStatus.classList.remove('active');
-    confirmBtn.classList.remove('active');
-  } else {
-    currentRecognition = startDictation(  // lang : dictLang
-      
-      (text) => { input.value = text; },
-      (finalText) => {
-        input.value = finalText;
-        confirmBtn.classList.add('active');
-      }
-    );
-    if (currentRecognition) {
-      micBtn.classList.add('active');
-      dictStatus.classList.add('active');
-    }
-  }
-}
-
-function confirmDictation() {
-  stopDictation();
-  currentRecognition = null;
-  micBtn.classList.remove('active');
-  dictStatus.classList.remove('active');
-  confirmBtn.classList.remove('active');
-  send();
-}
 
 function shareText(text) {
   if (navigator.share) {
@@ -411,156 +294,136 @@ document.getElementById('domain').addEventListener('input', function(e) {
   }
 });
 
+
+
+
 // ============================================================
-// DICTEE VOCALE MULTILINGUE (ar-SA / fr-FR / en-US)
+// DICTEE VOCALE MULTILINGUE
 // ============================================================
-let recognition = null;
-let dictationBuffer = '';
-let silenceTimer = null;
-let currentDictationLang = 'fr-FR';
+var recognition = null;
+var dictationBuffer = '';
+var silenceTimer = null;
+var currentRecognition = null;
 
 function startDictation(onResult, onEnd, langCode) {
-  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (!SR) {
-    alert('La dictee vocale n est pas supportee par ce navigateur. Utilisez Chrome ou Edge.');
-    return null;
-  }
-
-  recognition = new SR();
-  currentDictationLang = langCode || 'fr-FR';
-  recognition.lang = currentDictationLang;
-  recognition.continuous = true;
-  recognition.interimResults = true;
-  recognition.maxAlternatives = 1;
-
-  dictationBuffer = '';
-
-  recognition.onresult = (ev) => {
-    let interim = '', final = '';
-    for (let i = ev.resultIndex; i < ev.results.length; i++) {
-      const t = ev.results[i][0].transcript;
-      if (ev.results[i].isFinal) {
-        final += t + ' ';
-      } else {
-        interim += t;
-      }
+    var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) {
+        alert('La dictee vocale n est pas supportee par ce navigateur. Utilisez Chrome ou Edge.');
+        return null;
     }
-    if (final) dictationBuffer += final;
+    recognition = new SR();
+    recognition.lang = langCode || 'fr-FR';
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.maxAlternatives = 1;
+    dictationBuffer = '';
 
-    // Mise a jour du champ texte
-    if (onResult) {
-      onResult((dictationBuffer + interim).trim());
+    recognition.onresult = function(ev) {
+        var interim = '', final = '';
+        for (var i = ev.resultIndex; i < ev.results.length; i++) {
+            var t = ev.results[i][0].transcript;
+            if (ev.results[i].isFinal) {
+                final += t + ' ';
+            } else {
+                interim += t;
+            }
+        }
+        if (final) dictationBuffer += final;
+        if (onResult) onResult((dictationBuffer + interim).trim());
+        if (silenceTimer) clearTimeout(silenceTimer);
+        silenceTimer = setTimeout(function() {
+            if (onEnd) onEnd(dictationBuffer.trim());
+        }, 10000);
+    };
+
+    recognition.onerror = function(e) {
+        console.error('Erreur dictee :', e.error);
+        if (e.error === 'language-not-supported') {
+            alert('La langue ' + recognition.lang + ' n est pas supportee.');
+        } else if (e.error === 'not-allowed') {
+            alert('Autorisez l acces au microphone.');
+        }
+    };
+
+    recognition.onend = function() {
+        if (silenceTimer) {
+            clearTimeout(silenceTimer);
+            silenceTimer = null;
+        }
+    };
+
+    try {
+        recognition.start();
+    } catch (e) {
+        console.error('Erreur demarrage :', e.message);
+        return null;
     }
-
-    // Timer de silence : 10 secondes
-    if (silenceTimer) clearTimeout(silenceTimer);
-    silenceTimer = setTimeout(() => {
-      if (onEnd) onEnd(dictationBuffer.trim());
-    }, 10000);
-  };
-
-  recognition.onerror = (e) => {
-    console.error('Erreur dictee :', e.error);
-    if (e.error === 'language-not-supported') {
-      alert('La langue ' + currentDictationLang + ' n est pas supportee par votre navigateur.');
-    } else if (e.error === 'not-allowed') {
-      alert('Vous devez autoriser l acces au microphone.');
-    } else if (e.error === 'no-speech') {
-      console.warn('Aucune parole detectee.');
-    }
-  };
-
-  recognition.onend = () => {
-    if (silenceTimer) {
-      clearTimeout(silenceTimer);
-      silenceTimer = null;
-    }
-  };
-
-  try {
-    recognition.start();
-    console.log('Dictee demarree en ' + currentDictationLang);
-  } catch (e) {
-    console.error('Erreur demarrage dictee :', e.message);
-    return null;
-  }
-
-  return recognition;
+    return recognition;
 }
 
 function stopDictation() {
-  if (recognition) {
-    try { recognition.stop(); } catch (e) {}
-    recognition = null;
-  }
-  if (silenceTimer) {
-    clearTimeout(silenceTimer);
-    silenceTimer = null;
-  }
-  dictationBuffer = '';
+    if (recognition) {
+        try { recognition.stop(); } catch (e) {}
+        recognition = null;
+    }
+    if (silenceTimer) {
+        clearTimeout(silenceTimer);
+        silenceTimer = null;
+    }
+    dictationBuffer = '';
 }
 
-// ============================================================
-// BOUTON MICRO : toggle dictation avec la langue selectionnee
-// ============================================================
-let currentRecognition = null;
-
 function toggleDictation() {
-  const langSelect = document.getElementById('lang');
-  const selectedLang = langSelect ? langSelect.value : 'fr';
+    var langSelect = document.getElementById('lang');
+    var selectedLang = langSelect ? langSelect.value : 'fr';
+    var dictLang = 'fr-FR';
+    if (selectedLang === 'ar') dictLang = 'ar-SA';
+    else if (selectedLang === 'en') dictLang = 'en-US';
+    else if (selectedLang === 'es') dictLang = 'es-ES';
+    else if (selectedLang === 'tr') dictLang = 'tr-TR';
+    else if (selectedLang === 'fa') dictLang = 'fa-IR';
+    else if (selectedLang === 'ur') dictLang = 'ur-PK';
 
-  // Determiner la langue de dictee
-  let dictLang = 'fr-FR';
-  if (selectedLang === 'ar') dictLang = 'ar-SA';
-  else if (selectedLang === 'en') dictLang = 'en-US';
-  else if (selectedLang === 'es') dictLang = 'es-ES';
-  else if (selectedLang === 'tr') dictLang = 'tr-TR';
-  else if (selectedLang === 'fa') dictLang = 'fa-IR';
-  else if (selectedLang === 'ur') dictLang = 'ur-PK';
-
-  const micBtn = document.getElementById('mic');
-  const dictStatus = document.getElementById('dict-status');
-  const confirmBtn = document.getElementById('confirm-dict');
-
-  if (currentRecognition) {
-    // Arreter la dictee
-    stopDictation();
-    currentRecognition = null;
-    if (micBtn) micBtn.classList.remove('active');
-    if (dictStatus) dictStatus.classList.remove('active');
-    if (confirmBtn) confirmBtn.classList.remove('active');
-  } else {
-    // Demarrer la dictee
-    currentRecognition = startDictation(
-      (text) => {
-        const input = document.getElementById('input');
-        if (input) input.value = text;
-      },
-      (finalText) => {
-        const input = document.getElementById('input');
-        if (input) input.value = finalText;
-        if (confirmBtn) confirmBtn.classList.add('active');
-      },
-      dictLang
-    );
+    var micBtn = document.getElementById('mic');
+    var dictStatus = document.getElementById('dict-status');
+    var confirmBtn = document.getElementById('confirm-dict');
 
     if (currentRecognition) {
-      if (micBtn) micBtn.classList.add('active');
-      if (dictStatus) dictStatus.classList.add('active');
+        stopDictation();
+        currentRecognition = null;
+        if (micBtn) micBtn.classList.remove('active');
+        if (dictStatus) dictStatus.classList.remove('active');
+        if (confirmBtn) confirmBtn.classList.remove('active');
+    } else {
+        currentRecognition = startDictation(
+            function(text) {
+                var input = document.getElementById('input');
+                if (input) input.value = text;
+            },
+            function(finalText) {
+                var input = document.getElementById('input');
+                if (input) input.value = finalText;
+                if (confirmBtn) confirmBtn.classList.add('active');
+            },
+            dictLang
+        );
+        if (currentRecognition) {
+            if (micBtn) micBtn.classList.add('active');
+            if (dictStatus) dictStatus.classList.add('active');
+        }
     }
-  }
 }
 
 function confirmDictation() {
-  stopDictation();
-  currentRecognition = null;
-  const micBtn = document.getElementById('mic');
-  const dictStatus = document.getElementById('dict-status');
-  const confirmBtn = document.getElementById('confirm-dict');
-  if (micBtn) micBtn.classList.remove('active');
-  if (dictStatus) dictStatus.classList.remove('active');
-  if (confirmBtn) confirmBtn.classList.remove('active');
-  if (typeof send === 'function') send();
+    stopDictation();
+    currentRecognition = null;
+    var micBtn = document.getElementById('mic');
+    var dictStatus = document.getElementById('dict-status');
+    var confirmBtn = document.getElementById('confirm-dict');
+    if (micBtn) micBtn.classList.remove('active');
+    if (dictStatus) dictStatus.classList.remove('active');
+    if (confirmBtn) confirmBtn.classList.remove('active');
+    if (typeof send === 'function') send();
 }
 
 // Charger l'historique au demarrage
