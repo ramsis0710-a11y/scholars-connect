@@ -39,7 +39,7 @@
       return 'es-ES';
     }
     // Detection allemand
-    if (/\b(der|die|das|und|ist|fÃ¼r|mit|auf|von|zu|den|dem|des)\b/i.test(t)) {
+    if (/\b(der|die|das|und|ist|fÃƒÂ¼r|mit|auf|von|zu|den|dem|des)\b/i.test(t)) {
       return 'de-DE';
     }
 
@@ -152,13 +152,13 @@
       .replace(/(\d)\s*-\s*(\d)/g, '$1 moins $2')
       .replace(/(\d)\s*\*\s*(\d)/g, '$1 fois $2')
       .replace(/(\d)\s*\/\s*(\d)/g, '$1 divise par $2')
-      .replace(/Â²/g, ' au carre ')
-      .replace(/Â³/g, ' au cube ')
-      .replace(/âˆš/g, ' racine carree de ')
-      .replace(/Ï€/g, ' pi ')
-      .replace(/Â°/g, ' degres ')
+      .replace(/Ã‚Â²/g, ' au carre ')
+      .replace(/Ã‚Â³/g, ' au cube ')
+      .replace(/Ã¢Ë†Å¡/g, ' racine carree de ')
+      .replace(/Ãâ‚¬/g, ' pi ')
+      .replace(/Ã‚Â°/g, ' degres ')
       .replace(/%/g, ' pour cent ')
-      .replace(/^[-â€¢Â·]\s*/gm, '')
+      .replace(/^[-Ã¢â‚¬Â¢Ã‚Â·]\s*/gm, '')
       .replace(/^\d+\.\s*/gm, '')
       .replace(/\s+/g, ' ')
       .trim();
@@ -367,6 +367,138 @@
 
   // Exposer aussi en global pur (pour onclick="send()")
   send = window.send;
+
+
+  // ============================================================
+  // INJECTION AUTOMATIQUE DU BOUTON MIC SI ABSENT
+  // ============================================================
+  function injectMicButton() {
+    if (document.getElementById('mic')) {
+      console.log('[voice-fix] Bouton MIC deja present');
+      return;
+    }
+
+    // Trouver la zone de saisie
+    var inputArea = document.querySelector('.input-area') ||
+                    document.querySelector('.row-input') ||
+                    (document.getElementById('input') ? document.getElementById('input').parentElement : null);
+
+    if (!inputArea) {
+      console.warn('[voice-fix] Zone de saisie introuvable');
+      return;
+    }
+
+    // Creer le bouton MIC
+    var micBtn = document.createElement('button');
+    micBtn.id = 'mic';
+    micBtn.className = 'btn-mic';
+    micBtn.type = 'button';
+    micBtn.title = 'Dictee vocale';
+    micBtn.textContent = 'MIC';
+    micBtn.style.cssText = 'background:#dc2626;color:white;border:none;padding:14px;border-radius:12px;cursor:pointer;font-size:.95rem;font-weight:bold;letter-spacing:1px;';
+
+    // Inserer AVANT le bouton Envoyer si possible
+    var sendBtn = document.getElementById('send');
+    if (sendBtn && sendBtn.parentElement) {
+      sendBtn.parentElement.insertBefore(micBtn, sendBtn);
+    } else {
+      inputArea.appendChild(micBtn);
+    }
+
+    // Attacher l'evenement
+    micBtn.addEventListener('click', function() {
+      var langSel = document.getElementById('lang');
+      var selected = langSel ? langSel.value : 'fr';
+      var dictLang = 'fr-FR';
+      if (selected === 'ar') dictLang = 'ar-SA';
+      else if (selected === 'en') dictLang = 'en-US';
+      else if (selected === 'es') dictLang = 'es-ES';
+      else if (selected === 'tr') dictLang = 'tr-TR';
+      else if (selected === 'fa') dictLang = 'fa-IR';
+      else if (selected === 'ur') dictLang = 'ur-PK';
+
+      var dictStatus = document.getElementById('dict-status');
+      var confirmBtn = document.getElementById('confirm-dict');
+      var rec = null;
+
+      if (micBtn._activeRec) {
+        // Arreter
+        if (window.stopDictation) window.stopDictation();
+        micBtn._activeRec = null;
+        micBtn.style.background = '#dc2626';
+        if (dictStatus) dictStatus.style.display = 'none';
+        if (confirmBtn) confirmBtn.style.display = 'none';
+      } else {
+        // Demarrer
+        if (!window.startDictation) {
+          alert('La dictee vocale n est pas disponible.');
+          return;
+        }
+        rec = window.startDictation(
+          function(text) {
+            var input = document.getElementById('input');
+            if (input) input.value = text;
+          },
+          function(finalText) {
+            var input = document.getElementById('input');
+            if (input) input.value = finalText;
+            if (confirmBtn) {
+              confirmBtn.style.display = 'inline-block';
+              confirmBtn.style.background = '#16a34a';
+              confirmBtn.style.color = 'white';
+              confirmBtn.style.border = 'none';
+              confirmBtn.style.padding = '10px 20px';
+              confirmBtn.style.borderRadius = '10px';
+              confirmBtn.style.fontWeight = '600';
+              confirmBtn.style.cursor = 'pointer';
+              confirmBtn.style.marginTop = '8px';
+              confirmBtn.textContent = 'Terminer la question';
+              confirmBtn.onclick = function() {
+                if (window.stopDictation) window.stopDictation();
+                micBtn._activeRec = null;
+                micBtn.style.background = '#dc2626';
+                if (dictStatus) dictStatus.style.display = 'none';
+                confirmBtn.style.display = 'none';
+                if (window.send) window.send();
+              };
+            }
+          },
+          dictLang
+        );
+
+        if (rec) {
+          micBtn._activeRec = rec;
+          micBtn.style.background = '#16a34a';
+          if (dictStatus) {
+            dictStatus.style.display = 'block';
+            dictStatus.style.background = '#fef3c7';
+            dictStatus.style.border = '2px solid #f59e0b';
+            dictStatus.style.padding = '8px 14px';
+            dictStatus.style.borderRadius = '10px';
+            dictStatus.style.fontSize = '.85rem';
+            dictStatus.style.color = '#92400e';
+            dictStatus.style.marginBottom = '8px';
+            dictStatus.textContent = 'Dictee en cours... Parlez puis faites une pause de 10 secondes.';
+          }
+        }
+      }
+    });
+
+    console.log('[voice-fix] Bouton MIC injecte');
+  }
+
+  // Lancer l injection au chargement
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', injectMicButton);
+  } else {
+    injectMicButton();
+  }
+
+  // Reinjecter si le DOM change (SPA)
+  var observer = new MutationObserver(function() {
+    if (!document.getElementById('mic')) injectMicButton();
+  });
+  observer.observe(document.body, { childList: true, subtree: true });
 
 console.log('[voice-fix.js] V2 charge - detection auto langues active');
 })();
