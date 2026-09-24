@@ -39,7 +39,7 @@
       return 'es-ES';
     }
     // Detection allemand
-    if (/\b(der|die|das|und|ist|fÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¼r|mit|auf|von|zu|den|dem|des)\b/i.test(t)) {
+    if (/\b(der|die|das|und|ist|fÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¼r|mit|auf|von|zu|den|dem|des)\b/i.test(t)) {
       return 'de-DE';
     }
 
@@ -152,13 +152,13 @@
       .replace(/(\d)\s*-\s*(\d)/g, '$1 moins $2')
       .replace(/(\d)\s*\*\s*(\d)/g, '$1 fois $2')
       .replace(/(\d)\s*\/\s*(\d)/g, '$1 divise par $2')
-      .replace(/ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â²/g, ' au carre ')
-      .replace(/ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â³/g, ' au cube ')
-      .replace(/ÃƒÆ’Ã‚Â¢Ãƒâ€¹Ã¢â‚¬Â Ãƒâ€¦Ã‚Â¡/g, ' racine carree de ')
-      .replace(/ÃƒÆ’Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬/g, ' pi ')
-      .replace(/ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â°/g, ' degres ')
+      .replace(/ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â²/g, ' au carre ')
+      .replace(/ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â³/g, ' au cube ')
+      .replace(/ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Â¹ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡/g, ' racine carree de ')
+      .replace(/ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬/g, ' pi ')
+      .replace(/ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â°/g, ' degres ')
       .replace(/%/g, ' pour cent ')
-      .replace(/^[-ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â·]\s*/gm, '')
+      .replace(/^[-ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â·]\s*/gm, '')
       .replace(/^\d+\.\s*/gm, '')
       .replace(/\s+/g, ' ')
       .trim();
@@ -550,28 +550,28 @@
   // MODULE TRADUCTION MULTILINGUE (23 langues)
   // ============================================================
   var TRANSLATION_LANGS = [
-    { code: 'ar', name: 'العربية' },
+    { code: 'ar', name: 'Ø§Ù„Ø¹Ø±Ø¨ÙŠØ©' },
     { code: 'fr', name: 'Francais' },
     { code: 'en', name: 'English' },
     { code: 'es', name: 'Espanol' },
     { code: 'de', name: 'Deutsch' },
     { code: 'it', name: 'Italiano' },
     { code: 'pt', name: 'Portugues' },
-    { code: 'ru', name: 'Русский' },
-    { code: 'zh', name: '中文' },
-    { code: 'ja', name: '日本語' },
-    { code: 'ko', name: '한국어' },
+    { code: 'ru', name: 'Ð ÑƒÑÑÐºÐ¸Ð¹' },
+    { code: 'zh', name: 'ä¸­æ–‡' },
+    { code: 'ja', name: 'æ—¥æœ¬èªž' },
+    { code: 'ko', name: 'í•œêµ­ì–´' },
     { code: 'tr', name: 'Turkce' },
-    { code: 'fa', name: 'فارسی' },
-    { code: 'ur', name: 'اردو' },
-    { code: 'hi', name: 'हिन्दी' },
-    { code: 'he', name: 'עברית' },
+    { code: 'fa', name: 'ÙØ§Ø±Ø³ÛŒ' },
+    { code: 'ur', name: 'Ø§Ø±Ø¯Ùˆ' },
+    { code: 'hi', name: 'à¤¹à¤¿à¤¨à¥à¤¦à¥€' },
+    { code: 'he', name: '×¢×‘×¨×™×ª' },
     { code: 'nl', name: 'Nederlands' },
     { code: 'pl', name: 'Polski' },
     { code: 'sv', name: 'Svenska' },
-    { code: 'el', name: 'Ελληνικά' },
+    { code: 'el', name: 'Î•Î»Î»Î·Î½Î¹ÎºÎ¬' },
     { code: 'vi', name: 'Tieng Viet' },
-    { code: 'th', name: 'ไทย' },
+    { code: 'th', name: 'à¹„à¸—à¸¢' },
     { code: 'id', name: 'Bahasa' }
   ];
 
@@ -588,7 +588,7 @@
     var box = document.createElement('div');
     box.style.cssText = 'background:white;border-radius:16px;padding:30px;max-width:600px;width:90%;max-height:85vh;overflow-y:auto;box-shadow:0 25px 70px rgba(0,0,0,0.4);';
 
-    var html = '<h3 style="color:#0a2540;margin-bottom:20px;font-size:1.2rem">🌐 Traduire en...</h3>';
+    var html = '<h3 style="color:#0a2540;margin-bottom:20px;font-size:1.2rem">ðŸŒ Traduire en...</h3>';
     html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px;margin-bottom:20px">';
 
     for (var i = 0; i < TRANSLATION_LANGS.length; i++) {
@@ -687,6 +687,13 @@
     if (!text) { alert('Aucun texte a traduire'); return; }
     openTranslateDialog(text);
   };
+
+
+  // ============================================================
+  // EXPOSER LES FONCTIONS DE TRADUCTION GLOBALEMENT
+  // ============================================================
+  window.openTranslateDialog = openTranslateDialog;
+  window.doTranslate = doTranslate;
 
 console.log('[voice-fix.js] V2 charge - detection auto langues active');
 })();
