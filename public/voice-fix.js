@@ -39,7 +39,7 @@
       return 'es-ES';
     }
     // Detection allemand
-    if (/\b(der|die|das|und|ist|fÃƒÆ’Ã‚Â¼r|mit|auf|von|zu|den|dem|des)\b/i.test(t)) {
+    if (/\b(der|die|das|und|ist|fÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¼r|mit|auf|von|zu|den|dem|des)\b/i.test(t)) {
       return 'de-DE';
     }
 
@@ -152,13 +152,13 @@
       .replace(/(\d)\s*-\s*(\d)/g, '$1 moins $2')
       .replace(/(\d)\s*\*\s*(\d)/g, '$1 fois $2')
       .replace(/(\d)\s*\/\s*(\d)/g, '$1 divise par $2')
-      .replace(/Ãƒâ€šÃ‚Â²/g, ' au carre ')
-      .replace(/Ãƒâ€šÃ‚Â³/g, ' au cube ')
-      .replace(/ÃƒÂ¢Ã‹â€ Ã…Â¡/g, ' racine carree de ')
-      .replace(/ÃƒÂÃ¢â€šÂ¬/g, ' pi ')
-      .replace(/Ãƒâ€šÃ‚Â°/g, ' degres ')
+      .replace(/ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â²/g, ' au carre ')
+      .replace(/ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â³/g, ' au cube ')
+      .replace(/ÃƒÆ’Ã‚Â¢Ãƒâ€¹Ã¢â‚¬Â Ãƒâ€¦Ã‚Â¡/g, ' racine carree de ')
+      .replace(/ÃƒÆ’Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬/g, ' pi ')
+      .replace(/ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â°/g, ' degres ')
       .replace(/%/g, ' pour cent ')
-      .replace(/^[-ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¢Ãƒâ€šÃ‚Â·]\s*/gm, '')
+      .replace(/^[-ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â·]\s*/gm, '')
       .replace(/^\d+\.\s*/gm, '')
       .replace(/\s+/g, ' ')
       .trim();
@@ -544,6 +544,149 @@
   });
   if (document.body) observer.observe(document.body, { childList: true, subtree: true });
 
+
+
+  // ============================================================
+  // MODULE TRADUCTION MULTILINGUE (23 langues)
+  // ============================================================
+  var TRANSLATION_LANGS = [
+    { code: 'ar', name: 'العربية' },
+    { code: 'fr', name: 'Francais' },
+    { code: 'en', name: 'English' },
+    { code: 'es', name: 'Espanol' },
+    { code: 'de', name: 'Deutsch' },
+    { code: 'it', name: 'Italiano' },
+    { code: 'pt', name: 'Portugues' },
+    { code: 'ru', name: 'Русский' },
+    { code: 'zh', name: '中文' },
+    { code: 'ja', name: '日本語' },
+    { code: 'ko', name: '한국어' },
+    { code: 'tr', name: 'Turkce' },
+    { code: 'fa', name: 'فارسی' },
+    { code: 'ur', name: 'اردو' },
+    { code: 'hi', name: 'हिन्दी' },
+    { code: 'he', name: 'עברית' },
+    { code: 'nl', name: 'Nederlands' },
+    { code: 'pl', name: 'Polski' },
+    { code: 'sv', name: 'Svenska' },
+    { code: 'el', name: 'Ελληνικά' },
+    { code: 'vi', name: 'Tieng Viet' },
+    { code: 'th', name: 'ไทย' },
+    { code: 'id', name: 'Bahasa' }
+  ];
+
+  function openTranslateDialog(text) {
+    // Retirer un eventuel dialog deja ouvert
+    var old = document.getElementById('translate-dialog');
+    if (old) old.remove();
+
+    // Construire le dialog
+    var dialog = document.createElement('div');
+    dialog.id = 'translate-dialog';
+    dialog.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);display:flex;justify-content:center;align-items:center;z-index:9999;';
+
+    var box = document.createElement('div');
+    box.style.cssText = 'background:white;border-radius:16px;padding:30px;max-width:600px;width:90%;max-height:85vh;overflow-y:auto;box-shadow:0 25px 70px rgba(0,0,0,0.4);';
+
+    var html = '<h3 style="color:#0a2540;margin-bottom:20px;font-size:1.2rem">🌐 Traduire en...</h3>';
+    html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px;margin-bottom:20px">';
+
+    for (var i = 0; i < TRANSLATION_LANGS.length; i++) {
+      var l = TRANSLATION_LANGS[i];
+      html += '<button type="button" data-lang="' + l.code + '" style="padding:10px;border:2px solid #e5e7eb;background:white;border-radius:10px;cursor:pointer;font-size:.9rem;font-weight:600;color:#0a2540;transition:all .2s" onmouseover="this.style.background=\'#1e5aa8\';this.style.color=\'white\'" onmouseout="this.style.background=\'white\';this.style.color=\'#0a2540\'">' + l.name + '</button>';
+    }
+
+    html += '</div>';
+    html += '<div id="translate-result" style="margin-top:15px;padding:15px;background:#f5f7fa;border-radius:10px;min-height:60px;display:none"></div>';
+    html += '<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:15px">';
+    html += '<button type="button" id="translate-close" style="background:#f5f7fa;border:2px solid #e5e7eb;color:#0a2540;padding:10px 20px;border-radius:10px;font-weight:600;cursor:pointer">Fermer</button>';
+    html += '</div>';
+
+    box.innerHTML = html;
+    dialog.appendChild(box);
+    document.body.appendChild(dialog);
+
+    // Fermer
+    document.getElementById('translate-close').onclick = function() { dialog.remove(); };
+    dialog.onclick = function(e) { if (e.target === dialog) dialog.remove(); };
+
+    // Attacher les clics sur les langues
+    var buttons = box.querySelectorAll('button[data-lang]');
+    for (var j = 0; j < buttons.length; j++) {
+      buttons[j].onclick = (function(langCode) {
+        return function() { doTranslate(text, langCode); };
+      })(buttons[j].getAttribute('data-lang'));
+    }
+  }
+
+  function doTranslate(text, targetLang) {
+    var resultBox = document.getElementById('translate-result');
+    if (!resultBox) return;
+
+    resultBox.style.display = 'block';
+    resultBox.innerHTML = '<em>Traduction en cours...</em>';
+
+    var token = localStorage.getItem('token');
+    if (!token) {
+      resultBox.innerHTML = '<span style="color:#b91c1c">Session expiree. Reconnecte-toi.</span>';
+      return;
+    }
+
+    fetch('/api/translate', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json; charset=utf-8',
+        'Authorization': 'Bearer ' + token
+      },
+      body: JSON.stringify({ text: text, targetLanguage: targetLang })
+    })
+    .then(function(r) {
+      if (!r.ok) return r.json().then(function(e) { throw new Error(e.error || ('HTTP ' + r.status)); });
+      return r.json();
+    })
+    .then(function(data) {
+      resultBox.innerHTML =
+        '<div style="color:#6b7280;font-size:.8rem;margin-bottom:8px">Traduction en ' + targetLang + ' :</div>' +
+        '<div style="color:#17202a;font-size:1rem;line-height:1.6">' + (data.translation || 'Aucune traduction') + '</div>' +
+        '<div style="margin-top:12px;display:flex;gap:8px">' +
+        '<button type="button" id="translate-speak" style="background:#1e5aa8;color:white;border:none;padding:8px 14px;border-radius:8px;cursor:pointer;font-size:.85rem;font-weight:600">&#128266; Ecouter</button>' +
+        '<button type="button" id="translate-copy" style="background:#f5f7fa;color:#0a2540;border:1px solid #e5e7eb;padding:8px 14px;border-radius:8px;cursor:pointer;font-size:.85rem;font-weight:600">Copier</button>' +
+        '</div>';
+
+      document.getElementById('translate-speak').onclick = function() {
+        if (window.speak) {
+          var langMap = { 'ar': 'ar-SA', 'fr': 'fr-FR', 'en': 'en-US', 'es': 'es-ES', 'de': 'de-DE', 'it': 'it-IT', 'pt': 'pt-PT', 'ru': 'ru-RU', 'zh': 'zh-CN', 'ja': 'ja-JP', 'ko': 'ko-KR', 'tr': 'tr-TR', 'fa': 'fa-IR', 'ur': 'ur-PK', 'hi': 'hi-IN', 'he': 'he-IL', 'nl': 'nl-NL', 'pl': 'pl-PL', 'sv': 'sv-SE', 'el': 'el-GR', 'vi': 'vi-VN', 'th': 'th-TH', 'id': 'id-ID' };
+          window.speak(data.translation, langMap[targetLang] || 'fr-FR');
+        }
+      };
+
+      document.getElementById('translate-copy').onclick = function() {
+        navigator.clipboard.writeText(data.translation);
+        this.textContent = 'Copie !';
+        var btn = this;
+        setTimeout(function() { btn.textContent = 'Copier'; }, 1500);
+      };
+    })
+    .catch(function(err) {
+      resultBox.innerHTML = '<span style="color:#b91c1c">Erreur : ' + err.message + '</span>';
+    });
+  }
+
+  // Fonction principale appelee par les boutons
+  window.translateMessage = function(elementOrText) {
+    var text = '';
+    if (typeof elementOrText === 'string') {
+      text = elementOrText;
+    } else if (elementOrText && elementOrText.textContent) {
+      text = elementOrText.textContent;
+    } else {
+      // Chercher la derniere reponse bot
+      var bots = document.querySelectorAll('.msg.bot');
+      if (bots.length > 0) text = bots[bots.length - 1].textContent;
+    }
+    if (!text) { alert('Aucun texte a traduire'); return; }
+    openTranslateDialog(text);
+  };
 
 console.log('[voice-fix.js] V2 charge - detection auto langues active');
 })();
