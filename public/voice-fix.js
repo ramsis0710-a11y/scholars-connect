@@ -39,7 +39,7 @@
       return 'es-ES';
     }
     // Detection allemand
-    if (/\b(der|die|das|und|ist|für|mit|auf|von|zu|den|dem|des)\b/i.test(t)) {
+    if (/\b(der|die|das|und|ist|fÃ¼r|mit|auf|von|zu|den|dem|des)\b/i.test(t)) {
       return 'de-DE';
     }
 
@@ -152,13 +152,13 @@
       .replace(/(\d)\s*-\s*(\d)/g, '$1 moins $2')
       .replace(/(\d)\s*\*\s*(\d)/g, '$1 fois $2')
       .replace(/(\d)\s*\/\s*(\d)/g, '$1 divise par $2')
-      .replace(/²/g, ' au carre ')
-      .replace(/³/g, ' au cube ')
-      .replace(/√/g, ' racine carree de ')
-      .replace(/π/g, ' pi ')
-      .replace(/°/g, ' degres ')
+      .replace(/Â²/g, ' au carre ')
+      .replace(/Â³/g, ' au cube ')
+      .replace(/âˆš/g, ' racine carree de ')
+      .replace(/Ï€/g, ' pi ')
+      .replace(/Â°/g, ' degres ')
       .replace(/%/g, ' pour cent ')
-      .replace(/^[-•·]\s*/gm, '')
+      .replace(/^[-â€¢Â·]\s*/gm, '')
       .replace(/^\d+\.\s*/gm, '')
       .replace(/\s+/g, ' ')
       .trim();
@@ -254,5 +254,119 @@
     if (micBtn) micBtn.click();
   };
 
-  console.log('[voice-fix.js] V2 charge - detection auto langues active');
+  
+  // ============================================================
+  // FONCTION send() - ENVOI QUESTION A L'IA
+  // Ajoutee pour remplacer celle qui a ete supprimee
+  // ============================================================
+  window.send = function() {
+    var input = document.getElementById('input');
+    var sendBtn = document.getElementById('send');
+    if (!input) { console.error('[voice-fix] input introuvable'); return; }
+
+    var text = input.value.trim();
+    if (!text) { console.warn('[voice-fix] Message vide'); return; }
+    if (sendBtn && sendBtn.disabled) return;
+
+    // Langue selectionnee
+    var langSel = document.getElementById('lang');
+    var lang = langSel ? langSel.value : 'fr';
+
+    // Domaine
+    var domainSel = document.getElementById('domain');
+    var domain = domainSel ? domainSel.value : 'General';
+
+    // Scholar
+    var selectedScholar = null;
+    var selectedChip = document.querySelector('.scholar-chip.selected');
+    if (selectedChip) selectedScholar = selectedChip.textContent;
+
+    // Token
+    var token = localStorage.getItem('token');
+    if (!token) {
+      alert('Session expiree. Reconnecte-toi.');
+      window.location.href = '/login';
+      return;
+    }
+
+    // UI : afficher la question
+    var messages = document.getElementById('messages');
+    if (messages) {
+      var userMsg = document.createElement('div');
+      userMsg.className = 'msg user';
+      userMsg.textContent = text;
+      messages.appendChild(userMsg);
+      messages.scrollTop = messages.scrollHeight;
+    }
+
+    input.value = '';
+    input.style.height = 'auto';
+    if (sendBtn) sendBtn.disabled = true;
+
+    // Loading
+    var loadingMsg = null;
+    if (messages) {
+      loadingMsg = document.createElement('div');
+      loadingMsg.className = 'msg bot loading';
+      loadingMsg.textContent = 'Reflexion en cours...';
+      messages.appendChild(loadingMsg);
+      messages.scrollTop = messages.scrollHeight;
+    }
+
+    // Envoi API
+    fetch('/api/ask', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json; charset=utf-8',
+        'Authorization': 'Bearer ' + token
+      },
+      body: JSON.stringify({
+        question: text,
+        language: lang,
+        domain: domain,
+        scholar: selectedScholar
+      })
+    })
+    .then(function(r) {
+      if (!r.ok) return r.json().then(function(e) { throw new Error(e.error || ('HTTP ' + r.status)); });
+      return r.json();
+    })
+    .then(function(data) {
+      if (loadingMsg) loadingMsg.remove();
+      if (messages && data.answer) {
+        var botMsg = document.createElement('div');
+        botMsg.className = 'msg bot';
+        botMsg.textContent = data.answer;
+        messages.appendChild(botMsg);
+        messages.scrollTop = messages.scrollHeight;
+
+        // Boutons d'action
+        var actions = document.createElement('div');
+        actions.className = 'msg-actions';
+        actions.innerHTML =
+          '<button onclick="window.speak(this.parentElement.parentElement.textContent, \'' + (lang === 'ar' ? 'ar-SA' : (lang === 'en' ? 'en-US' : 'fr-FR')) + '\')">&#128266; Lire</button>' +
+          '<button onclick="navigator.clipboard.writeText(this.parentElement.parentElement.textContent); alert(\'Copie !\')">Copier</button>';
+        botMsg.appendChild(actions);
+      }
+    })
+    .catch(function(err) {
+      if (loadingMsg) loadingMsg.remove();
+      if (messages) {
+        var errMsg = document.createElement('div');
+        errMsg.className = 'msg bot';
+        errMsg.style.color = '#b91c1c';
+        errMsg.textContent = 'Erreur : ' + err.message;
+        messages.appendChild(errMsg);
+      }
+    })
+    .finally(function() {
+      if (sendBtn) sendBtn.disabled = false;
+      if (input) input.focus();
+    });
+  };
+
+  // Exposer aussi en global pur (pour onclick="send()")
+  send = window.send;
+
+console.log('[voice-fix.js] V2 charge - detection auto langues active');
 })();
