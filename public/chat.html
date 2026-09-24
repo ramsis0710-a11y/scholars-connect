@@ -65,13 +65,13 @@ textarea:focus{border-color:#1e5aa8}
   t = t.replace(/(\d)\s*\*\s*(\d)/g, '</head> fois $2');
   t = t.replace(/(\d)\s*x\s*(\d)/g, '</head> fois $2');
   t = t.replace(/(\d)\s*\/\s*(\d)/g, '</head> divise par $2');
-  t = t.replace(/Ãƒâ€šÃ‚Â²/g, ' au carre ');
-  t = t.replace(/Ãƒâ€šÃ‚Â³/g, ' au cube ');
-  t = t.replace(/ÃƒÂ¢Ã‹â€ Ã…Â¡/g, ' racine carree de ');
-  t = t.replace(/ÃƒÂÃ¢â€šÂ¬/g, ' pi ');
-  t = t.replace(/Ãƒâ€šÃ‚Â°/g, ' degres ');
+  t = t.replace(/ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â²/g, ' au carre ');
+  t = t.replace(/ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â³/g, ' au cube ');
+  t = t.replace(/ÃƒÆ’Ã‚Â¢Ãƒâ€¹Ã¢â‚¬Â Ãƒâ€¦Ã‚Â¡/g, ' racine carree de ');
+  t = t.replace(/ÃƒÆ’Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬/g, ' pi ');
+  t = t.replace(/ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â°/g, ' degres ');
   t = t.replace(/%/g, ' pour cent ');
-  t = t.replace(/^[-ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¢Ãƒâ€šÃ‚Â·]\s*/gm, '');
+  t = t.replace(/^[-ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â·]\s*/gm, '');
   t = t.replace(/^\d+\.\s*/gm, '');
   t = t.replace(/\s+/g, ' ');
   return t.trim();
@@ -467,4 +467,5 @@ function confirmDictation() {
     </div>
   </div>
 </div>
+  <script src="/voice-fix.js"></script>
 </body></html>
