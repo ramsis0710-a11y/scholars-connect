@@ -1,6 +1,6 @@
 // ============================================================
-// VOICE-FIX.JS - Correction microphone + dictée multilingue
-// Fichier SÉPARÉ - NE TOUCHE PAS à chat.html
+// VOICE-FIX.JS - Correction microphone + dictÃ©e multilingue
+// Fichier SÃ‰PARÃ‰ - NE TOUCHE PAS Ã  chat.html
 // ============================================================
 
 (function() {
@@ -10,7 +10,7 @@
   window.startDictation = function(onResult, onEnd, langCode) {
     var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SR) {
-      alert('La dictée vocale n\'est pas supportée par ce navigateur. Utilisez Chrome ou Edge.');
+      alert('La dictÃ©e vocale n\'est pas supportÃ©e par ce navigateur. Utilisez Chrome ou Edge.');
       return null;
     }
 
@@ -40,13 +40,13 @@
     };
 
     rec.onerror = function(e) {
-      console.error('Erreur dictée :', e.error);
+      console.error('Erreur dictÃ©e :', e.error);
       if (e.error === 'language-not-supported') {
-        alert('La langue ' + rec.lang + ' n\'est pas supportée.');
+        alert('La langue ' + rec.lang + ' n\'est pas supportÃ©e.');
       } else if (e.error === 'not-allowed') {
-        alert('Autorisez l\'accès au microphone dans les paramètres du navigateur.');
+        alert('Autorisez l\'accÃ¨s au microphone dans les paramÃ¨tres du navigateur.');
       } else if (e.error === 'no-speech') {
-        console.warn('Aucune parole détectée.');
+        console.warn('Aucune parole dÃ©tectÃ©e.');
       }
     };
 
@@ -55,7 +55,7 @@
     };
 
     try { rec.start(); } catch (e) {
-      console.error('Erreur démarrage dictée :', e.message);
+      console.error('Erreur dÃ©marrage dictÃ©e :', e.message);
       return null;
     }
 
@@ -73,7 +73,7 @@
   // ---------- 2. LECTURE VOCALE ARABE (voix Majed grave) ----------
   window.speak = function(text, lang) {
     if (!('speechSynthesis' in window)) {
-      alert('La synthèse vocale n\'est pas supportée.');
+      alert('La synthÃ¨se vocale n\'est pas supportÃ©e.');
       return;
     }
     if (!text) return;
@@ -87,18 +87,18 @@
       .replace(/_/g, ' ')
       .replace(/->/g, ' vers ')
       .replace(/=>/g, ' donne ')
-      .replace(/=/g, ' égale ')
+      .replace(/=/g, ' Ã©gale ')
       .replace(/\+/g, ' plus ')
       .replace(/(\d)\s*-\s*(\d)/g, '$1 moins $2')
       .replace(/(\d)\s*\*\s*(\d)/g, '$1 fois $2')
-      .replace(/(\d)\s*\/\s*(\d)/g, '$1 divisé par $2')
-      .replace(/²/g, ' au carré ')
-      .replace(/³/g, ' au cube ')
-      .replace(/√/g, ' racine carrée de ')
-      .replace(/π/g, ' pi ')
-      .replace(/°/g, ' degrés ')
+      .replace(/(\d)\s*\/\s*(\d)/g, '$1 divisÃ© par $2')
+      .replace(/Â²/g, ' au carrÃ© ')
+      .replace(/Â³/g, ' au cube ')
+      .replace(/âˆš/g, ' racine carrÃ©e de ')
+      .replace(/Ï€/g, ' pi ')
+      .replace(/Â°/g, ' degrÃ©s ')
       .replace(/%/g, ' pour cent ')
-      .replace(/^[-•·]\s*/gm, '')
+      .replace(/^[-â€¢Â·]\s*/gm, '')
       .replace(/^\d+\.\s*/gm, '')
       .replace(/\s+/g, ' ')
       .trim();
@@ -130,7 +130,7 @@
     speechSynthesis.speak(u);
   };
 
-  // Recharge les voix si nécessaire (iOS)
+  // Recharge les voix si nÃ©cessaire (iOS)
   if (speechSynthesis.onvoiceschanged !== undefined) {
     speechSynthesis.onvoiceschanged = function() { speechSynthesis.getVoices(); };
   }
@@ -183,5 +183,20 @@
     });
   });
 
-  console.log('[voice-fix.js] Chargé - dictée + lecture vocale + micro');
+  
+  // ---------- 4. EXPOSER toggleDictation GLOBALEMENT ----------
+  // Le bouton HTML utilise onclick="toggleDictation()" qui a besoin
+  // d'une fonction GLOBALE. Sans cette ligne, le bouton ne marche pas.
+
+  window.toggleDictation = function() {
+    var micBtn = document.getElementById('mic');
+    if (!micBtn) {
+      console.warn('[voice-fix] Bouton MIC introuvable');
+      return;
+    }
+    // Simuler un clic sur le bouton pour declencher le listener
+    micBtn.click();
+  };
+
+console.log('[voice-fix.js] ChargÃ© - dictÃ©e + lecture vocale + micro');
 })();
