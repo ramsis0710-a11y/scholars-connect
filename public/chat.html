@@ -65,13 +65,13 @@ textarea:focus{border-color:#1e5aa8}
   t = t.replace(/(\d)\s*\*\s*(\d)/g, '</head> fois $2');
   t = t.replace(/(\d)\s*x\s*(\d)/g, '</head> fois $2');
   t = t.replace(/(\d)\s*\/\s*(\d)/g, '</head> divise par $2');
-  t = t.replace(/ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â²/g, ' au carre ');
-  t = t.replace(/ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â³/g, ' au cube ');
-  t = t.replace(/ÃƒÆ’Ã‚Â¢Ãƒâ€¹Ã¢â‚¬Â Ãƒâ€¦Ã‚Â¡/g, ' racine carree de ');
-  t = t.replace(/ÃƒÆ’Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬/g, ' pi ');
-  t = t.replace(/ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â°/g, ' degres ');
+  t = t.replace(/ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â²/g, ' au carre ');
+  t = t.replace(/ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â³/g, ' au cube ');
+  t = t.replace(/ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Â¹ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡/g, ' racine carree de ');
+  t = t.replace(/ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬/g, ' pi ');
+  t = t.replace(/ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â°/g, ' degres ');
   t = t.replace(/%/g, ' pour cent ');
-  t = t.replace(/^[-ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â·]\s*/gm, '');
+  t = t.replace(/^[-ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â·]\s*/gm, '');
   t = t.replace(/^\d+\.\s*/gm, '');
   t = t.replace(/\s+/g, ' ');
   return t.trim();
@@ -297,134 +297,7 @@ document.getElementById('domain').addEventListener('input', function(e) {
 
 
 
-// ============================================================
-// DICTEE VOCALE MULTILINGUE
-// ============================================================
-var recognition = null;
-var dictationBuffer = '';
-var silenceTimer = null;
-var currentRecognition = null;
 
-function startDictation(onResult, onEnd, langCode) {
-    var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SR) {
-        alert('La dictee vocale n est pas supportee par ce navigateur. Utilisez Chrome ou Edge.');
-        return null;
-    }
-    recognition = new SR();
-    recognition.lang = langCode || 'fr-FR';
-    recognition.continuous = true;
-    recognition.interimResults = true;
-    recognition.maxAlternatives = 1;
-    dictationBuffer = '';
-
-    recognition.onresult = function(ev) {
-        var interim = '', final = '';
-        for (var i = ev.resultIndex; i < ev.results.length; i++) {
-            var t = ev.results[i][0].transcript;
-            if (ev.results[i].isFinal) {
-                final += t + ' ';
-            } else {
-                interim += t;
-            }
-        }
-        if (final) dictationBuffer += final;
-        if (onResult) onResult((dictationBuffer + interim).trim());
-        if (silenceTimer) clearTimeout(silenceTimer);
-        silenceTimer = setTimeout(function() {
-            if (onEnd) onEnd(dictationBuffer.trim());
-        }, 10000);
-    };
-
-    recognition.onerror = function(e) {
-        console.error('Erreur dictee :', e.error);
-        if (e.error === 'language-not-supported') {
-            alert('La langue ' + recognition.lang + ' n est pas supportee.');
-        } else if (e.error === 'not-allowed') {
-            alert('Autorisez l acces au microphone.');
-        }
-    };
-
-    recognition.onend = function() {
-        if (silenceTimer) {
-            clearTimeout(silenceTimer);
-            silenceTimer = null;
-        }
-    };
-
-    try {
-        recognition.start();
-    } catch (e) {
-        console.error('Erreur demarrage :', e.message);
-        return null;
-    }
-    return recognition;
-}
-
-function stopDictation() {
-    if (recognition) {
-        try { recognition.stop(); } catch (e) {}
-        recognition = null;
-    }
-    if (silenceTimer) {
-        clearTimeout(silenceTimer);
-        silenceTimer = null;
-    }
-    dictationBuffer = '';
-}
-
-function toggleDictation() {
-    var langSelect = document.getElementById('lang');
-    var selectedLang = langSelect ? langSelect.value : 'fr';
-    var dictLang = 'fr-FR';
-    if (selectedLang === 'ar') dictLang = 'ar-SA';
-    else if (selectedLang === 'en') dictLang = 'en-US';
-    else if (selectedLang === 'es') dictLang = 'es-ES';
-    else if (selectedLang === 'tr') dictLang = 'tr-TR';
-    else if (selectedLang === 'fa') dictLang = 'fa-IR';
-    else if (selectedLang === 'ur') dictLang = 'ur-PK';
-
-    var micBtn = document.getElementById('mic');
-    var dictStatus = document.getElementById('dict-status');
-    var confirmBtn = document.getElementById('confirm-dict');
-
-    if (currentRecognition) {
-        stopDictation();
-        currentRecognition = null;
-        if (micBtn) micBtn.classList.remove('active');
-        if (dictStatus) dictStatus.classList.remove('active');
-        if (confirmBtn) confirmBtn.classList.remove('active');
-    } else {
-        currentRecognition = startDictation(
-            function(text) {
-                var input = document.getElementById('input');
-                if (input) input.value = text;
-            },
-            function(finalText) {
-                var input = document.getElementById('input');
-                if (input) input.value = finalText;
-                if (confirmBtn) confirmBtn.classList.add('active');
-            },
-            dictLang
-        );
-        if (currentRecognition) {
-            if (micBtn) micBtn.classList.add('active');
-            if (dictStatus) dictStatus.classList.add('active');
-        }
-    }
-}
-
-function confirmDictation() {
-    stopDictation();
-    currentRecognition = null;
-    var micBtn = document.getElementById('mic');
-    var dictStatus = document.getElementById('dict-status');
-    var confirmBtn = document.getElementById('confirm-dict');
-    if (micBtn) micBtn.classList.remove('active');
-    if (dictStatus) dictStatus.classList.remove('active');
-    if (confirmBtn) confirmBtn.classList.remove('active');
-    if (typeof send === 'function') send();
-}
 
 // Charger l'historique au demarrage
 (async () => {
