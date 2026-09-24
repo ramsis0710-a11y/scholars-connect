@@ -39,7 +39,7 @@
       return 'es-ES';
     }
     // Detection allemand
-    if (/\b(der|die|das|und|ist|fÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¼r|mit|auf|von|zu|den|dem|des)\b/i.test(t)) {
+    if (/\b(der|die|das|und|ist|fÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¼r|mit|auf|von|zu|den|dem|des)\b/i.test(t)) {
       return 'de-DE';
     }
 
@@ -152,13 +152,13 @@
       .replace(/(\d)\s*-\s*(\d)/g, '$1 moins $2')
       .replace(/(\d)\s*\*\s*(\d)/g, '$1 fois $2')
       .replace(/(\d)\s*\/\s*(\d)/g, '$1 divise par $2')
-      .replace(/ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â²/g, ' au carre ')
-      .replace(/ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â³/g, ' au cube ')
-      .replace(/ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Â¹ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡/g, ' racine carree de ')
-      .replace(/ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬/g, ' pi ')
-      .replace(/ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â°/g, ' degres ')
+      .replace(/ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â²/g, ' au carre ')
+      .replace(/ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â³/g, ' au cube ')
+      .replace(/ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¹ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡/g, ' racine carree de ')
+      .replace(/ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬/g, ' pi ')
+      .replace(/ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â°/g, ' degres ')
       .replace(/%/g, ' pour cent ')
-      .replace(/^[-ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â·]\s*/gm, '')
+      .replace(/^[-ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â·]\s*/gm, '')
       .replace(/^\d+\.\s*/gm, '')
       .replace(/\s+/g, ' ')
       .trim();
@@ -550,28 +550,28 @@
   // MODULE TRADUCTION MULTILINGUE (23 langues)
   // ============================================================
   var TRANSLATION_LANGS = [
-    { code: 'ar', name: 'Ø§Ù„Ø¹Ø±Ø¨ÙŠØ©' },
+    { code: 'ar', name: 'Ã˜Â§Ã™â€žÃ˜Â¹Ã˜Â±Ã˜Â¨Ã™Å Ã˜Â©' },
     { code: 'fr', name: 'Francais' },
     { code: 'en', name: 'English' },
     { code: 'es', name: 'Espanol' },
     { code: 'de', name: 'Deutsch' },
     { code: 'it', name: 'Italiano' },
     { code: 'pt', name: 'Portugues' },
-    { code: 'ru', name: 'Ð ÑƒÑÑÐºÐ¸Ð¹' },
-    { code: 'zh', name: 'ä¸­æ–‡' },
-    { code: 'ja', name: 'æ—¥æœ¬èªž' },
-    { code: 'ko', name: 'í•œêµ­ì–´' },
+    { code: 'ru', name: 'ÃÂ Ã‘Æ’Ã‘ÂÃ‘ÂÃÂºÃÂ¸ÃÂ¹' },
+    { code: 'zh', name: 'Ã¤Â¸Â­Ã¦â€“â€¡' },
+    { code: 'ja', name: 'Ã¦â€”Â¥Ã¦Å“Â¬Ã¨ÂªÅ¾' },
+    { code: 'ko', name: 'Ã­â€¢Å“ÃªÂµÂ­Ã¬â€“Â´' },
     { code: 'tr', name: 'Turkce' },
-    { code: 'fa', name: 'ÙØ§Ø±Ø³ÛŒ' },
-    { code: 'ur', name: 'Ø§Ø±Ø¯Ùˆ' },
-    { code: 'hi', name: 'à¤¹à¤¿à¤¨à¥à¤¦à¥€' },
-    { code: 'he', name: '×¢×‘×¨×™×ª' },
+    { code: 'fa', name: 'Ã™ÂÃ˜Â§Ã˜Â±Ã˜Â³Ã›Å’' },
+    { code: 'ur', name: 'Ã˜Â§Ã˜Â±Ã˜Â¯Ã™Ë†' },
+    { code: 'hi', name: 'Ã Â¤Â¹Ã Â¤Â¿Ã Â¤Â¨Ã Â¥ÂÃ Â¤Â¦Ã Â¥â‚¬' },
+    { code: 'he', name: 'Ã—Â¢Ã—â€˜Ã—Â¨Ã—â„¢Ã—Âª' },
     { code: 'nl', name: 'Nederlands' },
     { code: 'pl', name: 'Polski' },
     { code: 'sv', name: 'Svenska' },
-    { code: 'el', name: 'Î•Î»Î»Î·Î½Î¹ÎºÎ¬' },
+    { code: 'el', name: 'ÃŽâ€¢ÃŽÂ»ÃŽÂ»ÃŽÂ·ÃŽÂ½ÃŽÂ¹ÃŽÂºÃŽÂ¬' },
     { code: 'vi', name: 'Tieng Viet' },
-    { code: 'th', name: 'à¹„à¸—à¸¢' },
+    { code: 'th', name: 'Ã Â¹â€žÃ Â¸â€”Ã Â¸Â¢' },
     { code: 'id', name: 'Bahasa' }
   ];
 
@@ -588,7 +588,7 @@
     var box = document.createElement('div');
     box.style.cssText = 'background:white;border-radius:16px;padding:30px;max-width:600px;width:90%;max-height:85vh;overflow-y:auto;box-shadow:0 25px 70px rgba(0,0,0,0.4);';
 
-    var html = '<h3 style="color:#0a2540;margin-bottom:20px;font-size:1.2rem">ðŸŒ Traduire en...</h3>';
+    var html = '<h3 style="color:#0a2540;margin-bottom:20px;font-size:1.2rem">Ã°Å¸Å’Â Traduire en...</h3>';
     html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px;margin-bottom:20px">';
 
     for (var i = 0; i < TRANSLATION_LANGS.length; i++) {
@@ -694,6 +694,179 @@
   // ============================================================
   window.openTranslateDialog = openTranslateDialog;
   window.doTranslate = doTranslate;
+
+
+  // ============================================================
+  // DECORATEUR AUTOMATIQUE DES MESSAGES BOT
+  // Ajoute les boutons TRADUIRE + PARTAGER sur chaque reponse
+  // ============================================================
+  function decorateMessages() {
+    var bots = document.querySelectorAll('.msg.bot');
+    for (var i = 0; i < bots.length; i++) {
+      var bot = bots[i];
+      if (bot.getAttribute('data-decorated') === '1') continue;
+      if (bot.classList.contains('loading')) continue;
+
+      // Recuperer le texte brut (sans les boutons deja presents)
+      var clone = bot.cloneNode(true);
+      var actions = clone.querySelector('.msg-actions');
+      if (actions) actions.remove();
+      var meta = clone.querySelector('.meta');
+      if (meta) meta.remove();
+      var text = clone.textContent.trim();
+      if (!text) continue;
+
+      bot.setAttribute('data-decorated', '1');
+
+      // Retirer les anciens boutons s'il y en a
+      var oldActions = bot.querySelector('.msg-actions');
+      if (oldActions) oldActions.remove();
+
+      // Creer la barre d'actions
+      var bar = document.createElement('div');
+      bar.className = 'msg-actions';
+      bar.style.cssText = 'display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;';
+
+      // Bouton TRADUIRE
+      var btnTranslate = document.createElement('button');
+      btnTranslate.type = 'button';
+      btnTranslate.innerHTML = '&#127760; Traduire';
+      btnTranslate.style.cssText = 'background:white;border:1px solid #e5e7eb;padding:6px 12px;border-radius:8px;cursor:pointer;font-size:.85rem;color:#0a2540;font-weight:600;';
+      btnTranslate.onclick = function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        if (window.openTranslateDialog) {
+          window.openTranslateDialog(text);
+        } else {
+          alert('Module traduction non disponible');
+        }
+      };
+      bar.appendChild(btnTranslate);
+
+      // Bouton PARTAGER
+      var btnShare = document.createElement('button');
+      btnShare.type = 'button';
+      btnShare.innerHTML = '&#128279; Partager';
+      btnShare.style.cssText = 'background:white;border:1px solid #e5e7eb;padding:6px 12px;border-radius:8px;cursor:pointer;font-size:.85rem;color:#0a2540;font-weight:600;';
+      btnShare.onclick = function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        shareMessage(text);
+      };
+      bar.appendChild(btnShare);
+
+      // Bouton LIRE
+      var btnSpeak = document.createElement('button');
+      btnSpeak.type = 'button';
+      btnSpeak.innerHTML = '&#128266; Lire';
+      btnSpeak.style.cssText = 'background:white;border:1px solid #e5e7eb;padding:6px 12px;border-radius:8px;cursor:pointer;font-size:.85rem;color:#0a2540;font-weight:600;';
+      btnSpeak.onclick = function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        if (window.speak) {
+          var lang = 'fr-FR';
+          if (/[\u0600-\u06FF]/.test(text)) lang = 'ar-SA';
+          else if (/[a-zA-Z]/.test(text) && !/[éèàçùâêîôû]/i.test(text)) lang = 'en-US';
+          window.speak(text, lang);
+        }
+      };
+      bar.appendChild(btnSpeak);
+
+      bot.appendChild(bar);
+    }
+  }
+
+  // ============================================================
+  // FONCTION PARTAGER (Web Share API + fallback)
+  // ============================================================
+  function shareMessage(text) {
+    var shareData = {
+      title: 'Scholars Connect',
+      text: text
+    };
+
+    if (navigator.share) {
+      navigator.share(shareData).catch(function(err) {
+        if (err.name !== 'AbortError') {
+          fallbackShare(text);
+        }
+      });
+    } else {
+      fallbackShare(text);
+    }
+  }
+
+  function fallbackShare(text) {
+    // Popup avec options de partage
+    var old = document.getElementById('share-dialog');
+    if (old) old.remove();
+
+    var dialog = document.createElement('div');
+    dialog.id = 'share-dialog';
+    dialog.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);display:flex;justify-content:center;align-items:center;z-index:9999;';
+
+    var box = document.createElement('div');
+    box.style.cssText = 'background:white;border-radius:16px;padding:30px;max-width:500px;width:90%;box-shadow:0 25px 70px rgba(0,0,0,0.4);';
+
+    var encodedText = encodeURIComponent(text);
+    var pageUrl = encodeURIComponent(window.location.origin);
+
+    var html = '<h3 style="color:#0a2540;margin-bottom:20px;font-size:1.2rem">&#128279; Partager</h3>';
+    html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:10px;margin-bottom:20px">';
+    html += '<a href="https://wa.me/?text=' + encodedText + '" target="_blank" style="padding:12px;background:#25D366;color:white;border-radius:10px;text-decoration:none;text-align:center;font-weight:600;font-size:.9rem">WhatsApp</a>';
+    html += '<a href="https://t.me/share/url?url=' + pageUrl + '&text=' + encodedText + '" target="_blank" style="padding:12px;background:#0088cc;color:white;border-radius:10px;text-decoration:none;text-align:center;font-weight:600;font-size:.9rem">Telegram</a>';
+    html += '<a href="https://twitter.com/intent/tweet?text=' + encodedText + '" target="_blank" style="padding:12px;background:#000;color:white;border-radius:10px;text-decoration:none;text-align:center;font-weight:600;font-size:.9rem">X (Twitter)</a>';
+    html += '<a href="https://www.facebook.com/sharer/sharer.php?u=' + pageUrl + '&quote=' + encodedText + '" target="_blank" style="padding:12px;background:#1877f2;color:white;border-radius:10px;text-decoration:none;text-align:center;font-weight:600;font-size:.9rem">Facebook</a>';
+    html += '<a href="https://www.linkedin.com/sharing/share-offsite/?url=' + pageUrl + '" target="_blank" style="padding:12px;background:#0077b5;color:white;border-radius:10px;text-decoration:none;text-align:center;font-weight:600;font-size:.9rem">LinkedIn</a>';
+    html += '<a href="mailto:?subject=Scholars%20Connect&body=' + encodedText + '" style="padding:12px;background:#6b7280;color:white;border-radius:10px;text-decoration:none;text-align:center;font-weight:600;font-size:.9rem">Email</a>';
+    html += '</div>';
+    html += '<button type="button" id="share-copy" style="width:100%;padding:12px;background:#1e5aa8;color:white;border:none;border-radius:10px;font-weight:600;cursor:pointer;margin-bottom:10px">Copier le texte</button>';
+    html += '<button type="button" id="share-close" style="width:100%;padding:10px;background:#f5f7fa;border:2px solid #e5e7eb;color:#0a2540;border-radius:10px;font-weight:600;cursor:pointer">Fermer</button>';
+
+    box.innerHTML = html;
+    dialog.appendChild(box);
+    document.body.appendChild(dialog);
+
+    document.getElementById('share-close').onclick = function() { dialog.remove(); };
+    document.getElementById('share-copy').onclick = function() {
+      navigator.clipboard.writeText(text);
+      this.textContent = 'Copie !';
+      var btn = this;
+      setTimeout(function() { btn.textContent = 'Copier le texte'; }, 1500);
+    };
+    dialog.onclick = function(e) { if (e.target === dialog) dialog.remove(); };
+  }
+
+  // Exposer les fonctions
+  window.shareMessage = shareMessage;
+  window.decorateMessages = decorateMessages;
+
+  // ============================================================
+  // LANCEMENT AUTOMATIQUE DU DECORATEUR
+  // ============================================================
+  function startDecorator() {
+    // Premier passage apres 1 seconde
+    setTimeout(decorateMessages, 1000);
+
+    // Observer les changements dans #messages
+    var messagesContainer = document.getElementById('messages');
+    if (messagesContainer) {
+      var observer = new MutationObserver(function() {
+        setTimeout(decorateMessages, 100);
+      });
+      observer.observe(messagesContainer, { childList: true, subtree: true });
+      console.log('[voice-fix] Decorateur actif sur #messages');
+    }
+
+    // Repetition periodique (au cas ou)
+    setInterval(decorateMessages, 2000);
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', startDecorator);
+  } else {
+    startDecorator();
+  }
 
 console.log('[voice-fix.js] V2 charge - detection auto langues active');
 })();
