@@ -1,33 +1,33 @@
 // ============================================================
 // LANGUAGE-FIX.JS
-// Force l'IA a repondre dans la langue de la question.
-// Fichier SEPARE - NE MODIFIE AUCUNE LIGNE EXISTANTE
+// Force l'IA a repondre dans la langue de la question
+// avec une formulation NATURELLE (pas de "critical instruction")
 // ============================================================
 
 var LANGUAGE_NAMES = {
-    'ar': 'Arabic',
-    'fr': 'French',
+    'ar': 'Arabic (العربية)',
+    'fr': 'French (Francais)',
     'en': 'English',
-    'es': 'Spanish',
-    'de': 'German',
-    'it': 'Italian',
-    'pt': 'Portuguese',
-    'ru': 'Russian',
-    'zh': 'Chinese',
-    'ja': 'Japanese',
-    'ko': 'Korean',
-    'tr': 'Turkish',
-    'fa': 'Persian',
-    'ur': 'Urdu',
+    'es': 'Spanish (Espanol)',
+    'de': 'German (Deutsch)',
+    'it': 'Italian (Italiano)',
+    'pt': 'Portuguese (Portugues)',
+    'ru': 'Russian (Русский)',
+    'zh': 'Chinese (中文)',
+    'ja': 'Japanese (日本語)',
+    'ko': 'Korean (한국어)',
+    'tr': 'Turkish (Turkce)',
+    'fa': 'Persian (فارسی)',
+    'ur': 'Urdu (اردو)',
     'hi': 'Hindi',
-    'he': 'Hebrew',
-    'nl': 'Dutch',
-    'pl': 'Polish',
-    'sv': 'Swedish',
-    'el': 'Greek',
+    'he': 'Hebrew (עברית)',
+    'nl': 'Dutch (Nederlands)',
+    'pl': 'Polish (Polski)',
+    'sv': 'Swedish (Svenska)',
+    'el': 'Greek (Ελληνικά)',
     'vi': 'Vietnamese',
-    'th': 'Thai',
-    'id': 'Indonesian'
+    'th': 'Thai (ไทย)',
+    'id': 'Indonesian (Bahasa Indonesia)'
 };
 
 function detectLanguage(text) {
@@ -44,15 +44,10 @@ function detectLanguage(text) {
     return null;
 }
 
-function buildInstruction(langCode) {
+function buildNaturalPrefix(langCode) {
     var langName = LANGUAGE_NAMES[langCode] || langCode;
-    return '[CRITICAL INSTRUCTION - MANDATORY]\n' +
-           'You MUST answer ONLY in ' + langName + '.\n' +
-           'Do NOT translate to French. Do NOT use French.\n' +
-           'Even explanations, formulas, steps, advice and greetings\n' +
-           'must be in ' + langName + '.\n' +
-           'If you answer in another language, it is a CRITICAL ERROR.\n\n' +
-           '--- QUESTION ---\n';
+    // Formulation naturelle - l'IA ne se mefie pas
+    return 'Answer the following question in ' + langName + ' only:\n\n';
 }
 
 module.exports = function(app) {
@@ -61,8 +56,8 @@ module.exports = function(app) {
         var lang = req.body.language || 'fr';
         var detected = detectLanguage(req.body.question || '');
         if (detected) lang = detected;
-        if (req.body.question && req.body.question.indexOf('[CRITICAL INSTRUCTION') === -1) {
-            req.body.question = buildInstruction(lang) + req.body.question;
+        if (req.body.question && req.body.question.indexOf('Answer the following question in') === -1) {
+            req.body.question = buildNaturalPrefix(lang) + req.body.question;
         }
         req.body.language = lang;
         next();
@@ -73,14 +68,14 @@ module.exports = function(app) {
         var lang = req.body.language || 'fr';
         var detected = detectLanguage(req.body.content || '');
         if (detected) lang = detected;
-        if (req.body.question && req.body.question.indexOf('[CRITICAL INSTRUCTION') === -1) {
-            req.body.question = buildInstruction(lang) + req.body.question;
+        if (req.body.question && req.body.question.indexOf('Answer the following question in') === -1) {
+            req.body.question = buildNaturalPrefix(lang) + req.body.question;
         } else if (!req.body.question && req.body.content) {
-            req.body.question = buildInstruction(lang) + 'Analyze this document.';
+            req.body.question = buildNaturalPrefix(lang) + 'Analyze this document.';
         }
         req.body.language = lang;
         next();
     });
 
-    console.log('[language-fix] Middleware actif - force la langue des reponses');
+    console.log('[language-fix] Middleware actif (mode naturel)');
 };
