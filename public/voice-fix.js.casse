@@ -181,9 +181,10 @@
             || voices.find(function(v) { return v.lang.indexOf('ar-SA') === 0; })
             || voices.find(function(v) { return v.lang.indexOf('ar') === 0; });
     } else {
-      chosen = voices.find(function(v) { return v.lang.indexOf(prefix) === 0 && /Thomas|Henri|Paul|Guillaume|Yannick/i.test(v.name); })
-            || voices.find(function(v) { return v.lang.indexOf(prefix) === 0 && /male|homme/i.test(v.name); })
-            || voices.find(function(v) { return v.lang.indexOf(prefix) === 0; });
+      chosen = getNativeVoiceForLanguage(targetLang);
+      if (!chosen) {
+        chosen = voices.find(function(v) { return v.lang.indexOf(prefix) === 0; });
+      }
     }
 
     if (chosen) u.voice = chosen;
@@ -874,63 +875,6 @@
   // ============================================================
   // MODULE CONTROLE LECTURE VOCALE (pause / reprise / arret)
   // ============================================================
-    // ============================================================
-  // VOIX NATIVE PAR LANGUE
-  // ============================================================
-  function getNativeVoiceForLanguage(langCode) {
-    var voices = speechSynthesis.getVoices();
-    if (!voices || voices.length === 0) return null;
-
-    var prefix = langCode.split('-')[0];
-
-    // Voix masculines connues par langue
-    var maleVoiceNames = {
-      'fr': /Thomas|Henri|Paul|Guillaume|Yannick|Google français/i,
-      'ar': /Majed|Maged|Naayf/i,
-      'en': /David|Mark|James|George|Daniel|Google US English|Microsoft David/i,
-      'es': /Diego|Jorge|Juan|Carlos/i,
-      'de': /Hans|Stefan|Klaus|Google Deutsch/i,
-      'it': /Luca|Marco|Giovanni|Google italiano/i,
-      'pt': /Felipe|Ricardo|Google português/i,
-      'ru': /Yuri|Dmitri|Google русский/i,
-      'zh': /Yunyang|Liang|Kangkang/i,
-      'ja': /Keita|Hattori/i,
-      'ko': /Yuna|Google 한국의/i,
-      'tr': /Cem|Emre|Yelda/i,
-      'fa': /Amir|Reza/i,
-      'ur': /Asad|Uzma/i,
-      'hi': /Ravi|Amit|Lekha/i,
-      'he': /Asaf|Google עברית/i,
-      'nl': /Xander|Google Nederlands/i,
-      'pl': /Krzysztof|Google polski/i,
-      'sv': /Oskar|Google svenska/i,
-      'el': /Nikos|Google Ελληνικά/i,
-      'vi': /Google Tiếng Việt/i,
-      'th': /Google ไทย/i,
-      'id': /Google Bahasa Indonesia/i
-    };
-
-    // 1. Chercher une voix qui correspond exactement au code langue
-    var exactMatch = voices.find(function(v) { return v.lang === langCode; });
-    if (exactMatch) return exactMatch;
-
-    // 2. Chercher par préfixe de langue (fr, ar, en...)
-    var prefixMatches = voices.filter(function(v) { return v.lang.indexOf(prefix) === 0; });
-
-    if (prefixMatches.length > 0) {
-      // 3. Preferer une voix masculine connue
-      var maleRegex = maleVoiceNames[prefix];
-      if (maleRegex) {
-        var maleVoice = prefixMatches.find(function(v) { return maleRegex.test(v.name); });
-        if (maleVoice) return maleVoice;
-      }
-      // 4. Sinon, prendre la première voix du préfixe
-      return prefixMatches[0];
-    }
-
-    return null;
-  }
-
   var currentSpeechBtn = null;
   var currentSpeechText = '';
 
@@ -1039,9 +983,10 @@
             || voices.find(function(v) { return v.lang.indexOf('ar-SA') === 0; })
             || voices.find(function(v) { return v.lang.indexOf('ar') === 0; });
     } else {
-      chosen = voices.find(function(v) { return v.lang.indexOf(prefix) === 0 && /Thomas|Henri|Paul|Guillaume|Yannick/i.test(v.name); })
-            || voices.find(function(v) { return v.lang.indexOf(prefix) === 0 && /male|homme/i.test(v.name); })
-            || voices.find(function(v) { return v.lang.indexOf(prefix) === 0; });
+      chosen = getNativeVoiceForLanguage(targetLang);
+      if (!chosen) {
+        chosen = voices.find(function(v) { return v.lang.indexOf(prefix) === 0; });
+      }
     }
 
     if (chosen) u.voice = chosen;
@@ -1055,6 +1000,175 @@
 
     speechSynthesis.speak(u);
   };
+
+
+  // ============================================================
+  // MODULE LECTURE VOCALE - VOIX NATIVE PAR LANGUE + 3 ETATS
+  // ============================================================
+  var currentSpeechBtn = null;
+  var currentUtterance = null;
+
+  function getNativeVoiceForLanguage(langCode) {
+    var voices = speechSynthesis.getVoices();
+    if (!voices || voices.length === 0) return null;
+
+    var prefix = langCode.split('-')[0];
+
+    // Priorite 1 : voix qui correspond exactement au code langue
+    var exact = voices.find(function(v) { return v.lang === langCode; });
+    if (exact) return exact;
+
+    // Priorite 2 : voix qui commence par le prefixe de langue (fr, ar, en...)
+    var prefixMatch = voices.filter(function(v) { return v.lang.indexOf(prefix) === 0; });
+
+    if (prefixMatch.length > 0) {
+      // Preferer les voix masculines connues
+      var maleNames = {
+        'fr': /Thomas|Henri|Paul|Guillaume|Yannick/i,
+        'ar': /Majed|Maged/i,
+        'en': /David|Mark|James|George|Daniel/i,
+        'es': /Diego|Jorge|Juan|Carlos/i,
+        'de': /Hans|Stefan|Klaus/i,
+        'it': /Luca|Marco|Giovanni/i,
+        'ru': /Yuri|Dmitri/i,
+        'zh': /Yunyang|Liang|Kangkang/i,
+        'pt': /Felipe|Ricardo/i,
+        'tr': /Cem|Emre/i,
+        'fa': /Amir|Reza/i,
+        'hi': /Ravi|Amit/i
+      };
+      var maleRegex = maleNames[prefix];
+      if (maleRegex) {
+        var maleVoice = prefixMatch.find(function(v) { return maleRegex.test(v.name); });
+        if (maleVoice) return maleVoice;
+      }
+      return prefixMatch[0];
+    }
+
+    return null;
+  }
+
+  function updateSpeechBtn(btn, state) {
+    if (!btn) return;
+    btn.style.transition = 'all 0.2s';
+    if (state === 'playing') {
+      btn.style.background = '#16a34a';
+      btn.style.color = 'white';
+      btn.innerHTML = '\u23F8 Pause';
+    } else if (state === 'paused') {
+      btn.style.background = '#f59e0b';
+      btn.style.color = 'white';
+      btn.innerHTML = '\u25B6 Reprendre';
+    } else {
+      btn.style.background = '#dc2626';
+      btn.style.color = 'white';
+      btn.innerHTML = '\u23F9 Arrete';
+    }
+  }
+
+  window.toggleSpeech = function(btn, text, langOverride) {
+    // Determiner la langue
+    var lang = langOverride || detectLanguageFromText(text);
+
+    // Si un autre bouton jouait, le stopper
+    if (currentSpeechBtn && currentSpeechBtn !== btn) {
+      updateSpeechBtn(currentSpeechBtn, 'stopped');
+    }
+
+    // Si c'est le meme bouton
+    if (currentSpeechBtn === btn && window.speechSynthesis) {
+      if (speechSynthesis.speaking && !speechSynthesis.paused) {
+        speechSynthesis.pause();
+        updateSpeechBtn(btn, 'paused');
+        return 'paused';
+      } else if (speechSynthesis.paused) {
+        speechSynthesis.resume();
+        updateSpeechBtn(btn, 'playing');
+        return 'resumed';
+      } else {
+        currentSpeechBtn = null;
+      }
+    }
+
+    if (!('speechSynthesis' in window)) {
+      alert('Synthese vocale non supportee.');
+      return;
+    }
+
+    // Nettoyage du texte
+    var clean = String(text)
+      .replace(/\*\*/g, '').replace(/\*/g, '')
+      .replace(/^#+\s*/gm, '').replace(/_/g, ' ')
+      .replace(/->/g, ' vers ').replace(/=>/g, ' donne ')
+      .replace(/=/g, ' egale ').replace(/\+/g, ' plus ')
+      .replace(/(\d)\s*-\s*(\d)/g, 'console.log('[voice-fix.js] V2 charge moins $2')
+      .replace(/(\d)\s*\*\s*(\d)/g, 'console.log('[voice-fix.js] V2 charge fois $2')
+      .replace(/(\d)\s*\/\s*(\d)/g, 'console.log('[voice-fix.js] V2 charge divise par $2')
+      .replace(/\u00B2/g, ' au carre ')
+      .replace(/\u00B3/g, ' au cube ')
+      .replace(/\u221A/g, ' racine carree de ')
+      .replace(/\u03C0/g, ' pi ')
+      .replace(/\u00B0/g, ' degres ')
+      .replace(/%/g, ' pour cent ')
+      .replace(/^[-\u2022\u00B7]\s*/gm, '')
+      .replace(/^\d+\.\s*/gm, '')
+      .replace(/\s+/g, ' ').trim();
+
+    speechSynthesis.cancel();
+
+    var u = new SpeechSynthesisUtterance(clean);
+    u.lang = lang;
+    u.rate = 0.9;
+    u.pitch = 0.85;
+    u.volume = 1.0;
+
+    // Voix native correspondant a la langue
+    var nativeVoice = getNativeVoiceForLanguage(lang);
+    if (nativeVoice) {
+      u.voice = nativeVoice;
+      console.log('[voice-fix] Voix native :', nativeVoice.name, '(', nativeVoice.lang, ')');
+    } else {
+      console.warn('[voice-fix] Aucune voix native pour', lang);
+    }
+
+    u.onstart = function() { updateSpeechBtn(btn, 'playing'); };
+    u.onend   = function() { updateSpeechBtn(btn, 'stopped'); currentSpeechBtn = null; currentUtterance = null; };
+    u.onerror = function(e) {
+      console.warn('[voice-fix] Erreur lecture :', e.error);
+      updateSpeechBtn(btn, 'stopped');
+      currentSpeechBtn = null;
+      currentUtterance = null;
+    };
+
+    currentSpeechBtn = btn;
+    currentUtterance = u;
+
+    speechSynthesis.speak(u);
+    return 'started';
+  };
+
+  window.pauseSpeech = function() {
+    if ('speechSynthesis' in window && speechSynthesis.speaking && !speechSynthesis.paused) {
+      speechSynthesis.pause();
+      updateSpeechBtn(currentSpeechBtn, 'paused');
+      return 'paused';
+    }
+    return 'none';
+  };
+
+  window.stopSpeech = function() {
+    if ('speechSynthesis' in window) {
+      speechSynthesis.cancel();
+      updateSpeechBtn(currentSpeechBtn, 'stopped');
+    }
+    currentSpeechBtn = null;
+    currentUtterance = null;
+  };
+
+  // Charger les voix au demarrage
+  if (typeof speechSynthesis !== 'undefined' && speechSynthesis.onvoiceschanged !== undefined) {
+    speechSynthesis.onvoiceschanged = function() { speechSynthesis.getVoices(); };
+  }
 
 console.log('[voice-fix.js] V2 charge - detection auto langues active');
 })();
