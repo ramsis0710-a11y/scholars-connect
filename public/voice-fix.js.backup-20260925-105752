@@ -26,44 +26,6 @@
   // ============================================================
   // 2. VOIX NATIVE PAR LANGUE
   // ============================================================
-  
-  // ============================================================
-  // VOIX ARABE NATIVE MASCULINE (Majed prioritaire)
-  // ============================================================
-  function getArabicMaleVoice() {
-    var voices = speechSynthesis.getVoices();
-    if (!voices || voices.length === 0) return null;
-
-    // Priorite 1 : voix exacte "Majed" (nom natif Microsoft/Google pour arabe)
-    var majed = voices.find(function(v) { return /^Majed$/i.test(v.name.trim()); });
-    if (majed) return majed;
-
-    // Priorite 2 : "Majed (ar-001)" ou "Majed (ar-SA)"
-    var majedVariant = voices.find(function(v) { return /^Majed\s*\(/i.test(v.name.trim()); });
-    if (majedVariant) return majedVariant;
-
-    // Priorite 3 : "Maged" (variante orthographique)
-    var maged = voices.find(function(v) { return /^Maged/i.test(v.name.trim()); });
-    if (maged) return maged;
-
-    // Priorite 4 : "Naayf" (voix arabe masculine native alternative)
-    var naayf = voices.find(function(v) { return /^Naayf/i.test(v.name.trim()); });
-    if (naayf) return naayf;
-
-    // Priorite 5 : toute voix arabe masculine connue
-    var arabicMale = voices.find(function(v) {
-      return v.lang.indexOf('ar') === 0 &&
-             /Majed|Maged|Naayf|Tarik|Karim|Hamza|Youssef/i.test(v.name);
-    });
-    if (arabicMale) return arabicMale;
-
-    // Priorite 6 : toute voix arabe (ar-SA, ar-001, etc.)
-    var anyArabic = voices.find(function(v) { return v.lang.indexOf('ar') === 0; });
-    if (anyArabic) return anyArabic;
-
-    return null;
-  }
-
   function getNativeVoiceForLanguage(langCode) {
     var voices = speechSynthesis.getVoices();
     if (!voices || voices.length === 0) return null;
@@ -71,7 +33,7 @@
 
     var maleVoiceNames = {
       'fr': /Thomas|Henri|Paul|Guillaume|Yannick|Google francais/i,
-      'ar': /^Majed$|^Majed \(ar-001\)$|Maged|Naayf|Majed/i,
+      'ar': /Majed|Maged|Naayf/i,
       'en': /David|Mark|James|George|Daniel|Google US English/i,
       'es': /Diego|Jorge|Juan|Carlos/i,
       'de': /Hans|Stefan|Klaus|Google Deutsch/i,
@@ -94,12 +56,6 @@
       'th': /Google ไทย/i,
       'id': /Google Bahasa/i
     };
-
-    // Cas special : langue arabe -> utiliser la fonction dediee
-    if (prefix === 'ar') {
-      var arabicVoice = getArabicMaleVoice();
-      if (arabicVoice) return arabicVoice;
-    }
 
     var exactMatch = voices.find(function(v) { return v.lang === langCode; });
     if (exactMatch) return exactMatch;
