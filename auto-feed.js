@@ -1,6 +1,10 @@
 // AUTO-FEED.JS - Scraping + Vecteurs semantiques automatiques
 const fetch = require('node-fetch');
 
+// Chargement des sources etendues
+const EXTENDED_SOURCES = require('./sources-extended');
+
+
 const SCRAPING_SOURCES = {
     'IA & KMS': [
         { url: 'https://arxiv.org/list/cs.AI/recent' },
@@ -32,7 +36,8 @@ const DOMAIN_KEYWORDS = {
     'Finance':  ['finance', 'risk', 'quantum', 'blockchain', 'defi', 'esg', 'trading'],
     'Sante':    ['health', 'medical', 'genomic', 'ai', 'diagnosis', 'dna'],
     'Education':['education', 'learning', 'student', 'teaching', 'edtech'],
-    'Commerce': ['commerce', 'supply', 'trade', 'logistics', 'retail']
+    'Commerce': ['commerce', 'supply', 'trade', 'logistics', 'retail'],
+    'Sciences': ['science', 'physics', 'math', 'research', 'quantum', 'statistic']
 };
 
 async function scrapeUrl(url, timeoutMs = 15000) {
