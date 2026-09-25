@@ -20,6 +20,11 @@ const MBA_CONSULT_API = process.env.MBA_CONSULT_API || "https://api.mba-consult.
 
 app.use(cors({ origin: true, credentials: true }));
 app.use(express.json({ limit: "20mb" }));
+// Module auto-feed (scraping + vecteurs semantiques)
+require('./auto-feed')(app, mongoose);
+// Module auto-ingest (documents utilisateurs + QA validee)
+require('./auto-ingest')(app, mongoose);
+
 // Middleware language-fix (ajout separe)
 require('./language-fix')(app);
 
@@ -155,8 +160,8 @@ CONVERSION POUR LECTURE VOCALE :
 - Utilise "fois" au lieu de "x" ou "*"
 - Utilise "divise par" au lieu de "/"
 - Utilise "egale" au lieu de "="
-- Utilise "au carre" au lieu de "Â²"
-- Utilise "racine carree de" au lieu de "âˆš"
+- Utilise "au carre" au lieu de "Ã‚Â²"
+- Utilise "racine carree de" au lieu de "Ã¢Ë†Å¡"
 
 EXEMPLE :
 
