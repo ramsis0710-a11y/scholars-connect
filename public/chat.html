@@ -1,5 +1,10 @@
-<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Chat - Scholars Connect</title><link rel="stylesheet" href="/style.css">
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Chat - Scholars Connect</title>
+<link rel="stylesheet" href="/style.css">
 <style>
 .chat-wrap{max-width:1000px;margin:0 auto;padding:20px}
 .chat-card{background:white;border-radius:16px;box-shadow:0 10px 40px rgba(0,0,0,.15);display:flex;flex-direction:column;height:calc(100vh - 160px);overflow:hidden}
@@ -16,7 +21,7 @@
 textarea{flex:1;padding:12px;border:2px solid #e5e7eb;border-radius:12px;font-family:inherit;font-size:1rem;resize:none;min-height:52px;max-height:150px;outline:none}
 textarea:focus{border-color:#1e5aa8}
 .btn-group{display:flex;gap:8px}
-.btn-mic{background:#dc2626;color:white;border:none;padding:14px;border-radius:12px;cursor:pointer;font-size:1.1rem;width:52px}
+.btn-mic{background:#dc2626;color:white;border:none;padding:14px;border-radius:12px;cursor:pointer;font-size:1.1rem;width:52px;font-weight:bold;letter-spacing:1px}
 .btn-mic.active{background:#16a34a;animation:pulse 1.5s infinite}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.6}}
 .options-bar{display:flex;gap:10px;flex-wrap:wrap;font-size:.85rem}
@@ -44,91 +49,15 @@ textarea:focus{border-color:#1e5aa8}
 .dialog-btns{display:flex;gap:10px;justify-content:flex-end;margin-top:20px}
 .btn-cancel{background:#f5f7fa;border:2px solid #e5e7eb;color:#0a2540;padding:12px 24px;border-radius:10px;font-weight:600;cursor:pointer}
 .btn-ok{background:linear-gradient(135deg,#0a2540,#1e5aa8);color:white;border:none;padding:12px 24px;border-radius:10px;font-weight:600;cursor:pointer}
-.btn-mic { font-weight: bold; font-size: 0.9rem; letter-spacing: 1px; }
-.btn-mic.active { background: #16a34a !important; }
-</style>function cleanForSpeech(text) {
-  if (!text) return '';
-  let t = String(text);
-  t = t.replace(/\*\*/g, '');
-  t = t.replace(/\*/g, '');
-  t = t.replace(/^#+\s*/gm, '');
-  t = t.replace(/_/g, ' ');
-  t = t.replace(/~/g, ' ');
-  t = t.replace(/\|/g, ' ');
-  t = t.replace(/->/g, ' vers ');
-  t = t.replace(/=>/g, ' donne ');
-  t = t.replace(/<=/g, ' inferieur ou egal a ');
-  t = t.replace(/>=/g, ' superieur ou egal a ');
-  t = t.replace(/=/g, ' egale ');
-  t = t.replace(/\+/g, ' plus ');
-  t = t.replace(/(\d)\s*-\s*(\d)/g, '</head> moins $2');
-  t = t.replace(/(\d)\s*\*\s*(\d)/g, '</head> fois $2');
-  t = t.replace(/(\d)\s*x\s*(\d)/g, '</head> fois $2');
-  t = t.replace(/(\d)\s*\/\s*(\d)/g, '</head> divise par $2');
-  t = t.replace(/ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â²/g, ' au carre ');
-  t = t.replace(/ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â³/g, ' au cube ');
-  t = t.replace(/ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¹ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡/g, ' racine carree de ');
-  t = t.replace(/ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬/g, ' pi ');
-  t = t.replace(/ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â°/g, ' degres ');
-  t = t.replace(/%/g, ' pour cent ');
-  t = t.replace(/^[-ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â·]\s*/gm, '');
-  t = t.replace(/^\d+\.\s*/gm, '');
-  t = t.replace(/\s+/g, ' ');
-  return t.trim();
-}
+</style>
+</head>
+<body>
 
-function speak(text, lang = 'fr-FR') {
-  if (!('speechSynthesis' in window)) {
-    alert('Synthese vocale non supportee.');
-    return;
-  }
-  const cleanText = cleanForSpeech(text);
-  if (!cleanText) return;
-
-  speechSynthesis.cancel();
-  const u = new SpeechSynthesisUtterance(cleanText);
-  u.lang = lang;
-  u.rate = 0.9;
-  u.pitch = 0.85;  // Grave
-  u.volume = 1.0;
-
-  const voices = speechSynthesis.getVoices();
-  const langPrefix = lang.split('-')[0];  // 'ar', 'fr', 'en'
-
-  let chosenVoice = null;
-
-  if (langPrefix === 'ar') {
-    // Chercher la voix arabe masculine "Majed" (ar-001 ou ar-SA)
-    chosenVoice = voices.find(v => v.lang.startsWith('ar') && /Majed/i.test(v.name)) ||
-                  voices.find(v => v.lang === 'ar-001') ||
-                  voices.find(v => v.lang.startsWith('ar-SA')) ||
-                  voices.find(v => v.lang.startsWith('ar'));
-  } else {
-    // Autres langues : preference masculine
-    chosenVoice = voices.find(v => v.lang.startsWith(langPrefix) && /Thomas|Henri|Paul|Guillaume|Yannick/i.test(v.name)) ||
-                  voices.find(v => v.lang.startsWith(langPrefix) && /male|homme/i.test(v.name)) ||
-                  voices.find(v => v.lang.startsWith(langPrefix));
-  }
-
-  if (chosenVoice) {
-    u.voice = chosenVoice;
-    console.log('Voix utilisee :', chosenVoice.name, chosenVoice.lang);
-  } else {
-    console.warn('Aucune voix trouvee pour', lang);
-  }
-
-  speechSynthesis.speak(u);
-}
-
-// Recharger les voix si necessaire (iOS/Safari)
-if (speechSynthesis.onvoiceschanged !== undefined) {
-  speechSynthesis.onvoiceschanged = () => { speechSynthesis.getVoices(); };
-}
-</head><body>
 <div class="header">
   <div class="logo"><div class="mark">SC</div><div><h1>Scholars Connect</h1><p id="user-display">Assistant IA</p></div></div>
   <div class="nav" id="nav-user"></div>
 </div>
+
 <div class="chat-wrap">
   <div class="chat-card">
     <div class="messages" id="messages"></div>
@@ -137,28 +66,28 @@ if (speechSynthesis.onvoiceschanged !== undefined) {
       <div class="options-bar">
         <label>Langue :
           <select id="lang" style="min-width:180px">
-            <option value="ar">&#1575;&#1604;&#1593;&#1585;&#1576;&#1610;&#1577;</option>
-            <option value="fr" selected>Fran&ccedil;ais</option>
+            <option value="ar">العربية</option>
+            <option value="fr" selected>Français</option>
             <option value="en">English</option>
             <option disabled>---------------</option>
-            <option value="es">Espa&ntilde;ol</option>
+            <option value="es">Español</option>
             <option value="de">Deutsch</option>
             <option value="it">Italiano</option>
-            <option value="pt">Portugu&ecirc;s</option>
-            <option value="ru">&#1056;&#1091;&#1089;&#1089;&#1082;&#1080;&#1081;</option>
-            <option value="zh">&#20013;&#25991;</option>
-            <option value="ja">&#26085;&#26412;&#35486;</option>
-            <option value="ko">&#54620;&#44397;&#50612;</option>
-            <option value="tr">T&uuml;rk&ccedil;e</option>
-            <option value="fa">&#1601;&#1575;&#1585;&#1587;&#1740;</option>
-            <option value="ur">&#1575;&#1585;&#1583;&#1608;</option>
-            <option value="hi">&#2361;&#2367;&#2344;&#2381;&#2342;&#2368;</option>
-            <option value="he">&#1506;&#1489;&#1512;&#1497;&#1514;</option>
+            <option value="pt">Português</option>
+            <option value="ru">Русский</option>
+            <option value="zh">中文</option>
+            <option value="ja">日本語</option>
+            <option value="ko">한국어</option>
+            <option value="tr">Türkçe</option>
+            <option value="fa">فارسی</option>
+            <option value="ur">اردو</option>
+            <option value="hi">हिन्दी</option>
+            <option value="he">עברית</option>
             <option value="nl">Nederlands</option>
             <option value="pl">Polski</option>
-            <option value="el">&#917;&#955;&#955;&#951;&#957;&#953;&#954;&#940;</option>
-            <option value="vi">Ti&#7871;ng Vi&#7879;t</option>
-            <option value="th">&#3652;&#3607;&#3618;</option>
+            <option value="el">Ελληνικά</option>
+            <option value="vi">Tiếng Việt</option>
+            <option value="th">ไทย</option>
             <option value="id">Bahasa</option>
           </select></label>
         <label>Domaine :
@@ -175,150 +104,24 @@ if (speechSynthesis.onvoiceschanged !== undefined) {
       <div class="row-input">
         <textarea id="input" placeholder="Posez votre question... (dictee ou texte)" rows="1"></textarea>
         <div class="btn-group">
-          <button class="btn-mic" id="mic" onclick="toggleDictation()" title="Dictee orale">MIC</button>
-          <button class="btn-doc" onclick="openAnalyzeDialog()" title="Analyser un document" style="background:#1e5aa8;color:white;border:none;padding:14px;border-radius:12px;cursor:pointer;font-size:1.1rem;width:52px">&#128196;</button>
-          <button class="primary" id="send" onclick="send()">Envoyer</button>
+          <button class="btn-mic" id="mic" onclick="window.toggleDictation && window.toggleDictation()" title="Dictee orale">MIC</button>
+          <button class="btn-doc" onclick="window.openAnalyzeDialog && window.openAnalyzeDialog()" title="Analyser un document" style="background:#1e5aa8;color:white;border:none;padding:14px;border-radius:12px;cursor:pointer;font-size:1.1rem;width:52px">&#128196;</button>
+          <button class="primary" id="send" onclick="window.send && window.send()">Envoyer</button>
         </div>
       </div>
-      <button class="confirm-btn" id="confirm-dict" onclick="confirmDictation()">Terminer la question</button>
+      <button class="confirm-btn" id="confirm-dict" onclick="window.confirmDictation && window.confirmDictation()">Terminer la question</button>
     </div>
   </div>
 </div>
-<script src="/app.js"></script>
-<script>
-if (!requireLogin()) throw new Error('redirect');
-updateNav();
 
-const messages = document.getElementById('messages');
-const input = document.getElementById('input');
-const micBtn = document.getElementById('mic');
-const dictStatus = document.getElementById('dict-status');
-const confirmBtn = document.getElementById('confirm-dict');
-const scholarArea = document.getElementById('scholar-area');
-const scholarList = document.getElementById('scholar-list');
-let busy = false;
-
-
-function shareText(text) {
-  if (navigator.share) {
-    navigator.share({ title: 'Scholars Connect', text }).catch(()=>{});
-  } else {
-    navigator.clipboard.writeText(text);
-    alert('Texte copie dans le presse-papiers.');
-  }
-}
-
-async function translateMessage(el) {
-  const text = el.textContent;
-  const target = prompt('Traduire en quelle langue ? (fr, en, ar, es, de, it, pt, ru, zh, tr)', 'en');
-  if (!target) return;
-  try {
-    const r = await apiCall('/translate', { method: 'POST', body: JSON.stringify({ text, targetLanguage: target }) });
-    const div = document.createElement('div');
-    div.style.marginTop = '8px';
-    div.style.paddingTop = '8px';
-    div.style.borderTop = '1px dashed #e5e7eb';
-    div.style.fontStyle = 'italic';
-    div.textContent = '[' + target + '] ' + r.translation;
-    el.parentElement.appendChild(div);
-  } catch (e) { alert('Erreur traduction : ' + e.message); }
-}
-
-
-function openAnalyzeDialog(){document.getElementById('analyze-dialog').classList.add('active');}
-function closeAnalyzeDialog(){document.getElementById('analyze-dialog').classList.remove('active');}
-function switchDialogTab(tab,el){
-  document.querySelectorAll('.dialog-tab').forEach(t=>t.classList.remove('active'));
-  document.querySelectorAll('.dialog-panel').forEach(p=>p.classList.remove('active'));
-  el.classList.add('active');
-  document.getElementById('panel-'+tab).classList.add('active');
-}
-async function analyzeContent(){
-  var tab=document.querySelector('.dialog-tab.active').getAttribute('data-tab');
-  var content='',type='text';
-  if(tab==='url'){content=document.getElementById('content-url').value.trim();type='url';}
-  else if(tab==='pdf'){content=document.getElementById('content-pdf').value.trim();}
-  else{content=document.getElementById('content-text').value.trim();}
-  if(!content){alert('Contenu vide');return;}
-  var question=document.getElementById('content-question').value.trim();
-  var language=document.getElementById('lang').value;
-  closeAnalyzeDialog();
-  addMsg('[Document] '+(question||'Analyse ce document'),'user');
-  var loading=addMsg('Analyse en cours...','bot');
-  try{
-    var r=await apiCall('/analyze-content',{method:'POST',body:JSON.stringify({content:content,type:type,question:question,language:language,sourceName:type==='url'?'URL':'Collage direct'})});
-    loading.remove();
-    addBotMsg(r.answer,null);
-    if(document.getElementById('autoSpeak').checked){
-      speak(r.answer,language==='ar'?'ar-SA':(language==='en'?'en-US':'fr-FR'));
-    }
-  }catch(e){loading.textContent='Erreur : '+e.message;}
-}
-document.addEventListener('keydown',function(e){if(e.key==='Escape')closeAnalyzeDialog();});
-
-// ========== V3 - Domaines illimites ==========
-async function loadDomains() {
-  try {
-    const r = await apiCall('/domains');
-    const list = document.getElementById('domain-list');
-    if (!list) return;
-    list.innerHTML = '';
-    r.domains.forEach(d => {
-      const opt = document.createElement('option');
-      opt.value = d;
-      list.appendChild(opt);
-    });
-  } catch (e) { console.warn('Domains load error:', e.message); }
-}
-
-async function addNewDomain() {
-  const name = prompt('Nouveau domaine (ex: Medecine, Astronomie...)');
-  if (!name || !name.trim()) return;
-  try {
-    const r = await apiCall('/domains', { method:'POST', body: JSON.stringify({ name: name.trim() }) });
-    await loadDomains();
-    document.getElementById('domain').value = r.name;
-    alert(r.created ? 'Domaine ajoute : ' + r.name : 'Ce domaine existe deja');
-  } catch (e) { alert('Erreur : ' + e.message); }
-}
-
-// Charger au demarrage
-loadDomains();
-
-// V3 - Afficher les scholars si domaine contient "relig"
-document.getElementById('domain').addEventListener('input', function(e) {
-  const v = e.target.value.toLowerCase();
-  const area = document.getElementById('scholar-area');
-  if (area) {
-    area.style.display = (v.includes('relig') || v.includes('islam') || v.includes('theo') || v.includes('sunnah') || v.includes('hadith')) ? 'block' : 'none';
-  }
-});
-
-
-
-
-
-
-// Charger l'historique au demarrage
-(async () => {
-  try {
-    const r = await apiCall('/history');
-    if (r.items && r.items.length) {
-      const last5 = r.items.slice(0, 5).reverse();
-      for (const it of last5) {
-        addMsg(it.question, 'user');
-        addBotMsg(it.answer, it.scholar);
-      }
-    }
-  } catch {}
-})();
-</script><div class="dialog-overlay" id="analyze-dialog">
+<!-- DIALOG ANALYSE DOCUMENT -->
+<div class="dialog-overlay" id="analyze-dialog">
   <div class="dialog-box">
     <h3>&#128196; Analyser un contenu</h3>
     <div class="dialog-tabs">
-      <div class="dialog-tab active" data-tab="text" onclick="switchDialogTab('text', this)">Coller du texte</div>
-      <div class="dialog-tab" data-tab="url" onclick="switchDialogTab('url', this)">Coller une URL</div>
-      <div class="dialog-tab" data-tab="pdf" onclick="switchDialogTab('pdf', this)">Extrait PDF / DOCX</div>
+      <div class="dialog-tab active" data-tab="text" onclick="window.switchDialogTab && window.switchDialogTab('text', this)">Coller du texte</div>
+      <div class="dialog-tab" data-tab="url" onclick="window.switchDialogTab && window.switchDialogTab('url', this)">Coller une URL</div>
+      <div class="dialog-tab" data-tab="pdf" onclick="window.switchDialogTab && window.switchDialogTab('pdf', this)">Extrait PDF / DOCX</div>
     </div>
     <div class="dialog-panel active" id="panel-text">
       <p style="color:#6b7280;font-size:.85rem;margin-bottom:10px">Colle le contenu a analyser (max 20 000 caracteres) :</p>
@@ -335,10 +138,195 @@ document.getElementById('domain').addEventListener('input', function(e) {
     <p style="color:#6b7280;font-size:.85rem;margin-top:15px">Question specifique (optionnel)</p>
     <input type="text" id="content-question" placeholder="Ex : Resume en 5 points" style="margin-top:5px">
     <div class="dialog-btns">
-      <button class="btn-cancel" onclick="closeAnalyzeDialog()">Annuler</button>
-      <button class="btn-ok" onclick="analyzeContent()">Analyser avec l'IA</button>
+      <button class="btn-cancel" onclick="window.closeAnalyzeDialog && window.closeAnalyzeDialog()">Annuler</button>
+      <button class="btn-ok" onclick="window.analyzeContent && window.analyzeContent()">Analyser avec l'IA</button>
     </div>
   </div>
 </div>
-  <script src="/voice-fix.js"></script>
-</body></html>
+
+<script src="/app.js"></script>
+<script>
+if (!requireLogin()) throw new Error('redirect');
+updateNav();
+
+const messages = document.getElementById('messages');
+const input = document.getElementById('input');
+const micBtn = document.getElementById('mic');
+const dictStatus = document.getElementById('dict-status');
+const confirmBtn = document.getElementById('confirm-dict');
+const scholarArea = document.getElementById('scholar-area');
+const scholarList = document.getElementById('scholar-list');
+let busy = false;
+
+// ========== FONCTIONS VOCALES ==========
+function cleanForSpeech(text) {
+  if (!text) return '';
+  var t = String(text);
+  t = t.replace(/\*\*/g, '').replace(/\*/g, '');
+  t = t.replace(/^#+\s*/gm, '').replace(/_/g, ' ');
+  t = t.replace(/~/g, ' ').replace(/\|/g, ' ');
+  t = t.replace(/->/g, ' vers ').replace(/=>/g, ' donne ');
+  t = t.replace(/=/g, ' egale ').replace(/\+/g, ' plus ');
+  t = t.replace(/(\d)\s*-\s*(\d)/g, '$1 moins $2');
+  t = t.replace(/(\d)\s*\*\s*(\d)/g, '$1 fois $2');
+  t = t.replace(/(\d)\s*x\s*(\d)/g, '$1 fois $2');
+  t = t.replace(/(\d)\s*\/\s*(\d)/g, '$1 divise par $2');
+  t = t.replace(/%/g, ' pour cent ');
+  t = t.replace(/\s+/g, ' ');
+  return t.trim();
+}
+
+window.speak = function(text, lang) {
+  if (!('speechSynthesis' in window)) { alert('Synthese vocale non supportee.'); return; }
+  var cleanText = cleanForSpeech(text);
+  if (!cleanText) return;
+  lang = lang || 'fr-FR';
+
+  speechSynthesis.cancel();
+  var u = new SpeechSynthesisUtterance(cleanText);
+  u.lang = lang;
+  u.rate = 0.9;
+  u.pitch = 0.85;
+  u.volume = 1.0;
+
+  var voices = speechSynthesis.getVoices();
+  var langPrefix = lang.split('-')[0];
+  var chosenVoice = null;
+
+  if (langPrefix === 'ar') {
+    chosenVoice = voices.find(function(v){ return v.lang.indexOf('ar') === 0 && /Majed|Naayf|Maged/i.test(v.name); })
+                || voices.find(function(v){ return v.lang === 'ar-001'; })
+                || voices.find(function(v){ return v.lang.indexOf('ar-SA') === 0; })
+                || voices.find(function(v){ return v.lang.indexOf('ar') === 0; });
+  } else {
+    chosenVoice = voices.find(function(v){ return v.lang.indexOf(langPrefix) === 0 && /Thomas|Henri|Paul|Guillaume|Yannick/i.test(v.name); })
+                || voices.find(function(v){ return v.lang.indexOf(langPrefix) === 0 && /male|homme/i.test(v.name); })
+                || voices.find(function(v){ return v.lang.indexOf(langPrefix) === 0; });
+  }
+
+  if (chosenVoice) u.voice = chosenVoice;
+  speechSynthesis.speak(u);
+};
+
+if (speechSynthesis && speechSynthesis.onvoiceschanged !== undefined) {
+  speechSynthesis.onvoiceschanged = function() { speechSynthesis.getVoices(); };
+}
+
+// ========== PARTAGE ==========
+function shareText(text) {
+  if (navigator.share) {
+    navigator.share({ title: 'Scholars Connect', text: text }).catch(function(){});
+  } else {
+    navigator.clipboard.writeText(text);
+    alert('Texte copie dans le presse-papiers.');
+  }
+}
+window.shareMessage = shareText;
+
+// ========== TRADUCTION ==========
+async function translateMessage(el) {
+  const text = el.textContent;
+  const target = prompt('Traduire en quelle langue ? (fr, en, ar, es, de, it, pt, ru, zh, tr)', 'en');
+  if (!target) return;
+  try {
+    const r = await apiCall('/translate', { method: 'POST', body: JSON.stringify({ text: text, targetLanguage: target }) });
+    const div = document.createElement('div');
+    div.style.marginTop = '8px';
+    div.style.paddingTop = '8px';
+    div.style.borderTop = '1px dashed #e5e7eb';
+    div.style.fontStyle = 'italic';
+    div.textContent = '[' + target + '] ' + r.translation;
+    el.parentElement.appendChild(div);
+  } catch (e) { alert('Erreur traduction : ' + e.message); }
+}
+
+// ========== ANALYSE DOCUMENT ==========
+window.openAnalyzeDialog = function() {
+  document.getElementById('analyze-dialog').classList.add('active');
+};
+window.closeAnalyzeDialog = function() {
+  document.getElementById('analyze-dialog').classList.remove('active');
+};
+window.switchDialogTab = function(tab, el) {
+  document.querySelectorAll('.dialog-tab').forEach(function(t){ t.classList.remove('active'); });
+  document.querySelectorAll('.dialog-panel').forEach(function(p){ p.classList.remove('active'); });
+  el.classList.add('active');
+  document.getElementById('panel-' + tab).classList.add('active');
+};
+window.analyzeContent = async function() {
+  var tab = document.querySelector('.dialog-tab.active').getAttribute('data-tab');
+  var content = '', type = 'text';
+  if (tab === 'url') { content = document.getElementById('content-url').value.trim(); type = 'url'; }
+  else if (tab === 'pdf') { content = document.getElementById('content-pdf').value.trim(); }
+  else { content = document.getElementById('content-text').value.trim(); }
+  if (!content) { alert('Contenu vide'); return; }
+  var question = document.getElementById('content-question').value.trim();
+  var language = document.getElementById('lang').value;
+  window.closeAnalyzeDialog();
+  addMsg('[Document] ' + (question || 'Analyse ce document'), 'user');
+  var loading = addMsg('Analyse en cours...', 'bot');
+  try {
+    var r = await apiCall('/analyze-content', { method: 'POST', body: JSON.stringify({ content: content, type: type, question: question, language: language, sourceName: type === 'url' ? 'URL' : 'Collage direct' }) });
+    loading.remove();
+    addBotMsg(r.answer, null);
+    if (document.getElementById('autoSpeak').checked) {
+      window.speak(r.answer, language === 'ar' ? 'ar-SA' : (language === 'en' ? 'en-US' : 'fr-FR'));
+    }
+  } catch (e) { loading.textContent = 'Erreur : ' + e.message; }
+};
+document.addEventListener('keydown', function(e){ if (e.key === 'Escape') window.closeAnalyzeDialog(); });
+
+// ========== DOMAINES ==========
+async function loadDomains() {
+  try {
+    const r = await apiCall('/domains');
+    const list = document.getElementById('domain-list');
+    if (!list) return;
+    list.innerHTML = '';
+    r.domains.forEach(function(d) {
+      const opt = document.createElement('option');
+      opt.value = d;
+      list.appendChild(opt);
+    });
+  } catch (e) { console.warn('Domains load error:', e.message); }
+}
+
+async function addNewDomain() {
+  const name = prompt('Nouveau domaine (ex: Medecine, Astronomie...)');
+  if (!name || !name.trim()) return;
+  try {
+    const r = await apiCall('/domains', { method: 'POST', body: JSON.stringify({ name: name.trim() }) });
+    await loadDomains();
+    document.getElementById('domain').value = r.name;
+    alert(r.created ? 'Domaine ajoute : ' + r.name : 'Ce domaine existe deja');
+  } catch (e) { alert('Erreur : ' + e.message); }
+}
+
+loadDomains();
+
+document.getElementById('domain').addEventListener('input', function(e) {
+  const v = e.target.value.toLowerCase();
+  const area = document.getElementById('scholar-area');
+  if (area) {
+    area.style.display = (v.includes('relig') || v.includes('islam') || v.includes('theo') || v.includes('sunnah') || v.includes('hadith')) ? 'block' : 'none';
+  }
+});
+
+// ========== HISTORIQUE ==========
+(async () => {
+  try {
+    const r = await apiCall('/history');
+    if (r.items && r.items.length) {
+      const last5 = r.items.slice(0, 5).reverse();
+      for (const it of last5) {
+        addMsg(it.question, 'user');
+        addBotMsg(it.answer, it.scholar);
+      }
+    }
+  } catch (e) { console.warn('History load error:', e.message); }
+})();
+</script>
+
+<script src="/voice-fix.js"></script>
+</body>
+</html>
