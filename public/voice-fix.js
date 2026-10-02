@@ -1,4 +1,4 @@
-// VOICE-FIX.JS - Version complete avec correction analyzeContent
+// VOICE-FIX.JS - Version complete avec correction analyzeContent + fallbacks
 (function() {
   'use strict';
 
@@ -681,22 +681,109 @@
   };
 
   // ============================================================
-  // CORRECTION : EXPOSER LES FONCTIONS ANALYSE SUR window
+  // 12. EXPOSER LES FONCTIONS ANALYSE + FALLBACKS
   // ============================================================
   try {
     if (typeof analyzeContent === 'function') {
       window.analyzeContent = analyzeContent;
+    } else {
+      window.analyzeContent = function() {
+        var dialog = document.getElementById('analyze-dialog');
+        if (!dialog) { alert('Fenetre d analyse introuvable.'); return; }
+        var activeTab = document.querySelector('.dialog-tab.active');
+        var tabName = activeTab ? (activeTab.getAttribute('data-tab') || 'text') : 'text';
+        var content = '';
+        var type = 'text';
+        if (tabName.indexOf('url') !== -1) {
+          var urlInput = document.getElementById('content-url');
+          content = urlInput ? urlInput.value.trim() : '';
+          type = 'url';
+        } else if (tabName.indexOf('pdf') !== -1) {
+          var pdfInput = document.getElementById('content-pdf');
+          content = pdfInput ? pdfInput.value.trim() : '';
+        } else {
+          var txtInput = document.getElementById('content-text');
+          content = txtInput ? txtInput.value.trim() : '';
+        }
+        if (!content) { alert('Contenu vide.'); return; }
+        var qInput = document.getElementById('content-question');
+        var question = qInput ? qInput.value.trim() : '';
+        var langSel = document.getElementById('lang');
+        var lang = langSel ? langSel.value : 'fr';
+        dialog.classList.remove('active');
+        var token = localStorage.getItem('token');
+        if (!token) { alert('Session expiree.'); return; }
+        var messages = document.getElementById('messages');
+        if (messages) {
+          var u = document.createElement('div');
+          u.className = 'msg user';
+          u.textContent = '[Document] ' + (question || 'Analyse ce document');
+          messages.appendChild(u);
+          messages.scrollTop = messages.scrollHeight;
+        }
+        fetch('/api/analyze-content', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json; charset=utf-8', 'Authorization': 'Bearer ' + token },
+          body: JSON.stringify({ content: content, type: type, question: question, language: lang, sourceName: 'Collage direct' })
+        })
+        .then(function(r) {
+          if (!r.ok) return r.json().then(function(e) { throw new Error(e.error || ('HTTP ' + r.status)); });
+          return r.json();
+        })
+        .then(function(data) {
+          if (messages && data.answer) {
+            var b = document.createElement('div');
+            b.className = 'msg bot';
+            b.textContent = data.answer;
+            messages.appendChild(b);
+            messages.scrollTop = messages.scrollHeight;
+          }
+        })
+        .catch(function(err) {
+          if (messages) {
+            var e2 = document.createElement('div');
+            e2.className = 'msg bot';
+            e2.style.color = '#b91c1c';
+            e2.textContent = 'Erreur analyse : ' + err.message;
+            messages.appendChild(e2);
+          }
+        });
+      };
     }
+
     if (typeof switchDialogTab === 'function') {
       window.switchDialogTab = switchDialogTab;
+    } else {
+      window.switchDialogTab = function(tab, el) {
+        var tabs = document.querySelectorAll('.dialog-tab');
+        for (var i = 0; i < tabs.length; i++) tabs[i].classList.remove('active');
+        var panels = document.querySelectorAll('.dialog-panel');
+        for (var j = 0; j < panels.length; j++) panels[j].classList.remove('active');
+        if (el) el.classList.add('active');
+        var panel = document.getElementById('panel-' + tab);
+        if (panel) panel.classList.add('active');
+      };
     }
+
     if (typeof openAnalyzeDialog === 'function') {
       window.openAnalyzeDialog = openAnalyzeDialog;
+    } else {
+      window.openAnalyzeDialog = function() {
+        var d = document.getElementById('analyze-dialog');
+        if (d) d.classList.add('active');
+      };
     }
+
     if (typeof closeAnalyzeDialog === 'function') {
       window.closeAnalyzeDialog = closeAnalyzeDialog;
+    } else {
+      window.closeAnalyzeDialog = function() {
+        var d = document.getElementById('analyze-dialog');
+        if (d) d.classList.remove('active');
+      };
     }
-    console.log('[voice-fix] Fonctions analyse exposees sur window');
+
+    console.log('[voice-fix] Fonctions analyse + fallbacks actifs');
   } catch (e) {
     console.warn('[voice-fix] Erreur exposition analyse :', e.message);
   }
