@@ -1,3 +1,4 @@
+// VOICE-FIX.JS - Version complete avec correction analyzeContent
 (function() {
   'use strict';
 
@@ -26,41 +27,23 @@
   // ============================================================
   // 2. VOIX NATIVE PAR LANGUE
   // ============================================================
-  
-  // ============================================================
-  // VOIX ARABE NATIVE MASCULINE (Majed prioritaire)
-  // ============================================================
   function getArabicMaleVoice() {
     var voices = speechSynthesis.getVoices();
     if (!voices || voices.length === 0) return null;
-
-    // Priorite 1 : voix exacte "Majed" (nom natif Microsoft/Google pour arabe)
     var majed = voices.find(function(v) { return /^Majed$/i.test(v.name.trim()); });
     if (majed) return majed;
-
-    // Priorite 2 : "Majed (ar-001)" ou "Majed (ar-SA)"
     var majedVariant = voices.find(function(v) { return /^Majed\s*\(/i.test(v.name.trim()); });
     if (majedVariant) return majedVariant;
-
-    // Priorite 3 : "Maged" (variante orthographique)
     var maged = voices.find(function(v) { return /^Maged/i.test(v.name.trim()); });
     if (maged) return maged;
-
-    // Priorite 4 : "Naayf" (voix arabe masculine native alternative)
     var naayf = voices.find(function(v) { return /^Naayf/i.test(v.name.trim()); });
     if (naayf) return naayf;
-
-    // Priorite 5 : toute voix arabe masculine connue
     var arabicMale = voices.find(function(v) {
-      return v.lang.indexOf('ar') === 0 &&
-             /Majed|Maged|Naayf|Tarik|Karim|Hamza|Youssef/i.test(v.name);
+      return v.lang.indexOf('ar') === 0 && /Majed|Maged|Naayf|Tarik|Karim|Hamza|Youssef/i.test(v.name);
     });
     if (arabicMale) return arabicMale;
-
-    // Priorite 6 : toute voix arabe (ar-SA, ar-001, etc.)
     var anyArabic = voices.find(function(v) { return v.lang.indexOf('ar') === 0; });
     if (anyArabic) return anyArabic;
-
     return null;
   }
 
@@ -69,12 +52,16 @@
     if (!voices || voices.length === 0) return null;
     var prefix = langCode.split('-')[0];
 
+    if (prefix === 'ar') {
+      var arabicVoice = getArabicMaleVoice();
+      if (arabicVoice) return arabicVoice;
+    }
+
     var maleVoiceNames = {
-      'fr': /Thomas|Henri|Paul|Guillaume|Yannick|Google francais/i,
-      'ar': /^Majed$|^Majed \(ar-001\)$|Maged|Naayf|Majed/i,
-      'en': /David|Mark|James|George|Daniel|Google US English/i,
+      'fr': /Thomas|Henri|Paul|Guillaume|Yannick/i,
+      'en': /David|Mark|James|George|Daniel/i,
       'es': /Diego|Jorge|Juan|Carlos/i,
-      'de': /Hans|Stefan|Klaus|Google Deutsch/i,
+      'de': /Hans|Stefan|Klaus/i,
       'it': /Luca|Marco|Giovanni/i,
       'pt': /Felipe|Ricardo/i,
       'ru': /Yuri|Dmitri/i,
@@ -94,12 +81,6 @@
       'th': /Google ไทย/i,
       'id': /Google Bahasa/i
     };
-
-    // Cas special : langue arabe -> utiliser la fonction dediee
-    if (prefix === 'ar') {
-      var arabicVoice = getArabicMaleVoice();
-      if (arabicVoice) return arabicVoice;
-    }
 
     var exactMatch = voices.find(function(v) { return v.lang === langCode; });
     if (exactMatch) return exactMatch;
@@ -168,7 +149,7 @@
   };
 
   // ============================================================
-  // 4. LECTURE VOCALE SIMPLE
+  // 4. LECTURE VOCALE
   // ============================================================
   window.speak = function(text, lang) {
     if (!('speechSynthesis' in window)) { alert('Synthese vocale non supportee.'); return; }
@@ -530,13 +511,13 @@
     if (!btn) return;
     if (state === 'playing') {
       btn.style.background = '#16a34a';
-      btn.innerHTML = '\u23F8 Pause';
+      btn.innerHTML = 'Pause';
     } else if (state === 'paused') {
       btn.style.background = '#f59e0b';
-      btn.innerHTML = '\u25B6 Reprendre';
+      btn.innerHTML = 'Reprendre';
     } else {
       btn.style.background = '#dc2626';
-      btn.innerHTML = '\u23F9 Arrete';
+      btn.innerHTML = 'Arrete';
     }
     btn.style.color = 'white';
   }
@@ -629,7 +610,7 @@
 
       var btnTranslate = document.createElement('button');
       btnTranslate.type = 'button';
-      btnTranslate.textContent = '\uD83C\uDF10 Traduire';
+      btnTranslate.textContent = 'Traduire';
       btnTranslate.style.cssText = 'background:white;border:1px solid #e5e7eb;padding:6px 12px;border-radius:8px;cursor:pointer;font-size:.85rem;color:#0a2540;font-weight:600;';
       btnTranslate.onclick = (function(txt) {
         return function(e) {
@@ -641,7 +622,7 @@
 
       var btnShare = document.createElement('button');
       btnShare.type = 'button';
-      btnShare.textContent = '\uD83D\uDD17 Partager';
+      btnShare.textContent = 'Partager';
       btnShare.style.cssText = 'background:white;border:1px solid #e5e7eb;padding:6px 12px;border-radius:8px;cursor:pointer;font-size:.85rem;color:#0a2540;font-weight:600;';
       btnShare.onclick = (function(txt) {
         return function(e) {
@@ -653,7 +634,7 @@
 
       var btnSpeak = document.createElement('button');
       btnSpeak.type = 'button';
-      btnSpeak.textContent = '\uD83D\uDD0A Lire';
+      btnSpeak.textContent = 'Lire';
       btnSpeak.style.cssText = 'background:#dc2626;color:white;border:none;padding:6px 12px;border-radius:8px;cursor:pointer;font-size:.85rem;font-weight:600;';
       btnSpeak.onclick = (function(txt) {
         return function(e) {
@@ -698,6 +679,27 @@
     var micBtn = document.getElementById('mic');
     if (micBtn) micBtn.click();
   };
+
+  // ============================================================
+  // CORRECTION : EXPOSER LES FONCTIONS ANALYSE SUR window
+  // ============================================================
+  try {
+    if (typeof analyzeContent === 'function') {
+      window.analyzeContent = analyzeContent;
+    }
+    if (typeof switchDialogTab === 'function') {
+      window.switchDialogTab = switchDialogTab;
+    }
+    if (typeof openAnalyzeDialog === 'function') {
+      window.openAnalyzeDialog = openAnalyzeDialog;
+    }
+    if (typeof closeAnalyzeDialog === 'function') {
+      window.closeAnalyzeDialog = closeAnalyzeDialog;
+    }
+    console.log('[voice-fix] Fonctions analyse exposees sur window');
+  } catch (e) {
+    console.warn('[voice-fix] Erreur exposition analyse :', e.message);
+  }
 
   console.log('[voice-fix.js] V2 charge - tous les modules actifs');
 })();
