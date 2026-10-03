@@ -564,11 +564,17 @@
     var clone = element.cloneNode(true);
     var actions = clone.querySelector('.msg-actions');
     if (actions) actions.remove();
+
+    // Recuperer uniquement le texte de la question (sans les boutons)
     var prev = element.previousElementSibling;
-    var question = 'Reponse MBA-CONSULT';
+    var question = '';
     while (prev) {
       if (prev.classList && prev.classList.contains('msg') && prev.classList.contains('user')) {
-        question = prev.textContent.trim();
+        // Cloner pour retirer d'eventuels boutons
+        var qClone = prev.cloneNode(true);
+        var qActions = qClone.querySelector('.msg-actions');
+        if (qActions) qActions.remove();
+        question = qClone.textContent.trim();
         break;
       }
       prev = prev.previousElementSibling;
@@ -582,9 +588,8 @@
     docHtml += '.header { background: linear-gradient(135deg, #0a2540, #1e5aa8); color: white; padding: 24px; margin: -15mm -15mm 20px -15mm; text-align: center; }';
     docHtml += '.header h1 { margin: 0; font-size: 24px; letter-spacing: 3px; }';
     docHtml += '.header p { margin: 4px 0 0 0; opacity: 0.9; font-size: 13px; }';
-    docHtml += '.question-box { background: #eff6ff; border-left: 5px solid #1e5aa8; padding: 16px; margin: 20px 0; border-radius: 4px; }';
-    docHtml += '.question-box strong { color: #1e40af; display: block; margin-bottom: 8px; font-size: 12px; text-transform: uppercase; letter-spacing: 1px; }';
-    docHtml += '.question-box p { margin: 0; font-size: 14px; color: #17202a; font-weight: 600; }';
+    docHtml += '.enonce { background: #f5f7fa; border-left: 5px solid #0a2540; padding: 16px 18px; margin: 20px 0; border-radius: 4px; }';
+    docHtml += '.enonce p { margin: 0; font-size: 14px; color: #0a2540; font-weight: 600; line-height: 1.6; }';
     docHtml += '.content { padding: 0; }';
     docHtml += '.content h3 { color: #0a2540; border-bottom: 2px solid #1e5aa8; padding-bottom: 8px; margin: 20px 0 14px 0; font-size: 17px; }';
     docHtml += '.content h4 { color: #0a2540; font-size: 15px; font-weight: 700; margin: 16px 0 10px 0; }';
@@ -611,10 +616,12 @@
     docHtml += '<p style="font-size:11px;margin-top:8px">Rapport genere le ' + new Date().toLocaleString('fr-FR') + '</p>';
     docHtml += '</div>';
 
-    docHtml += '<div class="question-box">';
-    docHtml += '<strong>Question posee</strong>';
-    docHtml += '<p>' + question.replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</p>';
-    docHtml += '</div>';
+    // Enonce de la question (SANS titre "Question posee")
+    if (question) {
+      docHtml += '<div class="enonce">';
+      docHtml += '<p>' + question.replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</p>';
+      docHtml += '</div>';
+    }
 
     docHtml += '<div class="content">' + clone.innerHTML + '</div>';
 
