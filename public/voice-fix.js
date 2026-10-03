@@ -1,4 +1,4 @@
-// VOICE-FIX.JS - Version complete avec correction analyzeContent + fallbacks
+// VOICE-FIX.JS - Version complete avec bouton Telecharger PDF
 (function() {
   'use strict';
 
@@ -51,12 +51,10 @@
     var voices = speechSynthesis.getVoices();
     if (!voices || voices.length === 0) return null;
     var prefix = langCode.split('-')[0];
-
     if (prefix === 'ar') {
       var arabicVoice = getArabicMaleVoice();
       if (arabicVoice) return arabicVoice;
     }
-
     var maleVoiceNames = {
       'fr': /Thomas|Henri|Paul|Guillaume|Yannick/i,
       'en': /David|Mark|James|George|Daniel/i,
@@ -81,10 +79,8 @@
       'th': /Google ไทย/i,
       'id': /Google Bahasa/i
     };
-
     var exactMatch = voices.find(function(v) { return v.lang === langCode; });
     if (exactMatch) return exactMatch;
-
     var prefixMatches = voices.filter(function(v) { return v.lang.indexOf(prefix) === 0; });
     if (prefixMatches.length > 0) {
       var maleRegex = maleVoiceNames[prefix];
@@ -111,11 +107,9 @@
     rec.interimResults = true;
     rec.maxAlternatives = 1;
     rec.lang = langCode || navigator.language || 'fr-FR';
-
     var buffer = '';
     var silenceTimer = null;
     var detectedLang = rec.lang;
-
     rec.onresult = function(ev) {
       var interim = '', final = '';
       for (var i = ev.resultIndex; i < ev.results.length; i++) {
@@ -155,23 +149,19 @@
     if (!('speechSynthesis' in window)) { alert('Synthese vocale non supportee.'); return; }
     if (!text) return;
     var targetLang = lang || detectLanguageFromText(text);
-
     var clean = String(text)
       .replace(/\*\*/g, '').replace(/\*/g, '')
       .replace(/^#+\s*/gm, '').replace(/_/g, ' ')
       .replace(/=/g, ' egale ').replace(/\+/g, ' plus ')
       .replace(/\s+/g, ' ').trim();
-
     speechSynthesis.cancel();
     var u = new SpeechSynthesisUtterance(clean);
     u.lang = targetLang;
     u.rate = 0.9;
     u.pitch = 0.85;
     u.volume = 1.0;
-
     var nativeVoice = getNativeVoiceForLanguage(targetLang);
     if (nativeVoice) u.voice = nativeVoice;
-
     speechSynthesis.speak(u);
   };
 
@@ -237,7 +227,6 @@
     if (selected === 'ar') dictLang = 'ar-SA';
     else if (selected === 'en') dictLang = 'en-US';
     else if (selected === 'es') dictLang = 'es-ES';
-
     micRecognition = window.startDictation(
       function(text) { var input = document.getElementById('input'); if (input) input.value = text; },
       function(finalText) {
@@ -292,7 +281,6 @@
     var text = input.value.trim();
     if (!text) return;
     if (sendBtn && sendBtn.disabled) return;
-
     var langSel = document.getElementById('lang');
     var lang = langSel ? langSel.value : 'fr';
     var domainSel = document.getElementById('domain');
@@ -300,10 +288,8 @@
     var selectedScholar = null;
     var chip = document.querySelector('.scholar-chip.selected');
     if (chip) selectedScholar = chip.textContent;
-
     var token = localStorage.getItem('token');
     if (!token) { alert('Session expiree.'); window.location.href = '/login'; return; }
-
     var messages = document.getElementById('messages');
     if (messages) {
       var userMsg = document.createElement('div');
@@ -312,10 +298,8 @@
       messages.appendChild(userMsg);
       messages.scrollTop = messages.scrollHeight;
     }
-
     input.value = '';
     if (sendBtn) sendBtn.disabled = true;
-
     var loadingMsg = null;
     if (messages) {
       loadingMsg = document.createElement('div');
@@ -324,7 +308,6 @@
       messages.appendChild(loadingMsg);
       messages.scrollTop = messages.scrollHeight;
     }
-
     fetch('/api/ask', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json; charset=utf-8', 'Authorization': 'Bearer ' + token },
@@ -339,7 +322,7 @@
       if (messages && data.answer) {
         var botMsg = document.createElement('div');
         botMsg.className = 'msg bot';
-        botMsg.textContent = data.answer;
+        botMsg.innerHTML = data.answer;
         messages.appendChild(botMsg);
         messages.scrollTop = messages.scrollHeight;
       }
@@ -524,11 +507,9 @@
 
   window.toggleSpeech = function(btn, text, langOverride) {
     var lang = langOverride || detectLanguageFromText(text);
-
     if (currentSpeechBtn && currentSpeechBtn !== btn) {
       updateSpeechBtn(currentSpeechBtn, 'stopped');
     }
-
     if (currentSpeechBtn === btn && 'speechSynthesis' in window) {
       if (speechSynthesis.speaking && !speechSynthesis.paused) {
         speechSynthesis.pause();
@@ -542,29 +523,23 @@
         currentSpeechBtn = null;
       }
     }
-
     if (!('speechSynthesis' in window)) { alert('Non supporte'); return; }
-
     var clean = String(text)
       .replace(/\*\*/g, '').replace(/\*/g, '')
       .replace(/^#+\s*/gm, '').replace(/_/g, ' ')
       .replace(/=/g, ' egale ').replace(/\+/g, ' plus ')
       .replace(/\s+/g, ' ').trim();
-
     speechSynthesis.cancel();
     var u = new SpeechSynthesisUtterance(clean);
     u.lang = lang;
     u.rate = 0.9;
     u.pitch = 0.85;
     u.volume = 1.0;
-
     var nativeVoice = getNativeVoiceForLanguage(lang);
     if (nativeVoice) u.voice = nativeVoice;
-
     u.onstart = function() { updateSpeechBtn(btn, 'playing'); };
     u.onend = function() { updateSpeechBtn(btn, 'stopped'); currentSpeechBtn = null; };
     u.onerror = function() { updateSpeechBtn(btn, 'stopped'); currentSpeechBtn = null; };
-
     currentSpeechBtn = btn;
     speechSynthesis.speak(u);
   };
@@ -583,7 +558,90 @@
   };
 
   // ============================================================
-  // 10. DECORATEUR (boutons Traduire + Partager + Lire)
+  // 10. TELECHARGER PDF
+  // ============================================================
+  function downloadAsPDF(element) {
+    var clone = element.cloneNode(true);
+    var actions = clone.querySelector('.msg-actions');
+    if (actions) actions.remove();
+    var prev = element.previousElementSibling;
+    var question = 'Reponse MBA-CONSULT';
+    while (prev) {
+      if (prev.classList && prev.classList.contains('msg') && prev.classList.contains('user')) {
+        question = prev.textContent.trim();
+        break;
+      }
+      prev = prev.previousElementSibling;
+    }
+
+    var docHtml = '<!doctype html><html lang="fr"><head><meta charset="utf-8">';
+    docHtml += '<title>MBA-CONSULT - Rapport</title>';
+    docHtml += '<style>';
+    docHtml += '@page { size: A4; margin: 15mm; }';
+    docHtml += 'body { font-family: Arial, sans-serif; color: #17202a; line-height: 1.6; padding: 0; margin: 0; background: #fff; }';
+    docHtml += '.header { background: linear-gradient(135deg, #0a2540, #1e5aa8); color: white; padding: 24px; margin: -15mm -15mm 20px -15mm; text-align: center; }';
+    docHtml += '.header h1 { margin: 0; font-size: 24px; letter-spacing: 3px; }';
+    docHtml += '.header p { margin: 4px 0 0 0; opacity: 0.9; font-size: 13px; }';
+    docHtml += '.question-box { background: #eff6ff; border-left: 5px solid #1e5aa8; padding: 16px; margin: 20px 0; border-radius: 4px; }';
+    docHtml += '.question-box strong { color: #1e40af; display: block; margin-bottom: 8px; font-size: 12px; text-transform: uppercase; letter-spacing: 1px; }';
+    docHtml += '.question-box p { margin: 0; font-size: 14px; color: #17202a; font-weight: 600; }';
+    docHtml += '.content { padding: 0; }';
+    docHtml += '.content h3 { color: #0a2540; border-bottom: 2px solid #1e5aa8; padding-bottom: 8px; margin: 20px 0 14px 0; font-size: 17px; }';
+    docHtml += '.content h4 { color: #0a2540; font-size: 15px; font-weight: 700; margin: 16px 0 10px 0; }';
+    docHtml += '.content p { margin: 10px 0; font-size: 13px; text-align: justify; }';
+    docHtml += '.content ul { margin: 10px 0; padding-left: 24px; }';
+    docHtml += '.content li { margin: 6px 0; font-size: 13px; }';
+    docHtml += '.content table { width: 100%; border-collapse: collapse; margin: 14px 0; font-size: 12px; page-break-inside: avoid; }';
+    docHtml += '.content table th { background: #0a2540; color: white; padding: 8px 10px; text-align: left; }';
+    docHtml += '.content table td { padding: 8px 10px; border-bottom: 1px solid #e5e7eb; }';
+    docHtml += '.content svg { max-width: 100%; height: auto; page-break-inside: avoid; display: block; margin: 10px auto; }';
+    docHtml += '.content div[style*="background"] { page-break-inside: avoid; }';
+    docHtml += '.footer { margin-top: 40px; padding-top: 20px; border-top: 2px solid #0a2540; text-align: center; font-size: 11px; color: #6b7280; }';
+    docHtml += '.footer strong { color: #0a2540; font-size: 13px; }';
+    docHtml += '.print-btn { position: fixed; top: 20px; right: 20px; background: #0a2540; color: white; border: none; padding: 14px 28px; border-radius: 8px; cursor: pointer; font-size: 15px; font-weight: 700; box-shadow: 0 4px 15px rgba(0,0,0,0.3); z-index: 9999; }';
+    docHtml += '.print-btn:hover { background: #1e5aa8; }';
+    docHtml += '@media print { .print-btn { display: none; } }';
+    docHtml += '</style></head><body>';
+
+    docHtml += '<button class="print-btn" onclick="window.print()">Imprimer ou Sauvegarder en PDF</button>';
+
+    docHtml += '<div class="header">';
+    docHtml += '<h1>MBA-CONSULT</h1>';
+    docHtml += '<p>Intelligence Commerciale et Global Business Development</p>';
+    docHtml += '<p style="font-size:11px;margin-top:8px">Rapport genere le ' + new Date().toLocaleString('fr-FR') + '</p>';
+    docHtml += '</div>';
+
+    docHtml += '<div class="question-box">';
+    docHtml += '<strong>Question posee</strong>';
+    docHtml += '<p>' + question.replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</p>';
+    docHtml += '</div>';
+
+    docHtml += '<div class="content">' + clone.innerHTML + '</div>';
+
+    docHtml += '<div class="footer">';
+    docHtml += '<p><strong>MBA-CONSULT TUNISIA</strong></p>';
+    docHtml += '<p>Sfax et Tunis | +216 29.205.260 | contact@mba.consult.tn</p>';
+    docHtml += '<p style="margin-top:10px">Document confidentiel - Usage interne</p>';
+    docHtml += '</div>';
+
+    docHtml += '</body></html>';
+
+    var win = window.open('', '_blank');
+    if (!win) {
+      alert('Veuillez autoriser les popups dans votre navigateur.');
+      return;
+    }
+    win.document.write(docHtml);
+    win.document.close();
+    setTimeout(function() {
+      win.focus();
+      win.print();
+    }, 800);
+  }
+  window.downloadAsPDF = downloadAsPDF;
+
+  // ============================================================
+  // 11. DECORATEUR (boutons Traduire + Partager + Lire + PDF)
   // ============================================================
   function decorateMessages() {
     var bots = document.querySelectorAll('.msg.bot');
@@ -591,7 +649,6 @@
       var bot = bots[i];
       if (bot.getAttribute('data-decorated') === '1') continue;
       if (bot.classList.contains('loading')) continue;
-
       var clone = bot.cloneNode(true);
       var actions = clone.querySelector('.msg-actions');
       if (actions) actions.remove();
@@ -599,11 +656,9 @@
       if (meta) meta.remove();
       var text = clone.textContent.trim();
       if (!text) continue;
-
       bot.setAttribute('data-decorated', '1');
       var oldActions = bot.querySelector('.msg-actions');
       if (oldActions) oldActions.remove();
-
       var bar = document.createElement('div');
       bar.className = 'msg-actions';
       bar.style.cssText = 'display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;';
@@ -644,13 +699,25 @@
       })(text);
       bar.appendChild(btnSpeak);
 
+      var btnPDF = document.createElement('button');
+      btnPDF.type = 'button';
+      btnPDF.textContent = 'Telecharger PDF';
+      btnPDF.style.cssText = 'background:#0a2540;color:white;border:none;padding:6px 14px;border-radius:8px;cursor:pointer;font-size:.85rem;font-weight:700;';
+      btnPDF.onclick = (function(el) {
+        return function(e) {
+          e.preventDefault(); e.stopPropagation();
+          window.downloadAsPDF(el);
+        };
+      })(bot);
+      bar.appendChild(btnPDF);
+
       bot.appendChild(bar);
     }
   }
   window.decorateMessages = decorateMessages;
 
   // ============================================================
-  // 11. LANCEMENT
+  // 12. LANCEMENT
   // ============================================================
   function startDecorator() {
     setTimeout(decorateMessages, 1000);
@@ -681,112 +748,16 @@
   };
 
   // ============================================================
-  // 12. EXPOSER LES FONCTIONS ANALYSE + FALLBACKS
+  // 13. EXPOSER LES FONCTIONS ANALYSE
   // ============================================================
   try {
-    if (typeof analyzeContent === 'function') {
-      window.analyzeContent = analyzeContent;
-    } else {
-      window.analyzeContent = function() {
-        var dialog = document.getElementById('analyze-dialog');
-        if (!dialog) { alert('Fenetre d analyse introuvable.'); return; }
-        var activeTab = document.querySelector('.dialog-tab.active');
-        var tabName = activeTab ? (activeTab.getAttribute('data-tab') || 'text') : 'text';
-        var content = '';
-        var type = 'text';
-        if (tabName.indexOf('url') !== -1) {
-          var urlInput = document.getElementById('content-url');
-          content = urlInput ? urlInput.value.trim() : '';
-          type = 'url';
-        } else if (tabName.indexOf('pdf') !== -1) {
-          var pdfInput = document.getElementById('content-pdf');
-          content = pdfInput ? pdfInput.value.trim() : '';
-        } else {
-          var txtInput = document.getElementById('content-text');
-          content = txtInput ? txtInput.value.trim() : '';
-        }
-        if (!content) { alert('Contenu vide.'); return; }
-        var qInput = document.getElementById('content-question');
-        var question = qInput ? qInput.value.trim() : '';
-        var langSel = document.getElementById('lang');
-        var lang = langSel ? langSel.value : 'fr';
-        dialog.classList.remove('active');
-        var token = localStorage.getItem('token');
-        if (!token) { alert('Session expiree.'); return; }
-        var messages = document.getElementById('messages');
-        if (messages) {
-          var u = document.createElement('div');
-          u.className = 'msg user';
-          u.textContent = '[Document] ' + (question || 'Analyse ce document');
-          messages.appendChild(u);
-          messages.scrollTop = messages.scrollHeight;
-        }
-        fetch('/api/analyze-content', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json; charset=utf-8', 'Authorization': 'Bearer ' + token },
-          body: JSON.stringify({ content: content, type: type, question: question, language: lang, sourceName: 'Collage direct' })
-        })
-        .then(function(r) {
-          if (!r.ok) return r.json().then(function(e) { throw new Error(e.error || ('HTTP ' + r.status)); });
-          return r.json();
-        })
-        .then(function(data) {
-          if (messages && data.answer) {
-            var b = document.createElement('div');
-            b.className = 'msg bot';
-            b.textContent = data.answer;
-            messages.appendChild(b);
-            messages.scrollTop = messages.scrollHeight;
-          }
-        })
-        .catch(function(err) {
-          if (messages) {
-            var e2 = document.createElement('div');
-            e2.className = 'msg bot';
-            e2.style.color = '#b91c1c';
-            e2.textContent = 'Erreur analyse : ' + err.message;
-            messages.appendChild(e2);
-          }
-        });
-      };
-    }
-
-    if (typeof switchDialogTab === 'function') {
-      window.switchDialogTab = switchDialogTab;
-    } else {
-      window.switchDialogTab = function(tab, el) {
-        var tabs = document.querySelectorAll('.dialog-tab');
-        for (var i = 0; i < tabs.length; i++) tabs[i].classList.remove('active');
-        var panels = document.querySelectorAll('.dialog-panel');
-        for (var j = 0; j < panels.length; j++) panels[j].classList.remove('active');
-        if (el) el.classList.add('active');
-        var panel = document.getElementById('panel-' + tab);
-        if (panel) panel.classList.add('active');
-      };
-    }
-
-    if (typeof openAnalyzeDialog === 'function') {
-      window.openAnalyzeDialog = openAnalyzeDialog;
-    } else {
-      window.openAnalyzeDialog = function() {
-        var d = document.getElementById('analyze-dialog');
-        if (d) d.classList.add('active');
-      };
-    }
-
-    if (typeof closeAnalyzeDialog === 'function') {
-      window.closeAnalyzeDialog = closeAnalyzeDialog;
-    } else {
-      window.closeAnalyzeDialog = function() {
-        var d = document.getElementById('analyze-dialog');
-        if (d) d.classList.remove('active');
-      };
-    }
-
-    console.log('[voice-fix] Fonctions analyse + fallbacks actifs');
+    if (typeof analyzeContent === 'function') window.analyzeContent = analyzeContent;
+    if (typeof switchDialogTab === 'function') window.switchDialogTab = switchDialogTab;
+    if (typeof openAnalyzeDialog === 'function') window.openAnalyzeDialog = openAnalyzeDialog;
+    if (typeof closeAnalyzeDialog === 'function') window.closeAnalyzeDialog = closeAnalyzeDialog;
   } catch (e) {
     console.warn('[voice-fix] Erreur exposition analyse :', e.message);
   }
 
-  console.log('[voice-fix.js] V2 charge - tous les modules actifs');
+  console.log('[voice-fix.js] V2 charge - tous les modules actifs + PDF');
 })();
