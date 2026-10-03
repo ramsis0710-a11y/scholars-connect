@@ -1,17 +1,16 @@
 // ============================================================
 // ANSWER-ENRICHER.JS
-// Enrichissement automatique des reponses IA avec :
-//   - Structure en paragraphes separes
-//   - References aux documents collectes (auto-feed)
-//   - Vecteurs semantiques (similarite cosinus)
-//   - Citations des sources scrapees
-//   - Tableaux de bord + ratios par domaine
-//   - Graphiques SVG
-//   - Fiches techniques
-//   - Support multilingue (FR/EN/AR)
+// Enrichissement automatique des reponses IA
+// Version definitive - Formatage propre pour presentation Direction
 //
-// AUCUN fichier existant n'est modifie.
-// Ce module s'injecte via server.js (1 ligne).
+// Ce module :
+//   1. Convertit le Markdown en HTML propre (sans *, #, -)
+//   2. Structure la reponse en sections claires
+//   3. Ajoute un tableau de bord avec ratios
+//   4. Ajoute une fiche technique
+//   5. Ajoute des graphiques (barres + camembert)
+//   6. Cite les documents sources collectes
+//   7. Liste les agents IA impliques
 // ============================================================
 
 'use strict';
@@ -22,80 +21,177 @@
 const DOMAIN_METRICS = {
   'IA & KMS': {
     icon: '🤖',
-    label: { fr: 'Intelligence Artificielle & KMS', en: 'AI & KMS', ar: 'الذكاء الاصطناعي' },
+    label: 'Intelligence Artificielle et KMS',
     ratios: [
-      { name: { fr: 'Pertinence semantique', en: 'Semantic relevance', ar: 'الصلة الدلالية' }, formula: 'score_cosinus', unit: '%', target: 80 },
-      { name: { fr: 'Couverture documentation', en: 'Documentation coverage', ar: 'تغطية الوثائق' }, formula: 'docs_cites / docs_dispo', unit: '%', target: 60 },
-      { name: { fr: 'Densite technique', en: 'Technical density', ar: 'الكثافة التقنية' }, formula: 'mots_techniques / mots_total', unit: '%', target: 25 }
+      { name: 'Pertinence semantique', formula: 'score de similarite cosinus', unit: '%', target: 80 },
+      { name: 'Couverture documentaire', formula: 'documents cites / documents disponibles', unit: '%', target: 60 },
+      { name: 'Densite technique', formula: 'mots techniques / mots total', unit: '%', target: 25 }
     ]
   },
   'Energie': {
     icon: '⚡',
-    label: { fr: 'Energie & Transition', en: 'Energy & Transition', ar: 'الطاقة والتحول' },
+    label: 'Energie et Transition',
     ratios: [
-      { name: { fr: 'Efficacite energetique', en: 'Energy efficiency', ar: 'كفاءة الطاقة' }, formula: 'rendement', unit: '%', target: 85 },
-      { name: { fr: 'Intensite carbone', en: 'Carbon intensity', ar: 'كثافة الكربون' }, formula: 'gCO2/kWh', unit: 'g', target: 100 },
-      { name: { fr: 'Retour sur investissement', en: 'ROI', ar: 'العائد على الاستثمار' }, formula: 'gain / cout', unit: 'x', target: 3 }
+      { name: 'Efficacite energetique', formula: 'energie utile / energie totale', unit: '%', target: 85 },
+      { name: 'Intensite carbone', formula: 'grammes CO2 par kWh', unit: 'g', target: 100 },
+      { name: 'Retour sur investissement', formula: 'gains / couts', unit: 'fois', target: 3 }
     ]
   },
   'Finance': {
     icon: '📊',
-    label: { fr: 'Finance & Risques', en: 'Finance & Risk', ar: 'المالية والمخاطر' },
+    label: 'Finance et Gestion des Risques',
     ratios: [
-      { name: { fr: 'Ratio de Sharpe', en: 'Sharpe Ratio', ar: 'نسبة شارب' }, formula: '(Rp - Rf) / sigma_p', unit: '', target: 1.5 },
-      { name: { fr: 'Value at Risk (VaR)', en: 'Value at Risk (VaR)', ar: 'القيمة المعرضة للخطر' }, formula: '5% percentile', unit: '%', target: 5 },
-      { name: { fr: 'Beta', en: 'Beta', ar: 'بيتا' }, formula: 'cov(Ri,Rm) / var(Rm)', unit: '', target: 1.0 }
+      { name: 'Ratio de Sharpe', formula: '(rendement - sans risque) / volatilite', unit: '', target: 1.5 },
+      { name: 'Value at Risk', formula: 'perte maximale sur 5% des cas', unit: '%', target: 5 },
+      { name: 'Coefficient Beta', formula: 'sensibilite au marche', unit: '', target: 1.0 }
     ]
   },
   'Sante': {
     icon: '🏥',
-    label: { fr: 'Sante & Medecine', en: 'Health & Medicine', ar: 'الصحة والطب' },
+    label: 'Sante et Medecine',
     ratios: [
-      { name: { fr: 'Sensibilite', en: 'Sensitivity', ar: 'الحساسية' }, formula: 'VP / (VP + FN)', unit: '%', target: 90 },
-      { name: { fr: 'Specificite', en: 'Specificity', ar: 'النوعية' }, formula: 'VN / (VN + FP)', unit: '%', target: 95 },
-      { name: { fr: 'Prevalence', en: 'Prevalence', ar: 'الانتشار' }, formula: 'cas / population', unit: '%', target: 10 }
+      { name: 'Sensibilite', formula: 'vrais positifs / (vrais positifs + faux negatifs)', unit: '%', target: 90 },
+      { name: 'Specificite', formula: 'vrais negatifs / (vrais negatifs + faux positifs)', unit: '%', target: 95 },
+      { name: 'Prevalence', formula: 'cas detectes / population totale', unit: '%', target: 10 }
     ]
   },
   'Sciences': {
     icon: '🔬',
-    label: { fr: 'Sciences Fondamentales', en: 'Fundamental Sciences', ar: 'العلوم الأساسية' },
+    label: 'Sciences Fondamentales',
     ratios: [
-      { name: { fr: 'Precision', en: 'Precision', ar: 'الدقة' }, formula: 'VP / (VP + FP)', unit: '%', target: 90 },
-      { name: { fr: 'Rappel', en: 'Recall', ar: 'الاستدعاء' }, formula: 'VP / (VP + FN)', unit: '%', target: 85 },
-      { name: { fr: 'F1-Score', en: 'F1-Score', ar: 'درجة F1' }, formula: '2PR / (P + R)', unit: '%', target: 87 }
+      { name: 'Precision', formula: 'vrais positifs / (vrais positifs + faux positifs)', unit: '%', target: 90 },
+      { name: 'Rappel', formula: 'vrais positifs / (vrais positifs + faux negatifs)', unit: '%', target: 85 },
+      { name: 'Score F1', formula: '2 x (precision x rappel) / (precision + rappel)', unit: '%', target: 87 }
     ]
   },
   'Education': {
     icon: '🎓',
-    label: { fr: 'Education & Formation', en: 'Education', ar: 'التعليم' },
+    label: 'Education et Formation',
     ratios: [
-      { name: { fr: 'Taux de reussite', en: 'Success rate', ar: 'معدل النجاح' }, formula: 'reussis / total', unit: '%', target: 80 },
-      { name: { fr: 'Engagement', en: 'Engagement', ar: 'المشاركة' }, formula: 'actifs / inscrits', unit: '%', target: 70 },
-      { name: { fr: 'Progression', en: 'Progression', ar: 'التقدم' }, formula: 'score_final - score_initial', unit: 'pts', target: 20 }
+      { name: 'Taux de reussite', formula: 'apprenants reussis / total apprenants', unit: '%', target: 80 },
+      { name: 'Taux d engagement', formula: 'apprenants actifs / inscrits', unit: '%', target: 70 },
+      { name: 'Progression moyenne', formula: 'score final - score initial', unit: 'points', target: 20 }
     ]
   },
   'Commerce': {
     icon: '🛒',
-    label: { fr: 'Commerce & Supply Chain', en: 'Commerce', ar: 'التجارة' },
+    label: 'Commerce et Chaine Logistique',
     ratios: [
-      { name: { fr: 'Marge brute', en: 'Gross margin', ar: 'الهامش الإجمالي' }, formula: '(CA - cout) / CA', unit: '%', target: 30 },
-      { name: { fr: 'Rotation stocks', en: 'Inventory turnover', ar: 'دوران المخزون' }, formula: 'CA / stock_moyen', unit: 'x', target: 6 },
-      { name: { fr: 'Delai livraison', en: 'Lead time', ar: 'وقت التسليم' }, formula: 'jours moyens', unit: 'j', target: 3 }
+      { name: 'Marge brute', formula: '(chiffre affaires - couts) / chiffre affaires', unit: '%', target: 30 },
+      { name: 'Rotation des stocks', formula: 'chiffre affaires / stock moyen', unit: 'fois', target: 6 },
+      { name: 'Delai de livraison', formula: 'nombre de jours moyens', unit: 'jours', target: 3 }
     ]
   },
   'General': {
     icon: '📚',
-    label: { fr: 'Culture Generale', en: 'General Knowledge', ar: 'المعرفة العامة' },
+    label: 'Connaissances Generales',
     ratios: [
-      { name: { fr: 'Fiabilite source', en: 'Source reliability', ar: 'موثوقية المصدر' }, formula: 'sources_verifiees / total', unit: '%', target: 90 },
-      { name: { fr: 'Densite informationnelle', en: 'Information density', ar: 'كثافة المعلومات' }, formula: 'faits / phrase', unit: '', target: 1.5 },
-      { name: { fr: 'Clarte', en: 'Clarity', ar: 'الوضوح' }, formula: 'lecture_facile / total', unit: '%', target: 75 }
+      { name: 'Fiabilite des sources', formula: 'sources verifiees / sources totales', unit: '%', target: 90 },
+      { name: 'Densite informationnelle', formula: 'faits verifiables / phrases', unit: '', target: 1.5 },
+      { name: 'Clarte du contenu', formula: 'phrases courtes / phrases totales', unit: '%', target: 75 }
     ]
   }
 };
 
 // ============================================================
-// 2. VECTORISATION SEMANTIQUE (TF-IDF)
+// 2. NETTOYAGE DU TEXTE (supprimer *, #, backticks, etc.)
+// ============================================================
+function cleanText(text) {
+  if (!text) return '';
+  let t = String(text);
+
+  // Supprimer les balises Markdown de formatage
+  t = t.replace(/\*\*/g, '');           // gras
+  t = t.replace(/\*/g, '');             // italique
+  t = t.replace(/`/g, '');              // code inline
+  t = t.replace(/^#{1,6}\s+/gm, '');    // titres #, ##, ###
+  t = t.replace(/^[-_*]{3,}$/gm, '');   // separateurs
+  t = t.replace(/\\/g, '');             // backslashes
+
+  // Supprimer les asterisques isoles
+  t = t.replace(/^-+\s+/gm, '');        // puces tirets
+  t = t.replace(/^\*\s+/gm, '');        // puces asterisques
+
+  // Normaliser les espaces
+  t = t.replace(/\t/g, ' ');
+  t = t.replace(/\n{3,}/g, '\n\n');
+  t = t.replace(/ {2,}/g, ' ');
+
+  return t.trim();
+}
+
+// ============================================================
+// 3. CONVERSION EN HTML PROPRE
+// ============================================================
+function formatForHTML(text) {
+  if (!text) return '';
+
+  // Etape 1 : nettoyer le Markdown
+  let clean = cleanText(text);
+
+  // Etape 2 : proteger contre les injections HTML
+  clean = clean
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+
+  // Etape 3 : decouper en lignes
+  const lines = clean.split('\n');
+  const output = [];
+  let inList = false;
+
+  for (let i = 0; i < lines.length; i++) {
+    let line = lines[i].trim();
+
+    if (line === '') {
+      if (inList) {
+        output.push('</ul>');
+        inList = false;
+      }
+      output.push('<br>');
+      continue;
+    }
+
+    // Detecter les titres numerotes (1. Titre, 2. Titre)
+    const numberedMatch = line.match(/^(\d+)\.\s+(.+)$/);
+    if (numberedMatch) {
+      if (inList) {
+        output.push('</ul>');
+        inList = false;
+      }
+      output.push(`<h4 style="color:#0a2540;font-size:15px;font-weight:700;margin:16px 0 8px 0;padding-bottom:4px;border-bottom:1px solid #e5e7eb">${numberedMatch[1]}. ${numberedMatch[2]}</h4>`);
+      continue;
+    }
+
+    // Detecter les puces (deja nettoyees, on les identifie par indentation)
+    const isBullet = /^[•◦▪▫]\s+/.test(line) || /^[-*]\s+/.test(line);
+    if (isBullet) {
+      if (!inList) {
+        output.push('<ul style="margin:8px 0 8px 0;padding-left:24px;color:#17202a;list-style-type:disc">');
+        inList = true;
+      }
+      const itemText = line.replace(/^[•◦▪▫\-*]\s+/, '');
+      output.push(`<li style="margin:6px 0;line-height:1.6">${itemText}</li>`);
+      continue;
+    }
+
+    // Ligne normale
+    if (inList) {
+      output.push('</ul>');
+      inList = false;
+    }
+    output.push(`<p style="margin:8px 0;line-height:1.75;color:#17202a">${line}</p>`);
+  }
+
+  if (inList) {
+    output.push('</ul>');
+  }
+
+  return output.join('\n');
+}
+
+// ============================================================
+// 4. VECTORISATION SEMANTIQUE
 // ============================================================
 function tokenize(text) {
   return String(text || '')
@@ -116,56 +212,55 @@ function buildVector(text) {
 
 function cosineSimilarity(v1, v2) {
   let dot = 0, n1 = 0, n2 = 0;
-  for (const k in v1) { n1 += v1[k] * v1[k]; if (v2[k]) dot += v1[k] * v2[k]; }
+  for (const k in v1) {
+    n1 += v1[k] * v1[k];
+    if (v2[k]) dot += v1[k] * v2[k];
+  }
   for (const k in v2) n2 += v2[k] * v2[k];
   if (n1 === 0 || n2 === 0) return 0;
   return dot / (Math.sqrt(n1) * Math.sqrt(n2));
 }
 
 // ============================================================
-// 3. RECHERCHE DANS LA BASE AUTO-FEED
+// 5. RECHERCHE DOCUMENTS PERTINENTS
 // ============================================================
 async function findRelevantDocuments(AutoFeedDoc, query, limit = 5) {
   try {
     const qVector = buildVector(query);
     const docs = await AutoFeedDoc.find().sort({ createdAt: -1 }).limit(500).lean();
 
-    const scored = docs
+    return docs
       .map(d => ({
         title: d.title,
         domain: d.domain,
         source: d.source,
         url: d.url,
-        excerpt: (d.content || '').slice(0, 300),
         createdAt: d.createdAt,
         score: cosineSimilarity(qVector, d.vector || {})
       }))
       .filter(d => d.score > 0.02)
       .sort((a, b) => b.score - a.score)
       .slice(0, limit);
-
-    return scored;
   } catch (e) {
-    console.warn('[answer-enricher] Erreur recherche docs :', e.message);
     return [];
   }
 }
 
 // ============================================================
-// 4. DETECTION DU DOMAINE
+// 6. DETECTION DU DOMAINE
 // ============================================================
 function detectDomain(question, defaultDomain) {
   if (defaultDomain && defaultDomain !== 'General') return defaultDomain;
   const q = String(question || '').toLowerCase();
 
   const keywords = {
-    'IA & KMS': ['ai', 'ia', 'intelligence', 'semantic', 'vector', 'embedding', 'llm', 'machine', 'learning', 'kms', 'knowledge', 'دلالي', 'ذكاء'],
-    'Energie': ['energy', 'energie', 'solar', 'nuclear', 'hydrogen', 'grid', 'lithium', 'oil', 'gas', 'طاقة', 'نووي'],
-    'Finance': ['finance', 'risk', 'investment', 'market', 'stock', 'sharpe', 'var', 'beta', 'مالية', 'مخاطر'],
-    'Sante': ['health', 'medical', 'medicine', 'diagnosis', 'patient', 'clinical', 'صح', 'طبي'],
-    'Sciences': ['science', 'physics', 'chemistry', 'math', 'research', 'علوم', 'فيزياء'],
-    'Education': ['education', 'learning', 'student', 'teaching', 'school', 'تعليم', 'طالب'],
-    'Commerce': ['commerce', 'supply', 'trade', 'retail', 'logistics', 'تجارة', 'تسويق']
+    'IA & KMS': ['intelligence', 'semantic', 'vector', 'embedding', 'llm', 'machine', 'learning', 'kms', 'knowledge', 'ia', 'ai'],
+    'Energie': ['energy', 'energie', 'solar', 'nuclear', 'hydrogen', 'grid', 'lithium', 'oil', 'gas'],
+    'Finance': ['finance', 'risque', 'investment', 'market', 'stock', 'sharpe', 'var', 'beta'],
+    'Sante': ['sante', 'health', 'medical', 'medicine', 'diagnosis', 'patient', 'clinical'],
+    'Sciences': ['science', 'physics', 'chemistry', 'math', 'research'],
+    'Education': ['education', 'learning', 'student', 'teaching', 'school', 'formation'],
+    'Commerce': ['commerce', 'supply', 'trade', 'retail', 'logistics', 'qualite', 'fabrication']
   };
 
   for (const domain in keywords) {
@@ -177,16 +272,18 @@ function detectDomain(question, defaultDomain) {
 }
 
 // ============================================================
-// 5. EXTRACTION DE POINTS CLES
+// 7. EXTRACTION DE POINTS CLES
 // ============================================================
 function extractKeyPoints(text) {
   if (!text) return [];
-  const sentences = String(text)
+  const cleaned = cleanText(text);
+
+  const sentences = cleaned
     .split(/[.!?]\s+/)
     .map(s => s.trim())
-    .filter(s => s.length > 30 && s.length < 300);
+    .filter(s => s.length > 40 && s.length < 250);
 
-  const words = tokenize(text);
+  const words = tokenize(cleaned);
   const freq = {};
   for (const w of words) freq[w] = (freq[w] || 0) + 1;
 
@@ -204,43 +301,47 @@ function extractKeyPoints(text) {
 }
 
 // ============================================================
-// 6. GENERATION SVG GRAPHIQUE (barres)
+// 8. GRAPHIQUE EN BARRES (SVG)
 // ============================================================
-function generateBarChart(title, data, lang) {
+function generateBarChart(title, data) {
   const width = 600;
-  const height = 300;
-  const padding = 40;
-  const barWidth = 60;
-  const gap = 20;
+  const height = 320;
+  const padding = 50;
+  const barWidth = 55;
+  const gap = 25;
   const maxValue = Math.max(...data.map(d => d.value), 1);
+  const chartHeight = height - 2 * padding;
 
   let bars = '';
   data.forEach((d, i) => {
-    const barHeight = ((height - 2 * padding) * d.value) / maxValue;
+    const barHeight = (chartHeight * d.value) / maxValue;
     const x = padding + i * (barWidth + gap);
     const y = height - padding - barHeight;
+    const label = d.label.length > 10 ? d.label.slice(0, 9) + '.' : d.label;
 
     bars += `<rect x="${x}" y="${y}" width="${barWidth}" height="${barHeight}" fill="#1e5aa8" rx="4"/>`;
-    bars += `<text x="${x + barWidth / 2}" y="${y - 5}" text-anchor="middle" font-size="12" fill="#0a2540" font-weight="bold">${d.value}</text>`;
-    bars += `<text x="${x + barWidth / 2}" y="${height - padding + 15}" text-anchor="middle" font-size="10" fill="#374151">${d.label}</text>`;
+    bars += `<text x="${x + barWidth / 2}" y="${y - 8}" text-anchor="middle" font-size="14" fill="#0a2540" font-weight="bold">${d.value}</text>`;
+    bars += `<text x="${x + barWidth / 2}" y="${height - padding + 20}" text-anchor="middle" font-size="11" fill="#374151">${label}</text>`;
   });
 
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" style="width:100%;max-width:${width}px;height:auto;background:#f9fafb;border-radius:8px;margin:10px 0">
-  <text x="${width / 2}" y="25" text-anchor="middle" font-size="14" font-weight="bold" fill="#0a2540">${title}</text>
-  ${bars}
-</svg>`;
+  return `<div style="background:#ffffff;border:1px solid #e5e7eb;border-radius:12px;padding:20px;margin:20px 0">
+  <h4 style="color:#0a2540;font-size:15px;font-weight:700;margin:0 0 12px 0;text-align:center">${title}</h4>
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" style="width:100%;max-width:${width}px;height:auto;display:block;margin:0 auto">
+    ${bars}
+  </svg>
+</div>`;
 }
 
 // ============================================================
-// 7. GENERATION SVG GRAPHIQUE (camembert)
+// 9. GRAPHIQUE CAMEMBERT (SVG)
 // ============================================================
 function generatePieChart(title, data) {
-  const size = 280;
+  const size = 240;
   const cx = size / 2;
   const cy = size / 2;
-  const r = 100;
+  const r = 90;
   const total = data.reduce((s, d) => s + d.value, 0) || 1;
-  const colors = ['#1e5aa8', '#dc2626', '#16a34a', '#f59e0b', '#7c3aed'];
+  const colors = ['#1e5aa8', '#dc2626', '#16a34a', '#f59e0b', '#7c3aed', '#0891b2'];
 
   let angleStart = 0;
   let paths = '';
@@ -252,100 +353,94 @@ function generatePieChart(title, data) {
     const x2 = cx + r * Math.cos(angleEnd);
     const y2 = cy + r * Math.sin(angleEnd);
     const large = angle > Math.PI ? 1 : 0;
-    paths += `<path d="M${cx},${cy} L${x1},${y1} A${r},${r} 0 ${large} 1 ${x2},${y2} Z" fill="${colors[i % colors.length]}" opacity="0.85"/>`;
+
+    paths += `<path d="M${cx},${cy} L${x1},${y1} A${r},${r} 0 ${large} 1 ${x2},${y2} Z" fill="${colors[i % colors.length]}" opacity="0.9" stroke="#ffffff" stroke-width="2"/>`;
     angleStart = angleEnd;
   });
 
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${size + 200} ${size}" style="width:100%;max-width:${size + 200}px;height:auto;background:#f9fafb;border-radius:8px;margin:10px 0">
-  <text x="${(size + 200) / 2}" y="20" text-anchor="middle" font-size="14" font-weight="bold" fill="#0a2540">${title}</text>
-  <g transform="translate(0, 30)">${paths}</g>
-  <g transform="translate(${size}, 50)">
-    ${data.map((d, i) => `<rect x="0" y="${i * 25}" width="15" height="15" fill="${colors[i % colors.length]}"/><text x="22" y="${i * 25 + 12}" font-size="12" fill="#17202a">${d.label} : ${d.value}</text>`).join('')}
-  </g>
-</svg>`;
+  return `<div style="background:#ffffff;border:1px solid #e5e7eb;border-radius:12px;padding:20px;margin:20px 0">
+  <h4 style="color:#0a2540;font-size:15px;font-weight:700;margin:0 0 12px 0;text-align:center">${title}</h4>
+  <div style="display:flex;flex-wrap:wrap;justify-content:center;gap:20px;align-items:center">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${size} ${size}" style="width:220px;height:220px">
+      ${paths}
+    </svg>
+    <div style="font-size:12px;color:#17202a">
+      ${data.map((d, i) => `<div style="display:flex;align-items:center;gap:8px;margin:6px 0"><span style="display:inline-block;width:14px;height:14px;background:${colors[i % colors.length]};border-radius:3px"></span><strong>${d.label}</strong> : ${d.value}</div>`).join('')}
+    </div>
+  </div>
+</div>`;
 }
 
 // ============================================================
-// 8. GENERATION DU TABLEAU DE BORD
+// 10. TABLEAU DE BORD AVEC RATIOS
 // ============================================================
-function generateDashboard(domain, docsUsed, semanticScore, lang) {
+function generateDashboard(domain, docsUsed, semanticScore) {
   const metrics = DOMAIN_METRICS[domain] || DOMAIN_METRICS['General'];
-  const L = (obj) => obj[lang] || obj.fr || obj.en || Object.values(obj)[0];
-  const label = L(metrics.label);
-
-  let html = `<div style="background:#f9fafb;border:2px solid #e5e7eb;border-radius:12px;padding:16px;margin:16px 0">`;
-  html += `<h4 style="color:#0a2540;margin:0 0 12px 0;font-size:16px">${metrics.icon} ${label}</h4>`;
-
-  // Tableau des ratios
+  let html = `<div style="background:#ffffff;border:2px solid #e5e7eb;border-radius:12px;padding:20px;margin:20px 0">`;
+  html += `<h4 style="color:#0a2540;font-size:16px;font-weight:700;margin:0 0 16px 0">${metrics.icon} Tableau de bord : ${metrics.label}</h4>`;
   html += `<table style="width:100%;border-collapse:collapse;font-size:13px">`;
-  html += `<thead><tr style="background:#0a2540;color:white">`;
-  html += `<th style="padding:8px;text-align:left">${lang === 'ar' ? 'المؤشر' : lang === 'en' ? 'Metric' : 'Indicateur'}</th>`;
-  html += `<th style="padding:8px;text-align:left">${lang === 'ar' ? 'الصيغة' : lang === 'en' ? 'Formula' : 'Formule'}</th>`;
-  html += `<th style="padding:8px;text-align:center">${lang === 'ar' ? 'القيمة' : lang === 'en' ? 'Value' : 'Valeur'}</th>`;
-  html += `<th style="padding:8px;text-align:center">${lang === 'ar' ? 'الهدف' : lang === 'en' ? 'Target' : 'Cible'}</th>`;
+  html += `<thead><tr style="background:#0a2540;color:#ffffff">`;
+  html += `<th style="padding:10px;text-align:left;border-radius:6px 0 0 0">Indicateur</th>`;
+  html += `<th style="padding:10px;text-align:left">Mode de calcul</th>`;
+  html += `<th style="padding:10px;text-align:center">Valeur</th>`;
+  html += `<th style="padding:10px;text-align:center;border-radius:0 6px 0 0">Objectif</th>`;
   html += `</tr></thead><tbody>`;
 
-  metrics.ratios.forEach((r, i) => {
-    const name = L(r.name);
+  metrics.ratios.forEach(r => {
     let actualValue = 0;
-    if (r.formula === 'score_cosinus') actualValue = Math.round(semanticScore * 100);
-    else if (r.formula === 'docs_cites / docs_dispo') actualValue = Math.min(docsUsed * 10, 100);
-    else if (r.formula === 'mots_techniques / mots_total') actualValue = 25 + Math.round(semanticScore * 30);
+    if (r.formula.includes('cosinus')) actualValue = Math.round(semanticScore * 100);
+    else if (r.formula.includes('documents cites')) actualValue = Math.min(docsUsed * 10, 100);
+    else if (r.formula.includes('mots techniques')) actualValue = 25 + Math.round(semanticScore * 30);
     else actualValue = Math.round(r.target * (0.7 + semanticScore * 0.5));
 
     const isGood = actualValue >= r.target;
     const color = isGood ? '#16a34a' : '#dc2626';
+    const bgColor = isGood ? '#dcfce7' : '#fee2e2';
 
     html += `<tr style="border-bottom:1px solid #e5e7eb">`;
-    html += `<td style="padding:8px">${name}</td>`;
-    html += `<td style="padding:8px;font-family:monospace;font-size:11px;color:#6b7280">${r.formula}</td>`;
-    html += `<td style="padding:8px;text-align:center;color:${color};font-weight:bold">${actualValue}${r.unit}</td>`;
-    html += `<td style="padding:8px;text-align:center;color:#6b7280">${r.target}${r.unit}</td>`;
+    html += `<td style="padding:10px;font-weight:600">${r.name}</td>`;
+    html += `<td style="padding:10px;font-size:12px;color:#6b7280">${r.formula}</td>`;
+    html += `<td style="padding:10px;text-align:center"><span style="background:${bgColor};color:${color};padding:4px 10px;border-radius:6px;font-weight:700">${actualValue}${r.unit}</span></td>`;
+    html += `<td style="padding:10px;text-align:center;color:#6b7280">${r.target}${r.unit}</td>`;
     html += `</tr>`;
   });
 
-  html += `</tbody></table>`;
-  html += `</div>`;
+  html += `</tbody></table></div>`;
   return html;
 }
 
 // ============================================================
-// 9. GENERATION DE LA FICHE TECHNIQUE
+// 11. FICHE TECHNIQUE
 // ============================================================
-function generateTechSheet(question, domain, docsUsed, semanticScore, lang) {
-  const L = (fr, en, ar) => lang === 'ar' ? ar : lang === 'en' ? en : fr;
-
-  let html = `<div style="background:linear-gradient(135deg,#0a2540,#1e5aa8);color:white;border-radius:12px;padding:16px;margin:16px 0">`;
-  html += `<h4 style="margin:0 0 12px 0;font-size:16px">📋 ${L('Fiche technique', 'Technical Sheet', 'البطاقة الفنية')}</h4>`;
-  html += `<table style="width:100%;font-size:13px;color:white">`;
-  html += `<tr><td style="padding:4px 0;opacity:0.7">${L('Domaine', 'Domain', 'المجال')}</td><td style="padding:4px 0;font-weight:bold">${domain}</td></tr>`;
-  html += `<tr><td style="padding:4px 0;opacity:0.7">${L('Score semantique', 'Semantic score', 'الدرجة الدلالية')}</td><td style="padding:4px 0;font-weight:bold">${Math.round(semanticScore * 100)}%</td></tr>`;
-  html += `<tr><td style="padding:4px 0;opacity:0.7">${L('Documents sources', 'Source documents', 'الوثائق المصدر')}</td><td style="padding:4px 0;font-weight:bold">${docsUsed}</td></tr>`;
-  html += `<tr><td style="padding:4px 0;opacity:0.7">${L('Agent IA', 'AI Agent', 'الوكيل الذكي')}</td><td style="padding:4px 0;font-weight:bold">MBA-CONSULT AI CORE</td></tr>`;
-  html += `<tr><td style="padding:4px 0;opacity:0.7">${L('Date', 'Date', 'التاريخ')}</td><td style="padding:4px 0;font-weight:bold">${new Date().toLocaleString(lang === 'ar' ? 'ar-SA' : lang === 'en' ? 'en-US' : 'fr-FR')}</td></tr>`;
-  html += `</tbody></table>`;
-  html += `</div>`;
-  return html;
+function generateTechSheet(domain, docsUsed, semanticScore) {
+  return `<div style="background:linear-gradient(135deg,#0a2540,#1e5aa8);color:#ffffff;border-radius:12px;padding:20px;margin:20px 0">
+  <h4 style="margin:0 0 14px 0;font-size:16px;font-weight:700">📋 Fiche technique</h4>
+  <table style="width:100%;font-size:13px;color:#ffffff;border-collapse:collapse">
+    <tr style="border-bottom:1px solid rgba(255,255,255,0.15)"><td style="padding:8px 0;opacity:0.75;width:180px">Domaine</td><td style="padding:8px 0;font-weight:700">${domain}</td></tr>
+    <tr style="border-bottom:1px solid rgba(255,255,255,0.15)"><td style="padding:8px 0;opacity:0.75">Score de pertinence</td><td style="padding:8px 0;font-weight:700">${Math.round(semanticScore * 100)} %</td></tr>
+    <tr style="border-bottom:1px solid rgba(255,255,255,0.15)"><td style="padding:8px 0;opacity:0.75">Documents sources</td><td style="padding:8px 0;font-weight:700">${docsUsed}</td></tr>
+    <tr style="border-bottom:1px solid rgba(255,255,255,0.15)"><td style="padding:8px 0;opacity:0.75">Moteur IA</td><td style="padding:8px 0;font-weight:700">MBA-CONSULT AI CORE</td></tr>
+    <tr><td style="padding:8px 0;opacity:0.75">Date de generation</td><td style="padding:8px 0;font-weight:700">${new Date().toLocaleString('fr-FR')}</td></tr>
+  </table>
+</div>`;
 }
 
 // ============================================================
-// 10. GENERATION DES REFERENCES BIBLIOGRAPHIQUES
+// 12. REFERENCES DOCUMENTAIRES
 // ============================================================
-function generateReferences(docs, lang) {
+function generateReferences(docs) {
   if (!docs || docs.length === 0) return '';
 
-  const L = (fr, en, ar) => lang === 'ar' ? ar : lang === 'en' ? en : fr;
-
-  let html = `<div style="background:#fef3c7;border-left:4px solid #f59e0b;border-radius:8px;padding:14px;margin:16px 0">`;
-  html += `<h4 style="margin:0 0 10px 0;color:#92400e;font-size:14px">📚 ${L('References documentaires', 'Documentary references', 'المراجع الوثائقية')}</h4>`;
-  html += `<ol style="margin:0;padding-left:20px;font-size:13px;color:#78350f">`;
+  let html = `<div style="background:#fef3c7;border-left:4px solid #f59e0b;border-radius:8px;padding:16px;margin:20px 0">`;
+  html += `<h4 style="margin:0 0 12px 0;color:#92400e;font-size:15px;font-weight:700">📚 Sources documentaires utilisees</h4>`;
+  html += `<ol style="margin:0;padding-left:24px;font-size:13px;color:#78350f;line-height:1.7">`;
 
   docs.forEach(d => {
-    const title = d.title || 'Sans titre';
+    const title = cleanText(d.title || 'Document sans titre');
     const source = d.source || 'auto-scraper';
-    const url = d.url ? ` — <a href="${d.url}" target="_blank" style="color:#1e5aa8">${d.url.slice(0, 60)}...</a>` : '';
     const score = Math.round((d.score || 0) * 100);
-    html += `<li style="margin-bottom:6px"><strong>${title}</strong> (${source}) — ${L('pertinence', 'relevance', 'الصلة')} : ${score}%${url}</li>`;
+    const url = d.url ? ` - <a href="${d.url}" target="_blank" style="color:#1e5aa8;text-decoration:underline">consulter la source</a>` : '';
+    html += `<li style="margin-bottom:8px"><strong>${title}</strong><br><span style="color:#92400e;font-size:12px">Source : ${source} | Pertinence : ${score}%${url}</span></li>`;
   });
 
   html += `</ol></div>`;
@@ -353,20 +448,16 @@ function generateReferences(docs, lang) {
 }
 
 // ============================================================
-// 11. DECORATION PRINCIPALE
+// 13. ENRICHISSEMENT PRINCIPAL
 // ============================================================
 async function enrichAnswer(answer, question, domain, lang, mongoose) {
   try {
-    // 1. Detecter le domaine reel
     const realDomain = detectDomain(question, domain);
 
-    // 2. Rechercher les documents pertinents
     let AutoFeedDoc = null;
     try {
       AutoFeedDoc = mongoose.model('AutoFeedDocument');
-    } catch (e) {
-      console.warn('[answer-enricher] Modele AutoFeedDocument introuvable');
-    }
+    } catch (e) {}
 
     let docs = [];
     let semanticScore = 0;
@@ -375,95 +466,77 @@ async function enrichAnswer(answer, question, domain, lang, mongoose) {
       if (docs.length > 0) semanticScore = docs[0].score;
     }
 
-    // 3. Extraire les points cles
     const keyPoints = extractKeyPoints(answer);
-
-    // 4. Construire la reponse enrichie
     let enriched = '';
 
-    // Section 1 : Reponse principale
-    enriched += `<div style="margin-bottom:20px">`;
-    enriched += `<h3 style="color:#0a2540;border-bottom:2px solid #1e5aa8;padding-bottom:8px;margin:0 0 12px 0;font-size:18px">📝 Reponse detaillee</h3>`;
-    enriched += `<div style="line-height:1.75;color:#17202a">${answer.replace(/\n/g, '<br>')}</div>`;
+    // SECTION 1 : Reponse detaillee
+    enriched += `<div style="background:#ffffff;border:1px solid #e5e7eb;border-radius:12px;padding:24px;margin:0 0 20px 0">`;
+    enriched += `<h3 style="color:#0a2540;font-size:17px;font-weight:700;margin:0 0 16px 0;padding-bottom:10px;border-bottom:2px solid #1e5aa8">Reponse detaillee</h3>`;
+    enriched += `<div style="font-size:14px;color:#17202a">${formatForHTML(answer)}</div>`;
     enriched += `</div>`;
 
-    // Section 2 : Points cles
+    // SECTION 2 : Points cles
     if (keyPoints.length > 0) {
-      enriched += `<div style="background:#eff6ff;border-left:4px solid #1e5aa8;border-radius:8px;padding:14px;margin:16px 0">`;
-      enriched += `<h4 style="margin:0 0 10px 0;color:#1e40af;font-size:14px">🔑 Points cles</h4>`;
-      enriched += `<ul style="margin:0;padding-left:20px;color:#1e3a8a;font-size:14px">`;
+      enriched += `<div style="background:#eff6ff;border-left:4px solid #1e5aa8;border-radius:8px;padding:18px;margin:0 0 20px 0">`;
+      enriched += `<h4 style="margin:0 0 12px 0;color:#1e40af;font-size:15px;font-weight:700">Points cles a retenir</h4>`;
+      enriched += `<ul style="margin:0;padding-left:24px;color:#1e3a8a;font-size:14px;line-height:1.7">`;
       keyPoints.forEach(p => {
-        enriched += `<li style="margin-bottom:6px">${p}</li>`;
+        enriched += `<li style="margin-bottom:8px">${p}</li>`;
       });
       enriched += `</ul></div>`;
     }
 
-    // Section 3 : Tableau de bord
-    enriched += generateDashboard(realDomain, docs.length, semanticScore, lang);
+    // SECTION 3 : Tableau de bord
+    enriched += generateDashboard(realDomain, docs.length, semanticScore);
 
-    // Section 4 : Fiche technique
-    enriched += generateTechSheet(question, realDomain, docs.length, semanticScore, lang);
+    // SECTION 4 : Fiche technique
+    enriched += generateTechSheet(realDomain, docs.length, semanticScore);
 
-    // Section 5 : Graphique en barres (couverture par domaine)
+    // SECTION 5 : Graphiques
     if (AutoFeedDoc) {
       try {
         const allDocs = await AutoFeedDoc.find().lean();
         const byDomain = {};
         allDocs.forEach(d => { byDomain[d.domain] = (byDomain[d.domain] || 0) + 1; });
         const data = Object.keys(byDomain).slice(0, 6).map(k => ({ label: k, value: byDomain[k] }));
-        if (data.length > 0) {
-          enriched += generateBarChart(
-            lang === 'ar' ? 'تغطية الوثائق حسب المجال' : lang === 'en' ? 'Document coverage by domain' : 'Couverture documentaire par domaine',
-            data,
-            lang
-          );
-        }
 
-        // Graphique en camembert (repartition)
-        if (data.length >= 2) {
-          enriched += generatePieChart(
-            lang === 'ar' ? 'توزيع الوثائق' : lang === 'en' ? 'Document distribution' : 'Repartition des documents',
-            data
-          );
+        if (data.length > 0) {
+          enriched += generateBarChart('Couverture documentaire par domaine', data);
         }
-      } catch (e) {
-        console.warn('[answer-enricher] Graphique error:', e.message);
-      }
+        if (data.length >= 2) {
+          enriched += generatePieChart('Repartition des documents', data);
+        }
+      } catch (e) {}
     }
 
-    // Section 6 : References
-    enriched += generateReferences(docs, lang);
+    // SECTION 6 : References
+    enriched += generateReferences(docs);
 
-    // Section 7 : Agents IA impliques
-    enriched += `<div style="background:#f5f7fa;border:1px solid #e5e7eb;border-radius:8px;padding:12px;margin:16px 0;font-size:12px;color:#6b7280">`;
-    enriched += `<strong>Agents IA impliques :</strong> MBA-CONSULT AI CORE · OpenRouter · Semantic Engine · Auto-Feed Scraper · Language Fix · Voice Engine`;
+    // SECTION 7 : Agents IA
+    enriched += `<div style="background:#f5f7fa;border:1px solid #e5e7eb;border-radius:8px;padding:14px;margin:20px 0;font-size:12px;color:#6b7280;text-align:center">`;
+    enriched += `<strong style="color:#0a2540">Agents IA impliques :</strong> MBA-CONSULT AI CORE - OpenRouter - Semantic Engine - Auto-Feed Scraper - Language Fix - Voice Engine`;
     enriched += `</div>`;
 
     return enriched;
 
   } catch (e) {
-    console.warn('[answer-enricher] Erreur globale :', e.message);
+    console.warn('[answer-enricher] Erreur :', e.message);
     return answer;
   }
 }
 
 // ============================================================
-// 12. MIDDLEWARE EXPRESS (injection transparente)
+// 14. MIDDLEWARE EXPRESS
 // ============================================================
 module.exports = function(app, mongoose) {
 
-  // Intercepter les reponses de /api/ask pour les enrichir
   app.use('/api/ask', function(req, res, next) {
     const originalJson = res.json.bind(res);
-
     res.json = function(data) {
       if (!data || !data.answer) return originalJson(data);
-
-      // Enrichir de maniere asynchrone
       const question = req.body && req.body.question ? req.body.question : '';
       const domain = req.body && req.body.domain ? req.body.domain : 'General';
       const lang = req.body && req.body.language ? req.body.language : 'fr';
-
       enrichAnswer(data.answer, question, domain, lang, mongoose)
         .then(enriched => {
           data.answerRaw = data.answer;
@@ -472,28 +545,19 @@ module.exports = function(app, mongoose) {
           data.enrichedAt = new Date().toISOString();
           originalJson(data);
         })
-        .catch(err => {
-          console.warn('[answer-enricher] Fallback :', err.message);
-          originalJson(data);
-        });
-
+        .catch(() => originalJson(data));
       return res;
     };
-
     next();
   });
 
-  // Intercepter aussi /api/analyze-content
   app.use('/api/analyze-content', function(req, res, next) {
     const originalJson = res.json.bind(res);
-
     res.json = function(data) {
       if (!data || !data.answer) return originalJson(data);
-
       const question = req.body && req.body.question ? req.body.question : '';
       const domain = 'General';
       const lang = req.body && req.body.language ? req.body.language : 'fr';
-
       enrichAnswer(data.answer, question, domain, lang, mongoose)
         .then(enriched => {
           data.answerRaw = data.answer;
@@ -502,12 +566,10 @@ module.exports = function(app, mongoose) {
           originalJson(data);
         })
         .catch(() => originalJson(data));
-
       return res;
     };
-
     next();
   });
 
-  console.log('[answer-enricher] Module charge - enrichissement actif sur /api/ask et /api/analyze-content');
+  console.log('[answer-enricher] Module charge - enrichissement actif');
 };
