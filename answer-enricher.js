@@ -1,17 +1,27 @@
 // ============================================================
 // ANSWER-ENRICHER.JS
-// Version definitive - References adaptees par domaine
+// Version definitive - References adaptees + Scholars + Graphes cibles
 //
 // REGLES APPLIQUEES :
-//   1. Domaines litteraires/religieux -> Scholars + Titre publication
-//   2. Domaines scientifiques -> Titre publication uniquement
-//   3. Toutes les reponses validees par le Juge Claude
+//   1. Domaines litteraires/religieux -> Scholars + Titre + Auteur + Date
+//   2. Domaines scientifiques -> Titre + Auteur + Date uniquement
+//   3. Graphes/tableaux LIMITES aux domaines analytiques
+//   4. Toutes les reponses validees par le Juge Claude
 // ============================================================
 
 'use strict';
 
 // ============================================================
-// 1. RATIOS PAR DOMAINE
+// 1. DOMAINES ANALYTIQUES (graphes et tableaux AUTORISES)
+// ============================================================
+const ANALYTICAL_DOMAINS = [
+  'Economie', 'Finance', 'Medecine', 'Sante', 'Marketing', 'Commerce',
+  'IA & KMS', 'Sciences', 'Energie', 'Education', 'Industrie',
+  'Technologie', 'Business', 'Gestion'
+];
+
+// ============================================================
+// 2. RATIOS PAR DOMAINE
 // ============================================================
 const DOMAIN_METRICS = {
   'IA & KMS': {
@@ -38,12 +48,44 @@ const DOMAIN_METRICS = {
       { name: 'Coefficient Beta', formula: 'sensibilite au marche', unit: '', target: 1.0 }
     ]
   },
+  'Economie': {
+    icon: '💹', label: 'Economie et Marches',
+    ratios: [
+      { name: 'Taux de croissance', formula: 'PIB annee N / PIB annee N-1 - 1', unit: '%', target: 3 },
+      { name: 'Taux de chomage', formula: 'chomeurs / population active', unit: '%', target: 5 },
+      { name: 'Inflation', formula: 'variation indice prix', unit: '%', target: 2 }
+    ]
+  },
+  'Medecine': {
+    icon: '🏥', label: 'Medecine et Sante',
+    ratios: [
+      { name: 'Sensibilite', formula: 'vrais positifs / (vrais positifs + faux negatifs)', unit: '%', target: 90 },
+      { name: 'Specificite', formula: 'vrais negatifs / (vrais negatifs + faux positifs)', unit: '%', target: 95 },
+      { name: 'Prevalence', formula: 'cas detectes / population totale', unit: '%', target: 10 }
+    ]
+  },
   'Sante': {
     icon: '🏥', label: 'Sante et Medecine',
     ratios: [
       { name: 'Sensibilite', formula: 'vrais positifs / (vrais positifs + faux negatifs)', unit: '%', target: 90 },
       { name: 'Specificite', formula: 'vrais negatifs / (vrais negatifs + faux positifs)', unit: '%', target: 95 },
       { name: 'Prevalence', formula: 'cas detectes / population totale', unit: '%', target: 10 }
+    ]
+  },
+  'Marketing': {
+    icon: '📢', label: 'Marketing et Communication',
+    ratios: [
+      { name: 'Taux de conversion', formula: 'conversions / visiteurs', unit: '%', target: 3 },
+      { name: 'Cout acquisition client', formula: 'depenses / nouveaux clients', unit: 'EUR', target: 50 },
+      { name: 'Retour investissement marketing', formula: 'gains / depenses marketing', unit: 'x', target: 5 }
+    ]
+  },
+  'Commerce': {
+    icon: '🛒', label: 'Commerce et Chaine Logistique',
+    ratios: [
+      { name: 'Marge brute', formula: '(chiffre affaires - couts) / chiffre affaires', unit: '%', target: 30 },
+      { name: 'Rotation des stocks', formula: 'chiffre affaires / stock moyen', unit: 'fois', target: 6 },
+      { name: 'Delai de livraison', formula: 'nombre de jours moyens', unit: 'jours', target: 3 }
     ]
   },
   'Sciences': {
@@ -58,95 +100,108 @@ const DOMAIN_METRICS = {
     icon: '🎓', label: 'Education et Formation',
     ratios: [
       { name: 'Taux de reussite', formula: 'apprenants reussis / total apprenants', unit: '%', target: 80 },
-      { name: 'Taux d engagement', formula: 'apprenants actifs / inscrits', unit: '%', target: 70 },
+      { name: 'Taux engagement', formula: 'apprenants actifs / inscrits', unit: '%', target: 70 },
       { name: 'Progression moyenne', formula: 'score final - score initial', unit: 'points', target: 20 }
-    ]
-  },
-  'Commerce': {
-    icon: '🛒', label: 'Commerce et Chaine Logistique',
-    ratios: [
-      { name: 'Marge brute', formula: '(chiffre affaires - couts) / chiffre affaires', unit: '%', target: 30 },
-      { name: 'Rotation des stocks', formula: 'chiffre affaires / stock moyen', unit: 'fois', target: 6 },
-      { name: 'Delai de livraison', formula: 'nombre de jours moyens', unit: 'jours', target: 3 }
-    ]
-  },
-  'Religion': {
-    icon: '📖', label: 'Sciences Religieuses',
-    ratios: [
-      { name: 'Fiabilite des sources', formula: 'sources authentiques / sources citees', unit: '%', target: 95 },
-      { name: 'Concordance des avis', formula: 'avis consensuels / avis cites', unit: '%', target: 70 },
-      { name: 'Couverture textuelle', formula: 'references textuelles / conclusions', unit: '%', target: 80 }
-    ]
-  },
-  'Litterature': {
-    icon: '📚', label: 'Litterature et Sciences Humaines',
-    ratios: [
-      { name: 'Diversite des sources', formula: 'auteurs differents / sources totales', unit: '%', target: 60 },
-      { name: 'Profondeur analytique', formula: 'arguments developpes / arguments totaux', unit: '%', target: 75 },
-      { name: 'Contextualisation', formula: 'references historiques / affirmations', unit: '%', target: 50 }
-    ]
-  },
-  'General': {
-    icon: '📚', label: 'Connaissances Generales',
-    ratios: [
-      { name: 'Fiabilite des sources', formula: 'sources verifiees / sources totales', unit: '%', target: 90 },
-      { name: 'Densite informationnelle', formula: 'faits verifiables / phrases', unit: '', target: 1.5 },
-      { name: 'Clarte du contenu', formula: 'phrases courtes / phrases totales', unit: '%', target: 75 }
     ]
   }
 };
 
 // ============================================================
-// 2. DOMAINES LITTERAIRES / RELIGIEUX (avec Scholars)
+// 3. DOMAINES LITTERAIRES / RELIGIEUX
 // ============================================================
 const LITERARY_RELIGIOUS_DOMAINS = [
-  'Religion',
-  'Litterature',
-  'Philosophie',
-  'Histoire',
-  'Theologie',
-  'Islam',
-  'Christianisme',
-  'Judaisme',
-  'Spiritualite',
-  'Ethique',
-  'Arts',
-  'Langues',
-  'Droit'
+  'Religion', 'Litterature', 'Philosophie', 'Histoire', 'Theologie',
+  'Islam', 'Christianisme', 'Judaisme', 'Spiritualite', 'Ethique',
+  'Arts', 'Langues', 'Droit', 'Civilisation'
 ];
 
 // ============================================================
-// 3. SCHOLARS PAR DOMAINE (pour attribution)
+// 4. SCHOLARS PAR DOMAINE (base etendue + arabes)
 // ============================================================
 const SCHOLARS_BY_DOMAIN = {
   'Religion': [
-    'Ibn Taymiyya', 'Ibn Kathir', 'Al-Ghazali', 'An-Nawawi',
-    'Ibn Baz', 'Al-Albani', 'Ibn Qayyim', 'Ash-Shafi\'i',
-    'Malik ibn Anas', 'Ahmad ibn Hanbal', 'Al-Qurtubi', 'At-Tabari',
-    'Ibn Hajar', 'As-Suyuti', 'Ar-Razi', 'Al-Bukhari', 'Muslim'
+    { fr: 'Ibn Taymiyya', ar: 'ابن تيمية' },
+    { fr: 'Ibn Kathir', ar: 'ابن كثير' },
+    { fr: 'Al-Ghazali', ar: 'الغزالي' },
+    { fr: 'An-Nawawi', ar: 'النووي' },
+    { fr: 'Ibn Baz', ar: 'ابن باز' },
+    { fr: 'Al-Albani', ar: 'الألباني' },
+    { fr: 'Ibn Qayyim', ar: 'ابن القيم' },
+    { fr: 'Ash-Shafi\'i', ar: 'الشافعي' },
+    { fr: 'Malik ibn Anas', ar: 'مالك بن أنس' },
+    { fr: 'Ahmad ibn Hanbal', ar: 'أحمد بن حنبل' },
+    { fr: 'Al-Qurtubi', ar: 'القرطبي' },
+    { fr: 'At-Tabari', ar: 'الطبري' },
+    { fr: 'Ibn Hajar', ar: 'ابن حجر' },
+    { fr: 'As-Suyuti', ar: 'السيوطي' },
+    { fr: 'Ar-Razi', ar: 'الرازي' },
+    { fr: 'Al-Bukhari', ar: 'البخاري' },
+    { fr: 'Muslim', ar: 'مسلم' },
+    { fr: 'Abu Hanifa', ar: 'أبو حنيفة' },
+    { fr: 'Ibn Rushd', ar: 'ابن رشد' },
+    { fr: 'Al-Ash\'ari', ar: 'الأشعري' },
+    { fr: 'Al-Maturidi', ar: 'الماتريدي' },
+    { fr: 'Ibn Arabi', ar: 'ابن عربي' },
+    { fr: 'Al-Juwayni', ar: 'الجويني' },
+    { fr: 'Al-Bayhaqi', ar: 'البيهقي' },
+    { fr: 'Ad-Dhahabi', ar: 'الذهبي' },
+    { fr: 'Ibn Majah', ar: 'ابن ماجه' },
+    { fr: 'Abu Dawud', ar: 'أبو داود' },
+    { fr: 'At-Tirmidhi', ar: 'الترمذي' },
+    { fr: 'An-Nasa\'i', ar: 'النسائي' }
   ],
   'Philosophie': [
-    'Aristote', 'Platon', 'Socrate', 'Kant', 'Descartes',
-    'Nietzsche', 'Sartre', 'Hegel', 'Spinoza', 'Leibniz',
-    'Ibn Rushd', 'Al-Farabi', 'Ibn Sina', 'Al-Kindi'
+    { fr: 'Aristote', ar: 'أرسطو' },
+    { fr: 'Platon', ar: 'أفلاطون' },
+    { fr: 'Socrate', ar: 'سقراط' },
+    { fr: 'Kant', ar: 'كانط' },
+    { fr: 'Descartes', ar: 'ديكارت' },
+    { fr: 'Nietzsche', ar: 'نيتشه' },
+    { fr: 'Sartre', ar: 'سارتر' },
+    { fr: 'Hegel', ar: 'هيجل' },
+    { fr: 'Spinoza', ar: 'سبينوزا' },
+    { fr: 'Leibniz', ar: 'لايبنتز' },
+    { fr: 'Ibn Rushd', ar: 'ابن رشد' },
+    { fr: 'Al-Farabi', ar: 'الفارابي' },
+    { fr: 'Ibn Sina', ar: 'ابن سينا' },
+    { fr: 'Al-Kindi', ar: 'الكندي' }
   ],
   'Litterature': [
-    'Victor Hugo', 'Moliere', 'Balzac', 'Flaubert', 'Zola',
-    'Shakespeare', 'Dante', 'Goethe', 'Tolstoi', 'Dostoevski',
-    'Naguib Mahfouz', 'Taha Hussein', 'Al-Mutanabbi'
+    { fr: 'Victor Hugo', ar: 'فيكتور هوغو' },
+    { fr: 'Moliere', ar: 'موليير' },
+    { fr: 'Balzac', ar: 'بلزاك' },
+    { fr: 'Flaubert', ar: 'فلوبير' },
+    { fr: 'Zola', ar: 'زولا' },
+    { fr: 'Shakespeare', ar: 'شكسبير' },
+    { fr: 'Dante', ar: 'دانتي' },
+    { fr: 'Goethe', ar: 'غوته' },
+    { fr: 'Tolstoi', ar: 'تولستوي' },
+    { fr: 'Dostoevski', ar: 'دوستويفسكي' },
+    { fr: 'Naguib Mahfouz', ar: 'نجيب محفوظ' },
+    { fr: 'Taha Hussein', ar: 'طه حسين' },
+    { fr: 'Al-Mutanabbi', ar: 'المتنبي' }
   ],
   'Histoire': [
-    'Ibn Khaldun', 'Herodote', 'Tacite', 'Tite-Live',
-    'Edward Gibbon', 'Marc Bloch', 'Fernand Braudel', 'At-Tabari'
+    { fr: 'Ibn Khaldun', ar: 'ابن خلدون' },
+    { fr: 'Herodote', ar: 'هيرودوت' },
+    { fr: 'Tacite', ar: 'تاسيتوس' },
+    { fr: 'Edward Gibbon', ar: 'إدوارد جيبون' },
+    { fr: 'Marc Bloch', ar: 'مارك بلوخ' },
+    { fr: 'Fernand Braudel', ar: 'فرناند بروديل' },
+    { fr: 'At-Tabari', ar: 'الطبري' }
   ],
   'Droit': [
-    'Montesquieu', 'Rousseau', 'Portalis', 'Carbonnier',
-    'Ibn Taymiyya', 'Ash-Shafi\'i', 'Malik ibn Anas'
+    { fr: 'Montesquieu', ar: 'مونتسكيو' },
+    { fr: 'Rousseau', ar: 'روسو' },
+    { fr: 'Portalis', ar: 'بورتاليس' },
+    { fr: 'Ibn Taymiyya', ar: 'ابن تيمية' },
+    { fr: 'Ash-Shafi\'i', ar: 'الشافعي' },
+    { fr: 'Malik ibn Anas', ar: 'مالك بن أنس' }
   ]
 };
 
 // ============================================================
-// 4. NETTOYAGE DU TEXTE
+// 5. NETTOYAGE DU TEXTE
 // ============================================================
 function cleanText(text) {
   if (!text) return '';
@@ -166,7 +221,7 @@ function cleanText(text) {
 }
 
 // ============================================================
-// 5. FORMATAGE HTML
+// 6. FORMATAGE HTML
 // ============================================================
 function formatForHTML(text) {
   if (!text) return '';
@@ -207,7 +262,7 @@ function formatForHTML(text) {
 }
 
 // ============================================================
-// 6. VECTORISATION SEMANTIQUE
+// 7. VECTORISATION SEMANTIQUE
 // ============================================================
 function tokenize(text) {
   return String(text || '')
@@ -238,7 +293,7 @@ function cosineSimilarity(v1, v2) {
 }
 
 // ============================================================
-// 7. RECHERCHE DOCUMENTS PERTINENTS
+// 8. RECHERCHE DOCUMENTS PERTINENTS
 // ============================================================
 async function findRelevantDocuments(AutoFeedDoc, query, limit = 5) {
   try {
@@ -262,22 +317,25 @@ async function findRelevantDocuments(AutoFeedDoc, query, limit = 5) {
 }
 
 // ============================================================
-// 8. DETECTION DU DOMAINE (etendue avec Religion/Litterature)
+// 9. DETECTION DU DOMAINE
 // ============================================================
 function detectDomain(question, defaultDomain) {
   if (defaultDomain && defaultDomain !== 'General') return defaultDomain;
   const q = String(question || '').toLowerCase();
 
   const keywords = {
-    'Religion': ['relig', 'islam', 'coran', 'quran', 'hadith', 'sunnah', 'prophete', 'allah', 'dieu', 'priere', 'savants', 'savant', 'ibn', 'imam', 'cheikh', 'theo', 'spiritual', 'fikh', 'fiqh', 'charia', 'sharia', 'مذهب', 'دين', 'فقه', 'حديث', 'قرآن'],
-    'Litterature': ['litterat', 'poesie', 'roman', 'poete', 'ecrivain', 'theatre', 'prose', 'vers', 'style', 'analyse litteraire', 'أدب', 'شعر', 'رواية'],
+    'Religion': ['relig', 'islam', 'coran', 'quran', 'hadith', 'sunnah', 'prophete', 'allah', 'dieu', 'priere', 'savants', 'savant', 'ibn', 'imam', 'cheikh', 'theo', 'spiritual', 'fikh', 'fiqh', 'charia', 'sharia', 'sala', 'salat', 'janaza', 'جنازة', 'صلاة', 'عيد', 'مذهب', 'سني', 'شيعي', 'دين', 'فقه', 'حديث', 'قرآن'],
+    'Litterature': ['litterat', 'poesie', 'roman', 'poete', 'ecrivain', 'theatre', 'prose', 'vers', 'style', 'أدب', 'شعر', 'رواية'],
     'Philosophie': ['philosoph', 'kant', 'platon', 'aristote', 'socrate', 'nietzsche', 'descartes', 'spinoza', 'philosophe', 'ethique', 'morale', 'فلسفة'],
-    'Histoire': ['histoir', 'historique', 'civilis', 'empire', 'revolution', 'guerre', 'antiquite', 'histoire', 'تاريخ'],
+    'Histoire': ['histoir', 'historique', 'civilis', 'empire', 'revolution', 'guerre', 'antiquite', 'تاريخ'],
     'Droit': ['droit', 'juridique', 'loi', 'lois', 'code civil', 'contrat', 'tribunal', 'justice', 'قانون', 'حقوق'],
     'IA & KMS': ['intelligence', 'semantic', 'vector', 'embedding', 'llm', 'machine', 'learning', 'kms', 'knowledge', 'ia', 'ai'],
     'Energie': ['energy', 'energie', 'solar', 'nuclear', 'hydrogen', 'grid', 'lithium', 'oil', 'gas'],
     'Finance': ['finance', 'risque', 'investment', 'market', 'stock', 'sharpe', 'var', 'beta'],
-    'Sante': ['sante', 'health', 'medical', 'medicine', 'diagnosis', 'patient', 'clinical'],
+    'Economie': ['econom', 'pib', 'pib', 'croissance', 'inflation', 'chomage', 'marche', 'commerce international'],
+    'Medecine': ['medec', 'medical', 'medicine', 'diagnosis', 'patient', 'clinical', 'maladie', 'traitement'],
+    'Marketing': ['marketing', 'publicit', 'conversion', 'client', 'marque', 'communication'],
+    'Sante': ['sante', 'health', 'medical', 'medicine'],
     'Sciences': ['science', 'physics', 'chemistry', 'math', 'research'],
     'Education': ['education', 'learning', 'student', 'teaching', 'school', 'formation'],
     'Commerce': ['commerce', 'supply', 'trade', 'retail', 'logistics', 'qualite', 'fabrication']
@@ -292,7 +350,7 @@ function detectDomain(question, defaultDomain) {
 }
 
 // ============================================================
-// 9. VERIFICATION DOMAINE LITTERAIRE / RELIGIEUX
+// 10. VERIFICATION DOMAINE LITTERAIRE / RELIGIEUX
 // ============================================================
 function isLiteraryOrReligious(domain) {
   return LITERARY_RELIGIOUS_DOMAINS.some(d =>
@@ -301,32 +359,103 @@ function isLiteraryOrReligious(domain) {
 }
 
 // ============================================================
-// 10. EXTRACTION DE SCHOLAR DEPUIS LA QUESTION/REPONSE
+// 11. VERIFICATION DOMAINE ANALYTIQUE
 // ============================================================
-function extractScholarFromContent(question, answer, domain) {
-  const text = (question + ' ' + answer).toLowerCase();
-  const scholars = SCHOLARS_BY_DOMAIN[domain] || SCHOLARS_BY_DOMAIN['Religion'] || [];
-
-  // Chercher un scholar mentionne explicitement
-  for (const scholar of scholars) {
-    if (text.includes(scholar.toLowerCase())) {
-      return scholar;
-    }
-  }
-
-  // Chercher les noms arabes courants
-  const arabicScholars = ['ابن تيمية', 'ابن كثير', 'الغزالي', 'النووي', 'ابن باز', 'الألباني', 'ابن القيم', 'الشافعي', 'مالك', 'أحمد بن حنبل'];
-  for (const scholar of arabicScholars) {
-    if (text.includes(scholar)) {
-      return scholar;
-    }
-  }
-
-  return null;
+function isAnalyticalDomain(domain) {
+  return ANALYTICAL_DOMAINS.some(d =>
+    domain.toLowerCase().includes(d.toLowerCase())
+  );
 }
 
 // ============================================================
-// 11. EXTRACTION POINTS CLES
+// 12. EXTRACTION DE SCHOLARS (AMELIOREE)
+// ============================================================
+function extractScholarsFromContent(question, answer, domain) {
+  const text = (question + ' ' + answer).toLowerCase();
+  const scholars = SCHOLARS_BY_DOMAIN[domain] || SCHOLARS_BY_DOMAIN['Religion'] || [];
+  const found = [];
+
+  // 1. Chercher dans la liste du domaine
+  for (const scholar of scholars) {
+    const frMatch = text.includes(scholar.fr.toLowerCase());
+    const arMatch = text.includes(scholar.ar);
+    if (frMatch || arMatch) {
+      found.push(scholar.fr);
+    }
+  }
+
+  // 2. Si rien trouve, chercher dans tous les scholars connus
+  if (found.length === 0) {
+    for (const dom in SCHOLARS_BY_DOMAIN) {
+      for (const scholar of SCHOLARS_BY_DOMAIN[dom]) {
+        const frMatch = text.includes(scholar.fr.toLowerCase());
+        const arMatch = text.includes(scholar.ar);
+        if (frMatch || arMatch) {
+          found.push(scholar.fr);
+        }
+      }
+    }
+  }
+
+  // 3. Fallback : chercher les mots arabes generiques de savants
+  if (found.length === 0 && isLiteraryOrReligious(domain)) {
+    const genericPatterns = [
+      /(?:ابن|الشيخ|الإمام|العلامة|شيخ)\s+[\u0600-\u06FF]+/g,
+      /(?:Ibn|Cheikh|Imam|Sheikh)\s+[A-Za-z]+/gi
+    ];
+    for (const pattern of genericPatterns) {
+      const matches = answer.match(pattern);
+      if (matches) {
+        for (const m of matches.slice(0, 3)) {
+          const cleaned = m.trim();
+          if (cleaned.length > 5 && !found.includes(cleaned)) {
+            found.push(cleaned);
+          }
+        }
+      }
+    }
+  }
+
+  return found;
+}
+
+// ============================================================
+// 13. EXTRACTION DATE / AUTEUR DEPUIS UN DOCUMENT
+// ============================================================
+function extractAuthorAndDate(doc) {
+  let author = 'Auteur non specifie';
+  let date = 'Date non specifiee';
+
+  // Date depuis createdAt
+  if (doc.createdAt) {
+    const d = new Date(doc.createdAt);
+    date = d.toLocaleDateString('fr-FR', { year: 'numeric', month: 'long', day: 'numeric' });
+  }
+
+  // Extraire auteur depuis l'URL source
+  if (doc.url) {
+    const urlMatch = doc.url.match(/linkedin\.com\/pulse\/([^\/]+)/);
+    if (urlMatch) {
+      author = 'Auteur LinkedIn Pulse';
+    } else {
+      const domainMatch = doc.url.match(/https?:\/\/(?:www\.)?([^\/]+)/);
+      if (domainMatch) {
+        author = domainMatch[1].replace(/\.(com|org|net|io|fr|tn)$/, '');
+      }
+    }
+  }
+
+  // Chercher un nom d'auteur dans le titre (format "Par X" ou "by X")
+  const titleAuthorMatch = doc.title && doc.title.match(/(?:Par|par|By|by)\s+([A-Z][a-zA-Z\u0600-\u06FF\s]+)/);
+  if (titleAuthorMatch) {
+    author = titleAuthorMatch[1].trim().slice(0, 40);
+  }
+
+  return { author, date };
+}
+
+// ============================================================
+// 14. EXTRACTION POINTS CLES
 // ============================================================
 function extractKeyPoints(text) {
   if (!text) return [];
@@ -345,7 +474,7 @@ function extractKeyPoints(text) {
 }
 
 // ============================================================
-// 12. GRAPHIQUE BARRES
+// 15. GRAPHIQUE BARRES (limite aux domaines analytiques)
 // ============================================================
 function generateBarChart(title, data) {
   const width = 600, height = 320, padding = 50, barWidth = 55, gap = 25;
@@ -370,7 +499,7 @@ function generateBarChart(title, data) {
 }
 
 // ============================================================
-// 13. GRAPHIQUE CAMEMBERT
+// 16. GRAPHIQUE CAMEMBERT (limite aux domaines analytiques)
 // ============================================================
 function generatePieChart(title, data) {
   const size = 240, cx = 120, cy = 120, r = 90;
@@ -400,10 +529,12 @@ function generatePieChart(title, data) {
 }
 
 // ============================================================
-// 14. TABLEAU DE BORD
+// 17. TABLEAU DE BORD (limite aux domaines analytiques)
 // ============================================================
 function generateDashboard(domain, docsUsed, semanticScore) {
-  const metrics = DOMAIN_METRICS[domain] || DOMAIN_METRICS['General'];
+  const metrics = DOMAIN_METRICS[domain];
+  if (!metrics) return '';
+
   let html = `<div style="background:#ffffff;border:2px solid #e5e7eb;border-radius:12px;padding:20px;margin:20px 0">`;
   html += `<h4 style="color:#0a2540;font-size:16px;font-weight:700;margin:0 0 16px 0">${metrics.icon} Tableau de bord : ${metrics.label}</h4>`;
   html += `<table style="width:100%;border-collapse:collapse;font-size:13px">`;
@@ -434,18 +565,20 @@ function generateDashboard(domain, docsUsed, semanticScore) {
 }
 
 // ============================================================
-// 15. FICHE TECHNIQUE (avec Juge Claude)
+// 18. FICHE TECHNIQUE (avec scholars + Juge Claude)
 // ============================================================
-function generateTechSheet(domain, docsUsed, semanticScore, scholar) {
+function generateTechSheet(domain, docsUsed, semanticScore, scholars) {
   let html = `<div style="background:linear-gradient(135deg,#0a2540,#1e5aa8);color:#ffffff;border-radius:12px;padding:20px;margin:20px 0">`;
   html += `<h4 style="margin:0 0 14px 0;font-size:16px;font-weight:700">📋 Fiche technique</h4>`;
   html += `<table style="width:100%;font-size:13px;color:#ffffff;border-collapse:collapse">`;
   html += `<tr style="border-bottom:1px solid rgba(255,255,255,0.15)"><td style="padding:8px 0;opacity:0.75;width:180px">Domaine</td><td style="padding:8px 0;font-weight:700">${domain}</td></tr>`;
   html += `<tr style="border-bottom:1px solid rgba(255,255,255,0.15)"><td style="padding:8px 0;opacity:0.75">Score de pertinence</td><td style="padding:8px 0;font-weight:700">${Math.round(semanticScore * 100)} %</td></tr>`;
   html += `<tr style="border-bottom:1px solid rgba(255,255,255,0.15)"><td style="padding:8px 0;opacity:0.75">Documents sources</td><td style="padding:8px 0;font-weight:700">${docsUsed}</td></tr>`;
-  if (scholar) {
-    html += `<tr style="border-bottom:1px solid rgba(255,255,255,0.15)"><td style="padding:8px 0;opacity:0.75">Scholar reference</td><td style="padding:8px 0;font-weight:700">${scholar}</td></tr>`;
+
+  if (scholars && scholars.length > 0) {
+    html += `<tr style="border-bottom:1px solid rgba(255,255,255,0.15)"><td style="padding:8px 0;opacity:0.75">Scholars references</td><td style="padding:8px 0;font-weight:700;color:#fbbf24">${scholars.join(', ')}</td></tr>`;
   }
+
   html += `<tr style="border-bottom:1px solid rgba(255,255,255,0.15)"><td style="padding:8px 0;opacity:0.75">Moteur IA</td><td style="padding:8px 0;font-weight:700">MBA-CONSULT AI CORE</td></tr>`;
   html += `<tr style="border-bottom:1px solid rgba(255,255,255,0.15)"><td style="padding:8px 0;opacity:0.75">Validation</td><td style="padding:8px 0;font-weight:700;color:#4ade80">✓ Valide par le Juge Claude</td></tr>`;
   html += `<tr><td style="padding:8px 0;opacity:0.75">Date de generation</td><td style="padding:8px 0;font-weight:700">${new Date().toLocaleString('fr-FR')}</td></tr>`;
@@ -454,9 +587,9 @@ function generateTechSheet(domain, docsUsed, semanticScore, scholar) {
 }
 
 // ============================================================
-// 16. REFERENCES DOCUMENTAIRES (avec regles Scholar/Scientifique)
+// 19. REFERENCES DOCUMENTAIRES (Titre + Auteur + Date uniquement)
 // ============================================================
-function generateReferences(docs, domain, scholar, question, answer) {
+function generateReferences(docs, domain, scholars) {
   if (!docs || docs.length === 0) return '';
 
   const isLitRel = isLiteraryOrReligious(domain);
@@ -464,32 +597,29 @@ function generateReferences(docs, domain, scholar, question, answer) {
   let html = `<div style="background:#fef3c7;border-left:4px solid #f59e0b;border-radius:8px;padding:16px;margin:20px 0">`;
 
   if (isLitRel) {
-    // Domaine litteraire / religieux : Scholars + Titre
+    // === DOMAINES LITTERAIRES / RELIGIEUX : Scholars + Titre + Auteur + Date ===
     html += `<h4 style="margin:0 0 12px 0;color:#92400e;font-size:15px;font-weight:700">📖 Sources litteraires et religieuses</h4>`;
 
-    // Section Scholars identifies
-    if (scholar) {
-      html += `<div style="background:#ffffff;border:2px solid #d4af37;border-radius:8px;padding:12px;margin-bottom:14px">`;
-      html += `<div style="color:#92400e;font-size:11px;text-transform:uppercase;letter-spacing:1px;font-weight:700;margin-bottom:4px">Scholar identifie</div>`;
-      html += `<div style="color:#0a2540;font-size:16px;font-weight:800">📚 ${scholar}</div>`;
-      html += `<div style="color:#6b7280;font-size:12px;margin-top:4px">Origine de l'information validee par le Juge Claude</div>`;
+    if (scholars && scholars.length > 0) {
+      html += `<div style="background:#ffffff;border:2px solid #d4af37;border-radius:8px;padding:14px;margin-bottom:14px">`;
+      html += `<div style="color:#92400e;font-size:11px;text-transform:uppercase;letter-spacing:1px;font-weight:700;margin-bottom:8px">Scholars identifies</div>`;
+      scholars.forEach(s => {
+        html += `<div style="color:#0a2540;font-size:15px;font-weight:800;margin:4px 0">📚 ${s}</div>`;
+      });
+      html += `<div style="color:#6b7280;font-size:11px;margin-top:6px;font-style:italic">Origine de l'information validee par le Juge Claude</div>`;
       html += `</div>`;
     }
 
     html += `<div style="color:#92400e;font-size:12px;font-weight:700;margin:12px 0 8px 0;text-transform:uppercase;letter-spacing:1px">Publications de reference</div>`;
     html += `<ol style="margin:0;padding-left:24px;font-size:13px;color:#78350f;line-height:1.7">`;
 
-    docs.forEach((d, idx) => {
-      const title = cleanText(d.title || 'Document sans titre');
-      const source = d.source || 'auto-scraper';
-      const score = Math.round((d.score || 0) * 100);
-      const url = d.url ? ` - <a href="${d.url}" target="_blank" style="color:#1e5aa8;text-decoration:underline">consulter la source</a>` : '';
-      html += `<li style="margin-bottom:10px">`;
-      html += `<div style="color:#0a2540;font-weight:700;font-size:13px;margin-bottom:4px">Publication ${idx + 1} : ${title}</div>`;
-      if (scholar) {
-        html += `<div style="color:#78350f;font-size:12px;font-style:italic">Attribue a : ${scholar}</div>`;
-      }
-      html += `<div style="color:#92400e;font-size:11px">Source : ${source} | Pertinence : ${score}%${url}</div>`;
+    docs.forEach(d => {
+      const title = cleanText(d.title || 'Document sans titre').slice(0, 120);
+      const info = extractAuthorAndDate(d);
+      html += `<li style="margin-bottom:12px">`;
+      html += `<div style="color:#0a2540;font-weight:700;font-size:13px;margin-bottom:4px">${title}</div>`;
+      html += `<div style="color:#78350f;font-size:12px;font-style:italic">Auteur : ${info.author}</div>`;
+      html += `<div style="color:#78350f;font-size:12px">Date : ${info.date}</div>`;
       html += `</li>`;
     });
 
@@ -499,18 +629,17 @@ function generateReferences(docs, domain, scholar, question, answer) {
     html += `</div>`;
 
   } else {
-    // Domaine scientifique : Titres uniquement
+    // === DOMAINES SCIENTIFIQUES : Titre + Auteur + Date uniquement ===
     html += `<h4 style="margin:0 0 12px 0;color:#92400e;font-size:15px;font-weight:700">📚 Publications scientifiques de reference</h4>`;
     html += `<ol style="margin:0;padding-left:24px;font-size:13px;color:#78350f;line-height:1.7">`;
 
-    docs.forEach((d, idx) => {
-      const title = cleanText(d.title || 'Publication sans titre');
-      const source = d.source || 'auto-scraper';
-      const score = Math.round((d.score || 0) * 100);
-      const url = d.url ? ` - <a href="${d.url}" target="_blank" style="color:#1e5aa8;text-decoration:underline">consulter la publication</a>` : '';
-      html += `<li style="margin-bottom:10px">`;
+    docs.forEach(d => {
+      const title = cleanText(d.title || 'Publication sans titre').slice(0, 120);
+      const info = extractAuthorAndDate(d);
+      html += `<li style="margin-bottom:12px">`;
       html += `<div style="color:#0a2540;font-weight:700;font-size:13px;margin-bottom:4px">${title}</div>`;
-      html += `<div style="color:#92400e;font-size:11px">Source : ${source} | Pertinence : ${score}%${url}</div>`;
+      html += `<div style="color:#78350f;font-size:12px;font-style:italic">Auteur : ${info.author}</div>`;
+      html += `<div style="color:#78350f;font-size:12px">Date : ${info.date}</div>`;
       html += `</li>`;
     });
 
@@ -525,12 +654,13 @@ function generateReferences(docs, domain, scholar, question, answer) {
 }
 
 // ============================================================
-// 17. ENRICHISSEMENT PRINCIPAL
+// 20. ENRICHISSEMENT PRINCIPAL
 // ============================================================
 async function enrichAnswer(answer, question, domain, lang, mongoose) {
   try {
     const realDomain = detectDomain(question, domain);
     const isLitRel = isLiteraryOrReligious(realDomain);
+    const isAnalytical = isAnalyticalDomain(realDomain);
 
     let AutoFeedDoc = null;
     try { AutoFeedDoc = mongoose.model('AutoFeedDocument'); } catch (e) {}
@@ -542,10 +672,10 @@ async function enrichAnswer(answer, question, domain, lang, mongoose) {
       if (docs.length > 0) semanticScore = docs[0].score;
     }
 
-    // Extraire le scholar si domaine litteraire/religieux
-    let scholar = null;
+    // Extraire les scholars si domaine litteraire/religieux
+    let scholars = [];
     if (isLitRel) {
-      scholar = extractScholarFromContent(question, answer, realDomain);
+      scholars = extractScholarsFromContent(question, answer, realDomain);
     }
 
     const keyPoints = extractKeyPoints(answer);
@@ -566,14 +696,16 @@ async function enrichAnswer(answer, question, domain, lang, mongoose) {
       enriched += `</ul></div>`;
     }
 
-    // SECTION 3 : Tableau de bord
-    enriched += generateDashboard(realDomain, docs.length, semanticScore);
+    // SECTION 3 : Tableau de bord (UNIQUEMENT si domaine analytique)
+    if (isAnalytical) {
+      enriched += generateDashboard(realDomain, docs.length, semanticScore);
+    }
 
-    // SECTION 4 : Fiche technique (avec scholar + validation Juge Claude)
-    enriched += generateTechSheet(realDomain, docs.length, semanticScore, scholar);
+    // SECTION 4 : Fiche technique (toujours, avec scholars si dispo)
+    enriched += generateTechSheet(realDomain, docs.length, semanticScore, scholars);
 
-    // SECTION 5 : Graphiques
-    if (AutoFeedDoc) {
+    // SECTION 5 : Graphiques (UNIQUEMENT si domaine analytique)
+    if (isAnalytical && AutoFeedDoc) {
       try {
         const allDocs = await AutoFeedDoc.find().lean();
         const byDomain = {};
@@ -584,8 +716,8 @@ async function enrichAnswer(answer, question, domain, lang, mongoose) {
       } catch (e) {}
     }
 
-    // SECTION 6 : References (avec regles adaptees)
-    enriched += generateReferences(docs, realDomain, scholar, question, answer);
+    // SECTION 6 : References (Titre + Auteur + Date)
+    enriched += generateReferences(docs, realDomain, scholars);
 
     // SECTION 7 : Agents IA + Validation
     enriched += `<div style="background:#f5f7fa;border:1px solid #e5e7eb;border-radius:8px;padding:14px;margin:20px 0;font-size:12px;color:#6b7280;text-align:center">`;
@@ -601,7 +733,7 @@ async function enrichAnswer(answer, question, domain, lang, mongoose) {
 }
 
 // ============================================================
-// 18. MIDDLEWARE EXPRESS
+// 21. MIDDLEWARE EXPRESS
 // ============================================================
 module.exports = function(app, mongoose) {
 
@@ -646,5 +778,5 @@ module.exports = function(app, mongoose) {
     next();
   });
 
-  console.log('[answer-enricher] Module charge - references adaptees par domaine + validation Juge Claude');
+  console.log('[answer-enricher] Module charge - Scholars + References ciblees + Graphes analytiques');
 };
