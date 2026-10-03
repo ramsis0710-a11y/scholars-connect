@@ -24,6 +24,7 @@ app.use(express.json({ limit: "20mb" }));
 require('./auto-feed')(app, mongoose);
 // Module auto-ingest (documents utilisateurs + QA validee)
 require('./auto-ingest')(app, mongoose);
+require('./answer-enricher')(app, mongoose);
 
 // Middleware language-fix (ajout separe)
 require('./language-fix')(app);
