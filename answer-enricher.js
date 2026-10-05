@@ -1,12 +1,12 @@
 // ============================================================
 // ANSWER-ENRICHER.JS
-// Version v8.0 - QP par WO + extraction multi-WO + tableau croise API 6A
+// Version v10.0 - extraction colonne JOB + multi-WO
 //
-// - Detection automatique des demandes de QP (QP + N° WO)
-// - Extraction des WO depuis le document ARC colle
-// - Generation d'un QP STRICTEMENT conforme QP STANDARD 01 par WO
+// - Detection automatique des demandes de QP (QP + N° WO / JOB)
+// - Extraction des JOB depuis la colonne "JOB" du document ARC
+// - Generation d'un QP STRICTEMENT conforme QP STANDARD 01 par JOB
 // - Tableaux, notes a/b/c, approbations (QC + Tech + client + stamp)
-// - AJOUT v8.0 : extraction JOB + tableau croise exigences API 6A
+// - AJOUT v10.0 : extraction prioritaire de la colonne JOB
 // ============================================================
 
 'use strict';
@@ -42,7 +42,7 @@ var QP_STANDARD_01 = {
 };
 
 // ============================================================
-// 0.b EXIGENCES API 6A / QC STANDARD 01 (tableau croise - v8.0)
+// 0.b EXIGENCES API 6A / QC STANDARD 01 (tableau croise)
 // ============================================================
 var API_6A_REQUIREMENTS = [
   { num: 1,  req: 'Commande / Work Order documente',                ref: 'FO-05-R&D' },
@@ -171,7 +171,7 @@ var SCHOLARS_BY_DOMAIN = {
 };
 
 // ============================================================
-// 5. DETECTION QP + EXTRACTION WO
+// 5. DETECTION QP + EXTRACTION JOB (v10.0)
 // ============================================================
 function isQualityPlanRequest(question, content) {
   var text = ((question || '') + ' ' + (content || '')).toLowerCase();
@@ -187,53 +187,109 @@ function isQualityPlanRequest(question, content) {
   return false;
 }
 
+// v10.0 : extraction prioritaire de la colonne JOB
+// Le document ARC contient typiquement des lignes type :
+//   JOB : 28836
+//   Job 28836
+//   JOB:28836
+// ou un tableau avec une colonne "JOB" et des valeurs numeriques 28836-28839
 function extractWorkOrders(question, content) {
   var text = ((question || '') + '\n' + (content || ''));
   var wos = [];
   var seen = {};
 
-  // Regex resserres : WO suivi uniquement d'un numero (5 a 8 chiffres)
-  // Capture "WO 28836", "WO-28836", "WO:28836", "Work Order 28836", "Work Order: 28836"
-  // Evite de capturer "WO 0113XO6F1002M4F602F602" (numero interne produit)
-  var patterns = [
-    /\bWO[\s_:#-]+(\d{4,8})\b/gi,
-    /\bWork\s+Order[\s_:#-]*(\d{4,8})\b/gi,
-    /\bW\/O[\s_:#-]*(\d{4,8})\b/gi
+  // PRIORITE 1 : extraction de la colonne JOB (numeros uniquement)
+  var jobPatterns = [
+    /\bJOB[\s_:#-]+(\d{4,8})\b/gi,
+    /\bJob[\s_:#-]+(\d{4,8})\b/gi
   ];
 
-  patterns.forEach(function(rx) {
-    var m;
-    while ((m = rx.exec(text)) !== null) {
-      var num = (m[1] || '').replace(/[^0-9]/g, '');
-      if (num.length < 4) continue;
-      if (seen[num]) continue;
-      seen[num] = true;
+  for (var jp = 0; jp < jobPatterns.length; jp++) {
+    var rxj = jobPatterns[jp];
+    var mj;
+    while ((mj = rxj.exec(text)) !== null) {
+      var numJ = (mj[1] || '').replace(/[^0-9]/g, '');
+      if (numJ.length < 4) continue;
+      if (seen[numJ]) continue;
+      seen[numJ] = true;
       wos.push({
-        id: num,
-        raw: num,
-        matchIndex: m.index
+        id: numJ,
+        raw: numJ,
+        matchIndex: mj.index,
+        source: 'JOB'
       });
     }
-  });
+  }
+
+  // PRIORITE 2 (fallback) : si aucun JOB detecte, chercher WO + numero pur
+  if (wos.length === 0) {
+    var woPatterns = [
+      /\bWO[\s_:#-]+(\d{4,8})\b/gi,
+      /\bWork\s+Order[\s_:#-]*(\d{4,8})\b/gi,
+      /\bW\/O[\s_:#-]*(\d{4,8})\b/gi
+    ];
+    for (var wp = 0; wp < woPatterns.length; wp++) {
+      var rxw = woPatterns[wp];
+      var mw;
+      while ((mw = rxw.exec(text)) !== null) {
+        var numW = (mw[1] || '').replace(/[^0-9]/g, '');
+        if (numW.length < 4) continue;
+        if (seen[numW]) continue;
+        seen[numW] = true;
+        wos.push({
+          id: numW,
+          raw: numW,
+          matchIndex: mw.index,
+          source: 'WO'
+        });
+      }
+    }
+  }
+
+  // PRIORITE 3 (fallback ultime) : si toujours rien, prendre TOUS les WO alphanumeriques
+  // (pour ne JAMAIS rater un document, meme si le format est inhabituel)
+  if (wos.length === 0) {
+    var alphaPatterns = [
+      /\bWO[\s_:#-]+([A-Z0-9][A-Z0-9\-_.\/]{5,40})\b/gi,
+      /\bWork\s+Order[\s_:#-]*([A-Z0-9][A-Z0-9\-_.\/]{5,40})\b/gi
+    ];
+    for (var ap = 0; ap < alphaPatterns.length; ap++) {
+      var rxa = alphaPatterns[ap];
+      var ma;
+      while ((ma = rxa.exec(text)) !== null) {
+        var numA = (ma[1] || '').trim();
+        if (numA.length < 5) continue;
+        var keyA = numA.toUpperCase();
+        if (seen[keyA]) continue;
+        seen[keyA] = true;
+        wos.push({
+          id: numA,
+          raw: numA,
+          matchIndex: ma.index,
+          source: 'WO-alpha'
+        });
+      }
+    }
+  }
 
   return wos;
 }
 
 function extractWoBlock(content, wo, allWos) {
-  // Extraire le bloc de texte autour du WO (jusqu'au WO suivant)
+  // Extraire le bloc de texte autour du JOB (jusqu'au JOB suivant)
   if (!content || !wo) return '';
-  var idx = content.toUpperCase().indexOf(wo.raw.toUpperCase());
-  if (idx === -1) return content.slice(0, 4000);
+  var idx = content.toUpperCase().indexOf(String(wo.raw).toUpperCase());
+  if (idx === -1) return content.slice(0, 6000);
 
   var nextIdx = content.length;
   for (var i = 0; i < allWos.length; i++) {
     var other = allWos[i];
     if (other.raw === wo.raw) continue;
-    var oIdx = content.toUpperCase().indexOf(other.raw.toUpperCase(), idx + 1);
+    var oIdx = content.toUpperCase().indexOf(String(other.raw).toUpperCase(), idx + 1);
     if (oIdx !== -1 && oIdx < nextIdx) nextIdx = oIdx;
   }
 
-  return content.slice(idx, Math.min(nextIdx, idx + 6000));
+  return content.slice(idx, Math.min(nextIdx, idx + 8000));
 }
 
 // ============================================================
@@ -565,7 +621,7 @@ function generateReferences(docs, domain, scholars) {
 }
 
 // ============================================================
-// 11. CONSTRUCTION QP PAR WO (coeur v7.0)
+// 11. CONSTRUCTION QP PAR JOB
 // ============================================================
 function extractFieldFromBlock(block, patterns) {
   if (!block) return '';
@@ -623,7 +679,7 @@ function extractMatiereFromBlock(block) {
 }
 
 // ============================================================
-// 12. RENDU HTML QP PAR WO
+// 12. RENDU HTML QP PAR JOB
 // ============================================================
 function renderQPHeader(wo) {
   var h = QP_STANDARD_01;
@@ -749,9 +805,6 @@ function buildQPSectionsForWO(wo, block) {
   };
 }
 
-// ============================================================
-// 12.b TABLEAU CROISE API 6A (ajout v8.0)
-// ============================================================
 function renderCrossTableAPI6A(data, wo) {
   var html = '<table style="width:100%;border-collapse:collapse;font-family:Arial,sans-serif;font-size:9px;margin-top:10px">';
   html += '<tr><td colspan="8" style="border:1px solid #0a2540;padding:6px;background:#0a2540;color:#ffffff;font-weight:700;font-size:11px">Tableau Croise des Exigences - QP-' + esc(wo.id) + '</td></tr>';
@@ -773,7 +826,6 @@ function renderCrossTableAPI6A(data, wo) {
     var nonConforme = '';
     var observation = '';
 
-    // Exigences generalement non mentionnees dans un document ARC
     if (r.num === 4 || r.num === 9 || (r.num >= 12 && r.num <= 15) || r.num === 17 || r.num === 18 || r.num === 19 || r.num === 20 || r.num === 26) {
       conforme = '';
       nonMentionne = 'X';
@@ -865,7 +917,7 @@ function renderAllQPs(wos, content) {
   if (!wos || wos.length === 0) return '';
   var html = '<div style="background:#eff6ff;border-left:4px solid #1e5aa8;border-radius:8px;padding:14px;margin:0 0 20px 0">' +
     '<div style="color:#1e40af;font-weight:800;font-size:14px">📄 ' + wos.length + ' Work Order(s) detecte(s)</div>' +
-    '<div style="font-size:12px;color:#1e3a8a;margin-top:4px">Un QP specifique conforme QP STANDARD 01 est genere pour chacun.</div>' +
+    '<div style="font-size:12px;color:#1e3a8a;margin-top:4px">Un QP specifique conforme QP STANDARD 01 est genere pour chacun. Cliquez sur "Telecharger PDF" pour obtenir les ' + wos.length + ' QP en document A4.</div>' +
     '<div style="margin-top:8px;font-size:12px;color:#1e3a8a">' + wos.map(function(w) { return '<span style="display:inline-block;background:#ffffff;border:1px solid #1e5aa8;color:#1e5aa8;padding:3px 10px;border-radius:12px;margin:2px 4px 2px 0;font-weight:700">QP-' + esc(w.id) + '</span>'; }).join('') + '</div>' +
     '</div>';
 
@@ -907,15 +959,15 @@ async function enrichAnswer(answer, question, domain, lang, mongoose, mode, orig
     var keyPoints = extractKeyPoints(answer);
     var enriched = '';
 
-    // Bandeau QP + rendu multi-QP par WO
+    // Bandeau QP + rendu multi-QP par JOB
     if (isQP) {
       var wos = extractWorkOrders(question, contentSource);
       if (wos.length > 0) {
         enriched += renderAllQPs(wos, contentSource);
       } else {
         enriched += '<div style="background:#fef2f2;border:2px solid #dc2626;border-radius:8px;padding:14px;margin:0 0 20px 0">' +
-          '<div style="color:#991b1b;font-weight:700">⚠️ Aucun WO detecte dans le document</div>' +
-          '<div style="font-size:12px;color:#7f1d1d;margin-top:4px">Veuillez verifier que le document contient des Work Orders (WO 28836, WO-28836, Work Order 28836...).</div></div>';
+          '<div style="color:#991b1b;font-weight:700">⚠️ Aucun JOB detecte dans le document</div>' +
+          '<div style="font-size:12px;color:#7f1d1d;margin-top:4px">Verifiez que le document contient une colonne JOB avec des numeros (JOB 28836, JOB: 28836...).</div></div>';
       }
     }
 
@@ -950,7 +1002,7 @@ async function enrichAnswer(answer, question, domain, lang, mongoose, mode, orig
     // SECTION 6 : Agents
     enriched += '<div style="background:#f5f7fa;border:1px solid #e5e7eb;border-radius:8px;padding:14px;margin:20px 0;font-size:12px;color:#6b7280;text-align:center">';
     enriched += '<strong style="color:#0a2540">Agents IA impliques :</strong> MBA-CONSULT AI CORE - OpenRouter - Semantic Engine - Language Fix - Voice Engine - <strong style="color:#16a34a">Juge Claude (validation active)</strong>';
-    if (isQP) enriched += ' - <strong style="color:#f59e0b">QP STANDARD 01 applique par WO + Tableau croise API 6A</strong>';
+    if (isQP) enriched += ' - <strong style="color:#f59e0b">QP STANDARD 01 applique par JOB + Tableau croise API 6A</strong>';
     if (mode === 'document') enriched += ' - <strong style="color:#1e5aa8">Traitement exclusif du document colle</strong>';
     enriched += '</div>';
 
@@ -981,10 +1033,10 @@ module.exports = function(app, mongoose) {
       var isQP = isQualityPlanRequest(questionOriginale, '');
       var prefix = '';
       if (isQP) {
-        prefix = '[INSTRUCTION SYSTEME - CONFORMITE QP STANDARD 01 PAR WO]\n' +
-          'Si la question contient des Work Orders (WO 28836, WO-28836), genere UN QP SPECIFIQUE PAR WO.\n' +
+        prefix = '[INSTRUCTION SYSTEME - CONFORMITE QP STANDARD 01 PAR JOB]\n' +
+          'Si la question contient des JOB (JOB 28836, JOB: 28836), genere UN QP SPECIFIQUE PAR JOB.\n' +
           'Structure QP STANDARD 01 : en-tete GMPI FO-24-PRO Rev 6, notes a/b/c, 9 sections imposees, approbations, tableau croise API 6A.\n' +
-          'Reference : QP-<N° WO>.\n\n';
+          'Reference : QP-<N° JOB>.\n\n';
       }
       var rag = await buildRagContext(AutoFeedDoc, questionOriginale, 3, 3500);
       if (rag.context && rag.context.length > 200) {
@@ -1017,11 +1069,11 @@ module.exports = function(app, mongoose) {
 
       if (isQP) {
         prefix =
-          '[INSTRUCTION SYSTEME OBLIGATOIRE - QP STANDARD 01 PAR WO]\n' +
-          'Le document contient une ou plusieurs Work Orders (WO 28836, WO-28836).\n' +
-          'Tu dois generer UN QP SPECIFIQUE POUR CHAQUE WO.\n' +
+          '[INSTRUCTION SYSTEME OBLIGATOIRE - QP STANDARD 01 PAR JOB]\n' +
+          'Le document contient une ou plusieurs colonnes JOB avec des numeros (JOB 28836, JOB: 28836, JOB 28837, JOB 28838, JOB 28839).\n' +
+          'Tu dois generer UN QP SPECIFIQUE POUR CHAQUE JOB.\n' +
           'Chaque QP doit :\n' +
-          '  - Etre identifie "QP-<N° WO>"\n' +
+          '  - Etre identifie "QP-<N° JOB>"\n' +
           '  - Respecter la structure QP STANDARD 01 (GMPI FO-24-PRO Rev 6)\n' +
           '  - Contenir l en-tete (code FO-24-PRO, Rev 6, date 03/08/2017)\n' +
           '  - Contenir les notes a/b/c obligatoires\n' +
@@ -1029,12 +1081,12 @@ module.exports = function(app, mongoose) {
           '  - Contenir la ligne JOB dans la section 2\n' +
           '  - Contenir le tableau croise API 6A (30 exigences avec X dans Applicable/Conforme/Non Conforme/Non Mentionne)\n' +
           '  - Contenir le tableau d approbation (QC + Tech + Client + Signature + Stamp)\n' +
-          '  - Extraire les donnees specifiques au WO (client, produit, quantite, norme, matiere)\n' +
+          '  - Extraire les donnees specifiques au JOB (client, produit, quantite, norme, matiere)\n' +
           'Si une donnee manque, ecrire "Non mentionne dans le document".\n' +
           '[FIN INSTRUCTION]\n\n';
       }
 
-      req.body.question = prefix + (questionUser || 'Genere le QP pour chaque WO present dans le document.');
+      req.body.question = prefix + (questionUser || 'Genere le QP pour chaque JOB present dans le document.');
 
       req.body.content =
         '[INSTRUCTION SYSTEME - DOCUMENT DE REFERENCE STRICT]\n' +
@@ -1044,7 +1096,7 @@ module.exports = function(app, mongoose) {
         content +
         '\n=== FIN DU DOCUMENT ===\n';
 
-      console.log('[answer-enricher] v8.0 - Mode DOCUMENT ' + (isQP ? '+ QP STANDARD 01 par WO + Tableau croise API 6A' : '') + ' - ' + content.length + ' car.');
+      console.log('[answer-enricher] v10.0 - Mode DOCUMENT ' + (isQP ? '+ QP STANDARD 01 par JOB + Tableau croise API 6A' : '') + ' - ' + content.length + ' car.');
     } else {
       console.log('[answer-enricher] analyze-content sans contenu exploitable');
     }
@@ -1094,5 +1146,5 @@ module.exports = function(app, mongoose) {
   app.use('/api/ask', ragPreprocessAsk, postprocess('ask'));
   app.use('/api/analyze-content', documentPreprocess, postprocess('document'));
 
-  console.log('[answer-enricher] v8.0 charge - QP par WO + Tableau croise API 6A + JOB');
+  console.log('[answer-enricher] v10.0 charge - QP par JOB + Tableau croise API 6A');
 };
