@@ -1,11 +1,6 @@
 // ============================================================
 // ANSWER-ENRICHER.JS
-// Version v13.0 - Detection JOB par pattern ARC + PDF propre
-//
-// - Detection des JOB via "As per our estimate" (fiable 99%)
-// - Generation QP par JOB conforme QP STANDARD 01
-// - Tableau croise API 6A (30 exigences)
-// - Pas d'IA dans le circuit QP (parsing pur)
+// Version v13.1 - Detection JOB pattern ARC + PDF propre
 // ============================================================
 
 'use strict';
@@ -156,7 +151,7 @@ var SCHOLARS_BY_DOMAIN = {
 };
 
 // ============================================================
-// 5. DETECTION QP + EXTRACTION JOB (v13.0)
+// 5. DETECTION QP + EXTRACTION JOB (v13.1)
 // ============================================================
 function isQualityPlanRequest(question, content) {
   var text = ((question || '') + ' ' + (content || '')).toLowerCase();
@@ -172,60 +167,38 @@ function isQualityPlanRequest(question, content) {
   return false;
 }
 
-// v13.0 : extraction par pattern "As per our estimate"
-// Format ARC reel :
-//   Description produit (3-4 lignes)
-//   As per our estimate n°20260270
-//   28636 1 18/07/26
-// On capture le N° JOB (5 chiffres), la quantite et la date qui suivent
-// immediatement "As per our estimate n°XXXXX".
 function extractWorkOrders(question, content) {
   var text = ((question || '') + '\n' + (content || ''));
   var wos = [];
   var seen = {};
 
-  // PATTERN PRINCIPAL : "As per our estimate n°XXXXX" suivi de "NNNNN Qte Date"
-  // \s* matche les espaces ET retours a la ligne
-  var arcRegex = /As\s+per\s+our\s+estimate\s+n[°º]?\s*\d+\s*\n?\s*(\d{5})\s+(\d{1,3})\s+(\d{2}\/\d{2}\/\d{2,4})/gi;
+  // Pattern 1 : "As per our estimate" suivi d'un N° 5 chiffres + qte + date
+  var arcRegex = /As\s+per\s+our\s+estimate[\s\S]{0,50}?(\d{5})\s+(\d{1,3})\s+(\d{2}\/\d{2}\/\d{2,4})/gi;
   var m;
   while ((m = arcRegex.exec(text)) !== null) {
     var num = m[1];
     if (seen[num]) continue;
     seen[num] = true;
-    wos.push({
-      id: num,
-      raw: num,
-      qte: m[2],
-      date: m[3],
-      matchIndex: m.index,
-      source: 'ARC-estimate'
-    });
+    wos.push({ id: num, raw: num, qte: m[2], date: m[3], matchIndex: m.index, source: 'ARC-estimate' });
   }
 
-  // FALLBACK 1 : "As per our estimate n°XXXXX" isole, puis chercher un N° 5 chiffres apres
+  // Pattern 2 (fallback) : "estimate" puis N° 5 chiffres apres
   if (wos.length === 0) {
-    var estimateRegex = /As\s+per\s+our\s+estimate\s+n[°º]?\s*\d+/gi;
+    var estimateRegex = /estimate/gi;
     var em;
     while ((em = estimateRegex.exec(text)) !== null) {
-      var after = text.slice(em.index + em[0].length, em.index + em[0].length + 500);
-      var numMatch = after.match(/\b(\d{5})\s+(\d{1,3})\s+(\d{2}\/\d{2}\/\d{2,4})/);
+      var after = text.slice(em.index, em.index + 500);
+      var numMatch = after.match(/(\d{5})\s+(\d{1,3})\s+(\d{2}\/\d{2}\/\d{2,4})/);
       if (numMatch) {
         var n1 = numMatch[1];
         if (seen[n1]) continue;
         seen[n1] = true;
-        wos.push({
-          id: n1,
-          raw: n1,
-          qte: numMatch[2],
-          date: numMatch[3],
-          matchIndex: em.index,
-          source: 'ARC-fallback'
-        });
+        wos.push({ id: n1, raw: n1, qte: numMatch[2], date: numMatch[3], matchIndex: em.index, source: 'ARC-fallback' });
       }
     }
   }
 
-  // FALLBACK 2 : pattern general "NNNNN Qte Date" partout dans le document
+  // Pattern 3 (fallback ultime) : "NNNNN Qte Date" partout
   if (wos.length === 0) {
     var genRegex = /\b(\d{5})\s+(\d{1,3})\s+(\d{2}\/\d{2}\/\d{2,4})\b/g;
     var gm;
@@ -235,14 +208,7 @@ function extractWorkOrders(question, content) {
       if (nInt < 20000 || nInt > 40000) continue;
       if (seen[n2]) continue;
       seen[n2] = true;
-      wos.push({
-        id: n2,
-        raw: n2,
-        qte: gm[2],
-        date: gm[3],
-        matchIndex: gm.index,
-        source: 'generic'
-      });
+      wos.push({ id: n2, raw: n2, qte: gm[2], date: gm[3], matchIndex: gm.index, source: 'generic' });
     }
   }
 
@@ -251,37 +217,25 @@ function extractWorkOrders(question, content) {
 
 function extractWoBlock(content, wo, allWos) {
   if (!content || !wo) return content || '';
-
-  // Trouver la position du N° JOB (pas juste le numero seul, mais dans son contexte)
-  // On cherche "As per our estimate" le plus proche AVANT ce numero
-  var estimateMarker = 'As per our estimate';
   var numStr = String(wo.raw);
-  var idx = -1;
 
-  // Chercher "estimate n°...numStr" 
-  var re = new RegExp('As\\s+per\\s+our\\s+estimate\\s+n[°º]?\\s*\\d+\\s*\\n?\\s*' + numStr, 'i');
+  // Chercher "estimate ... numStr"
+  var re = new RegExp('estimate[\\s\\S]{0,50}?' + numStr, 'i');
   var match = content.match(re);
-  if (match) {
-    idx = match.index;
-  } else {
-    // Sinon prendre l'index direct du numero
-    idx = content.indexOf(numStr);
-  }
+  var idx = match ? match.index : content.indexOf(numStr);
   if (idx === -1) return content.slice(0, 8000);
 
-  // Le bloc s'etend de "As per our estimate" jusqu'au prochain JOB
   var nextIdx = content.length;
   for (var i = 0; i < allWos.length; i++) {
     var other = allWos[i];
     if (other.raw === wo.raw) continue;
-    var otherRe = new RegExp('As\\s+per\\s+our\\s+estimate\\s+n[°º]?\\s*\\d+\\s*\\n?\\s*' + other.raw, 'i');
+    var otherRe = new RegExp('estimate[\\s\\S]{0,50}?' + other.raw, 'i');
     var otherMatch = content.match(otherRe);
     if (otherMatch && otherMatch.index > idx && otherMatch.index < nextIdx) {
       nextIdx = otherMatch.index;
     }
   }
 
-  // Prendre le bloc (avec 1500 chars AVANT pour capter la description produit)
   var start = Math.max(0, idx - 1500);
   return content.slice(start, Math.min(nextIdx, idx + 6000));
 }
@@ -466,28 +420,19 @@ function judgeClaudeValidation(question, answer, domain) {
 // 10. EXTRACTION DONNEES ARC
 // ============================================================
 function extractARCData(block, globalContent, wo) {
-  // Client : chercher un nom d'entreprise en majuscules
   var client = 'Non mentionne dans le document';
   var mClient = globalContent.match(/(PETROLEUM\s+EQUIPMENT\s+AND\s+SUPPLIES\s+FZE|ENI\s+TUNISIA[^\n\r]*|[A-Z][A-Z\s&\.]{5,50}(?:FZE|LLC|LTD|B\.V\.|SA|SARL|GMBH))/);
   if (mClient) client = mClient[1].trim();
 
-  // Produit : extraire le texte entre "MANUFACTURE" et "As per our estimate"
   var produit = '';
   var mProd = block.match(/MANUFACTURE\s+([\s\S]{5,300}?)(?=As\s+per\s+our\s+estimate)/i);
   if (mProd) {
-    produit = mProd[1]
-      .replace(/\n/g, ' ')
-      .replace(/\s+/g, ' ')
-      .replace(/SUPPLY MATERIAL & MANUFACTURE/i, '')
-      .replace(/As per our estimate[^\n]*/i, '')
-      .trim();
+    produit = mProd[1].replace(/\n/g, ' ').replace(/\s+/g, ' ').replace(/SUPPLY MATERIAL & MANUFACTURE/i, '').replace(/As per our estimate[^\n]*/i, '').trim();
   }
-  // Si pas trouve, chercher apres "MANUFACTURE" jusqu'au N° JOB
   if (!produit) {
     var mProd2 = block.match(/MANUFACTURE\s+([\s\S]{5,300}?)\d{5}\s+\d/i);
     if (mProd2) produit = mProd2[1].replace(/\n/g, ' ').replace(/\s+/g, ' ').trim();
   }
-  // Fallback : chercher INTEGRAL / FLANGE / WECO
   if (!produit) {
     var mProd3 = block.match(/((?:INTEGRAL|FLANGE|WECO)[\s\S]{5,150}?)(?=\d{5}\s+\d|As per|Page|$)/i);
     if (mProd3) produit = mProd3[1].replace(/\n/g, ' ').replace(/\s+/g, ' ').trim();
@@ -495,19 +440,16 @@ function extractARCData(block, globalContent, wo) {
   if (!produit) produit = 'Non mentionne dans le document';
   produit = produit.slice(0, 250);
 
-  // Quantite : depuis wo.qte, ou dans le bloc
   var qte = wo.qte || '';
   if (!qte) {
     var mQty = block.match(/\b(\d{1,3})\s+\d{2}\/\d{2}\/\d{2}/);
     if (mQty) qte = mQty[1];
   }
 
-  // Norme
   var norme = 'API 6A Latest Edition';
   var mNorme = globalContent.match(/Manufactured According to\s+([^\n\r]+)/i);
   if (mNorme) norme = mNorme[1].trim();
 
-  // Matiere
   var matiere = '';
   var mMatiere = block.match(/Material Grade:\s*([^\n\r]+)/i);
   if (mMatiere) matiere = mMatiere[1].trim();
@@ -516,17 +458,14 @@ function extractARCData(block, globalContent, wo) {
     if (mAISI) matiere = mAISI[1];
   }
 
-  // Classe de materiau
   var classeMat = '';
   var mClasse = block.match(/Material Class:\s*([A-Z0-9\-_]+)/i);
   if (mClasse) classeMat = mClasse[1];
 
-  // PSL
   var psl = '';
   var mPSL = block.match(/PSL\s*-?\s*(\d)/i);
   if (mPSL) psl = mPSL[1];
 
-  // Test pression
   var testPression = '';
   var mPression = block.match(/(?:Working pressure|Working Pressure):\s*([^\n\r]+)/i);
   if (mPression) testPression = mPression[1].trim();
@@ -535,16 +474,13 @@ function extractARCData(block, globalContent, wo) {
     if (mPSI) testPression = 'Test de pression a ' + mPSI[1];
   }
 
-  // Service H2S
   var service = '';
   if (/H2S/i.test(block)) service = 'H2S Services';
 
-  // Estimation
   var estimation = '';
   var mEstim = block.match(/estimate n[°º]?\s*(\d+)/i) || globalContent.match(/estimate n[°º]?\s*(\d+)/i);
   if (mEstim) estimation = mEstim[1];
 
-  // ARC
   var arc = '';
   var mARC = globalContent.match(/\b(\d{10})\b/);
   if (mARC) arc = mARC[1];
@@ -581,7 +517,7 @@ function renderQPHeader(wo) {
     '<div style="font-weight:800;font-size:14px;color:#0a2540">' + esc(h.title) + '</div>' +
     '<div style="font-size:12px;color:#991b1b;margin-top:6px;font-weight:700">QP-' + esc(wo.id) + '</div>' +
     '</td>' +
-    '<td style="border:1px solid #0a2540;padding:6px;width:10%;text-align:center;font-size:10px;font-weight:700">N° page</td>' +
+    '<td style="border:1px solid #0a2540;padding:6px;width:10%;text-align:center;font-size:10px;font-weight:700">N. page</td>' +
     '</tr>' +
     '<tr><td style="border:1px solid #0a2540;padding:6px;text-align:center;font-size:11px">1/1</td></tr>' +
     '<tr>' +
@@ -638,7 +574,7 @@ function renderCrossTableAPI6A(data, wo) {
   var html = '<table style="width:100%;border-collapse:collapse;font-family:Arial,sans-serif;font-size:9px;margin-top:10px">';
   html += '<tr><td colspan="8" style="border:1px solid #0a2540;padding:6px;background:#0a2540;color:#ffffff;font-weight:700;font-size:11px">Tableau Croise des Exigences - QP-' + esc(wo.id) + '</td></tr>';
   html += '<tr style="background:#f5f7fa;font-weight:700">' +
-    '<td style="border:1px solid #0a2540;padding:4px;width:4%">N°</td>' +
+    '<td style="border:1px solid #0a2540;padding:4px;width:4%">N.</td>' +
     '<td style="border:1px solid #0a2540;padding:4px;width:36%">Exigence (QC STANDARD 01 / API 6A)</td>' +
     '<td style="border:1px solid #0a2540;padding:4px;width:14%">Ref. Norme</td>' +
     '<td style="border:1px solid #0a2540;padding:4px;width:7%;text-align:center">Applic.</td>' +
@@ -703,7 +639,7 @@ function renderSingleQP(wo, block, globalContent) {
   html += renderQPSection(1, 'Informations generales', [
     { label: 'Client', value: data.client },
     { label: 'Commande ARC', value: data.arc },
-    { label: 'N° WO', value: wo.id },
+    { label: 'N. WO', value: wo.id },
     { label: 'Produit', value: data.produit },
     { label: 'Quantite', value: data.qte },
     { label: 'Norme applicable', value: data.norme }
@@ -711,7 +647,7 @@ function renderSingleQP(wo, block, globalContent) {
   html += renderQPSection(2, 'References documentaires', [
     { label: 'Work Order', value: 'WO-' + wo.id + ' - Document Reference FO-05-R&D' },
     { label: 'JOB', value: wo.id },
-    { label: 'Estimation', value: data.estimation ? 'n°' + data.estimation : '' },
+    { label: 'Estimation', value: data.estimation ? 'n.' + data.estimation : '' },
     { label: 'Norme principale', value: data.norme },
     { label: 'Procedure', value: 'FO-24-PRO Rev. 6' }
   ]);
@@ -764,7 +700,7 @@ function renderAllQPs(wos, content) {
 }
 
 // ============================================================
-// 12. ENRICHISSEMENT (avec ou sans IA selon le cas)
+// 12. ENRICHISSEMENT
 // ============================================================
 async function enrichAnswer(answer, question, domain, lang, mongoose, mode, originalContent) {
   try {
@@ -791,25 +727,20 @@ async function enrichAnswer(answer, question, domain, lang, mongoose, mode, orig
     var enriched = '';
 
     if (isQP) {
-      // MODE QP : parsing pur, pas d'IA
       var wos = extractWorkOrders(question, contentSource);
       if (wos.length > 0) {
-        // Bandeau visible dans le chat (minimal)
         enriched += '<div style="background:#eff6ff;border-left:4px solid #1e5aa8;border-radius:8px;padding:18px;margin:0 0 20px 0">';
-        enriched += '<div style="color:#1e40af;font-weight:800;font-size:15px">📄 ' + wos.length + ' Work Order(s) detecte(s)</div>';
-        enriched += '<div style="font-size:13px;color:#1e3a8a;margin-top:6px">' + wos.length + ' QP conforme(s) QP STANDARD 01 genere(s). Cliquez sur <strong>Telecharger PDF</strong> pour obtenir le document A4 formate.</div>';
+        enriched += '<div style="color:#1e40af;font-weight:800;font-size:15px">' + wos.length + ' Work Order(s) detecte(s)</div>';
+        enriched += '<div style="font-size:13px;color:#1e3a8a;margin-top:6px">' + wos.length + ' QP conforme(s) QP STANDARD 01 genere(s). Cliquez sur Telecharger PDF pour obtenir le document A4 formate.</div>';
         enriched += '<div style="margin-top:10px;font-size:13px;color:#1e3a8a">' + wos.map(function(w) { return '<span style="display:inline-block;background:#ffffff;border:1px solid #1e5aa8;color:#1e5aa8;padding:4px 12px;border-radius:14px;margin:3px 5px 3px 0;font-weight:700">QP-' + esc(w.id) + '</span>'; }).join('') + '</div>';
         enriched += '</div>';
-
-        // QP HTML complet (invisible dans le chat, visible dans le PDF)
         enriched += '<div class="qp-print-container" style="background:#ffffff;margin:0 0 20px 0">' + renderAllQPs(wos, contentSource) + '</div>';
       } else {
         enriched += '<div style="background:#fef2f2;border:2px solid #dc2626;border-radius:8px;padding:14px;margin:0 0 20px 0">' +
-          '<div style="color:#991b1b;font-weight:700">⚠️ Aucun JOB detecte dans le document</div>' +
-          '<div style="font-size:12px;color:#7f1d1d;margin-top:4px">Verifiez que le document contient des lignes "As per our estimate n°XXXXX" suivies d'un N° JOB a 5 chiffres.</div></div>';
+          '<div style="color:#991b1b;font-weight:700">Aucun JOB detecte dans le document</div>' +
+          '<div style="font-size:12px;color:#7f1d1d;margin-top:4px">Verifiez que le document contient des lignes avec le mot estimate suivies d un numero de JOB a 5 chiffres.</div></div>';
       }
     } else {
-      // MODE NORMAL : reponse IA classique
       enriched += '<div style="background:#ffffff;border:1px solid #e5e7eb;border-radius:12px;padding:24px;margin:0 0 20px 0">';
       enriched += '<h3 style="color:#0a2540;font-size:17px;font-weight:700;margin:0 0 16px 0;padding-bottom:10px;border-bottom:2px solid #1e5aa8">Reponse detaillee</h3>';
       enriched += '<div style="font-size:14px;color:#17202a;white-space:pre-wrap">' + esc(answer) + '</div>';
@@ -848,7 +779,6 @@ module.exports = function(app, mongoose) {
     next();
   }
 
-  // PRE-PROCESS pour /api/analyze-content : si QP, on n'appelle PAS l'IA
   function documentPreprocess(req, res, next) {
     if (!req.body) return next();
     var content = req.body.content ? String(req.body.content) : '';
@@ -858,16 +788,7 @@ module.exports = function(app, mongoose) {
       req._documentContent = content;
       req._documentQuestion = questionUser;
       req._documentMode = true;
-
-      var isQP = isQualityPlanRequest(questionUser, content);
-
-      if (isQP) {
-        // Mode QP : ne pas appeler l'IA, generer directement
-        req._skipAI = true;
-        console.log('[answer-enricher] v13.0 Mode QP - Parsing direct (sans IA)');
-      } else {
-        console.log('[answer-enricher] v13.0 Mode NORMAL - Appel IA classique');
-      }
+      console.log('[answer-enricher] v13.1 Mode DOCUMENT - ' + content.length + ' car.');
     }
     next();
   }
@@ -914,5 +835,5 @@ module.exports = function(app, mongoose) {
   app.use('/api/ask', ragPreprocessAsk, postprocess('ask'));
   app.use('/api/analyze-content', documentPreprocess, postprocess('document'));
 
-  console.log('[answer-enricher] v13.0 charge - detection JOB pattern ARC');
+  console.log('[answer-enricher] v13.1 charge - detection JOB pattern ARC');
 };
