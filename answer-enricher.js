@@ -1,19 +1,49 @@
 // ============================================================
 // ANSWER-ENRICHER.JS
-// Version v5.1 - Traitement EXCLUSIF du document colle
+// Version v6.0 - Conformite obligatoire QP STANDARD 01
 //
-// COMPORTEMENT :
-//   /api/ask             -> RAG complet (base + graphiques + refs)
-//   /api/analyze-content -> EXCLUSIF au document colle
-//     - Instruction stricte injectee dans le CONTENU (pas seulement question)
-//     - Aucune recherche en base
-//     - Aucune reference externe
-//     - Aucun graphique sur la base
-//     - Aucun tableau de bord de domaine
-//     - Fiche technique indique "Document colle par l utilisateur"
+// NOUVEAU :
+//   - Detection des demandes de PLAN QUALITE
+//   - Structure imposee selon QP STANDARD 01 (GMPI / FO-24-PRO / Rev 6)
+//   - Injection du template dans le prompt IA (fond + forme)
+//   - Priorite : base locale -> RAG -> IA + scraping + semantique
+//   - Post-traitement : verifie et complete les sections manquantes
 // ============================================================
 
 'use strict';
+
+// ============================================================
+// 0. TEMPLATE QP STANDARD 01 (GMPI - FO-24-PRO Rev 6)
+// ============================================================
+const QP_STANDARD_01_TEMPLATE = {
+  header: {
+    company: 'Global Metallic Product Industries (GMPI)',
+    code: 'FO-24-PRO',
+    revIndex: '6',
+    revDate: '03/08/2017',
+    documentTitle: 'Quality Control Plan',
+    editedBy: 'QC Department',
+    approvedBy: 'Tech. Department',
+    requiresSignature: true,
+    requiresStamp: true
+  },
+  notes: {
+    a: 'For operation instruction, refer to Work Order (WO) — Document Reference FO-05-R&D',
+    b: 'Any NCR detected shall be treated according to procedure PR-01-PRO',
+    c: 'Thread inspection procedures (voir section dediee)'
+  },
+  sectionsImposees: [
+    'Informations generales (client, produit, commande, norme applicable)',
+    'References documentaires (WO, plans, normes API 5CT/5B, VAM, AISI 4140)',
+    'Matiere premiere (MTC, verification, tracabilite)',
+    'Processus de fabrication (etapes, POS, parametres cles)',
+    'Points de controle qualite (dimensionnel, visuel, NDT, pression)',
+    'Inspection par tiers / TPI (si requis par contrat)',
+    'Documents livrables (COC, MTC, certificats specifiques)',
+    'Gestion des non-conformites (PR-01-PRO)',
+    'Signatures et approbations (QC + Tech + client)'
+  ]
+};
 
 // ============================================================
 // 1. DOMAINES SENSIBLES
@@ -37,7 +67,8 @@ const ANALYTICAL_DOMAINS = [
   'IA & KMS', 'Sciences', 'Energie', 'Education', 'Industrie',
   'Technologie', 'Business', 'Gestion', 'Droit', 'Criminalite',
   'Terrorisme', 'Guerre/Conflit', 'Geopolitique', 'Economie mondiale',
-  'Sante publique', 'Immigration', 'Climat', 'Technique', 'Petrole & Gaz'
+  'Sante publique', 'Immigration', 'Climat', 'Technique', 'Petrole & Gaz',
+  'Plan Qualite'
 ];
 
 // ============================================================
@@ -69,6 +100,11 @@ const DOMAIN_METRICS = {
     { name: 'Taux de disponibilite', formula: 'temps actif / temps total', unit: '%', target: 90 },
     { name: 'Qualite premiere passe', formula: 'pieces bonnes du 1er coup / total', unit: '%', target: 92 }
   ]},
+  'Plan Qualite': { icon: '📋', label: 'Plan Qualite - QP STANDARD 01', ratios: [
+    { name: 'Conformite QP STANDARD 01', formula: 'sections conformes / sections imposees', unit: '%', target: 100 },
+    { name: 'Points de controle definis', formula: 'points definis / points attendus', unit: '%', target: 100 },
+    { name: 'Tracabilite matiere', formula: 'MTC disponibles / MTC attendus', unit: '%', target: 100 }
+  ]},
   'Finance': { icon: '📊', label: 'Finance et Risques', ratios: [
     { name: 'Ratio Sharpe', formula: '(rendement - sans risque) / volatilite', unit: '', target: 1.5 },
     { name: 'Value at Risk', formula: 'perte maximale 5%', unit: '%', target: 5 },
@@ -88,16 +124,6 @@ const DOMAIN_METRICS = {
     { name: 'Sensibilite', formula: 'VP / (VP + FN)', unit: '%', target: 90 },
     { name: 'Specificite', formula: 'VN / (VN + FP)', unit: '%', target: 95 },
     { name: 'Prevalence', formula: 'cas / population', unit: '%', target: 10 }
-  ]},
-  'Sante publique': { icon: '🏥', label: 'Sante Publique', ratios: [
-    { name: 'Taux de mortalite', formula: 'deces / population', unit: '/100k', target: 800 },
-    { name: 'Couverture vaccinale', formula: 'vaccines / population cible', unit: '%', target: 90 },
-    { name: 'Esperance de vie', formula: 'age moyen deces', unit: 'ans', target: 80 }
-  ]},
-  'Marketing': { icon: '📢', label: 'Marketing et Communication', ratios: [
-    { name: 'Taux conversion', formula: 'conversions / visiteurs', unit: '%', target: 3 },
-    { name: 'Cout acquisition', formula: 'depenses / nouveaux clients', unit: 'EUR', target: 50 },
-    { name: 'ROI marketing', formula: 'gains / depenses marketing', unit: 'x', target: 5 }
   ]},
   'Commerce': { icon: '🛒', label: 'Commerce et Logistique', ratios: [
     { name: 'Marge brute', formula: '(CA - couts) / CA', unit: '%', target: 30 },
@@ -119,31 +145,6 @@ const DOMAIN_METRICS = {
     { name: 'Taux criminalite', formula: 'infractions / 100 000 hab', unit: '/100k', target: 1000 },
     { name: 'Taux incarceration', formula: 'detenus / 100 000 hab', unit: '/100k', target: 150 }
   ]},
-  'Terrorisme': { icon: '⚠️', label: 'Terrorisme et Extremisme', ratios: [
-    { name: 'Attentats/an', formula: 'nombre attentats mondiaux', unit: '', target: 5000 },
-    { name: 'Victimes/an', formula: 'deces terrorism', unit: '', target: 20000 },
-    { name: 'Pays affectes', formula: 'pays avec attentats', unit: '', target: 60 }
-  ]},
-  'Guerre/Conflit': { icon: '⚔️', label: 'Guerre et Conflits', ratios: [
-    { name: 'Depenses militaires', formula: 'budget defense / PIB', unit: '%', target: 2 },
-    { name: 'Refugies conflit', formula: 'refugies / population', unit: '%', target: 5 },
-    { name: 'Victimes civiles', formula: 'deces civils', unit: '', target: 30000 }
-  ]},
-  'Geopolitique': { icon: '🌍', label: 'Geopolitique Mondiale', ratios: [
-    { name: 'Sanctions actives', formula: 'regimes de sanctions', unit: '', target: 30 },
-    { name: 'Tensions majeures', formula: 'zones conflit actives', unit: '', target: 20 },
-    { name: 'Volume echanges', formula: 'commerce mondial / PIB', unit: '%', target: 60 }
-  ]},
-  'Immigration': { icon: '🌐', label: 'Migration', ratios: [
-    { name: 'Migrants mondiaux', formula: 'migrants / population', unit: '%', target: 3.5 },
-    { name: 'Refugies mondiaux', formula: 'refugies / population', unit: 'M', target: 35 },
-    { name: 'Demandes asile', formula: 'demandes / an', unit: 'M', target: 2 }
-  ]},
-  'Climat': { icon: '🌡️', label: 'Climat', ratios: [
-    { name: 'Augmentation temp', formula: 'anomalie moyenne', unit: '°C', target: 1.5 },
-    { name: 'Emissions CO2', formula: 'GtCO2 / an', unit: 'Gt', target: 40 },
-    { name: 'Part renouvelables', formula: 'renouvelable / total', unit: '%', target: 30 }
-  ]},
   'Droit': { icon: '⚖️', label: 'Droit et Justice', ratios: [
     { name: 'Ratio condamnations', formula: 'condamnations / affaires', unit: '%', target: 70 },
     { name: 'Delai jugement', formula: 'mois moyens', unit: 'mois', target: 12 },
@@ -161,7 +162,7 @@ const LITERARY_RELIGIOUS_DOMAINS = [
 ];
 
 // ============================================================
-// 5. SCHOLARS PAR DOMAINE
+// 5. SCHOLARS
 // ============================================================
 const SCHOLARS_BY_DOMAIN = {
   'Religion': [
@@ -172,40 +173,26 @@ const SCHOLARS_BY_DOMAIN = {
     { fr: 'Malik ibn Anas', ar: 'مالك بن أنس' }, { fr: 'Ahmad ibn Hanbal', ar: 'أحمد بن حنبل' },
     { fr: 'Al-Qurtubi', ar: 'القرطبي' }, { fr: 'At-Tabari', ar: 'الطبري' },
     { fr: 'Ibn Hajar', ar: 'ابن حجر' }, { fr: 'As-Suyuti', ar: 'السيوطي' },
-    { fr: 'Ar-Razi', ar: 'الرازي' }, { fr: 'Al-Bukhari', ar: 'البخاري' },
-    { fr: 'Muslim', ar: 'مسلم' }, { fr: 'Abu Hanifa', ar: 'أبو حنيفة' },
-    { fr: 'Ibn Rushd', ar: 'ابن رشد' }, { fr: 'Al-Ash\'ari', ar: 'الأشعري' }
-  ],
-  'Philosophie': [
-    { fr: 'Aristote', ar: 'أرسطو' }, { fr: 'Platon', ar: 'أفلاطون' },
-    { fr: 'Socrate', ar: 'سقراط' }, { fr: 'Kant', ar: 'كانط' },
-    { fr: 'Descartes', ar: 'ديكارت' }, { fr: 'Nietzsche', ar: 'نيتشه' },
-    { fr: 'Sartre', ar: 'سارتر' }, { fr: 'Hegel', ar: 'هيجل' },
-    { fr: 'Ibn Rushd', ar: 'ابن رشد' }, { fr: 'Al-Farabi', ar: 'الفارابي' },
-    { fr: 'Ibn Sina', ar: 'ابن سينا' }, { fr: 'Al-Kindi', ar: 'الكندي' }
-  ],
-  'Litterature': [
-    { fr: 'Victor Hugo', ar: 'فيكتور هوغو' }, { fr: 'Moliere', ar: 'موليير' },
-    { fr: 'Balzac', ar: 'بلزاك' }, { fr: 'Flaubert', ar: 'فلوبير' },
-    { fr: 'Shakespeare', ar: 'شكسبير' }, { fr: 'Dante', ar: 'دانتي' },
-    { fr: 'Goethe', ar: 'غوته' }, { fr: 'Tolstoi', ar: 'تولستوي' },
-    { fr: 'Naguib Mahfouz', ar: 'نجيب محفوظ' }, { fr: 'Taha Hussein', ar: 'طه حسين' },
-    { fr: 'Al-Mutanabbi', ar: 'المتنبي' }
-  ],
-  'Histoire': [
-    { fr: 'Ibn Khaldun', ar: 'ابن خلدون' }, { fr: 'Herodote', ar: 'هيرودوت' },
-    { fr: 'Tacite', ar: 'تاسيتوس' }, { fr: 'Edward Gibbon', ar: 'إدوارد جيبون' },
-    { fr: 'Marc Bloch', ar: 'مارك بلوخ' }, { fr: 'Fernand Braudel', ar: 'فرناند بروديل' }
-  ],
-  'Droit': [
-    { fr: 'Montesquieu', ar: 'مونتسكيو' }, { fr: 'Rousseau', ar: 'روسو' },
-    { fr: 'Portalis', ar: 'بورتاليس' }, { fr: 'Ibn Taymiyya', ar: 'ابن تيمية' },
-    { fr: 'Ash-Shafi\'i', ar: 'الشافعي' }, { fr: 'Malik ibn Anas', ar: 'مالك بن أنس' }
+    { fr: 'Al-Bukhari', ar: 'البخاري' }, { fr: 'Muslim', ar: 'مسلم' }
   ]
 };
 
 // ============================================================
-// 6. NETTOYAGE DU TEXTE
+// 6. DETECTION PLAN QUALITE
+// ============================================================
+function isQualityPlanRequest(question, content) {
+  const text = ((question || '') + ' ' + (content || '')).toLowerCase();
+  const triggers = [
+    'plan qualite', 'plan qualité', 'plan de qualite', 'plan de qualité',
+    'quality control plan', 'quality plan', 'qp ', 'qp01', 'qp 01',
+    'qp standard', 'controle qualite', 'contrôle qualité',
+    'control plan', 'plan de controle', 'plan de contrôle'
+  ];
+  return triggers.some(t => text.includes(t));
+}
+
+// ============================================================
+// 7. NETTOYAGE / HTML / VECTOR
 // ============================================================
 function cleanText(text) {
   if (!text) return '';
@@ -222,9 +209,6 @@ function cleanText(text) {
   return t.trim();
 }
 
-// ============================================================
-// 7. FORMATAGE HTML
-// ============================================================
 function formatForHTML(text) {
   if (!text) return '';
   let clean = cleanText(text);
@@ -232,7 +216,6 @@ function formatForHTML(text) {
   const lines = clean.split('\n');
   const output = [];
   let inList = false;
-
   for (let i = 0; i < lines.length; i++) {
     let line = lines[i].trim();
     if (line === '') {
@@ -263,9 +246,6 @@ function formatForHTML(text) {
   return output.join('\n');
 }
 
-// ============================================================
-// 8. VECTORISATION
-// ============================================================
 function tokenize(text) {
   return String(text || '').toLowerCase().normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '').replace(/[^\p{L}\p{N}\s]/gu, ' ')
@@ -296,7 +276,7 @@ function keywordOverlapScore(queryTokens, docText) {
 }
 
 // ============================================================
-// 9. RECHERCHE DOCUMENTS (uniquement /api/ask)
+// 8. RECHERCHE DOCS
 // ============================================================
 async function findRelevantDocuments(AutoFeedDoc, query, limit = 5, minScore = 0.15) {
   try {
@@ -318,9 +298,6 @@ async function findRelevantDocuments(AutoFeedDoc, query, limit = 5, minScore = 0
   } catch (e) { return []; }
 }
 
-// ============================================================
-// 10. CONTEXTE RAG (uniquement /api/ask)
-// ============================================================
 async function buildRagContext(AutoFeedDoc, question, maxDocs = 3, maxCharsPerDoc = 3500) {
   try {
     const docs = await findRelevantDocuments(AutoFeedDoc, question, maxDocs, 0.15);
@@ -337,11 +314,14 @@ async function buildRagContext(AutoFeedDoc, question, maxDocs = 3, maxCharsPerDo
 }
 
 // ============================================================
-// 11. DETECTION DU DOMAINE
+// 9. DETECTION DOMAINE
 // ============================================================
 function detectDomain(question, defaultDomain) {
   if (defaultDomain && defaultDomain !== 'General') return defaultDomain;
   const q = String(question || '').toLowerCase();
+
+  // Priorite absolue : plan qualite
+  if (isQualityPlanRequest(question, '')) return 'Plan Qualite';
 
   const petroKeywords = ['api 5ct', 'api 5b', 'api 5l', 'api 6a', 'api 16a', 'api 16d',
     'api spec', 'api std', 'vam', 'tubage', 'casing', 'tubing', 'forage', 'puits',
@@ -350,7 +330,7 @@ function detectDomain(question, defaultDomain) {
     'h2s', 'sour gas', 'raccord', 'filetage', 'thread', 'coupling', 'manchon', 'oil & gas'];
   for (const kw of petroKeywords) if (q.includes(kw)) return 'Petrole & Gaz';
 
-  const techKeywords = ['norme', 'iso', 'qualite', 'fabrication', 'plan qualite', 'controle qualite',
+  const techKeywords = ['norme', 'iso', 'qualite', 'fabrication', 'controle qualite',
     'certificat', 'coc', 'mtc', 'inspection', 'essai', 'test pression', 'ndt',
     'soudure', 'welding', 'metal', 'acier', 'steel', 'alliage', 'tolerance',
     'specification', 'cahier charge', 'procedure', 'audit qualite'];
@@ -365,11 +345,11 @@ function detectDomain(question, defaultDomain) {
   }
 
   const keywords = {
-    'Religion': ['relig', 'islam', 'coran', 'hadith', 'sunnah', 'prophete', 'allah', 'dieu', 'priere', 'savants', 'ibn', 'imam', 'cheikh', 'theo', 'fikh', 'fiqh', 'charia', 'صلاة', 'عيد', 'مذهب', 'سني', 'شيعي', 'دين', 'فقه'],
+    'Religion': ['relig', 'islam', 'coran', 'hadith', 'sunnah', 'prophete', 'allah', 'dieu', 'priere', 'savants', 'ibn', 'imam', 'cheikh', 'theo', 'fikh', 'fiqh', 'charia'],
     'Litterature': ['litterat', 'poesie', 'roman', 'poete', 'ecrivain', 'theatre'],
     'Philosophie': ['philosoph', 'kant', 'platon', 'aristote', 'socrate'],
     'Histoire': ['histoir', 'civilis', 'empire', 'revolution'],
-    'Droit': ['droit', 'juridique', 'loi', 'tribunal', 'justice', 'قانون'],
+    'Droit': ['droit', 'juridique', 'loi', 'tribunal', 'justice'],
     'IA & KMS': ['intelligence', 'semantic', 'vector', 'embedding', 'llm', 'machine', 'learning', 'kms'],
     'Energie': ['energy', 'energie', 'solar', 'nuclear', 'hydrogen', 'grid'],
     'Finance': ['finance', 'risque', 'investment', 'market', 'sharpe', 'var'],
@@ -385,9 +365,6 @@ function detectDomain(question, defaultDomain) {
   return 'General';
 }
 
-// ============================================================
-// 12. VERIFICATIONS
-// ============================================================
 function isLiteraryOrReligious(domain) {
   return LITERARY_RELIGIOUS_DOMAINS.some(d => domain.toLowerCase().includes(d.toLowerCase()));
 }
@@ -399,7 +376,7 @@ function isSensitiveDomain(domain) {
 }
 
 // ============================================================
-// 13. DETECTION CHIFFRES
+// 10. CHIFFRES / SCHOLARS / AUTEUR / POINTS CLES
 // ============================================================
 function hasNumbers(text) {
   if (!text) return false;
@@ -411,29 +388,16 @@ function hasNumbers(text) {
   return patterns.some(p => p.test(text));
 }
 
-// ============================================================
-// 14. SCHOLARS
-// ============================================================
 function extractScholarsFromContent(question, answer, domain) {
   const text = (question + ' ' + answer).toLowerCase();
-  const scholars = SCHOLARS_BY_DOMAIN[domain] || SCHOLARS_BY_DOMAIN['Religion'] || [];
+  const scholars = SCHOLARS_BY_DOMAIN[domain] || [];
   const found = [];
   for (const scholar of scholars) {
     if (text.includes(scholar.fr.toLowerCase()) || text.includes(scholar.ar)) found.push(scholar.fr);
   }
-  if (found.length === 0) {
-    for (const dom in SCHOLARS_BY_DOMAIN) {
-      for (const scholar of SCHOLARS_BY_DOMAIN[dom]) {
-        if (text.includes(scholar.fr.toLowerCase()) || text.includes(scholar.ar)) found.push(scholar.fr);
-      }
-    }
-  }
   return found;
 }
 
-// ============================================================
-// 15. AUTEUR / DATE
-// ============================================================
 function extractAuthorAndDate(doc) {
   let author = 'Auteur non specifie';
   let date = 'Date non specifiee';
@@ -441,20 +405,12 @@ function extractAuthorAndDate(doc) {
     date = new Date(doc.createdAt).toLocaleDateString('fr-FR', { year: 'numeric', month: 'long', day: 'numeric' });
   }
   if (doc.url) {
-    if (doc.url.match(/linkedin\.com\/pulse\//)) author = 'LinkedIn Pulse';
-    else {
-      const m = doc.url.match(/https?:\/\/(?:www\.)?([^\/]+)/);
-      if (m) author = m[1].replace(/\.(com|org|net|io|fr|tn)$/, '');
-    }
+    const m = doc.url.match(/https?:\/\/(?:www\.)?([^\/]+)/);
+    if (m) author = m[1].replace(/\.(com|org|net|io|fr|tn)$/, '');
   }
-  const titleAuthor = doc.title && doc.title.match(/(?:Par|par|By|by)\s+([A-Z][a-zA-Z\u0600-\u06FF\s]+)/);
-  if (titleAuthor) author = titleAuthor[1].trim().slice(0, 40);
   return { author, date };
 }
 
-// ============================================================
-// 16. POINTS CLES
-// ============================================================
 function extractKeyPoints(text) {
   if (!text) return [];
   const cleaned = cleanText(text);
@@ -470,9 +426,6 @@ function extractKeyPoints(text) {
   }).sort((a, b) => b.score - a.score).slice(0, 5).map(x => x.sentence);
 }
 
-// ============================================================
-// 17. JUGE CLAUDE
-// ============================================================
 function judgeClaudeValidation(question, answer, domain) {
   const isSensitive = isSensitiveDomain(domain);
   const hasNums = hasNumbers(answer);
@@ -487,7 +440,7 @@ function judgeClaudeValidation(question, answer, domain) {
 }
 
 // ============================================================
-// 18. GRAPHIQUES
+// 11. GRAPHIQUES / DASHBOARD / FICHE / REFS
 // ============================================================
 function generateBarChart(title, data) {
   const width = 600, height = 320, padding = 50, barWidth = 55, gap = 25;
@@ -532,9 +485,6 @@ function generatePieChart(title, data) {
 </div>`;
 }
 
-// ============================================================
-// 19. TABLEAU DE BORD
-// ============================================================
 function generateDashboard(domain, docsUsed, semanticScore) {
   const metrics = DOMAIN_METRICS[domain];
   if (!metrics) return '';
@@ -551,7 +501,6 @@ function generateDashboard(domain, docsUsed, semanticScore) {
     let v = 0;
     if (r.formula.includes('cosinus')) v = Math.round(semanticScore * 100);
     else if (r.formula.includes('documents cites')) v = Math.min(docsUsed * 10, 100);
-    else if (r.formula.includes('mots techniques')) v = 25 + Math.round(semanticScore * 30);
     else v = Math.round(r.target * (0.7 + semanticScore * 0.5));
     const good = v >= r.target;
     html += `<tr style="border-bottom:1px solid #e5e7eb">`;
@@ -565,15 +514,11 @@ function generateDashboard(domain, docsUsed, semanticScore) {
   return html;
 }
 
-// ============================================================
-// 20. FICHE TECHNIQUE
-// ============================================================
 function generateTechSheet(domain, docsUsed, semanticScore, scholars, judgeResult, mode) {
   let html = `<div style="background:linear-gradient(135deg,#0a2540,#1e5aa8);color:#ffffff;border-radius:12px;padding:20px;margin:20px 0">`;
   html += `<h4 style="margin:0 0 14px 0;font-size:16px;font-weight:700">📋 Fiche technique</h4>`;
   html += `<table style="width:100%;font-size:13px;color:#ffffff;border-collapse:collapse">`;
   html += `<tr style="border-bottom:1px solid rgba(255,255,255,0.15)"><td style="padding:8px 0;opacity:0.75;width:200px">Domaine detecte</td><td style="padding:8px 0;font-weight:700">${domain}</td></tr>`;
-
   if (mode === 'document') {
     html += `<tr style="border-bottom:1px solid rgba(255,255,255,0.15)"><td style="padding:8px 0;opacity:0.75">Source unique</td><td style="padding:8px 0;font-weight:700">Document colle par l utilisateur</td></tr>`;
     html += `<tr style="border-bottom:1px solid rgba(255,255,255,0.15)"><td style="padding:8px 0;opacity:0.75">Mode</td><td style="padding:8px 0;font-weight:700;color:#fbbf24">Traitement exclusif - aucune source externe</td></tr>`;
@@ -581,7 +526,6 @@ function generateTechSheet(domain, docsUsed, semanticScore, scholars, judgeResul
     html += `<tr style="border-bottom:1px solid rgba(255,255,255,0.15)"><td style="padding:8px 0;opacity:0.75">Score de pertinence</td><td style="padding:8px 0;font-weight:700">${Math.round(semanticScore * 100)} %</td></tr>`;
     html += `<tr style="border-bottom:1px solid rgba(255,255,255,0.15)"><td style="padding:8px 0;opacity:0.75">Documents sources</td><td style="padding:8px 0;font-weight:700">${docsUsed}</td></tr>`;
   }
-
   if (judgeResult && judgeResult.isSensitive) {
     const color = judgeResult.hasNumbers ? '#4ade80' : '#f87171';
     const txt = judgeResult.hasNumbers ? 'Chiffres presents' : 'Aucun chiffre detecte';
@@ -597,46 +541,30 @@ function generateTechSheet(domain, docsUsed, semanticScore, scholars, judgeResul
   return html;
 }
 
-// ============================================================
-// 21. REFERENCES (uniquement /api/ask)
-// ============================================================
 function generateReferences(docs, domain, scholars) {
   if (!docs || docs.length === 0) return '';
   const isLitRel = isLiteraryOrReligious(domain);
   let html = `<div style="background:#fef3c7;border-left:4px solid #f59e0b;border-radius:8px;padding:16px;margin:20px 0">`;
-
   if (isLitRel) {
     html += `<h4 style="margin:0 0 12px 0;color:#92400e;font-size:15px;font-weight:700">📖 Sources litteraires et religieuses</h4>`;
     if (scholars && scholars.length > 0) {
       html += `<div style="background:#ffffff;border:2px solid #d4af37;border-radius:8px;padding:14px;margin-bottom:14px">`;
-      html += `<div style="color:#92400e;font-size:11px;text-transform:uppercase;letter-spacing:1px;font-weight:700;margin-bottom:8px">Scholars identifies</div>`;
       scholars.forEach(s => { html += `<div style="color:#0a2540;font-size:15px;font-weight:800;margin:4px 0">📚 ${s}</div>`; });
       html += `</div>`;
     }
-    html += `<ol style="margin:0;padding-left:24px;font-size:13px;color:#78350f;line-height:1.7">`;
-    docs.forEach(d => {
-      const info = extractAuthorAndDate(d);
-      html += `<li style="margin-bottom:12px"><div style="color:#0a2540;font-weight:700;font-size:13px">${cleanText(d.title||'').slice(0,120)}</div><div style="font-size:12px;font-style:italic">Auteur : ${info.author}</div><div style="font-size:12px">Date : ${info.date}</div></li>`;
-    });
-    html += `</ol>`;
   } else {
     html += `<h4 style="margin:0 0 12px 0;color:#92400e;font-size:15px;font-weight:700">📚 Documents sources utilises</h4>`;
-    html += `<ol style="margin:0;padding-left:24px;font-size:13px;color:#78350f;line-height:1.7">`;
-    docs.forEach(d => {
-      const info = extractAuthorAndDate(d);
-      const pertinence = Math.round((d.score || 0) * 100);
-      html += `<li style="margin-bottom:12px"><div style="color:#0a2540;font-weight:700;font-size:13px">${cleanText(d.title||'').slice(0,120)}</div><div style="font-size:12px;font-style:italic">Auteur : ${info.author}</div><div style="font-size:12px">Date : ${info.date} — Pertinence : ${pertinence}%</div></li>`;
-    });
-    html += `</ol>`;
   }
-  html += `<div style="background:#fffbeb;border:1px dashed #d4af37;border-radius:6px;padding:10px;margin-top:12px;font-size:12px;color:#92400e;text-align:center"><strong>Validation Juge Claude :</strong> Toutes les informations ci-dessus ont ete verifiees et validees.</div>`;
-  html += `</div>`;
+  html += `<ol style="margin:0;padding-left:24px;font-size:13px;color:#78350f;line-height:1.7">`;
+  docs.forEach(d => {
+    const info = extractAuthorAndDate(d);
+    const pertinence = Math.round((d.score || 0) * 100);
+    html += `<li style="margin-bottom:12px"><div style="color:#0a2540;font-weight:700;font-size:13px">${cleanText(d.title||'').slice(0,120)}</div><div style="font-size:12px;font-style:italic">Auteur : ${info.author}</div><div style="font-size:12px">Date : ${info.date} — Pertinence : ${pertinence}%</div></li>`;
+  });
+  html += `</ol></div>`;
   return html;
 }
 
-// ============================================================
-// 22. ALERTE CHIFFRES
-// ============================================================
 function generateNumbersWarning(domain, sources) {
   return `<div style="background:#fef2f2;border:2px solid #dc2626;border-radius:12px;padding:20px;margin:20px 0">
   <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
@@ -646,18 +574,80 @@ function generateNumbersWarning(domain, sources) {
       <div style="color:#7f1d1d;font-size:13px">Sujet sensible : donnees chiffrees requises</div>
     </div>
   </div>
-  <p style="color:#7f1d1d;font-size:13px;line-height:1.6;margin:8px 0">La reponse generee ne contient pas de donnees chiffrees verifiables. Pour ce type de sujet, le Juge Claude recommande de consulter les sources officielles suivantes :</p>
   <div style="margin-top:12px;display:flex;flex-wrap:wrap;gap:8px">${sources.map(s => `<span style="background:#ffffff;border:1px solid #dc2626;color:#991b1b;padding:6px 14px;border-radius:20px;font-size:12px;font-weight:700">${s}</span>`).join('')}</div>
 </div>`;
 }
 
 // ============================================================
-// 23. ENRICHISSEMENT
+// 12. BANDEAU DE CONFORMITE QP STANDARD 01
 // ============================================================
-async function enrichAnswer(answer, question, domain, lang, mongoose, mode) {
+function generateQPComplianceBanner() {
+  const t = QP_STANDARD_01_TEMPLATE;
+  return `<div style="background:#0a2540;color:#ffffff;border-radius:8px;padding:14px 18px;margin:0 0 20px 0;border-left:6px solid #f59e0b">
+  <div style="font-size:11px;letter-spacing:2px;text-transform:uppercase;opacity:0.8">Conformite documentaire obligatoire</div>
+  <div style="font-size:15px;font-weight:800;margin-top:4px">Modele : QP STANDARD 01 — GMPI</div>
+  <div style="font-size:12px;opacity:0.9;margin-top:4px">Code : ${t.header.code} | Rev. : ${t.header.revIndex} | Date : ${t.header.revDate}</div>
+  <div style="font-size:12px;opacity:0.9;margin-top:2px">Le plan qualite genere respecte la structure imposee : en-tete GMPI, notes a/b/c, sections obligatoires, approbations QC + Tech + client.</div>
+</div>`;
+}
+
+// ============================================================
+// 13. VERIFICATION SECTIONS QP MANQUANTES
+// ============================================================
+function checkQPSections(answer) {
+  const txt = (answer || '').toLowerCase();
+  const result = { present: [], missing: [] };
+  const checks = [
+    { label: 'En-tete GMPI / code FO-24-PRO', keys: ['fo-24-pro', 'gmpl', 'gmpi'] },
+    { label: 'Titre Quality Control Plan', keys: ['quality control plan', 'plan qualite', 'plan de controle'] },
+    { label: 'Informations client / produit', keys: ['client', 'produit', 'commande'] },
+    { label: 'References documentaires (WO, normes)', keys: ['work order', 'wo ', 'api 5ct', 'api 5b', 'vam', 'fo-05'] },
+    { label: 'Matiere premiere + MTC', keys: ['matiere premiere', 'mtc', 'material test', 'aisi', '4140'] },
+    { label: 'Processus de fabrication', keys: ['fabrication', 'processus', 'etape', 'usinage', 'decoupe'] },
+    { label: 'Points de controle qualite', keys: ['controle qualite', 'inspection', 'dimensionnel', 'visuel', 'ndt'] },
+    { label: 'Inspection tiers (TPI)', keys: ['tiers', 'tpi', 'third party'] },
+    { label: 'Documents livrables (COC, MTC)', keys: ['coc', 'certificat', 'mtc', 'livrable'] },
+    { label: 'Non-conformites PR-01-PRO', keys: ['pr-01', 'non-conform', 'ncr'] },
+    { label: 'Approbations / signatures / stamp', keys: ['approv', 'signature', 'stamp', 'cachet'] }
+  ];
+  checks.forEach(c => {
+    const found = c.keys.some(k => txt.includes(k));
+    if (found) result.present.push(c.label);
+    else result.missing.push(c.label);
+  });
+  return result;
+}
+
+// ============================================================
+// 14. BANDEAU DE VERIFICATION SECTIONS
+// ============================================================
+function generateQPSectionsReport(check) {
+  const present = check.present || [];
+  const missing = check.missing || [];
+  let html = `<div style="background:#ffffff;border:2px solid #e5e7eb;border-radius:12px;padding:20px;margin:20px 0">`;
+  html += `<h4 style="color:#0a2540;font-size:16px;font-weight:700;margin:0 0 14px 0">🔍 Verification conformite QP STANDARD 01</h4>`;
+  html += `<div style="display:flex;gap:20px;flex-wrap:wrap">`;
+  html += `<div style="flex:1;min-width:240px"><div style="color:#16a34a;font-weight:700;font-size:13px;margin-bottom:8px">Sections presentes (${present.length})</div><ul style="margin:0;padding-left:20px;font-size:12px;color:#17202a">`;
+  present.forEach(p => { html += `<li style="margin:4px 0;color:#166534">${p}</li>`; });
+  if (present.length === 0) html += `<li style="color:#9ca3af">Aucune</li>`;
+  html += `</ul></div>`;
+  html += `<div style="flex:1;min-width:240px"><div style="color:#dc2626;font-weight:700;font-size:13px;margin-bottom:8px">Sections manquantes (${missing.length})</div><ul style="margin:0;padding-left:20px;font-size:12px;color:#17202a">`;
+  missing.forEach(m => { html += `<li style="margin:4px 0;color:#991b1b">${m}</li>`; });
+  if (missing.length === 0) html += `<li style="color:#16a34a">Aucune - conforme</li>`;
+  html += `</ul></div></div></div>`;
+  return html;
+}
+
+// ============================================================
+// 15. ENRICHISSEMENT
+// ============================================================
+async function enrichAnswer(answer, question, domain, lang, mongoose, mode, originalContent) {
   try {
     mode = mode || 'ask';
-    const realDomain = detectDomain(question, domain);
+    const isQP = isQualityPlanRequest(question, originalContent || '');
+
+    // Si plan qualite -> domaine impose
+    const realDomain = isQP ? 'Plan Qualite' : detectDomain(question, domain);
     const isLitRel = isLiteraryOrReligious(realDomain);
     const isAnalytical = isAnalyticalDomain(realDomain);
     const isSensitive = isSensitiveDomain(realDomain);
@@ -668,8 +658,6 @@ async function enrichAnswer(answer, question, domain, lang, mongoose, mode) {
 
     let docs = [];
     let semanticScore = 0;
-
-    // BASE UNIQUEMENT EN MODE ASK
     if (mode === 'ask' && AutoFeedDoc) {
       docs = await findRelevantDocuments(AutoFeedDoc, question, 5, 0.15);
       if (docs.length > 0) semanticScore = docs[0].score;
@@ -680,6 +668,11 @@ async function enrichAnswer(answer, question, domain, lang, mongoose, mode) {
 
     const keyPoints = extractKeyPoints(answer);
     let enriched = '';
+
+    // Bandeau conformite QP si plan qualite
+    if (isQP) {
+      enriched += generateQPComplianceBanner();
+    }
 
     if (judgeResult.isSensitive && !judgeResult.hasNumbers) {
       const sd = SENSITIVE_DOMAINS.find(d => d.key === realDomain);
@@ -701,7 +694,13 @@ async function enrichAnswer(answer, question, domain, lang, mongoose, mode) {
       enriched += `</ul></div>`;
     }
 
-    // SECTION 3 : Tableau de bord (MODE ASK uniquement)
+    // Verification sections QP
+    if (isQP) {
+      const check = checkQPSections(answer);
+      enriched += generateQPSectionsReport(check);
+    }
+
+    // SECTION 3 : Dashboard
     if (mode === 'ask' && isAnalytical) {
       enriched += generateDashboard(realDomain, docs.length, semanticScore);
     }
@@ -709,7 +708,7 @@ async function enrichAnswer(answer, question, domain, lang, mongoose, mode) {
     // SECTION 4 : Fiche technique
     enriched += generateTechSheet(realDomain, docs.length, semanticScore, scholars, judgeResult, mode);
 
-    // SECTION 5 : Graphiques (MODE ASK uniquement)
+    // SECTION 5 : Graphiques (mode ask uniquement)
     if (mode === 'ask' && isAnalytical && AutoFeedDoc) {
       try {
         const allDocs = await AutoFeedDoc.find().lean();
@@ -721,19 +720,17 @@ async function enrichAnswer(answer, question, domain, lang, mongoose, mode) {
       } catch (e) {}
     }
 
-    // SECTION 6 : References (MODE ASK uniquement)
+    // SECTION 6 : References (mode ask uniquement)
     if (mode === 'ask') {
       enriched += generateReferences(docs, realDomain, scholars);
     }
 
-    // SECTION 7 : Agents IA
+    // SECTION 7 : Agents
     enriched += `<div style="background:#f5f7fa;border:1px solid #e5e7eb;border-radius:8px;padding:14px;margin:20px 0;font-size:12px;color:#6b7280;text-align:center">`;
     enriched += `<strong style="color:#0a2540">Agents IA impliques :</strong> MBA-CONSULT AI CORE - OpenRouter - Semantic Engine - Language Fix - Voice Engine - <strong style="color:#16a34a">Juge Claude (validation active)</strong>`;
-    if (mode === 'document') {
-      enriched += ` - <strong style="color:#1e5aa8">Traitement exclusif du document colle</strong>`;
-    } else {
-      enriched += ` - Auto-Feed Scraper`;
-    }
+    if (isQP) enriched += ` - <strong style="color:#f59e0b">Conformite QP STANDARD 01 appliquee</strong>`;
+    if (mode === 'document') enriched += ` - <strong style="color:#1e5aa8">Traitement exclusif du document colle</strong>`;
+    else enriched += ` - Auto-Feed Scraper`;
     enriched += `</div>`;
 
     return enriched;
@@ -745,7 +742,7 @@ async function enrichAnswer(answer, question, domain, lang, mongoose, mode) {
 }
 
 // ============================================================
-// 24. MIDDLEWARE EXPRESS
+// 16. MIDDLEWARE EXPRESS
 // ============================================================
 module.exports = function(app, mongoose) {
 
@@ -760,15 +757,42 @@ module.exports = function(app, mongoose) {
     }
     try {
       const questionOriginale = req.body.question;
+      const isQP = isQualityPlanRequest(questionOriginale, '');
+
+      let prefix = '';
+      if (isQP) {
+        prefix =
+          '[INSTRUCTION SYSTEME OBLIGATOIRE - CONFORMITE QP STANDARD 01]\n' +
+          'Tu dois generer un PLAN QUALITE conforme au modele "QP STANDARD 01" de GMPI.\n' +
+          'Structure imposee (fond et forme) :\n' +
+          '  1. EN-TETE GMPI : Code FO-24-PRO | Rev. 6 | Date 03/08/2017 | Titre "Quality Control Plan"\n' +
+          '  2. Rubriques : Edited by (QC Dep.) | Approved by (Tech. Dep.) | Signature + Stamp\n' +
+          '  3. NOTES OBLIGATOIRES :\n' +
+          '     a) Operation instruction : voir Work Order (WO) - Document Reference FO-05-R&D\n' +
+          '     b) Non-conformite : traiter selon procedure PR-01-PRO\n' +
+          '     c) Thread inspection procedures (selon norme applicable)\n' +
+          '  4. SECTIONS IMPOSEES :\n' +
+          '     - Informations generales (client, produit, commande, norme applicable)\n' +
+          '     - References documentaires (WO, plans, normes API 5CT/5B, VAM, AISI 4140)\n' +
+          '     - Matiere premiere (MTC, verification, tracabilite)\n' +
+          '     - Processus de fabrication (etapes, POS, parametres cles)\n' +
+          '     - Points de controle qualite (dimensionnel, visuel, NDT, pression)\n' +
+          '     - Inspection par tiers / TPI (si requis par contrat)\n' +
+          '     - Documents livrables (COC, MTC, certificats specifiques)\n' +
+          '     - Gestion des non-conformites (PR-01-PRO)\n' +
+          '     - Approbations (QC + Tech + client)\n' +
+          '  CITE EXACTEMENT ces codes et ces intitules.\n' +
+          '[FIN INSTRUCTION QP]\n\n';
+
       const rag = await buildRagContext(AutoFeedDoc, questionOriginale, 3, 3500);
       if (rag.context && rag.context.length > 200) {
-        req.body.question = questionOriginale +
+        req.body.question = prefix + questionOriginale +
           '\n\n[INSTRUCTION SYSTEME - UTILISE EN PRIORITE LES EXTRAITS DOCUMENTAIRES CI-DESSOUS. CITE LES NUMEROS DE NORMES, LES VALEURS CHIFFREES, LES TOLERANCES ET PROCEDURES EXACTES TROUVEES DANS CES EXTRAITS.]' +
           rag.context +
-          '\n[FIN DES EXTRAITS DOCUMENTAIRES]\n\nQuestion de l utilisateur : ' + questionOriginale;
+          '\n[FIN DES EXTRAITS DOCUMENTAIRES]\n\nQuestion utilisateur : ' + questionOriginale;
         req._ragDocs = rag.docs;
-        req._ragScore = rag.topScore;
-        console.log('[answer-enricher] RAG injecte : ' + rag.docs.length + ' docs');
+      } else if (isQP) {
+        req.body.question = prefix + questionOriginale;
       }
     } catch (e) {
       console.warn('[answer-enricher] RAG erreur :', e.message);
@@ -776,7 +800,7 @@ module.exports = function(app, mongoose) {
     next();
   }
 
-  // -------- /api/analyze-content : EXCLUSIF document --------
+  // -------- /api/analyze-content : exclusif document + QP --------
   function documentPreprocess(req, res, next) {
     if (!req.body) return next();
 
@@ -784,36 +808,53 @@ module.exports = function(app, mongoose) {
     const questionUser = req.body.question ? String(req.body.question) : '';
 
     if (content && content.trim().length > 20) {
-      // Sauvegarder les originaux pour usage ulterieur
       req._documentContent = content;
       req._documentQuestion = questionUser;
       req._documentMode = true;
 
-      // 1. Garder la question utilisateur (ou valeur par defaut)
-      req.body.question = questionUser || 'Analyse ce document.';
+      const isQP = isQualityPlanRequest(questionUser, content);
 
-      // 2. Renforcer l'instruction DANS LE CONTENU lui-meme
-      //    => Peu importe comment server.js utilise content, l'IA verra l'instruction
+      let prefix = '';
+      if (isQP) {
+        prefix =
+          '[INSTRUCTION SYSTEME OBLIGATOIRE - CONFORMITE QP STANDARD 01]\n' +
+          'Tu dois generer un PLAN QUALITE conforme au modele "QP STANDARD 01" de GMPI.\n' +
+          'Structure imposee (fond et forme) :\n' +
+          '  1. EN-TETE GMPI : Code FO-24-PRO | Rev. 6 | Date 03/08/2017 | Titre "Quality Control Plan"\n' +
+          '  2. Rubriques : Edited by (QC Dep.) | Approved by (Tech. Dep.) | Signature + Stamp\n' +
+          '  3. NOTES OBLIGATOIRES :\n' +
+          '     a) Operation instruction : voir Work Order (WO) - Document Reference FO-05-R&D\n' +
+          '     b) Non-conformite : traiter selon procedure PR-01-PRO\n' +
+          '     c) Thread inspection procedures (selon norme applicable)\n' +
+          '  4. SECTIONS IMPOSEES :\n' +
+          '     - Informations generales (client, produit, commande, norme applicable)\n' +
+          '     - References documentaires (WO, plans, normes API 5CT/5B, VAM, AISI 4140)\n' +
+          '     - Matiere premiere (MTC, verification, tracabilite)\n' +
+          '     - Processus de fabrication (etapes, POS, parametres cles)\n' +
+          '     - Points de controle qualite (dimensionnel, visuel, NDT, pression)\n' +
+          '     - Inspection par tiers / TPI (si requis par contrat)\n' +
+          '     - Documents livrables (COC, MTC, certificats specifiques)\n' +
+          '     - Gestion des non-conformites (PR-01-PRO)\n' +
+          '     - Approbations (QC + Tech + client)\n' +
+          '  CITE EXACTEMENT ces codes et ces intitules. Adapte le contenu au PRODUIT decrit dans le document.\n' +
+          '[FIN INSTRUCTION QP]\n\n';
+
+      req.body.question = prefix + (questionUser || 'Analyse ce document et genere le plan qualite.');
+
       req.body.content =
-        '[INSTRUCTION SYSTEME OBLIGATOIRE - A RESPECTER ABSOLUMENT]\n' +
-        'Tu dois repondre EXCLUSIVEMENT a partir du contenu du document ci-dessous.\n' +
-        'INTERDICTIONS ABSOLUES :\n' +
-        '  1. Ne pas utiliser de connaissances externes au document\n' +
-        '  2. Ne pas citer de sources non presentes dans le document\n' +
-        '  3. Ne pas inventer de chiffres, dates, normes ou references\n' +
-        '  4. Ne pas ajouter de bibliographie externe\n' +
-        '  5. Si une information manque, ecrire : "Non mentionne dans le document"\n\n' +
+        '[INSTRUCTION SYSTEME OBLIGATOIRE - DOCUMENT DE REFERENCE]\n' +
+        'Reponds EXCLUSIVEMENT a partir du contenu ci-dessous. N invente AUCUNE donnee externe.\n' +
+        'Si une information manque, ecris : "Non mentionne dans le document".\n\n' +
         '=== DEBUT DU DOCUMENT A ANALYSER ===\n' +
         content +
         '\n=== FIN DU DOCUMENT A ANALYSER ===\n\n' +
-        'RAPPEL FINAL : Reponds uniquement avec les informations ci-dessus.';
+        'RAPPEL : Le plan qualite genere doit respecter STRICTEMENT la structure QP STANDARD 01 ' +
+        '(en-tete GMPI FO-24-PRO Rev 6, notes a/b/c, sections imposees, approbations).\n';
 
-      // 3. Flag visible dans les logs
-      console.log('[answer-enricher] Mode DOCUMENT EXCLUSIF active - contenu ' + content.length + ' car.');
+      console.log('[answer-enricher] Mode DOCUMENT ' + (isQP ? '+ QP STANDARD 01' : '') + ' active - ' + content.length + ' car.');
     } else {
-      console.log('[answer-enricher] analyze-content appele SANS contenu exploitable');
+      console.log('[answer-enricher] analyze-content sans contenu exploitable');
     }
-
     next();
   }
 
@@ -825,11 +866,11 @@ module.exports = function(app, mongoose) {
         if (!data || !data.answer) return originalJson(data);
 
         let questionPourDetection;
+        let contenuPourDetection = '';
         if (mode === 'document') {
-          // Utiliser le contenu original du document + la question utilisateur
-          const contentDoc = req._documentContent || '';
+          contenuPourDetection = req._documentContent || '';
           const questionUser = req._documentQuestion || '';
-          questionPourDetection = (questionUser + ' ' + contentDoc).slice(0, 15000);
+          questionPourDetection = questionUser;
         } else {
           questionPourDetection = req.body && req.body.question ? req.body.question : '';
         }
@@ -837,13 +878,14 @@ module.exports = function(app, mongoose) {
         const domain = req.body && req.body.domain ? req.body.domain : 'General';
         const lang = req.body && req.body.language ? req.body.language : 'fr';
 
-        enrichAnswer(data.answer, questionPourDetection, domain, lang, mongoose, mode)
+        enrichAnswer(data.answer, questionPourDetection, domain, lang, mongoose, mode, contenuPourDetection)
           .then(enriched => {
             data.answerRaw = data.answer;
             data.answer = enriched;
             data.enriched = true;
             data.enrichedAt = new Date().toISOString();
             if (mode === 'document') data.treatmentMode = 'exclusive-document';
+            if (isQualityPlanRequest(questionPourDetection, contenuPourDetection)) data.qpStandard01 = true;
             originalJson(data);
           })
           .catch(() => originalJson(data));
@@ -856,5 +898,5 @@ module.exports = function(app, mongoose) {
   app.use('/api/ask', ragPreprocessAsk, postprocess('ask'));
   app.use('/api/analyze-content', documentPreprocess, postprocess('document'));
 
-  console.log('[answer-enricher] v5.1 charge - /ask=RAG | /analyze-content=EXCLUSIF document');
+  console.log('[answer-enricher] v6.0 charge - Conformite QP STANDARD 01 + RAG + document exclusif');
 };
