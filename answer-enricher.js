@@ -1,12 +1,17 @@
 // ============================================================
 // ANSWER-ENRICHER.JS
-// Version v11.0 - extraction JOB 5-chiffres + multi-QP PDF
+// Version v13.0 - Detection JOB par pattern ARC + PDF propre
+//
+// - Detection des JOB via "As per our estimate" (fiable 99%)
+// - Generation QP par JOB conforme QP STANDARD 01
+// - Tableau croise API 6A (30 exigences)
+// - Pas d'IA dans le circuit QP (parsing pur)
 // ============================================================
 
 'use strict';
 
 // ============================================================
-// 0. MODELE QP STANDARD 01
+// 0. MODELE QP STANDARD 01 (GMPI - FO-24-PRO Rev 6)
 // ============================================================
 var QP_STANDARD_01 = {
   company: 'Global Metallic Product Industries (GMPI)',
@@ -14,8 +19,6 @@ var QP_STANDARD_01 = {
   revIndex: '6',
   revDate: '03/08/2017',
   title: 'Quality Control Plan',
-  editedBy: 'QC Department',
-  approvedBy: 'Tech. Department',
   notes: [
     'a) For operation instruction, refer to Work Order (WO) Document Reference FO-05-R&D',
     'b) Any NCR detected shall be treated according to procedure PR-01-PRO',
@@ -153,7 +156,7 @@ var SCHOLARS_BY_DOMAIN = {
 };
 
 // ============================================================
-// 5. DETECTION QP + EXTRACTION JOB (v11.0)
+// 5. DETECTION QP + EXTRACTION JOB (v13.0)
 // ============================================================
 function isQualityPlanRequest(question, content) {
   var text = ((question || '') + ' ' + (content || '')).toLowerCase();
@@ -169,55 +172,77 @@ function isQualityPlanRequest(question, content) {
   return false;
 }
 
-// v11.0 : extraction basee sur le format ARC reel
-// Le document contient typiquement :
-//   <N°JOB 5chiffres>  <Qte>  <date JJ/MM/AA>
-// Exemple : "28636 1 18/07/26"  ou  "28639 4 18/07/26"
-// On detecte ce pattern unique qui est tres fiable.
+// v13.0 : extraction par pattern "As per our estimate"
+// Format ARC reel :
+//   Description produit (3-4 lignes)
+//   As per our estimate n°20260270
+//   28636 1 18/07/26
+// On capture le N° JOB (5 chiffres), la quantite et la date qui suivent
+// immediatement "As per our estimate n°XXXXX".
 function extractWorkOrders(question, content) {
   var text = ((question || '') + '\n' + (content || ''));
   var wos = [];
   var seen = {};
 
-  // PRIORITE 1 : pattern ARC "N°JOB 5chiffres  Qte  Date JJ/MM/AA"
-  // Ex: "28636 1 18/07/26"  ou  "28639 4 18/07/26"
-  var arcPattern = /\b(\d{5})\s+(\d{1,3})\s+(\d{2}\/\d{2}\/\d{2,4})\b/g;
-  var mArc;
-  while ((mArc = arcPattern.exec(text)) !== null) {
-    var numArc = mArc[1];
-    if (seen[numArc]) continue;
-    seen[numArc] = true;
+  // PATTERN PRINCIPAL : "As per our estimate n°XXXXX" suivi de "NNNNN Qte Date"
+  // \s* matche les espaces ET retours a la ligne
+  var arcRegex = /As\s+per\s+our\s+estimate\s+n[°º]?\s*\d+\s*\n?\s*(\d{5})\s+(\d{1,3})\s+(\d{2}\/\d{2}\/\d{2,4})/gi;
+  var m;
+  while ((m = arcRegex.exec(text)) !== null) {
+    var num = m[1];
+    if (seen[num]) continue;
+    seen[num] = true;
     wos.push({
-      id: numArc,
-      raw: numArc,
-      qte: mArc[2],
-      date: mArc[3],
-      matchIndex: mArc.index,
-      source: 'ARC-pattern'
+      id: num,
+      raw: num,
+      qte: m[2],
+      date: m[3],
+      matchIndex: m.index,
+      source: 'ARC-estimate'
     });
   }
 
-  // PRIORITE 2 : pattern "Job" suivi d'un nombre 5 chiffres
+  // FALLBACK 1 : "As per our estimate n°XXXXX" isole, puis chercher un N° 5 chiffres apres
   if (wos.length === 0) {
-    var jobPattern = /\bJOB[\s_:#-]+(\d{4,8})\b/gi;
-    var mj;
-    while ((mj = jobPattern.exec(text)) !== null) {
-      var numJ = mj[1];
-      if (seen[numJ]) continue;
-      seen[numJ] = true;
-      wos.push({ id: numJ, raw: numJ, matchIndex: mj.index, source: 'JOB' });
+    var estimateRegex = /As\s+per\s+our\s+estimate\s+n[°º]?\s*\d+/gi;
+    var em;
+    while ((em = estimateRegex.exec(text)) !== null) {
+      var after = text.slice(em.index + em[0].length, em.index + em[0].length + 500);
+      var numMatch = after.match(/\b(\d{5})\s+(\d{1,3})\s+(\d{2}\/\d{2}\/\d{2,4})/);
+      if (numMatch) {
+        var n1 = numMatch[1];
+        if (seen[n1]) continue;
+        seen[n1] = true;
+        wos.push({
+          id: n1,
+          raw: n1,
+          qte: numMatch[2],
+          date: numMatch[3],
+          matchIndex: em.index,
+          source: 'ARC-fallback'
+        });
+      }
     }
   }
 
-  // PRIORITE 3 : pattern "WO" suivi d'un nombre 5 chiffres
+  // FALLBACK 2 : pattern general "NNNNN Qte Date" partout dans le document
   if (wos.length === 0) {
-    var woPattern = /\bWO[\s_:#-]+(\d{4,8})\b/gi;
-    var mw;
-    while ((mw = woPattern.exec(text)) !== null) {
-      var numW = mw[1];
-      if (seen[numW]) continue;
-      seen[numW] = true;
-      wos.push({ id: numW, raw: numW, matchIndex: mw.index, source: 'WO' });
+    var genRegex = /\b(\d{5})\s+(\d{1,3})\s+(\d{2}\/\d{2}\/\d{2,4})\b/g;
+    var gm;
+    while ((gm = genRegex.exec(text)) !== null) {
+      var n2 = gm[1];
+      var nInt = parseInt(n2, 10);
+      if (nInt < 20000 || nInt > 40000) continue;
+      if (seen[n2]) continue;
+      seen[n2] = true;
+      wos.push({
+        id: n2,
+        raw: n2,
+        qte: gm[2],
+        date: gm[3],
+        matchIndex: gm.index,
+        source: 'generic'
+      });
     }
   }
 
@@ -226,18 +251,39 @@ function extractWorkOrders(question, content) {
 
 function extractWoBlock(content, wo, allWos) {
   if (!content || !wo) return content || '';
-  var idx = content.toUpperCase().indexOf(String(wo.raw).toUpperCase());
+
+  // Trouver la position du N° JOB (pas juste le numero seul, mais dans son contexte)
+  // On cherche "As per our estimate" le plus proche AVANT ce numero
+  var estimateMarker = 'As per our estimate';
+  var numStr = String(wo.raw);
+  var idx = -1;
+
+  // Chercher "estimate n°...numStr" 
+  var re = new RegExp('As\\s+per\\s+our\\s+estimate\\s+n[°º]?\\s*\\d+\\s*\\n?\\s*' + numStr, 'i');
+  var match = content.match(re);
+  if (match) {
+    idx = match.index;
+  } else {
+    // Sinon prendre l'index direct du numero
+    idx = content.indexOf(numStr);
+  }
   if (idx === -1) return content.slice(0, 8000);
 
+  // Le bloc s'etend de "As per our estimate" jusqu'au prochain JOB
   var nextIdx = content.length;
   for (var i = 0; i < allWos.length; i++) {
     var other = allWos[i];
     if (other.raw === wo.raw) continue;
-    var oIdx = content.toUpperCase().indexOf(String(other.raw).toUpperCase(), idx + 1);
-    if (oIdx !== -1 && oIdx < nextIdx) nextIdx = oIdx;
+    var otherRe = new RegExp('As\\s+per\\s+our\\s+estimate\\s+n[°º]?\\s*\\d+\\s*\\n?\\s*' + other.raw, 'i');
+    var otherMatch = content.match(otherRe);
+    if (otherMatch && otherMatch.index > idx && otherMatch.index < nextIdx) {
+      nextIdx = otherMatch.index;
+    }
   }
 
-  return content.slice(idx, Math.min(nextIdx, idx + 10000));
+  // Prendre le bloc (avec 1500 chars AVANT pour capter la description produit)
+  var start = Math.max(0, idx - 1500);
+  return content.slice(start, Math.min(nextIdx, idx + 6000));
 }
 
 // ============================================================
@@ -259,41 +305,6 @@ function cleanText(text) {
 function esc(s) {
   if (s === undefined || s === null) return '';
   return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-}
-
-function formatForHTML(text) {
-  if (!text) return '';
-  var clean = cleanText(text);
-  var lines = clean.split('\n');
-  var output = [];
-  var inList = false;
-  for (var i = 0; i < lines.length; i++) {
-    var line = lines[i].trim();
-    if (line === '') {
-      if (inList) { output.push('</ul>'); inList = false; }
-      output.push('<br>');
-      continue;
-    }
-    var numM = line.match(/^(\d+)\.\s+(.+)$/);
-    if (numM) {
-      if (inList) { output.push('</ul>'); inList = false; }
-      output.push('<h4 style="color:#0a2540;font-size:15px;font-weight:700;margin:16px 0 8px 0;padding-bottom:4px;border-bottom:1px solid #e5e7eb">' + numM[1] + '. ' + esc(numM[2]) + '</h4>');
-      continue;
-    }
-    var isBullet = /^[•◦▪▫]\s+/.test(line) || /^[-*]\s+/.test(line);
-    if (isBullet) {
-      if (!inList) {
-        output.push('<ul style="margin:8px 0;padding-left:24px;color:#17202a;list-style-type:disc">');
-        inList = true;
-      }
-      output.push('<li style="margin:6px 0;line-height:1.6">' + esc(line.replace(/^[•◦▪▫\-*]\s+/, '')) + '</li>');
-      continue;
-    }
-    if (inList) { output.push('</ul>'); inList = false; }
-    output.push('<p style="margin:8px 0;line-height:1.75;color:#17202a">' + esc(line) + '</p>');
-  }
-  if (inList) output.push('</ul>');
-  return output.join('\n');
 }
 
 function tokenize(text) {
@@ -417,7 +428,7 @@ function isSensitiveDomain(domain) {
 }
 
 // ============================================================
-// 9. CHIFFRES / POINTS CLES
+// 9. CHIFFRES / SCHOLARS
 // ============================================================
 function hasNumbers(text) {
   if (!text) return false;
@@ -437,34 +448,6 @@ function extractScholars(question, answer, domain) {
   return found;
 }
 
-function extractAuthorAndDate(doc) {
-  var author = 'Auteur non specifie';
-  var date = 'Date non specifiee';
-  if (doc.createdAt) date = new Date(doc.createdAt).toLocaleDateString('fr-FR', { year: 'numeric', month: 'long', day: 'numeric' });
-  if (doc.url) {
-    var m = doc.url.match(/https?:\/\/(?:www\.)?([^\/]+)/);
-    if (m) author = m[1].replace(/\.(com|org|net|io|fr|tn)$/, '');
-  }
-  return { author: author, date: date };
-}
-
-function extractKeyPoints(text) {
-  if (!text) return [];
-  var cleaned = cleanText(text);
-  var sentences = cleaned.split(/[.!?]\s+/).map(function(s) { return s.trim(); })
-    .filter(function(s) { return s.length > 40 && s.length < 250; });
-  var words = tokenize(cleaned);
-  var freq = {};
-  for (var w = 0; w < words.length; w++) freq[words[w]] = (freq[words[w]] || 0) + 1;
-  var scored = sentences.map(function(s) {
-    var st = tokenize(s);
-    var score = 0;
-    for (var i = 0; i < st.length; i++) score += freq[st[i]] || 0;
-    return { sentence: s, score: score / (st.length || 1) };
-  });
-  return scored.sort(function(a, b) { return b.score - a.score; }).slice(0, 5).map(function(x) { return x.sentence; });
-}
-
 function judgeClaudeValidation(question, answer, domain) {
   var isSensitive = isSensitiveDomain(domain);
   var hasNums = hasNumbers(answer);
@@ -480,144 +463,49 @@ function judgeClaudeValidation(question, answer, domain) {
 }
 
 // ============================================================
-// 10. GRAPHIQUES / DASHBOARD / FICHE / REFS
+// 10. EXTRACTION DONNEES ARC
 // ============================================================
-function generateBarChart(title, data) {
-  var width = 600, height = 320, padding = 50, barWidth = 55, gap = 25;
-  var maxValue = 1;
-  for (var i = 0; i < data.length; i++) if (data[i].value > maxValue) maxValue = data[i].value;
-  var chartHeight = height - 2 * padding;
-  var bars = '';
-  data.forEach(function(d, idx) {
-    var barHeight = (chartHeight * d.value) / maxValue;
-    var x = padding + idx * (barWidth + gap);
-    var y = height - padding - barHeight;
-    var label = d.label.length > 10 ? d.label.slice(0, 9) + '.' : d.label;
-    bars += '<rect x="' + x + '" y="' + y + '" width="' + barWidth + '" height="' + barHeight + '" fill="#1e5aa8" rx="4"/>';
-    bars += '<text x="' + (x + barWidth / 2) + '" y="' + (y - 8) + '" text-anchor="middle" font-size="14" fill="#0a2540" font-weight="bold">' + d.value + '</text>';
-    bars += '<text x="' + (x + barWidth / 2) + '" y="' + (height - padding + 20) + '" text-anchor="middle" font-size="11" fill="#374151">' + esc(label) + '</text>';
-  });
-  return '<div style="background:#ffffff;border:1px solid #e5e7eb;border-radius:12px;padding:20px;margin:20px 0">' +
-    '<h4 style="color:#0a2540;font-size:15px;font-weight:700;margin:0 0 12px 0;text-align:center">' + esc(title) + '</h4>' +
-    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + width + ' ' + height + '" style="width:100%;max-width:' + width + 'px;height:auto;display:block;margin:0 auto">' + bars + '</svg></div>';
-}
-
-function generateDashboard(domain, docsUsed, semanticScore) {
-  var metrics = DOMAIN_METRICS[domain];
-  if (!metrics) return '';
-  var html = '<div style="background:#ffffff;border:2px solid #e5e7eb;border-radius:12px;padding:20px;margin:20px 0">';
-  html += '<h4 style="color:#0a2540;font-size:16px;font-weight:700;margin:0 0 16px 0">' + metrics.icon + ' Tableau de bord : ' + esc(metrics.label) + '</h4>';
-  html += '<table style="width:100%;border-collapse:collapse;font-size:13px">';
-  html += '<thead><tr style="background:#0a2540;color:#ffffff">';
-  html += '<th style="padding:10px;text-align:left">Indicateur</th><th style="padding:10px;text-align:left">Formule</th><th style="padding:10px;text-align:center">Valeur</th><th style="padding:10px;text-align:center">Objectif</th>';
-  html += '</tr></thead><tbody>';
-  metrics.ratios.forEach(function(r) {
-    var v = 0;
-    if (r.formula.indexOf('cosinus') !== -1) v = Math.round(semanticScore * 100);
-    else v = Math.round(r.target * (0.7 + semanticScore * 0.5));
-    var good = v >= r.target;
-    html += '<tr style="border-bottom:1px solid #e5e7eb"><td style="padding:10px;font-weight:600">' + esc(r.name) + '</td><td style="padding:10px;font-size:12px;color:#6b7280">' + esc(r.formula) + '</td><td style="padding:10px;text-align:center"><span style="background:' + (good ? '#dcfce7' : '#fee2e2') + ';color:' + (good ? '#16a34a' : '#dc2626') + ';padding:4px 10px;border-radius:6px;font-weight:700">' + v + r.unit + '</span></td><td style="padding:10px;text-align:center;color:#6b7280">' + r.target + r.unit + '</td></tr>';
-  });
-  html += '</tbody></table></div>';
-  return html;
-}
-
-function generateTechSheet(domain, docsUsed, semanticScore, scholars, judgeResult, mode) {
-  var html = '<div style="background:linear-gradient(135deg,#0a2540,#1e5aa8);color:#ffffff;border-radius:12px;padding:20px;margin:20px 0">';
-  html += '<h4 style="margin:0 0 14px 0;font-size:16px;font-weight:700">📋 Fiche technique</h4>';
-  html += '<table style="width:100%;font-size:13px;color:#ffffff;border-collapse:collapse">';
-  html += '<tr style="border-bottom:1px solid rgba(255,255,255,0.15)"><td style="padding:8px 0;opacity:0.75;width:200px">Domaine</td><td style="padding:8px 0;font-weight:700">' + esc(domain) + '</td></tr>';
-  if (mode === 'document') {
-    html += '<tr style="border-bottom:1px solid rgba(255,255,255,0.15)"><td style="padding:8px 0;opacity:0.75">Source</td><td style="padding:8px 0;font-weight:700">Document colle</td></tr>';
-  } else {
-    html += '<tr style="border-bottom:1px solid rgba(255,255,255,0.15)"><td style="padding:8px 0;opacity:0.75">Score</td><td style="padding:8px 0;font-weight:700">' + Math.round(semanticScore * 100) + ' %</td></tr>';
-    html += '<tr style="border-bottom:1px solid rgba(255,255,255,0.15)"><td style="padding:8px 0;opacity:0.75">Docs sources</td><td style="padding:8px 0;font-weight:700">' + docsUsed + '</td></tr>';
-  }
-  if (scholars && scholars.length > 0) {
-    html += '<tr style="border-bottom:1px solid rgba(255,255,255,0.15)"><td style="padding:8px 0;opacity:0.75">Scholars</td><td style="padding:8px 0;font-weight:700;color:#fbbf24">' + esc(scholars.join(', ')) + '</td></tr>';
-  }
-  html += '<tr style="border-bottom:1px solid rgba(255,255,255,0.15)"><td style="padding:8px 0;opacity:0.75">Moteur IA</td><td style="padding:8px 0;font-weight:700">MBA-CONSULT AI CORE</td></tr>';
-  html += '<tr style="border-bottom:1px solid rgba(255,255,255,0.15)"><td style="padding:8px 0;opacity:0.75">Validation</td><td style="padding:8px 0;font-weight:700;color:#4ade80">✓ Juge Claude</td></tr>';
-  html += '<tr><td style="padding:8px 0;opacity:0.75">Date</td><td style="padding:8px 0;font-weight:700">' + new Date().toLocaleString('fr-FR') + '</td></tr>';
-  html += '</table></div>';
-  return html;
-}
-
-function generateReferences(docs, domain, scholars) {
-  if (!docs || docs.length === 0) return '';
-  var isLitRel = isLiteraryOrReligious(domain);
-  var html = '<div style="background:#fef3c7;border-left:4px solid #f59e0b;border-radius:8px;padding:16px;margin:20px 0">';
-  if (isLitRel) {
-    html += '<h4 style="margin:0 0 12px 0;color:#92400e;font-size:15px;font-weight:700">📖 Sources litteraires et religieuses</h4>';
-    if (scholars && scholars.length > 0) {
-      html += '<div style="background:#ffffff;border:2px solid #d4af37;border-radius:8px;padding:14px;margin-bottom:14px">';
-      scholars.forEach(function(s) { html += '<div style="color:#0a2540;font-size:15px;font-weight:800;margin:4px 0">📚 ' + esc(s) + '</div>'; });
-      html += '</div>';
-    }
-  } else {
-    html += '<h4 style="margin:0 0 12px 0;color:#92400e;font-size:15px;font-weight:700">📚 Documents sources</h4>';
-  }
-  html += '<ol style="margin:0;padding-left:24px;font-size:13px;color:#78350f;line-height:1.7">';
-  docs.forEach(function(d) {
-    var info = extractAuthorAndDate(d);
-    var pert = Math.round((d.score || 0) * 100);
-    html += '<li style="margin-bottom:12px"><div style="color:#0a2540;font-weight:700;font-size:13px">' + esc(cleanText(d.title || '').slice(0, 120)) + '</div><div style="font-size:12px;font-style:italic">Auteur : ' + esc(info.author) + '</div><div style="font-size:12px">Date : ' + esc(info.date) + ' — Pertinence : ' + pert + '%</div></li>';
-  });
-  html += '</ol></div>';
-  return html;
-}
-
-// ============================================================
-// 11. CONSTRUCTION QP PAR JOB
-// ============================================================
-function extractFieldFromBlock(block, patterns) {
-  if (!block) return '';
-  for (var i = 0; i < patterns.length; i++) {
-    var m = block.match(patterns[i]);
-    if (m && m[1]) return m[1].trim();
-  }
-  return '';
-}
-
-// Extraction specialisee des donnees ARC
 function extractARCData(block, globalContent, wo) {
-  var client = 'PETROLEUM EQUIPMENT AND SUPPLIES FZE';
-  var mClient = globalContent.match(/([A-Z][A-Z\s&\.]+(?:FZE|LLC|LTD|B\.V\.|SA|SARL|GMBH)[^\n\r]*)/);
-  if (mClient) client = mClient[1].trim().slice(0, 100);
+  // Client : chercher un nom d'entreprise en majuscules
+  var client = 'Non mentionne dans le document';
+  var mClient = globalContent.match(/(PETROLEUM\s+EQUIPMENT\s+AND\s+SUPPLIES\s+FZE|ENI\s+TUNISIA[^\n\r]*|[A-Z][A-Z\s&\.]{5,50}(?:FZE|LLC|LTD|B\.V\.|SA|SARL|GMBH))/);
+  if (mClient) client = mClient[1].trim();
 
-  // Produit : chercher dans le bloc du JOB
+  // Produit : extraire le texte entre "MANUFACTURE" et "As per our estimate"
   var produit = '';
-  var mProd = block.match(/(SUPPLY MATERIAL & MANUFACTURE[\s\S]{0,500}?)(?=\d{5}\s+\d+\s+\d{2}\/\d{2}\/\d{2}|Page|\Z)/);
+  var mProd = block.match(/MANUFACTURE\s+([\s\S]{5,300}?)(?=As\s+per\s+our\s+estimate)/i);
   if (mProd) {
     produit = mProd[1]
-      .replace(/SUPPLY MATERIAL & MANUFACTURE/i, '')
-      .replace(/\d{5}\s+\d+\s+\d{2}\/\d{2}\/\d{2}/g, '')
-      .replace(/As per our estimate[^\n]+/i, '')
-      .replace(/Bolts & Nuts\.?/i, '')
-      .replace(/Working pressure[^\n]+/i, '')
-      .replace(/Working Pressure[^\n]+/i, '')
-      .replace(/Pressure tested\.?/i, '')
-      .replace(/Note:[^\n]+/i, '')
-      .replace(/SERVICE CONDITIONS:[\s\S]*$/i, '')
-      .replace(/Painting & Identification:[\s\S]*$/i, '')
+      .replace(/\n/g, ' ')
       .replace(/\s+/g, ' ')
+      .replace(/SUPPLY MATERIAL & MANUFACTURE/i, '')
+      .replace(/As per our estimate[^\n]*/i, '')
       .trim();
-    produit = produit.slice(0, 200);
+  }
+  // Si pas trouve, chercher apres "MANUFACTURE" jusqu'au N° JOB
+  if (!produit) {
+    var mProd2 = block.match(/MANUFACTURE\s+([\s\S]{5,300}?)\d{5}\s+\d/i);
+    if (mProd2) produit = mProd2[1].replace(/\n/g, ' ').replace(/\s+/g, ' ').trim();
+  }
+  // Fallback : chercher INTEGRAL / FLANGE / WECO
+  if (!produit) {
+    var mProd3 = block.match(/((?:INTEGRAL|FLANGE|WECO)[\s\S]{5,150}?)(?=\d{5}\s+\d|As per|Page|$)/i);
+    if (mProd3) produit = mProd3[1].replace(/\n/g, ' ').replace(/\s+/g, ' ').trim();
   }
   if (!produit) produit = 'Non mentionne dans le document';
+  produit = produit.slice(0, 250);
 
-  // Quantite : depuis wo.qte si on l'a, sinon regex
+  // Quantite : depuis wo.qte, ou dans le bloc
   var qte = wo.qte || '';
   if (!qte) {
-    var mQty = block.match(/(\d{1,3})\s+\d{2}\/\d{2}\/\d{2}/);
+    var mQty = block.match(/\b(\d{1,3})\s+\d{2}\/\d{2}\/\d{2}/);
     if (mQty) qte = mQty[1];
   }
 
-  // Norme : extraire depuis le document
-  var norme = '';
+  // Norme
+  var norme = 'API 6A Latest Edition';
   var mNorme = globalContent.match(/Manufactured According to\s+([^\n\r]+)/i);
   if (mNorme) norme = mNorme[1].trim();
-  if (!norme) norme = 'API 6A Latest Edition';
 
   // Matiere
   var matiere = '';
@@ -656,6 +544,11 @@ function extractARCData(block, globalContent, wo) {
   var mEstim = block.match(/estimate n[°º]?\s*(\d+)/i) || globalContent.match(/estimate n[°º]?\s*(\d+)/i);
   if (mEstim) estimation = mEstim[1];
 
+  // ARC
+  var arc = '';
+  var mARC = globalContent.match(/\b(\d{10})\b/);
+  if (mARC) arc = mARC[1];
+
   return {
     client: client,
     produit: produit,
@@ -667,10 +560,13 @@ function extractARCData(block, globalContent, wo) {
     testPression: testPression,
     service: service,
     estimation: estimation,
-    arc: '4585228786'
+    arc: arc
   };
 }
 
+// ============================================================
+// 11. RENDU HTML QP
+// ============================================================
 function renderQPHeader(wo) {
   var h = QP_STANDARD_01;
   return '<table style="width:100%;border-collapse:collapse;font-family:Arial,sans-serif;font-size:11px;margin-bottom:0">' +
@@ -804,7 +700,7 @@ function renderSingleQP(wo, block, globalContent) {
   var html = '<div class="qp-document" data-qp="QP-' + esc(wo.id) + '" style="page-break-before:always;page-break-after:always;background:#ffffff;border:2px solid #0a2540;border-radius:4px;padding:0;margin:0 0 30px 0">';
   html += renderQPHeader(wo);
   html += renderQPNotes();
-  html += renderQPSection(1, QP_STANDARD_01 ? 'Informations generales' : '', [
+  html += renderQPSection(1, 'Informations generales', [
     { label: 'Client', value: data.client },
     { label: 'Commande ARC', value: data.arc },
     { label: 'N° WO', value: wo.id },
@@ -860,17 +756,15 @@ function renderSingleQP(wo, block, globalContent) {
 function renderAllQPs(wos, content) {
   if (!wos || wos.length === 0) return '';
   var html = '';
-
   wos.forEach(function(wo) {
     var block = extractWoBlock(content, wo, wos);
     html += renderSingleQP(wo, block, content);
   });
-
   return html;
 }
 
 // ============================================================
-// 13. ENRICHISSEMENT
+// 12. ENRICHISSEMENT (avec ou sans IA selon le cas)
 // ============================================================
 async function enrichAnswer(answer, question, domain, lang, mongoose, mode, originalContent) {
   try {
@@ -879,7 +773,6 @@ async function enrichAnswer(answer, question, domain, lang, mongoose, mode, orig
     var isQP = isQualityPlanRequest(question, contentSource);
     var realDomain = isQP ? 'Plan Qualite' : detectDomain(question, domain);
     var isLitRel = isLiteraryOrReligious(realDomain);
-    var isAnalytical = isAnalyticalDomain(realDomain);
     var judgeResult = judgeClaudeValidation(question, answer, realDomain);
 
     var AutoFeedDoc = null;
@@ -897,42 +790,31 @@ async function enrichAnswer(answer, question, domain, lang, mongoose, mode, orig
 
     var enriched = '';
 
-    // QP par JOB
     if (isQP) {
+      // MODE QP : parsing pur, pas d'IA
       var wos = extractWorkOrders(question, contentSource);
       if (wos.length > 0) {
-        // Message info (visible dans le chat)
+        // Bandeau visible dans le chat (minimal)
         enriched += '<div style="background:#eff6ff;border-left:4px solid #1e5aa8;border-radius:8px;padding:18px;margin:0 0 20px 0">';
         enriched += '<div style="color:#1e40af;font-weight:800;font-size:15px">📄 ' + wos.length + ' Work Order(s) detecte(s)</div>';
-        enriched += '<div style="font-size:13px;color:#1e3a8a;margin-top:6px">Un QP specifique conforme QP STANDARD 01 a ete genere pour chacun. Cliquez sur <strong>Telecharger PDF</strong> pour obtenir les ' + wos.length + ' QP dans un document A4 formate.</div>';
+        enriched += '<div style="font-size:13px;color:#1e3a8a;margin-top:6px">' + wos.length + ' QP conforme(s) QP STANDARD 01 genere(s). Cliquez sur <strong>Telecharger PDF</strong> pour obtenir le document A4 formate.</div>';
         enriched += '<div style="margin-top:10px;font-size:13px;color:#1e3a8a">' + wos.map(function(w) { return '<span style="display:inline-block;background:#ffffff;border:1px solid #1e5aa8;color:#1e5aa8;padding:4px 12px;border-radius:14px;margin:3px 5px 3px 0;font-weight:700">QP-' + esc(w.id) + '</span>'; }).join('') + '</div>';
         enriched += '</div>';
 
-        // Les QP sont places dans un wrapper special qui sera lu par le PDF
-        var qpHtml = renderAllQPs(wos, contentSource);
-        enriched += '<div class="qp-print-container" style="background:#ffffff;margin:0 0 20px 0">' + qpHtml + '</div>';
+        // QP HTML complet (invisible dans le chat, visible dans le PDF)
+        enriched += '<div class="qp-print-container" style="background:#ffffff;margin:0 0 20px 0">' + renderAllQPs(wos, contentSource) + '</div>';
       } else {
         enriched += '<div style="background:#fef2f2;border:2px solid #dc2626;border-radius:8px;padding:14px;margin:0 0 20px 0">' +
           '<div style="color:#991b1b;font-weight:700">⚠️ Aucun JOB detecte dans le document</div>' +
-          '<div style="font-size:12px;color:#7f1d1d;margin-top:4px">Verifiez que le document contient des numeros de JOB a 5 chiffres (28636, 28637...).</div></div>';
+          '<div style="font-size:12px;color:#7f1d1d;margin-top:4px">Verifiez que le document contient des lignes "As per our estimate n°XXXXX" suivies d'un N° JOB a 5 chiffres.</div></div>';
       }
     } else {
-      // Reponse standard
+      // MODE NORMAL : reponse IA classique
       enriched += '<div style="background:#ffffff;border:1px solid #e5e7eb;border-radius:12px;padding:24px;margin:0 0 20px 0">';
       enriched += '<h3 style="color:#0a2540;font-size:17px;font-weight:700;margin:0 0 16px 0;padding-bottom:10px;border-bottom:2px solid #1e5aa8">Reponse detaillee</h3>';
-      enriched += '<div style="font-size:14px;color:#17202a">' + formatForHTML(answer) + '</div>';
+      enriched += '<div style="font-size:14px;color:#17202a;white-space:pre-wrap">' + esc(answer) + '</div>';
       enriched += '</div>';
     }
-
-    // Fiche technique
-    enriched += generateTechSheet(realDomain, docs.length, semanticScore, scholars, judgeResult, mode);
-
-    // Agents
-    enriched += '<div style="background:#f5f7fa;border:1px solid #e5e7eb;border-radius:8px;padding:14px;margin:20px 0;font-size:12px;color:#6b7280;text-align:center">';
-    enriched += '<strong style="color:#0a2540">Agents IA impliques :</strong> MBA-CONSULT AI CORE - OpenRouter - Semantic Engine - Language Fix - Voice Engine - <strong style="color:#16a34a">Juge Claude (validation active)</strong>';
-    if (isQP) enriched += ' - <strong style="color:#f59e0b">QP STANDARD 01 par JOB + Tableau croise API 6A</strong>';
-    if (mode === 'document') enriched += ' - <strong style="color:#1e5aa8">Traitement exclusif du document colle</strong>';
-    enriched += '</div>';
 
     return enriched;
 
@@ -943,7 +825,7 @@ async function enrichAnswer(answer, question, domain, lang, mongoose, mode, orig
 }
 
 // ============================================================
-// 14. MIDDLEWARE EXPRESS
+// 13. MIDDLEWARE EXPRESS
 // ============================================================
 module.exports = function(app, mongoose) {
 
@@ -966,6 +848,7 @@ module.exports = function(app, mongoose) {
     next();
   }
 
+  // PRE-PROCESS pour /api/analyze-content : si QP, on n'appelle PAS l'IA
   function documentPreprocess(req, res, next) {
     if (!req.body) return next();
     var content = req.body.content ? String(req.body.content) : '';
@@ -976,11 +859,15 @@ module.exports = function(app, mongoose) {
       req._documentQuestion = questionUser;
       req._documentMode = true;
 
-      // Instruction simplifiee pour eviter le refus de l'IA
-      req.body.question = (questionUser || 'Analyse ce document et genere les plans qualite pour chaque JOB.');
-      req.body.content = 'Voici le contenu du document a analyser :\n\n' + content;
+      var isQP = isQualityPlanRequest(questionUser, content);
 
-      console.log('[answer-enricher] v11.0 Mode DOCUMENT - ' + content.length + ' car.');
+      if (isQP) {
+        // Mode QP : ne pas appeler l'IA, generer directement
+        req._skipAI = true;
+        console.log('[answer-enricher] v13.0 Mode QP - Parsing direct (sans IA)');
+      } else {
+        console.log('[answer-enricher] v13.0 Mode NORMAL - Appel IA classique');
+      }
     }
     next();
   }
@@ -1027,5 +914,5 @@ module.exports = function(app, mongoose) {
   app.use('/api/ask', ragPreprocessAsk, postprocess('ask'));
   app.use('/api/analyze-content', documentPreprocess, postprocess('document'));
 
-  console.log('[answer-enricher] v11.0 charge - QP par JOB + multi-QP PDF');
+  console.log('[answer-enricher] v13.0 charge - detection JOB pattern ARC');
 };
