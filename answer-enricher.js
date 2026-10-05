@@ -1,26 +1,28 @@
 // ============================================================
 // ANSWER-ENRICHER.JS
-// Version v3.2 - Correction HTML + domaines techniques + filtre sources
+// Version v5.1 - Traitement EXCLUSIF du document colle
 //
-// CORRECTIONS APPLIQUEES :
-//   1. Le HTML n'est plus double-echappe (interprete correctement)
-//   2. Detection etendue : petrole, tubage, API 5CT/5B, VAM, AISI,
-//      normes industrielles, forage, puits, gaz, offshore...
-//   3. Filtrage des sources : score minimum 20% pour eviter le bruit
-//   4. Domaines sensibles conserves (criminalite, guerre, etc.)
-//   5. Juge Claude actif (alerte chiffres + validation)
+// COMPORTEMENT :
+//   /api/ask             -> RAG complet (base + graphiques + refs)
+//   /api/analyze-content -> EXCLUSIF au document colle
+//     - Instruction stricte injectee dans le CONTENU (pas seulement question)
+//     - Aucune recherche en base
+//     - Aucune reference externe
+//     - Aucun graphique sur la base
+//     - Aucun tableau de bord de domaine
+//     - Fiche technique indique "Document colle par l utilisateur"
 // ============================================================
 
 'use strict';
 
 // ============================================================
-// 1. DOMAINES SENSIBLES (chiffres OBLIGATOIRES)
+// 1. DOMAINES SENSIBLES
 // ============================================================
 const SENSITIVE_DOMAINS = [
-  { key: 'Criminalite', keywords: ['criminalit', 'crime', 'meurtre', 'homicide', 'delit', 'violence', 'mafia', 'gang', 'trafic', 'drogue'], sources: ['ONUDC', 'Europol', 'FBI', 'Interpol'] },
+  { key: 'Criminalite', keywords: ['criminalit', 'crime', 'meurtre', 'homicide', 'delit', 'violence', 'mafia', 'trafic', 'drogue'], sources: ['ONUDC', 'Europol', 'FBI', 'Interpol'] },
   { key: 'Terrorisme', keywords: ['terroris', 'attentat', 'djihad', 'extremis'], sources: ['ONU', 'Global Terrorism Database'] },
   { key: 'Guerre/Conflit', keywords: ['guerre', 'conflit', 'militaire', 'invasion', 'gaza', 'ukraine'], sources: ['ONU', 'OTAN', 'SIPRI', 'ICRC'] },
-  { key: 'Geopolitique', keywords: ['geopolit', 'sanction', 'diplomat'], sources: ['ONU', 'CIA World Factbook', 'Council on Foreign Relations'] },
+  { key: 'Geopolitique', keywords: ['geopolit', 'sanction', 'diplomat'], sources: ['ONU', 'CIA World Factbook'] },
   { key: 'Economie mondiale', keywords: ['pib mondial', 'recession mondiale', 'crise mondiale'], sources: ['FMI', 'Banque Mondiale', 'OCDE'] },
   { key: 'Sante publique', keywords: ['pandemi', 'epidemi', 'mortalite', 'vaccin'], sources: ['OMS', 'CDC', 'INSERM'] },
   { key: 'Immigration', keywords: ['immigration', 'migrant', 'refugie', 'asile'], sources: ['HCR', 'OIM'] },
@@ -28,7 +30,7 @@ const SENSITIVE_DOMAINS = [
 ];
 
 // ============================================================
-// 2. DOMAINES ANALYTIQUES (graphes autorises)
+// 2. DOMAINES ANALYTIQUES
 // ============================================================
 const ANALYTICAL_DOMAINS = [
   'Economie', 'Finance', 'Medecine', 'Sante', 'Marketing', 'Commerce',
@@ -221,15 +223,12 @@ function cleanText(text) {
 }
 
 // ============================================================
-// 7. FORMATAGE HTML (sans double echappement)
+// 7. FORMATAGE HTML
 // ============================================================
 function formatForHTML(text) {
   if (!text) return '';
   let clean = cleanText(text);
-
-  // Protection minimale contre injection HTML (uniquement les balises script)
   clean = clean.replace(/<script/gi, '&lt;script').replace(/<\/script>/gi, '&lt;/script&gt;');
-
   const lines = clean.split('\n');
   const output = [];
   let inList = false;
@@ -265,7 +264,7 @@ function formatForHTML(text) {
 }
 
 // ============================================================
-// 8. VECTORISATION SEMANTIQUE
+// 8. VECTORISATION
 // ============================================================
 function tokenize(text) {
   return String(text || '').toLowerCase().normalize('NFD')
@@ -288,16 +287,31 @@ function cosineSimilarity(v1, v2) {
   return dot / (Math.sqrt(n1) * Math.sqrt(n2));
 }
 
+function keywordOverlapScore(queryTokens, docText) {
+  if (!queryTokens || queryTokens.length === 0) return 0;
+  const docTokens = new Set(tokenize(docText));
+  let hits = 0;
+  for (const t of queryTokens) if (docTokens.has(t)) hits++;
+  return hits / queryTokens.length;
+}
+
 // ============================================================
-// 9. RECHERCHE DOCUMENTS (avec filtre pertinence)
+// 9. RECHERCHE DOCUMENTS (uniquement /api/ask)
 // ============================================================
-async function findRelevantDocuments(AutoFeedDoc, query, limit = 5, minScore = 0.20) {
+async function findRelevantDocuments(AutoFeedDoc, query, limit = 5, minScore = 0.15) {
   try {
+    const qTokens = tokenize(query);
     const qVector = buildVector(query);
     const docs = await AutoFeedDoc.find().sort({ createdAt: -1 }).limit(500).lean();
     return docs
-      .map(d => ({ title: d.title, domain: d.domain, source: d.source, url: d.url,
-        createdAt: d.createdAt, score: cosineSimilarity(qVector, d.vector || {}) }))
+      .map(d => {
+        const hasVector = d.vector && Object.keys(d.vector).length > 0;
+        const cosScore = hasVector ? cosineSimilarity(qVector, d.vector) : 0;
+        const kwScore = keywordOverlapScore(qTokens, (d.title || '') + ' ' + (d.content || '').slice(0, 8000));
+        const score = Math.max(cosScore, kwScore);
+        return { title: d.title, domain: d.domain, source: d.source, url: d.url,
+          createdAt: d.createdAt, content: d.content, score: score };
+      })
       .filter(d => d.score >= minScore)
       .sort((a, b) => b.score - a.score)
       .slice(0, limit);
@@ -305,38 +319,51 @@ async function findRelevantDocuments(AutoFeedDoc, query, limit = 5, minScore = 0
 }
 
 // ============================================================
-// 10. DETECTION DU DOMAINE (etendue technique + industrielle)
+// 10. CONTEXTE RAG (uniquement /api/ask)
+// ============================================================
+async function buildRagContext(AutoFeedDoc, question, maxDocs = 3, maxCharsPerDoc = 3500) {
+  try {
+    const docs = await findRelevantDocuments(AutoFeedDoc, question, maxDocs, 0.15);
+    if (docs.length === 0) return { context: '', docs: [], topScore: 0 };
+    let context = '';
+    docs.forEach((d, i) => {
+      const excerpt = String(d.content || '').slice(0, maxCharsPerDoc).trim();
+      if (excerpt.length > 100) {
+        context += `\n\n=== DOCUMENT SOURCE ${i + 1} : ${d.title} ===\nDomaine : ${d.domain}\nExtrait :\n${excerpt}\n=== FIN DOCUMENT ${i + 1} ===`;
+      }
+    });
+    return { context: context, docs: docs, topScore: docs[0].score };
+  } catch (e) { return { context: '', docs: [], topScore: 0 }; }
+}
+
+// ============================================================
+// 11. DETECTION DU DOMAINE
 // ============================================================
 function detectDomain(question, defaultDomain) {
   if (defaultDomain && defaultDomain !== 'General') return defaultDomain;
   const q = String(question || '').toLowerCase();
 
-  // Priorite 1 : Petrole & Gaz
   const petroKeywords = ['api 5ct', 'api 5b', 'api 5l', 'api 6a', 'api 16a', 'api 16d',
     'api spec', 'api std', 'vam', 'tubage', 'casing', 'tubing', 'forage', 'puits',
     'petrole', 'petroleum', 'gaz', 'gas', 'offshore', 'onshore', 'derrick', 'wellhead',
     'christmas tree', 'blowout', 'bop', 'aisi 4140', '80ksi', '110ksi', 'nace',
-    'h2s', 'sour gas', 'raccord', 'filetage', 'thread', 'coupling', 'manchon'];
+    'h2s', 'sour gas', 'raccord', 'filetage', 'thread', 'coupling', 'manchon', 'oil & gas'];
   for (const kw of petroKeywords) if (q.includes(kw)) return 'Petrole & Gaz';
 
-  // Priorite 2 : Technique industrielle
   const techKeywords = ['norme', 'iso', 'qualite', 'fabrication', 'plan qualite', 'controle qualite',
     'certificat', 'coc', 'mtc', 'inspection', 'essai', 'test pression', 'ndt',
     'soudure', 'welding', 'metal', 'acier', 'steel', 'alliage', 'tolerance',
     'specification', 'cahier charge', 'procedure', 'audit qualite'];
   for (const kw of techKeywords) if (q.includes(kw)) return 'Technique';
 
-  // Priorite 3 : Industrie manufacturiere
   const indKeywords = ['production', 'manufacture', 'usine', 'atelier', 'ligne production',
     'lean', 'six sigma', 'kaizen', 'tpm', 'kpi industriel'];
   for (const kw of indKeywords) if (q.includes(kw)) return 'Industrie';
 
-  // Priorite 4 : Domaines sensibles
   for (const sd of SENSITIVE_DOMAINS) {
     for (const kw of sd.keywords) if (q.includes(kw)) return sd.key;
   }
 
-  // Priorite 5 : Domaines classiques
   const keywords = {
     'Religion': ['relig', 'islam', 'coran', 'hadith', 'sunnah', 'prophete', 'allah', 'dieu', 'priere', 'savants', 'ibn', 'imam', 'cheikh', 'theo', 'fikh', 'fiqh', 'charia', 'صلاة', 'عيد', 'مذهب', 'سني', 'شيعي', 'دين', 'فقه'],
     'Litterature': ['litterat', 'poesie', 'roman', 'poete', 'ecrivain', 'theatre'],
@@ -359,7 +386,7 @@ function detectDomain(question, defaultDomain) {
 }
 
 // ============================================================
-// 11. VERIFICATIONS
+// 12. VERIFICATIONS
 // ============================================================
 function isLiteraryOrReligious(domain) {
   return LITERARY_RELIGIOUS_DOMAINS.some(d => domain.toLowerCase().includes(d.toLowerCase()));
@@ -372,7 +399,7 @@ function isSensitiveDomain(domain) {
 }
 
 // ============================================================
-// 12. DETECTION ABSENCE DE CHIFFRES
+// 13. DETECTION CHIFFRES
 // ============================================================
 function hasNumbers(text) {
   if (!text) return false;
@@ -385,7 +412,7 @@ function hasNumbers(text) {
 }
 
 // ============================================================
-// 13. EXTRACTION SCHOLARS
+// 14. SCHOLARS
 // ============================================================
 function extractScholarsFromContent(question, answer, domain) {
   const text = (question + ' ' + answer).toLowerCase();
@@ -401,21 +428,11 @@ function extractScholarsFromContent(question, answer, domain) {
       }
     }
   }
-  if (found.length === 0 && isLiteraryOrReligious(domain)) {
-    const patterns = [/(?:ابن|الشيخ|الإمام)\s+[\u0600-\u06FF]+/g];
-    for (const pattern of patterns) {
-      const matches = answer.match(pattern);
-      if (matches) for (const m of matches.slice(0, 3)) {
-        const cleaned = m.trim();
-        if (cleaned.length > 5 && !found.includes(cleaned)) found.push(cleaned);
-      }
-    }
-  }
   return found;
 }
 
 // ============================================================
-// 14. EXTRACTION AUTEUR / DATE
+// 15. AUTEUR / DATE
 // ============================================================
 function extractAuthorAndDate(doc) {
   let author = 'Auteur non specifie';
@@ -436,7 +453,7 @@ function extractAuthorAndDate(doc) {
 }
 
 // ============================================================
-// 15. EXTRACTION POINTS CLES
+// 16. POINTS CLES
 // ============================================================
 function extractKeyPoints(text) {
   if (!text) return [];
@@ -454,7 +471,7 @@ function extractKeyPoints(text) {
 }
 
 // ============================================================
-// 16. JUGE CLAUDE ACTIF
+// 17. JUGE CLAUDE
 // ============================================================
 function judgeClaudeValidation(question, answer, domain) {
   const isSensitive = isSensitiveDomain(domain);
@@ -470,7 +487,7 @@ function judgeClaudeValidation(question, answer, domain) {
 }
 
 // ============================================================
-// 17. GRAPHIQUES
+// 18. GRAPHIQUES
 // ============================================================
 function generateBarChart(title, data) {
   const width = 600, height = 320, padding = 50, barWidth = 55, gap = 25;
@@ -516,7 +533,7 @@ function generatePieChart(title, data) {
 }
 
 // ============================================================
-// 18. TABLEAU DE BORD
+// 19. TABLEAU DE BORD
 // ============================================================
 function generateDashboard(domain, docsUsed, semanticScore) {
   const metrics = DOMAIN_METRICS[domain];
@@ -549,15 +566,22 @@ function generateDashboard(domain, docsUsed, semanticScore) {
 }
 
 // ============================================================
-// 19. FICHE TECHNIQUE
+// 20. FICHE TECHNIQUE
 // ============================================================
-function generateTechSheet(domain, docsUsed, semanticScore, scholars, judgeResult) {
+function generateTechSheet(domain, docsUsed, semanticScore, scholars, judgeResult, mode) {
   let html = `<div style="background:linear-gradient(135deg,#0a2540,#1e5aa8);color:#ffffff;border-radius:12px;padding:20px;margin:20px 0">`;
   html += `<h4 style="margin:0 0 14px 0;font-size:16px;font-weight:700">📋 Fiche technique</h4>`;
   html += `<table style="width:100%;font-size:13px;color:#ffffff;border-collapse:collapse">`;
-  html += `<tr style="border-bottom:1px solid rgba(255,255,255,0.15)"><td style="padding:8px 0;opacity:0.75;width:180px">Domaine</td><td style="padding:8px 0;font-weight:700">${domain}</td></tr>`;
-  html += `<tr style="border-bottom:1px solid rgba(255,255,255,0.15)"><td style="padding:8px 0;opacity:0.75">Score de pertinence</td><td style="padding:8px 0;font-weight:700">${Math.round(semanticScore * 100)} %</td></tr>`;
-  html += `<tr style="border-bottom:1px solid rgba(255,255,255,0.15)"><td style="padding:8px 0;opacity:0.75">Documents sources</td><td style="padding:8px 0;font-weight:700">${docsUsed}</td></tr>`;
+  html += `<tr style="border-bottom:1px solid rgba(255,255,255,0.15)"><td style="padding:8px 0;opacity:0.75;width:200px">Domaine detecte</td><td style="padding:8px 0;font-weight:700">${domain}</td></tr>`;
+
+  if (mode === 'document') {
+    html += `<tr style="border-bottom:1px solid rgba(255,255,255,0.15)"><td style="padding:8px 0;opacity:0.75">Source unique</td><td style="padding:8px 0;font-weight:700">Document colle par l utilisateur</td></tr>`;
+    html += `<tr style="border-bottom:1px solid rgba(255,255,255,0.15)"><td style="padding:8px 0;opacity:0.75">Mode</td><td style="padding:8px 0;font-weight:700;color:#fbbf24">Traitement exclusif - aucune source externe</td></tr>`;
+  } else {
+    html += `<tr style="border-bottom:1px solid rgba(255,255,255,0.15)"><td style="padding:8px 0;opacity:0.75">Score de pertinence</td><td style="padding:8px 0;font-weight:700">${Math.round(semanticScore * 100)} %</td></tr>`;
+    html += `<tr style="border-bottom:1px solid rgba(255,255,255,0.15)"><td style="padding:8px 0;opacity:0.75">Documents sources</td><td style="padding:8px 0;font-weight:700">${docsUsed}</td></tr>`;
+  }
+
   if (judgeResult && judgeResult.isSensitive) {
     const color = judgeResult.hasNumbers ? '#4ade80' : '#f87171';
     const txt = judgeResult.hasNumbers ? 'Chiffres presents' : 'Aucun chiffre detecte';
@@ -574,7 +598,7 @@ function generateTechSheet(domain, docsUsed, semanticScore, scholars, judgeResul
 }
 
 // ============================================================
-// 20. REFERENCES (avec filtre : uniquement si docs pertinents)
+// 21. REFERENCES (uniquement /api/ask)
 // ============================================================
 function generateReferences(docs, domain, scholars) {
   if (!docs || docs.length === 0) return '';
@@ -596,11 +620,12 @@ function generateReferences(docs, domain, scholars) {
     });
     html += `</ol>`;
   } else {
-    html += `<h4 style="margin:0 0 12px 0;color:#92400e;font-size:15px;font-weight:700">📚 Publications de reference</h4>`;
+    html += `<h4 style="margin:0 0 12px 0;color:#92400e;font-size:15px;font-weight:700">📚 Documents sources utilises</h4>`;
     html += `<ol style="margin:0;padding-left:24px;font-size:13px;color:#78350f;line-height:1.7">`;
     docs.forEach(d => {
       const info = extractAuthorAndDate(d);
-      html += `<li style="margin-bottom:12px"><div style="color:#0a2540;font-weight:700;font-size:13px">${cleanText(d.title||'').slice(0,120)}</div><div style="font-size:12px;font-style:italic">Auteur : ${info.author}</div><div style="font-size:12px">Date : ${info.date}</div></li>`;
+      const pertinence = Math.round((d.score || 0) * 100);
+      html += `<li style="margin-bottom:12px"><div style="color:#0a2540;font-weight:700;font-size:13px">${cleanText(d.title||'').slice(0,120)}</div><div style="font-size:12px;font-style:italic">Auteur : ${info.author}</div><div style="font-size:12px">Date : ${info.date} — Pertinence : ${pertinence}%</div></li>`;
     });
     html += `</ol>`;
   }
@@ -610,7 +635,7 @@ function generateReferences(docs, domain, scholars) {
 }
 
 // ============================================================
-// 21. ALERTE CHIFFRES MANQUANTS
+// 22. ALERTE CHIFFRES
 // ============================================================
 function generateNumbersWarning(domain, sources) {
   return `<div style="background:#fef2f2;border:2px solid #dc2626;border-radius:12px;padding:20px;margin:20px 0">
@@ -627,15 +652,15 @@ function generateNumbersWarning(domain, sources) {
 }
 
 // ============================================================
-// 22. ENRICHISSEMENT PRINCIPAL
+// 23. ENRICHISSEMENT
 // ============================================================
-async function enrichAnswer(answer, question, domain, lang, mongoose) {
+async function enrichAnswer(answer, question, domain, lang, mongoose, mode) {
   try {
+    mode = mode || 'ask';
     const realDomain = detectDomain(question, domain);
     const isLitRel = isLiteraryOrReligious(realDomain);
     const isAnalytical = isAnalyticalDomain(realDomain);
     const isSensitive = isSensitiveDomain(realDomain);
-
     const judgeResult = judgeClaudeValidation(question, answer, realDomain);
 
     let AutoFeedDoc = null;
@@ -643,8 +668,10 @@ async function enrichAnswer(answer, question, domain, lang, mongoose) {
 
     let docs = [];
     let semanticScore = 0;
-    if (AutoFeedDoc) {
-      docs = await findRelevantDocuments(AutoFeedDoc, question, 5, 0.20);
+
+    // BASE UNIQUEMENT EN MODE ASK
+    if (mode === 'ask' && AutoFeedDoc) {
+      docs = await findRelevantDocuments(AutoFeedDoc, question, 5, 0.15);
       if (docs.length > 0) semanticScore = docs[0].score;
     }
 
@@ -674,14 +701,16 @@ async function enrichAnswer(answer, question, domain, lang, mongoose) {
       enriched += `</ul></div>`;
     }
 
-    // SECTION 3 : Tableau de bord
-    if (isAnalytical) enriched += generateDashboard(realDomain, docs.length, semanticScore);
+    // SECTION 3 : Tableau de bord (MODE ASK uniquement)
+    if (mode === 'ask' && isAnalytical) {
+      enriched += generateDashboard(realDomain, docs.length, semanticScore);
+    }
 
     // SECTION 4 : Fiche technique
-    enriched += generateTechSheet(realDomain, docs.length, semanticScore, scholars, judgeResult);
+    enriched += generateTechSheet(realDomain, docs.length, semanticScore, scholars, judgeResult, mode);
 
-    // SECTION 5 : Graphiques
-    if (isAnalytical && AutoFeedDoc) {
+    // SECTION 5 : Graphiques (MODE ASK uniquement)
+    if (mode === 'ask' && isAnalytical && AutoFeedDoc) {
       try {
         const allDocs = await AutoFeedDoc.find().lean();
         const byDomain = {};
@@ -692,12 +721,19 @@ async function enrichAnswer(answer, question, domain, lang, mongoose) {
       } catch (e) {}
     }
 
-    // SECTION 6 : References (uniquement si docs pertinents trouves)
-    enriched += generateReferences(docs, realDomain, scholars);
+    // SECTION 6 : References (MODE ASK uniquement)
+    if (mode === 'ask') {
+      enriched += generateReferences(docs, realDomain, scholars);
+    }
 
     // SECTION 7 : Agents IA
     enriched += `<div style="background:#f5f7fa;border:1px solid #e5e7eb;border-radius:8px;padding:14px;margin:20px 0;font-size:12px;color:#6b7280;text-align:center">`;
-    enriched += `<strong style="color:#0a2540">Agents IA impliques :</strong> MBA-CONSULT AI CORE - OpenRouter - Semantic Engine - Auto-Feed Scraper - Language Fix - Voice Engine - <strong style="color:#16a34a">Juge Claude (validation active)</strong>`;
+    enriched += `<strong style="color:#0a2540">Agents IA impliques :</strong> MBA-CONSULT AI CORE - OpenRouter - Semantic Engine - Language Fix - Voice Engine - <strong style="color:#16a34a">Juge Claude (validation active)</strong>`;
+    if (mode === 'document') {
+      enriched += ` - <strong style="color:#1e5aa8">Traitement exclusif du document colle</strong>`;
+    } else {
+      enriched += ` - Auto-Feed Scraper`;
+    }
     enriched += `</div>`;
 
     return enriched;
@@ -709,35 +745,116 @@ async function enrichAnswer(answer, question, domain, lang, mongoose) {
 }
 
 // ============================================================
-// 23. MIDDLEWARE EXPRESS
+// 24. MIDDLEWARE EXPRESS
 // ============================================================
 module.exports = function(app, mongoose) {
 
-  function interceptRoute(path) {
-    app.use(path, function(req, res, next) {
+  let AutoFeedDoc = null;
+  try { AutoFeedDoc = mongoose.model('AutoFeedDocument'); } catch (e) {}
+
+  // -------- /api/ask : RAG complet --------
+  async function ragPreprocessAsk(req, res, next) {
+    if (!req.body || !req.body.question) return next();
+    if (!AutoFeedDoc) {
+      try { AutoFeedDoc = mongoose.model('AutoFeedDocument'); } catch (e) { return next(); }
+    }
+    try {
+      const questionOriginale = req.body.question;
+      const rag = await buildRagContext(AutoFeedDoc, questionOriginale, 3, 3500);
+      if (rag.context && rag.context.length > 200) {
+        req.body.question = questionOriginale +
+          '\n\n[INSTRUCTION SYSTEME - UTILISE EN PRIORITE LES EXTRAITS DOCUMENTAIRES CI-DESSOUS. CITE LES NUMEROS DE NORMES, LES VALEURS CHIFFREES, LES TOLERANCES ET PROCEDURES EXACTES TROUVEES DANS CES EXTRAITS.]' +
+          rag.context +
+          '\n[FIN DES EXTRAITS DOCUMENTAIRES]\n\nQuestion de l utilisateur : ' + questionOriginale;
+        req._ragDocs = rag.docs;
+        req._ragScore = rag.topScore;
+        console.log('[answer-enricher] RAG injecte : ' + rag.docs.length + ' docs');
+      }
+    } catch (e) {
+      console.warn('[answer-enricher] RAG erreur :', e.message);
+    }
+    next();
+  }
+
+  // -------- /api/analyze-content : EXCLUSIF document --------
+  function documentPreprocess(req, res, next) {
+    if (!req.body) return next();
+
+    const content = req.body.content ? String(req.body.content) : '';
+    const questionUser = req.body.question ? String(req.body.question) : '';
+
+    if (content && content.trim().length > 20) {
+      // Sauvegarder les originaux pour usage ulterieur
+      req._documentContent = content;
+      req._documentQuestion = questionUser;
+      req._documentMode = true;
+
+      // 1. Garder la question utilisateur (ou valeur par defaut)
+      req.body.question = questionUser || 'Analyse ce document.';
+
+      // 2. Renforcer l'instruction DANS LE CONTENU lui-meme
+      //    => Peu importe comment server.js utilise content, l'IA verra l'instruction
+      req.body.content =
+        '[INSTRUCTION SYSTEME OBLIGATOIRE - A RESPECTER ABSOLUMENT]\n' +
+        'Tu dois repondre EXCLUSIVEMENT a partir du contenu du document ci-dessous.\n' +
+        'INTERDICTIONS ABSOLUES :\n' +
+        '  1. Ne pas utiliser de connaissances externes au document\n' +
+        '  2. Ne pas citer de sources non presentes dans le document\n' +
+        '  3. Ne pas inventer de chiffres, dates, normes ou references\n' +
+        '  4. Ne pas ajouter de bibliographie externe\n' +
+        '  5. Si une information manque, ecrire : "Non mentionne dans le document"\n\n' +
+        '=== DEBUT DU DOCUMENT A ANALYSER ===\n' +
+        content +
+        '\n=== FIN DU DOCUMENT A ANALYSER ===\n\n' +
+        'RAPPEL FINAL : Reponds uniquement avec les informations ci-dessus.';
+
+      // 3. Flag visible dans les logs
+      console.log('[answer-enricher] Mode DOCUMENT EXCLUSIF active - contenu ' + content.length + ' car.');
+    } else {
+      console.log('[answer-enricher] analyze-content appele SANS contenu exploitable');
+    }
+
+    next();
+  }
+
+  // -------- Post-traitement --------
+  function postprocess(mode) {
+    return function(req, res, next) {
       const originalJson = res.json.bind(res);
       res.json = function(data) {
         if (!data || !data.answer) return originalJson(data);
-        const question = req.body && req.body.question ? req.body.question : '';
+
+        let questionPourDetection;
+        if (mode === 'document') {
+          // Utiliser le contenu original du document + la question utilisateur
+          const contentDoc = req._documentContent || '';
+          const questionUser = req._documentQuestion || '';
+          questionPourDetection = (questionUser + ' ' + contentDoc).slice(0, 15000);
+        } else {
+          questionPourDetection = req.body && req.body.question ? req.body.question : '';
+        }
+
         const domain = req.body && req.body.domain ? req.body.domain : 'General';
         const lang = req.body && req.body.language ? req.body.language : 'fr';
-        enrichAnswer(data.answer, question, domain, lang, mongoose)
+
+        enrichAnswer(data.answer, questionPourDetection, domain, lang, mongoose, mode)
           .then(enriched => {
             data.answerRaw = data.answer;
             data.answer = enriched;
             data.enriched = true;
             data.enrichedAt = new Date().toISOString();
+            if (mode === 'document') data.treatmentMode = 'exclusive-document';
             originalJson(data);
           })
           .catch(() => originalJson(data));
         return res;
       };
       next();
-    });
+    };
   }
 
-  interceptRoute('/api/ask');
-  interceptRoute('/api/analyze-content');
+  app.use('/api/ask', ragPreprocessAsk, postprocess('ask'));
+  app.use('/api/analyze-content', documentPreprocess, postprocess('document'));
 
-  console.log('[answer-enricher] v3.2 charge - HTML corrige + domaines techniques + filtre pertinence 20%');
+  console.log('[answer-enricher] v5.1 charge - /ask=RAG | /analyze-content=EXCLUSIF document');
 };
