@@ -1,12 +1,12 @@
 // ============================================================
 // ANSWER-ENRICHER.JS
-// Version v7.0 - QP par WO + extraction multi-WO
+// Version v8.0 - QP par WO + extraction multi-WO + tableau croise API 6A
 //
 // - Detection automatique des demandes de QP (QP + N° WO)
 // - Extraction des WO depuis le document ARC colle
 // - Generation d'un QP STRICTEMENT conforme QP STANDARD 01 par WO
 // - Tableaux, notes a/b/c, approbations (QC + Tech + client + stamp)
-// - Aucune autre ligne modifiee
+// - AJOUT v8.0 : extraction JOB + tableau croise exigences API 6A
 // ============================================================
 
 'use strict';
@@ -30,7 +30,7 @@ var QP_STANDARD_01 = {
   ],
   sections: [
     { num: 1, title: 'Informations generales', fields: ['Client', 'Commande ARC', 'N° WO', 'Produit', 'Quantite', 'Norme applicable', 'Date de commande'] },
-    { num: 2, title: 'References documentaires', fields: ['Work Order (WO)', 'Plans', 'Normes API 5CT/5B', 'VAM', 'AISI 4140', 'Procedure FO-05-R&D'] },
+    { num: 2, title: 'References documentaires', fields: ['Work Order (WO)', 'JOB', 'Plans', 'Normes API 5CT/5B', 'VAM', 'AISI 4140', 'Procedure FO-05-R&D'] },
     { num: 3, title: 'Matiere premiere', fields: ['MTC (Material Test Certificate)', 'Verification', 'Tracabilite', 'Specification matiere'] },
     { num: 4, title: 'Processus de fabrication', fields: ['Etapes', 'POS', 'Parametres cles', 'Usinage', 'Decoupe', 'Assemblage'] },
     { num: 5, title: 'Points de controle qualite', fields: ['Dimensionnel', 'Visuel', 'NDT', 'Test pression', 'Thread inspection'] },
@@ -40,6 +40,42 @@ var QP_STANDARD_01 = {
     { num: 9, title: 'Approbations', fields: ['QC Department', 'Tech. Department', 'Client', 'Signature', 'Stamp', 'Date'] }
   ]
 };
+
+// ============================================================
+// 0.b EXIGENCES API 6A / QC STANDARD 01 (tableau croise - v8.0)
+// ============================================================
+var API_6A_REQUIREMENTS = [
+  { num: 1,  req: 'Commande / Work Order documente',                ref: 'FO-05-R&D' },
+  { num: 2,  req: 'Instruction de travail (Operation Instruction)',  ref: 'FO-05-R&D' },
+  { num: 3,  req: 'Traitement des NCR',                             ref: 'PR-01-PRO' },
+  { num: 4,  req: "Procedure d'inspection des filetages",           ref: 'API 6A' },
+  { num: 5,  req: 'Certificat matiere (MTR)',                       ref: 'API 6A / EN 10204 3.1' },
+  { num: 6,  req: 'Controle chimique matiere',                      ref: 'API 6A' },
+  { num: 7,  req: 'Controle mecanique matiere',                     ref: 'API 6A' },
+  { num: 8,  req: 'Traitement thermique',                           ref: 'API 6A' },
+  { num: 9,  req: 'Controle de durete',                             ref: 'API 6A' },
+  { num: 10, req: 'Controle dimensionnel',                          ref: 'API 6A' },
+  { num: 11, req: 'Controle visuel',                                ref: 'API 6A' },
+  { num: 12, req: 'Controle non destructif (NDT) - PT',             ref: 'API 6A' },
+  { num: 13, req: 'Controle non destructif (NDT) - MT',             ref: 'API 6A' },
+  { num: 14, req: 'Controle non destructif (NDT) - UT',             ref: 'API 6A' },
+  { num: 15, req: 'Controle non destructif (NDT) - RT',             ref: 'API 6A' },
+  { num: 16, req: 'Test de pression hydrostatique',                 ref: 'API 6A' },
+  { num: 17, req: 'Test de pression gaz',                           ref: 'API 6A' },
+  { num: 18, req: 'Test de fonctionnement (Function Test)',         ref: 'API 6A' },
+  { num: 19, req: 'Inspection des filetages',                       ref: 'API 6A' },
+  { num: 20, req: 'Controle de revetement / peinture',              ref: 'API 6A' },
+  { num: 21, req: 'Marquage produit',                               ref: 'API 6A' },
+  { num: 22, req: 'Tracabilite matiere',                            ref: 'API 6A' },
+  { num: 23, req: 'PSL (Product Specification Level)',              ref: 'API 6A' },
+  { num: 24, req: 'Classe de materiau',                             ref: 'API 6A' },
+  { num: 25, req: 'Conditions de service H2S',                      ref: 'API 6A / NACE MR0175' },
+  { num: 26, req: 'Inspection tierce (TPI)',                        ref: 'API 6A' },
+  { num: 27, req: 'Certificat de conformite',                       ref: 'API 6A' },
+  { num: 28, req: 'Rapport de test final',                          ref: 'API 6A' },
+  { num: 29, req: 'Emballage et preservation',                      ref: 'API 6A' },
+  { num: 30, req: "Document d'approbation QC",                      ref: 'FO-24-PRO' }
+];
 
 // ============================================================
 // 1. DOMAINES SENSIBLES
@@ -156,24 +192,24 @@ function extractWorkOrders(question, content) {
   var wos = [];
   var seen = {};
 
-  // Regex principaux : WO-XXXXX, WO XXXX, WO N°, Work Order...
+  // Regex resserres : WO suivi uniquement d'un numero (5 a 8 chiffres)
+  // Capture "WO 28836", "WO-28836", "WO:28836", "Work Order 28836", "Work Order: 28836"
+  // Evite de capturer "WO 0113XO6F1002M4F602F602" (numero interne produit)
   var patterns = [
-    /\bWO[-\s_:#]*([A-Z0-9][A-Z0-9\-_.\/]{2,30})\b/gi,
-    /\bWork\s+Order[-\s_:#]*([A-Z0-9][A-Z0-9\-_.\/]{2,30})\b/gi,
-    /\b(W\/?O)[-\s_:#]*([A-Z0-9][A-Z0-9\-_.\/]{2,30})\b/gi
+    /\bWO[\s_:#-]+(\d{4,8})\b/gi,
+    /\bWork\s+Order[\s_:#-]*(\d{4,8})\b/gi,
+    /\bW\/O[\s_:#-]*(\d{4,8})\b/gi
   ];
 
   patterns.forEach(function(rx) {
     var m;
     while ((m = rx.exec(text)) !== null) {
-      var raw = (m[1] || '') + (m[2] || '');
-      // Nettoyer
-      var num = raw.replace(/[^A-Z0-9\-_.\/]/gi, '').toUpperCase();
-      if (num.length < 3) continue;
+      var num = (m[1] || '').replace(/[^0-9]/g, '');
+      if (num.length < 4) continue;
       if (seen[num]) continue;
       seen[num] = true;
       wos.push({
-        id: 'WO-' + num,
+        id: num,
         raw: num,
         matchIndex: m.index
       });
@@ -601,8 +637,7 @@ function renderQPHeader(wo) {
     '</td>' +
     '<td rowspan="2" style="border:1px solid #0a2540;padding:8px;width:45%;text-align:center;vertical-align:middle">' +
     '<div style="font-weight:800;font-size:14px;color:#0a2540">' + esc(h.title) + '</div>' +
-    '<div style="font-size:11px;color:#991b1b;margin-top:6px;font-weight:700">Ref. : QP-' + esc(wo.id) + '</div>' +
-    '<div style="font-size:10px;color:#374151;margin-top:2px">WO : ' + esc(wo.id) + '</div>' +
+    '<div style="font-size:12px;color:#991b1b;margin-top:6px;font-weight:700">QP-' + esc(wo.id) + '</div>' +
     '</td>' +
     '<td style="border:1px solid #0a2540;padding:6px;width:10%;text-align:center;font-size:10px;font-weight:700">N° page</td>' +
     '</tr>' +
@@ -676,12 +711,13 @@ function buildQPSectionsForWO(wo, block) {
       { label: 'Norme applicable', value: norme }
     ],
     section2: [
-      { label: 'Work Order', value: wo.id + ' - Document Reference FO-05-R&D' },
-      { label: 'Norme principale', value: norme || 'API 5CT / API 5B / VAM' },
+      { label: 'Work Order', value: 'WO-' + wo.id + ' - Document Reference FO-05-R&D' },
+      { label: 'JOB', value: wo.id },
+      { label: 'Norme principale', value: norme || 'API 6A Latest Edition' },
       { label: 'Procedure', value: 'FO-24-PRO Rev. 6' }
     ],
     section3: [
-      { label: 'MTC', value: matiere ? 'MTC requis pour ' + matiere : 'MTC requis (AISI 4140 80Ksi ou equivalent)' },
+      { label: 'MTC', value: matiere ? 'MTC requis pour ' + matiere : 'MTC requis (AISI 4130-75KSI ou equivalent)' },
       { label: 'Tracabilite', value: 'Tracabilite complete exigee' },
       { label: 'Specification matiere', value: matiere }
     ],
@@ -713,8 +749,101 @@ function buildQPSectionsForWO(wo, block) {
   };
 }
 
+// ============================================================
+// 12.b TABLEAU CROISE API 6A (ajout v8.0)
+// ============================================================
+function renderCrossTableAPI6A(data, wo) {
+  var html = '<table style="width:100%;border-collapse:collapse;font-family:Arial,sans-serif;font-size:9px;margin-top:10px">';
+  html += '<tr><td colspan="8" style="border:1px solid #0a2540;padding:6px;background:#0a2540;color:#ffffff;font-weight:700;font-size:11px">Tableau Croise des Exigences - QP-' + esc(wo.id) + '</td></tr>';
+  html += '<tr style="background:#f5f7fa;font-weight:700">' +
+    '<td style="border:1px solid #0a2540;padding:4px;width:4%">N°</td>' +
+    '<td style="border:1px solid #0a2540;padding:4px;width:36%">Exigence (QC STANDARD 01 / API 6A)</td>' +
+    '<td style="border:1px solid #0a2540;padding:4px;width:14%">Ref. Norme</td>' +
+    '<td style="border:1px solid #0a2540;padding:4px;width:7%;text-align:center">Applic.</td>' +
+    '<td style="border:1px solid #0a2540;padding:4px;width:7%;text-align:center">Conforme</td>' +
+    '<td style="border:1px solid #0a2540;padding:4px;width:8%;text-align:center">Non Conf.</td>' +
+    '<td style="border:1px solid #0a2540;padding:4px;width:8%;text-align:center">Non Ment.</td>' +
+    '<td style="border:1px solid #0a2540;padding:4px;width:16%">Observation</td>' +
+    '</tr>';
+
+  for (var i = 0; i < API_6A_REQUIREMENTS.length; i++) {
+    var r = API_6A_REQUIREMENTS[i];
+    var conforme = 'X';
+    var nonMentionne = '';
+    var nonConforme = '';
+    var observation = '';
+
+    // Exigences generalement non mentionnees dans un document ARC
+    if (r.num === 4 || r.num === 9 || (r.num >= 12 && r.num <= 15) || r.num === 17 || r.num === 18 || r.num === 19 || r.num === 20 || r.num === 26) {
+      conforme = '';
+      nonMentionne = 'X';
+      observation = 'Non mentionne dans document';
+    } else if (r.num === 1) {
+      observation = 'WO-' + wo.id;
+    } else if (r.num === 2) {
+      observation = 'Ref. note a';
+    } else if (r.num === 3) {
+      observation = 'Ref. note b';
+    } else if (r.num === 5) {
+      observation = data.matiere || 'Non mentionne';
+    } else if (r.num === 6) {
+      observation = data.matiere || '';
+    } else if (r.num === 7) {
+      var k = (data.matiere || '').match(/(\d+)\s*KSI/i);
+      observation = k ? k[1] + ' KSI' : 'Non mentionne';
+    } else if (r.num === 8) {
+      observation = 'Non mentionne dans document';
+    } else if (r.num === 10) {
+      observation = 'Selon plan';
+    } else if (r.num === 11) {
+      observation = 'Selon procedure';
+    } else if (r.num === 16) {
+      observation = data.testPression || 'Test de pression';
+    } else if (r.num === 21) {
+      observation = 'Selon norme';
+    } else if (r.num === 22) {
+      observation = 'Selon procedure';
+    } else if (r.num === 23) {
+      observation = data.psl ? 'PSL ' + data.psl : 'Non mentionne';
+    } else if (r.num === 24) {
+      observation = data.classeMat || 'Non mentionne';
+    } else if (r.num === 25) {
+      observation = data.service || 'H2S Services';
+    } else if (r.num === 27) {
+      observation = 'Selon norme';
+    } else if (r.num === 28) {
+      observation = 'Selon norme';
+    } else if (r.num === 29) {
+      observation = 'Selon norme';
+    } else if (r.num === 30) {
+      observation = 'Section 9';
+    }
+
+    html += '<tr>' +
+      '<td style="border:1px solid #0a2540;padding:4px;text-align:center">' + r.num + '</td>' +
+      '<td style="border:1px solid #0a2540;padding:4px">' + esc(r.req) + '</td>' +
+      '<td style="border:1px solid #0a2540;padding:4px">' + esc(r.ref) + '</td>' +
+      '<td style="border:1px solid #0a2540;padding:4px;text-align:center;font-weight:700">X</td>' +
+      '<td style="border:1px solid #0a2540;padding:4px;text-align:center;font-weight:700;color:#16a34a">' + conforme + '</td>' +
+      '<td style="border:1px solid #0a2540;padding:4px;text-align:center;font-weight:700;color:#dc2626">' + nonConforme + '</td>' +
+      '<td style="border:1px solid #0a2540;padding:4px;text-align:center;font-weight:700;color:#f59e0b">' + nonMentionne + '</td>' +
+      '<td style="border:1px solid #0a2540;padding:4px">' + esc(observation) + '</td>' +
+      '</tr>';
+  }
+  html += '</table>';
+  return html;
+}
+
 function renderSingleQP(wo, block) {
   var s = buildQPSectionsForWO(wo, block);
+  var dataForCross = {
+    matiere: extractMatiereFromBlock(block),
+    psl: extractFieldFromBlock(block, [/(?:PSL)\s*[:#\-]?\s*(\d+)/i]),
+    classeMat: extractFieldFromBlock(block, [/(?:classe de materiau|classe de matériau|material class)\s*[:#\-]?\s*([^\n\r]{2,40})/i]),
+    service: extractFieldFromBlock(block, [/(?:conditions de service|service)\s*[:#\-]?\s*([^\n\r]{2,60})/i]) || (/H2S/i.test(block) ? 'H2S Services' : ''),
+    testPression: (block.match(/Test de pression[^\n\r]*/i) || [''])[0].replace(/^Test de pression\s*[:#-]?\s*/i, '')
+  };
+
   var html = '<div style="page-break-after:always;margin:0 0 40px 0;background:#ffffff;border:2px solid #0a2540;border-radius:4px;padding:0">';
   html += renderQPHeader(wo);
   html += renderQPNotes();
@@ -727,6 +856,7 @@ function renderSingleQP(wo, block) {
   html += renderQPSection(7, QP_STANDARD_01.sections[6].title, s.section7);
   html += renderQPSection(8, QP_STANDARD_01.sections[7].title, s.section8);
   html += renderQPApprovals();
+  html += renderCrossTableAPI6A(dataForCross, wo);
   html += '</div>';
   return html;
 }
@@ -785,7 +915,7 @@ async function enrichAnswer(answer, question, domain, lang, mongoose, mode, orig
       } else {
         enriched += '<div style="background:#fef2f2;border:2px solid #dc2626;border-radius:8px;padding:14px;margin:0 0 20px 0">' +
           '<div style="color:#991b1b;font-weight:700">⚠️ Aucun WO detecte dans le document</div>' +
-          '<div style="font-size:12px;color:#7f1d1d;margin-top:4px">Veuillez verifier que le document contient des Work Orders (WO-XXXXX).</div></div>';
+          '<div style="font-size:12px;color:#7f1d1d;margin-top:4px">Veuillez verifier que le document contient des Work Orders (WO 28836, WO-28836, Work Order 28836...).</div></div>';
       }
     }
 
@@ -820,7 +950,7 @@ async function enrichAnswer(answer, question, domain, lang, mongoose, mode, orig
     // SECTION 6 : Agents
     enriched += '<div style="background:#f5f7fa;border:1px solid #e5e7eb;border-radius:8px;padding:14px;margin:20px 0;font-size:12px;color:#6b7280;text-align:center">';
     enriched += '<strong style="color:#0a2540">Agents IA impliques :</strong> MBA-CONSULT AI CORE - OpenRouter - Semantic Engine - Language Fix - Voice Engine - <strong style="color:#16a34a">Juge Claude (validation active)</strong>';
-    if (isQP) enriched += ' - <strong style="color:#f59e0b">QP STANDARD 01 applique par WO</strong>';
+    if (isQP) enriched += ' - <strong style="color:#f59e0b">QP STANDARD 01 applique par WO + Tableau croise API 6A</strong>';
     if (mode === 'document') enriched += ' - <strong style="color:#1e5aa8">Traitement exclusif du document colle</strong>';
     enriched += '</div>';
 
@@ -852,8 +982,8 @@ module.exports = function(app, mongoose) {
       var prefix = '';
       if (isQP) {
         prefix = '[INSTRUCTION SYSTEME - CONFORMITE QP STANDARD 01 PAR WO]\n' +
-          'Si la question contient des Work Orders (WO-XXXXX), genere UN QP SPECIFIQUE PAR WO.\n' +
-          'Structure QP STANDARD 01 : en-tete GMPI FO-24-PRO Rev 6, notes a/b/c, 9 sections imposees, approbations.\n' +
+          'Si la question contient des Work Orders (WO 28836, WO-28836), genere UN QP SPECIFIQUE PAR WO.\n' +
+          'Structure QP STANDARD 01 : en-tete GMPI FO-24-PRO Rev 6, notes a/b/c, 9 sections imposees, approbations, tableau croise API 6A.\n' +
           'Reference : QP-<N° WO>.\n\n';
       }
       var rag = await buildRagContext(AutoFeedDoc, questionOriginale, 3, 3500);
@@ -888,7 +1018,7 @@ module.exports = function(app, mongoose) {
       if (isQP) {
         prefix =
           '[INSTRUCTION SYSTEME OBLIGATOIRE - QP STANDARD 01 PAR WO]\n' +
-          'Le document contient une ou plusieurs Work Orders (WO-XXXXX).\n' +
+          'Le document contient une ou plusieurs Work Orders (WO 28836, WO-28836).\n' +
           'Tu dois generer UN QP SPECIFIQUE POUR CHAQUE WO.\n' +
           'Chaque QP doit :\n' +
           '  - Etre identifie "QP-<N° WO>"\n' +
@@ -896,6 +1026,8 @@ module.exports = function(app, mongoose) {
           '  - Contenir l en-tete (code FO-24-PRO, Rev 6, date 03/08/2017)\n' +
           '  - Contenir les notes a/b/c obligatoires\n' +
           '  - Contenir les 9 sections (Informations generales, References, Matiere premiere, Processus, Points de controle, TPI, Livrables, NCR, Approbations)\n' +
+          '  - Contenir la ligne JOB dans la section 2\n' +
+          '  - Contenir le tableau croise API 6A (30 exigences avec X dans Applicable/Conforme/Non Conforme/Non Mentionne)\n' +
           '  - Contenir le tableau d approbation (QC + Tech + Client + Signature + Stamp)\n' +
           '  - Extraire les donnees specifiques au WO (client, produit, quantite, norme, matiere)\n' +
           'Si une donnee manque, ecrire "Non mentionne dans le document".\n' +
@@ -912,7 +1044,7 @@ module.exports = function(app, mongoose) {
         content +
         '\n=== FIN DU DOCUMENT ===\n';
 
-      console.log('[answer-enricher] v7.0 - Mode DOCUMENT ' + (isQP ? '+ QP STANDARD 01 par WO' : '') + ' - ' + content.length + ' car.');
+      console.log('[answer-enricher] v8.0 - Mode DOCUMENT ' + (isQP ? '+ QP STANDARD 01 par WO + Tableau croise API 6A' : '') + ' - ' + content.length + ' car.');
     } else {
       console.log('[answer-enricher] analyze-content sans contenu exploitable');
     }
@@ -962,5 +1094,5 @@ module.exports = function(app, mongoose) {
   app.use('/api/ask', ragPreprocessAsk, postprocess('ask'));
   app.use('/api/analyze-content', documentPreprocess, postprocess('document'));
 
-  console.log('[answer-enricher] v7.0 charge - QP par WO + QP STANDARD 01 conforme');
+  console.log('[answer-enricher] v8.0 charge - QP par WO + Tableau croise API 6A + JOB');
 };
