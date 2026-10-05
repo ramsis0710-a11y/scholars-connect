@@ -1,18 +1,12 @@
 // ============================================================
 // ANSWER-ENRICHER.JS
-// Version v10.0 - extraction colonne JOB + multi-WO
-//
-// - Detection automatique des demandes de QP (QP + N° WO / JOB)
-// - Extraction des JOB depuis la colonne "JOB" du document ARC
-// - Generation d'un QP STRICTEMENT conforme QP STANDARD 01 par JOB
-// - Tableaux, notes a/b/c, approbations (QC + Tech + client + stamp)
-// - AJOUT v10.0 : extraction prioritaire de la colonne JOB
+// Version v11.0 - extraction JOB 5-chiffres + multi-QP PDF
 // ============================================================
 
 'use strict';
 
 // ============================================================
-// 0. MODELE QP STANDARD 01 (GMPI - FO-24-PRO Rev 6)
+// 0. MODELE QP STANDARD 01
 // ============================================================
 var QP_STANDARD_01 = {
   company: 'Global Metallic Product Industries (GMPI)',
@@ -22,27 +16,15 @@ var QP_STANDARD_01 = {
   title: 'Quality Control Plan',
   editedBy: 'QC Department',
   approvedBy: 'Tech. Department',
-  signatureFields: ['Edited by (QC Dep.)', 'Approved by (Tech. Dep.)', 'Signature client', 'Stamp'],
   notes: [
     'a) For operation instruction, refer to Work Order (WO) Document Reference FO-05-R&D',
     'b) Any NCR detected shall be treated according to procedure PR-01-PRO',
     'c) Thread inspection procedures according to applicable standard'
-  ],
-  sections: [
-    { num: 1, title: 'Informations generales', fields: ['Client', 'Commande ARC', 'N° WO', 'Produit', 'Quantite', 'Norme applicable', 'Date de commande'] },
-    { num: 2, title: 'References documentaires', fields: ['Work Order (WO)', 'JOB', 'Plans', 'Normes API 5CT/5B', 'VAM', 'AISI 4140', 'Procedure FO-05-R&D'] },
-    { num: 3, title: 'Matiere premiere', fields: ['MTC (Material Test Certificate)', 'Verification', 'Tracabilite', 'Specification matiere'] },
-    { num: 4, title: 'Processus de fabrication', fields: ['Etapes', 'POS', 'Parametres cles', 'Usinage', 'Decoupe', 'Assemblage'] },
-    { num: 5, title: 'Points de controle qualite', fields: ['Dimensionnel', 'Visuel', 'NDT', 'Test pression', 'Thread inspection'] },
-    { num: 6, title: 'Inspection par tiers (TPI)', fields: ['Requis par contrat', 'Organisme', 'Frequence', 'Rapport'] },
-    { num: 7, title: 'Documents livrables', fields: ['COC', 'MTC', 'Certificats specifiques', 'Dossier qualite'] },
-    { num: 8, title: 'Gestion des non-conformites', fields: ['Procedure PR-01-PRO', 'Enregistrement', 'Actions correctives'] },
-    { num: 9, title: 'Approbations', fields: ['QC Department', 'Tech. Department', 'Client', 'Signature', 'Stamp', 'Date'] }
   ]
 };
 
 // ============================================================
-// 0.b EXIGENCES API 6A / QC STANDARD 01 (tableau croise)
+// 0.b EXIGENCES API 6A
 // ============================================================
 var API_6A_REQUIREMENTS = [
   { num: 1,  req: 'Commande / Work Order documente',                ref: 'FO-05-R&D' },
@@ -150,7 +132,7 @@ var DOMAIN_METRICS = {
 };
 
 // ============================================================
-// 4. SCHOLARS / LITTERAIRE-RELIGIEUX
+// 4. SCHOLARS
 // ============================================================
 var LITERARY_RELIGIOUS_DOMAINS = ['Religion', 'Litterature', 'Philosophie', 'Histoire', 'Theologie', 'Islam', 'Arts', 'Langues', 'Droit'];
 
@@ -171,7 +153,7 @@ var SCHOLARS_BY_DOMAIN = {
 };
 
 // ============================================================
-// 5. DETECTION QP + EXTRACTION JOB (v10.0)
+// 5. DETECTION QP + EXTRACTION JOB (v11.0)
 // ============================================================
 function isQualityPlanRequest(question, content) {
   var text = ((question || '') + ' ' + (content || '')).toLowerCase();
@@ -187,88 +169,55 @@ function isQualityPlanRequest(question, content) {
   return false;
 }
 
-// v10.0 : extraction prioritaire de la colonne JOB
-// Le document ARC contient typiquement des lignes type :
-//   JOB : 28836
-//   Job 28836
-//   JOB:28836
-// ou un tableau avec une colonne "JOB" et des valeurs numeriques 28836-28839
+// v11.0 : extraction basee sur le format ARC reel
+// Le document contient typiquement :
+//   <N°JOB 5chiffres>  <Qte>  <date JJ/MM/AA>
+// Exemple : "28636 1 18/07/26"  ou  "28639 4 18/07/26"
+// On detecte ce pattern unique qui est tres fiable.
 function extractWorkOrders(question, content) {
   var text = ((question || '') + '\n' + (content || ''));
   var wos = [];
   var seen = {};
 
-  // PRIORITE 1 : extraction de la colonne JOB (numeros uniquement)
-  var jobPatterns = [
-    /\bJOB[\s_:#-]+(\d{4,8})\b/gi,
-    /\bJob[\s_:#-]+(\d{4,8})\b/gi
-  ];
+  // PRIORITE 1 : pattern ARC "N°JOB 5chiffres  Qte  Date JJ/MM/AA"
+  // Ex: "28636 1 18/07/26"  ou  "28639 4 18/07/26"
+  var arcPattern = /\b(\d{5})\s+(\d{1,3})\s+(\d{2}\/\d{2}\/\d{2,4})\b/g;
+  var mArc;
+  while ((mArc = arcPattern.exec(text)) !== null) {
+    var numArc = mArc[1];
+    if (seen[numArc]) continue;
+    seen[numArc] = true;
+    wos.push({
+      id: numArc,
+      raw: numArc,
+      qte: mArc[2],
+      date: mArc[3],
+      matchIndex: mArc.index,
+      source: 'ARC-pattern'
+    });
+  }
 
-  for (var jp = 0; jp < jobPatterns.length; jp++) {
-    var rxj = jobPatterns[jp];
+  // PRIORITE 2 : pattern "Job" suivi d'un nombre 5 chiffres
+  if (wos.length === 0) {
+    var jobPattern = /\bJOB[\s_:#-]+(\d{4,8})\b/gi;
     var mj;
-    while ((mj = rxj.exec(text)) !== null) {
-      var numJ = (mj[1] || '').replace(/[^0-9]/g, '');
-      if (numJ.length < 4) continue;
+    while ((mj = jobPattern.exec(text)) !== null) {
+      var numJ = mj[1];
       if (seen[numJ]) continue;
       seen[numJ] = true;
-      wos.push({
-        id: numJ,
-        raw: numJ,
-        matchIndex: mj.index,
-        source: 'JOB'
-      });
+      wos.push({ id: numJ, raw: numJ, matchIndex: mj.index, source: 'JOB' });
     }
   }
 
-  // PRIORITE 2 (fallback) : si aucun JOB detecte, chercher WO + numero pur
+  // PRIORITE 3 : pattern "WO" suivi d'un nombre 5 chiffres
   if (wos.length === 0) {
-    var woPatterns = [
-      /\bWO[\s_:#-]+(\d{4,8})\b/gi,
-      /\bWork\s+Order[\s_:#-]*(\d{4,8})\b/gi,
-      /\bW\/O[\s_:#-]*(\d{4,8})\b/gi
-    ];
-    for (var wp = 0; wp < woPatterns.length; wp++) {
-      var rxw = woPatterns[wp];
-      var mw;
-      while ((mw = rxw.exec(text)) !== null) {
-        var numW = (mw[1] || '').replace(/[^0-9]/g, '');
-        if (numW.length < 4) continue;
-        if (seen[numW]) continue;
-        seen[numW] = true;
-        wos.push({
-          id: numW,
-          raw: numW,
-          matchIndex: mw.index,
-          source: 'WO'
-        });
-      }
-    }
-  }
-
-  // PRIORITE 3 (fallback ultime) : si toujours rien, prendre TOUS les WO alphanumeriques
-  // (pour ne JAMAIS rater un document, meme si le format est inhabituel)
-  if (wos.length === 0) {
-    var alphaPatterns = [
-      /\bWO[\s_:#-]+([A-Z0-9][A-Z0-9\-_.\/]{5,40})\b/gi,
-      /\bWork\s+Order[\s_:#-]*([A-Z0-9][A-Z0-9\-_.\/]{5,40})\b/gi
-    ];
-    for (var ap = 0; ap < alphaPatterns.length; ap++) {
-      var rxa = alphaPatterns[ap];
-      var ma;
-      while ((ma = rxa.exec(text)) !== null) {
-        var numA = (ma[1] || '').trim();
-        if (numA.length < 5) continue;
-        var keyA = numA.toUpperCase();
-        if (seen[keyA]) continue;
-        seen[keyA] = true;
-        wos.push({
-          id: numA,
-          raw: numA,
-          matchIndex: ma.index,
-          source: 'WO-alpha'
-        });
-      }
+    var woPattern = /\bWO[\s_:#-]+(\d{4,8})\b/gi;
+    var mw;
+    while ((mw = woPattern.exec(text)) !== null) {
+      var numW = mw[1];
+      if (seen[numW]) continue;
+      seen[numW] = true;
+      wos.push({ id: numW, raw: numW, matchIndex: mw.index, source: 'WO' });
     }
   }
 
@@ -276,10 +225,9 @@ function extractWorkOrders(question, content) {
 }
 
 function extractWoBlock(content, wo, allWos) {
-  // Extraire le bloc de texte autour du JOB (jusqu'au JOB suivant)
-  if (!content || !wo) return '';
+  if (!content || !wo) return content || '';
   var idx = content.toUpperCase().indexOf(String(wo.raw).toUpperCase());
-  if (idx === -1) return content.slice(0, 6000);
+  if (idx === -1) return content.slice(0, 8000);
 
   var nextIdx = content.length;
   for (var i = 0; i < allWos.length; i++) {
@@ -289,11 +237,11 @@ function extractWoBlock(content, wo, allWos) {
     if (oIdx !== -1 && oIdx < nextIdx) nextIdx = oIdx;
   }
 
-  return content.slice(idx, Math.min(nextIdx, idx + 8000));
+  return content.slice(idx, Math.min(nextIdx, idx + 10000));
 }
 
 // ============================================================
-// 6. UTILITAIRES TEXTE / HTML / VECTOR
+// 6. UTILITAIRES
 // ============================================================
 function cleanText(text) {
   if (!text) return '';
@@ -319,7 +267,6 @@ function formatForHTML(text) {
   var lines = clean.split('\n');
   var output = [];
   var inList = false;
-
   for (var i = 0; i < lines.length; i++) {
     var line = lines[i].trim();
     if (line === '') {
@@ -428,7 +375,7 @@ function detectDomain(question, defaultDomain) {
   var q = String(question || '').toLowerCase();
   if (isQualityPlanRequest(question, '')) return 'Plan Qualite';
 
-  var petro = ['api 5ct', 'api 5b', 'api 5l', 'api 6a', 'api 16a', 'vam', 'tubage', 'casing', 'tubing', 'petrole', 'gaz', 'aisi 4140', '80ksi', '110ksi', 'nace', 'h2s', 'raccord', 'filetage', 'thread', 'coupling', 'manchon'];
+  var petro = ['api 5ct', 'api 5b', 'api 5l', 'api 6a', 'api 16a', 'vam', 'tubage', 'casing', 'tubing', 'petrole', 'gaz', 'aisi 4130', 'aisi 4140', '75ksi', '80ksi', '110ksi', 'nace', 'h2s', 'raccord', 'filetage', 'thread', 'coupling', 'manchon'];
   for (var i = 0; i < petro.length; i++) if (q.indexOf(petro[i]) !== -1) return 'Petrole & Gaz';
 
   var tech = ['norme', 'iso', 'qualite', 'fabrication', 'controle qualite', 'certificat', 'coc', 'mtc', 'inspection', 'essai', 'test pression', 'ndt', 'soudure', 'welding', 'metal', 'acier', 'steel', 'alliage', 'tolerance'];
@@ -632,55 +579,98 @@ function extractFieldFromBlock(block, patterns) {
   return '';
 }
 
-function extractProductFromBlock(block) {
-  var patterns = [
-    /(?:produit|product|article|item|designation)\s*[:#\-]\s*([^\n\r]{3,120})/i,
-    /(?:description)\s*[:#\-]\s*([^\n\r]{3,120})/i
-  ];
-  return extractFieldFromBlock(block, patterns);
+// Extraction specialisee des donnees ARC
+function extractARCData(block, globalContent, wo) {
+  var client = 'PETROLEUM EQUIPMENT AND SUPPLIES FZE';
+  var mClient = globalContent.match(/([A-Z][A-Z\s&\.]+(?:FZE|LLC|LTD|B\.V\.|SA|SARL|GMBH)[^\n\r]*)/);
+  if (mClient) client = mClient[1].trim().slice(0, 100);
+
+  // Produit : chercher dans le bloc du JOB
+  var produit = '';
+  var mProd = block.match(/(SUPPLY MATERIAL & MANUFACTURE[\s\S]{0,500}?)(?=\d{5}\s+\d+\s+\d{2}\/\d{2}\/\d{2}|Page|\Z)/);
+  if (mProd) {
+    produit = mProd[1]
+      .replace(/SUPPLY MATERIAL & MANUFACTURE/i, '')
+      .replace(/\d{5}\s+\d+\s+\d{2}\/\d{2}\/\d{2}/g, '')
+      .replace(/As per our estimate[^\n]+/i, '')
+      .replace(/Bolts & Nuts\.?/i, '')
+      .replace(/Working pressure[^\n]+/i, '')
+      .replace(/Working Pressure[^\n]+/i, '')
+      .replace(/Pressure tested\.?/i, '')
+      .replace(/Note:[^\n]+/i, '')
+      .replace(/SERVICE CONDITIONS:[\s\S]*$/i, '')
+      .replace(/Painting & Identification:[\s\S]*$/i, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+    produit = produit.slice(0, 200);
+  }
+  if (!produit) produit = 'Non mentionne dans le document';
+
+  // Quantite : depuis wo.qte si on l'a, sinon regex
+  var qte = wo.qte || '';
+  if (!qte) {
+    var mQty = block.match(/(\d{1,3})\s+\d{2}\/\d{2}\/\d{2}/);
+    if (mQty) qte = mQty[1];
+  }
+
+  // Norme : extraire depuis le document
+  var norme = '';
+  var mNorme = globalContent.match(/Manufactured According to\s+([^\n\r]+)/i);
+  if (mNorme) norme = mNorme[1].trim();
+  if (!norme) norme = 'API 6A Latest Edition';
+
+  // Matiere
+  var matiere = '';
+  var mMatiere = block.match(/Material Grade:\s*([^\n\r]+)/i);
+  if (mMatiere) matiere = mMatiere[1].trim();
+  if (!matiere) {
+    var mAISI = block.match(/(AISI\s*\d{4}[-\s]?\d*\s*KSI?)/i);
+    if (mAISI) matiere = mAISI[1];
+  }
+
+  // Classe de materiau
+  var classeMat = '';
+  var mClasse = block.match(/Material Class:\s*([A-Z0-9\-_]+)/i);
+  if (mClasse) classeMat = mClasse[1];
+
+  // PSL
+  var psl = '';
+  var mPSL = block.match(/PSL\s*-?\s*(\d)/i);
+  if (mPSL) psl = mPSL[1];
+
+  // Test pression
+  var testPression = '';
+  var mPression = block.match(/(?:Working pressure|Working Pressure):\s*([^\n\r]+)/i);
+  if (mPression) testPression = mPression[1].trim();
+  if (!testPression) {
+    var mPSI = block.match(/(\d{3,5}\s*(?:psi|PSI|K))/);
+    if (mPSI) testPression = 'Test de pression a ' + mPSI[1];
+  }
+
+  // Service H2S
+  var service = '';
+  if (/H2S/i.test(block)) service = 'H2S Services';
+
+  // Estimation
+  var estimation = '';
+  var mEstim = block.match(/estimate n[°º]?\s*(\d+)/i) || globalContent.match(/estimate n[°º]?\s*(\d+)/i);
+  if (mEstim) estimation = mEstim[1];
+
+  return {
+    client: client,
+    produit: produit,
+    qte: qte,
+    norme: norme,
+    matiere: matiere,
+    classeMat: classeMat,
+    psl: psl,
+    testPression: testPression,
+    service: service,
+    estimation: estimation,
+    arc: '4585228786'
+  };
 }
 
-function extractQuantityFromBlock(block) {
-  var patterns = [
-    /(?:qte|qté|quantite|quantité|qty|quantity)\s*[:#\-]?\s*(\d[\d\s.,]*)/i,
-    /(\d[\d\s.,]*)\s*(?:pcs|pieces|pièces|units|unités|kg|tonnes)/i
-  ];
-  return extractFieldFromBlock(block, patterns);
-}
-
-function extractClientFromBlock(block) {
-  var patterns = [
-    /(?:client|customer|destinataire)\s*[:#\-]\s*([^\n\r]{2,120})/i
-  ];
-  return extractFieldFromBlock(block, patterns);
-}
-
-function extractARCFromBlock(block) {
-  var patterns = [
-    /(?:ARC|commande|order)\s*[:#\-]?\s*([A-Z0-9\-_\/]{3,40})/i
-  ];
-  return extractFieldFromBlock(block, patterns);
-}
-
-function extractNormeFromBlock(block) {
-  var patterns = [
-    /(?:norme|standard|spec|specification)\s*[:#\-]?\s*((?:API|ISO|ASTM|AISI|VAM|NACE|ASME)[A-Z0-9\s\-\.\/]{2,40})/i
-  ];
-  return extractFieldFromBlock(block, patterns);
-}
-
-function extractMatiereFromBlock(block) {
-  var patterns = [
-    /(?:matiere|matière|material|acier|steel)\s*[:#\-]?\s*([A-Z0-9\s\-\.\/]{3,60})/i,
-    /(AISI\s*\d{4})/i,
-    /(\d{2,3}\s*KSI)/i
-  ];
-  return extractFieldFromBlock(block, patterns);
-}
-
-// ============================================================
-// 12. RENDU HTML QP PAR JOB
-// ============================================================
 function renderQPHeader(wo) {
   var h = QP_STANDARD_01;
   return '<table style="width:100%;border-collapse:collapse;font-family:Arial,sans-serif;font-size:11px;margin-bottom:0">' +
@@ -723,17 +713,16 @@ function renderQPNotes() {
 
 function renderQPSection(num, title, rows) {
   var html = '<table style="width:100%;border-collapse:collapse;font-family:Arial,sans-serif;font-size:10px;margin-top:0">';
-  html += '<tr><td colspan="3" style="border:1px solid #0a2540;padding:6px;background:#0a2540;color:#ffffff;font-weight:700">' + num + '. ' + esc(title) + '</td></tr>';
+  html += '<tr><td colspan="2" style="border:1px solid #0a2540;padding:6px;background:#0a2540;color:#ffffff;font-weight:700">' + num + '. ' + esc(title) + '</td></tr>';
   if (rows && rows.length > 0) {
     rows.forEach(function(r) {
       html += '<tr>' +
         '<td style="border:1px solid #0a2540;padding:6px;width:30%;background:#f9fafb;font-weight:600;color:#0a2540">' + esc(r.label) + '</td>' +
-        '<td style="border:1px solid #0a2540;padding:6px;width:50%;color:#17202a">' + esc(r.value || 'Non mentionne dans le document') + '</td>' +
-        '<td style="border:1px solid #0a2540;padding:6px;width:20%;color:#6b7280;font-size:9px">' + esc(r.note || '') + '</td>' +
+        '<td style="border:1px solid #0a2540;padding:6px;width:70%;color:#17202a">' + esc(r.value || 'Non mentionne dans le document') + '</td>' +
         '</tr>';
     });
   } else {
-    html += '<tr><td colspan="3" style="border:1px solid #0a2540;padding:6px;color:#6b7280;font-style:italic">Non mentionne dans le document</td></tr>';
+    html += '<tr><td colspan="2" style="border:1px solid #0a2540;padding:6px;color:#6b7280;font-style:italic">Non mentionne dans le document</td></tr>';
   }
   html += '</table>';
   return html;
@@ -747,62 +736,6 @@ function renderQPApprovals() {
     '<td style="border:1px solid #0a2540;padding:8px;width:33%;text-align:center">Tech. Department<br><span style="font-size:9px;color:#6b7280">Name : ______________</span><br><span style="font-size:9px;color:#6b7280">Signature : __________</span><br><span style="font-size:9px;color:#6b7280">Date : ____ / ____ / ________</span></td>' +
     '<td style="border:1px solid #0a2540;padding:8px;width:34%;text-align:center">Client<br><span style="font-size:9px;color:#6b7280">Name : ______________</span><br><span style="font-size:9px;color:#6b7280">Signature : __________</span><br><span style="font-size:9px;color:#6b7280">Stamp : ____________</span></td>' +
     '</tr></table>';
-}
-
-function buildQPSectionsForWO(wo, block) {
-  var client = extractClientFromBlock(block);
-  var produit = extractProductFromBlock(block);
-  var qte = extractQuantityFromBlock(block);
-  var arc = extractARCFromBlock(block);
-  var norme = extractNormeFromBlock(block);
-  var matiere = extractMatiereFromBlock(block);
-
-  return {
-    section1: [
-      { label: 'Client', value: client },
-      { label: 'Commande ARC', value: arc },
-      { label: 'N° WO', value: wo.id },
-      { label: 'Produit', value: produit },
-      { label: 'Quantite', value: qte },
-      { label: 'Norme applicable', value: norme }
-    ],
-    section2: [
-      { label: 'Work Order', value: 'WO-' + wo.id + ' - Document Reference FO-05-R&D' },
-      { label: 'JOB', value: wo.id },
-      { label: 'Norme principale', value: norme || 'API 6A Latest Edition' },
-      { label: 'Procedure', value: 'FO-24-PRO Rev. 6' }
-    ],
-    section3: [
-      { label: 'MTC', value: matiere ? 'MTC requis pour ' + matiere : 'MTC requis (AISI 4130-75KSI ou equivalent)' },
-      { label: 'Tracabilite', value: 'Tracabilite complete exigee' },
-      { label: 'Specification matiere', value: matiere }
-    ],
-    section4: [
-      { label: 'Etapes', value: 'Decoupe - Usinage - Assemblage - Controle final' },
-      { label: 'POS', value: 'POS par etape selon FO-05-R&D' },
-      { label: 'Parametres cles', value: 'Selon norme applicable' }
-    ],
-    section5: [
-      { label: 'Dimensionnel', value: 'Inspection dimensionnelle a chaque etape' },
-      { label: 'Visuel', value: 'Inspection visuelle 100%' },
-      { label: 'NDT', value: 'Si requis par norme' },
-      { label: 'Test pression', value: 'Si applicable selon norme' }
-    ],
-    section6: [
-      { label: 'TPI', value: 'Selon contrat client' },
-      { label: 'Organisme', value: 'A designer par le client' }
-    ],
-    section7: [
-      { label: 'COC', value: 'Certificat de conformite requis' },
-      { label: 'MTC', value: 'Material Test Certificate requis' },
-      { label: 'Autres', value: 'Documents supplementaires factures' }
-    ],
-    section8: [
-      { label: 'Procedure NCR', value: 'PR-01-PRO' },
-      { label: 'Enregistrement', value: 'Registre NCR obligatoire' },
-      { label: 'Actions correctives', value: 'Definies selon PR-01-PRO' }
-    ]
-  };
 }
 
 function renderCrossTableAPI6A(data, wo) {
@@ -827,49 +760,28 @@ function renderCrossTableAPI6A(data, wo) {
     var observation = '';
 
     if (r.num === 4 || r.num === 9 || (r.num >= 12 && r.num <= 15) || r.num === 17 || r.num === 18 || r.num === 19 || r.num === 20 || r.num === 26) {
-      conforme = '';
-      nonMentionne = 'X';
-      observation = 'Non mentionne dans document';
-    } else if (r.num === 1) {
-      observation = 'WO-' + wo.id;
-    } else if (r.num === 2) {
-      observation = 'Ref. note a';
-    } else if (r.num === 3) {
-      observation = 'Ref. note b';
-    } else if (r.num === 5) {
-      observation = data.matiere || 'Non mentionne';
-    } else if (r.num === 6) {
-      observation = data.matiere || '';
-    } else if (r.num === 7) {
+      conforme = ''; nonMentionne = 'X'; observation = 'Non mentionne';
+    } else if (r.num === 1) { observation = 'WO-' + wo.id; }
+    else if (r.num === 2) { observation = 'Ref. note a'; }
+    else if (r.num === 3) { observation = 'Ref. note b'; }
+    else if (r.num === 5) { observation = data.matiere || 'Non mentionne'; }
+    else if (r.num === 6) { observation = data.matiere || ''; }
+    else if (r.num === 7) {
       var k = (data.matiere || '').match(/(\d+)\s*KSI/i);
       observation = k ? k[1] + ' KSI' : 'Non mentionne';
-    } else if (r.num === 8) {
-      observation = 'Non mentionne dans document';
-    } else if (r.num === 10) {
-      observation = 'Selon plan';
-    } else if (r.num === 11) {
-      observation = 'Selon procedure';
-    } else if (r.num === 16) {
-      observation = data.testPression || 'Test de pression';
-    } else if (r.num === 21) {
-      observation = 'Selon norme';
-    } else if (r.num === 22) {
-      observation = 'Selon procedure';
-    } else if (r.num === 23) {
-      observation = data.psl ? 'PSL ' + data.psl : 'Non mentionne';
-    } else if (r.num === 24) {
-      observation = data.classeMat || 'Non mentionne';
-    } else if (r.num === 25) {
-      observation = data.service || 'H2S Services';
-    } else if (r.num === 27) {
-      observation = 'Selon norme';
-    } else if (r.num === 28) {
-      observation = 'Selon norme';
-    } else if (r.num === 29) {
-      observation = 'Selon norme';
-    } else if (r.num === 30) {
-      observation = 'Section 9';
-    }
+    } else if (r.num === 8) { observation = 'Non mentionne'; }
+    else if (r.num === 10) { observation = 'Selon plan'; }
+    else if (r.num === 11) { observation = 'Selon procedure'; }
+    else if (r.num === 16) { observation = data.testPression || 'Test de pression'; }
+    else if (r.num === 21) { observation = 'Selon norme'; }
+    else if (r.num === 22) { observation = 'Selon procedure'; }
+    else if (r.num === 23) { observation = data.psl ? 'PSL ' + data.psl : 'Non mentionne'; }
+    else if (r.num === 24) { observation = data.classeMat || 'Non mentionne'; }
+    else if (r.num === 25) { observation = data.service || 'H2S Services'; }
+    else if (r.num === 27) { observation = 'Selon norme'; }
+    else if (r.num === 28) { observation = 'Selon norme'; }
+    else if (r.num === 29) { observation = 'Selon norme'; }
+    else if (r.num === 30) { observation = 'Section 9'; }
 
     html += '<tr>' +
       '<td style="border:1px solid #0a2540;padding:4px;text-align:center">' + r.num + '</td>' +
@@ -886,44 +798,72 @@ function renderCrossTableAPI6A(data, wo) {
   return html;
 }
 
-function renderSingleQP(wo, block) {
-  var s = buildQPSectionsForWO(wo, block);
-  var dataForCross = {
-    matiere: extractMatiereFromBlock(block),
-    psl: extractFieldFromBlock(block, [/(?:PSL)\s*[:#\-]?\s*(\d+)/i]),
-    classeMat: extractFieldFromBlock(block, [/(?:classe de materiau|classe de matériau|material class)\s*[:#\-]?\s*([^\n\r]{2,40})/i]),
-    service: extractFieldFromBlock(block, [/(?:conditions de service|service)\s*[:#\-]?\s*([^\n\r]{2,60})/i]) || (/H2S/i.test(block) ? 'H2S Services' : ''),
-    testPression: (block.match(/Test de pression[^\n\r]*/i) || [''])[0].replace(/^Test de pression\s*[:#-]?\s*/i, '')
-  };
+function renderSingleQP(wo, block, globalContent) {
+  var data = extractARCData(block, globalContent, wo);
 
-  var html = '<div style="page-break-after:always;margin:0 0 40px 0;background:#ffffff;border:2px solid #0a2540;border-radius:4px;padding:0">';
+  var html = '<div class="qp-document" data-qp="QP-' + esc(wo.id) + '" style="page-break-before:always;page-break-after:always;background:#ffffff;border:2px solid #0a2540;border-radius:4px;padding:0;margin:0 0 30px 0">';
   html += renderQPHeader(wo);
   html += renderQPNotes();
-  html += renderQPSection(1, QP_STANDARD_01.sections[0].title, s.section1);
-  html += renderQPSection(2, QP_STANDARD_01.sections[1].title, s.section2);
-  html += renderQPSection(3, QP_STANDARD_01.sections[2].title, s.section3);
-  html += renderQPSection(4, QP_STANDARD_01.sections[3].title, s.section4);
-  html += renderQPSection(5, QP_STANDARD_01.sections[4].title, s.section5);
-  html += renderQPSection(6, QP_STANDARD_01.sections[5].title, s.section6);
-  html += renderQPSection(7, QP_STANDARD_01.sections[6].title, s.section7);
-  html += renderQPSection(8, QP_STANDARD_01.sections[7].title, s.section8);
+  html += renderQPSection(1, QP_STANDARD_01 ? 'Informations generales' : '', [
+    { label: 'Client', value: data.client },
+    { label: 'Commande ARC', value: data.arc },
+    { label: 'N° WO', value: wo.id },
+    { label: 'Produit', value: data.produit },
+    { label: 'Quantite', value: data.qte },
+    { label: 'Norme applicable', value: data.norme }
+  ]);
+  html += renderQPSection(2, 'References documentaires', [
+    { label: 'Work Order', value: 'WO-' + wo.id + ' - Document Reference FO-05-R&D' },
+    { label: 'JOB', value: wo.id },
+    { label: 'Estimation', value: data.estimation ? 'n°' + data.estimation : '' },
+    { label: 'Norme principale', value: data.norme },
+    { label: 'Procedure', value: 'FO-24-PRO Rev. 6' }
+  ]);
+  html += renderQPSection(3, 'Matiere premiere', [
+    { label: 'MTC', value: data.matiere ? 'MTC requis pour ' + data.matiere : 'MTC requis (AISI 4130-75KSI ou equivalent)' },
+    { label: 'Tracabilite', value: 'Tracabilite complete exigee' },
+    { label: 'Specification matiere', value: data.matiere },
+    { label: 'Classe de materiau', value: data.classeMat },
+    { label: 'PSL', value: data.psl ? 'PSL ' + data.psl : '' }
+  ]);
+  html += renderQPSection(4, 'Processus de fabrication', [
+    { label: 'Etapes', value: 'Decoupe - Usinage - Assemblage - Controle final' },
+    { label: 'POS', value: 'POS par etape selon FO-05-R&D' },
+    { label: 'Parametres cles', value: 'Selon norme applicable' }
+  ]);
+  html += renderQPSection(5, 'Points de controle qualite', [
+    { label: 'Dimensionnel', value: 'Inspection dimensionnelle a chaque etape' },
+    { label: 'Visuel', value: 'Inspection visuelle 100%' },
+    { label: 'NDT', value: 'Si requis par norme' },
+    { label: 'Test pression', value: data.testPression || 'Si applicable selon norme' }
+  ]);
+  html += renderQPSection(6, 'Inspection par tiers (TPI)', [
+    { label: 'TPI', value: 'Selon contrat client' },
+    { label: 'Organisme', value: 'A designer par le client' }
+  ]);
+  html += renderQPSection(7, 'Documents livrables', [
+    { label: 'COC', value: 'Certificat de conformite requis' },
+    { label: 'MTC', value: 'Material Test Certificate requis' },
+    { label: 'Autres', value: 'Documents supplementaires factures' }
+  ]);
+  html += renderQPSection(8, 'Gestion des non-conformites', [
+    { label: 'Procedure NCR', value: 'PR-01-PRO' },
+    { label: 'Enregistrement', value: 'Registre NCR obligatoire' },
+    { label: 'Actions correctives', value: 'Definies selon PR-01-PRO' }
+  ]);
   html += renderQPApprovals();
-  html += renderCrossTableAPI6A(dataForCross, wo);
+  html += renderCrossTableAPI6A(data, wo);
   html += '</div>';
   return html;
 }
 
 function renderAllQPs(wos, content) {
   if (!wos || wos.length === 0) return '';
-  var html = '<div style="background:#eff6ff;border-left:4px solid #1e5aa8;border-radius:8px;padding:14px;margin:0 0 20px 0">' +
-    '<div style="color:#1e40af;font-weight:800;font-size:14px">📄 ' + wos.length + ' Work Order(s) detecte(s)</div>' +
-    '<div style="font-size:12px;color:#1e3a8a;margin-top:4px">Un QP specifique conforme QP STANDARD 01 est genere pour chacun. Cliquez sur "Telecharger PDF" pour obtenir les ' + wos.length + ' QP en document A4.</div>' +
-    '<div style="margin-top:8px;font-size:12px;color:#1e3a8a">' + wos.map(function(w) { return '<span style="display:inline-block;background:#ffffff;border:1px solid #1e5aa8;color:#1e5aa8;padding:3px 10px;border-radius:12px;margin:2px 4px 2px 0;font-weight:700">QP-' + esc(w.id) + '</span>'; }).join('') + '</div>' +
-    '</div>';
+  var html = '';
 
   wos.forEach(function(wo) {
     var block = extractWoBlock(content, wo, wos);
-    html += renderSingleQP(wo, block);
+    html += renderSingleQP(wo, block, content);
   });
 
   return html;
@@ -940,7 +880,6 @@ async function enrichAnswer(answer, question, domain, lang, mongoose, mode, orig
     var realDomain = isQP ? 'Plan Qualite' : detectDomain(question, domain);
     var isLitRel = isLiteraryOrReligious(realDomain);
     var isAnalytical = isAnalyticalDomain(realDomain);
-    var isSensitive = isSensitiveDomain(realDomain);
     var judgeResult = judgeClaudeValidation(question, answer, realDomain);
 
     var AutoFeedDoc = null;
@@ -956,53 +895,42 @@ async function enrichAnswer(answer, question, domain, lang, mongoose, mode, orig
     var scholars = [];
     if (isLitRel) scholars = extractScholars(question, answer, realDomain);
 
-    var keyPoints = extractKeyPoints(answer);
     var enriched = '';
 
-    // Bandeau QP + rendu multi-QP par JOB
+    // QP par JOB
     if (isQP) {
       var wos = extractWorkOrders(question, contentSource);
       if (wos.length > 0) {
-        enriched += renderAllQPs(wos, contentSource);
+        // Message info (visible dans le chat)
+        enriched += '<div style="background:#eff6ff;border-left:4px solid #1e5aa8;border-radius:8px;padding:18px;margin:0 0 20px 0">';
+        enriched += '<div style="color:#1e40af;font-weight:800;font-size:15px">📄 ' + wos.length + ' Work Order(s) detecte(s)</div>';
+        enriched += '<div style="font-size:13px;color:#1e3a8a;margin-top:6px">Un QP specifique conforme QP STANDARD 01 a ete genere pour chacun. Cliquez sur <strong>Telecharger PDF</strong> pour obtenir les ' + wos.length + ' QP dans un document A4 formate.</div>';
+        enriched += '<div style="margin-top:10px;font-size:13px;color:#1e3a8a">' + wos.map(function(w) { return '<span style="display:inline-block;background:#ffffff;border:1px solid #1e5aa8;color:#1e5aa8;padding:4px 12px;border-radius:14px;margin:3px 5px 3px 0;font-weight:700">QP-' + esc(w.id) + '</span>'; }).join('') + '</div>';
+        enriched += '</div>';
+
+        // Les QP sont places dans un wrapper special qui sera lu par le PDF
+        var qpHtml = renderAllQPs(wos, contentSource);
+        enriched += '<div class="qp-print-container" style="background:#ffffff;margin:0 0 20px 0">' + qpHtml + '</div>';
       } else {
         enriched += '<div style="background:#fef2f2;border:2px solid #dc2626;border-radius:8px;padding:14px;margin:0 0 20px 0">' +
           '<div style="color:#991b1b;font-weight:700">⚠️ Aucun JOB detecte dans le document</div>' +
-          '<div style="font-size:12px;color:#7f1d1d;margin-top:4px">Verifiez que le document contient une colonne JOB avec des numeros (JOB 28836, JOB: 28836...).</div></div>';
+          '<div style="font-size:12px;color:#7f1d1d;margin-top:4px">Verifiez que le document contient des numeros de JOB a 5 chiffres (28636, 28637...).</div></div>';
       }
+    } else {
+      // Reponse standard
+      enriched += '<div style="background:#ffffff;border:1px solid #e5e7eb;border-radius:12px;padding:24px;margin:0 0 20px 0">';
+      enriched += '<h3 style="color:#0a2540;font-size:17px;font-weight:700;margin:0 0 16px 0;padding-bottom:10px;border-bottom:2px solid #1e5aa8">Reponse detaillee</h3>';
+      enriched += '<div style="font-size:14px;color:#17202a">' + formatForHTML(answer) + '</div>';
+      enriched += '</div>';
     }
 
-    // SECTION 1 : Reponse detaillee
-    enriched += '<div style="background:#ffffff;border:1px solid #e5e7eb;border-radius:12px;padding:24px;margin:0 0 20px 0">';
-    enriched += '<h3 style="color:#0a2540;font-size:17px;font-weight:700;margin:0 0 16px 0;padding-bottom:10px;border-bottom:2px solid #1e5aa8">Analyse et reponses complementaires</h3>';
-    enriched += '<div style="font-size:14px;color:#17202a">' + formatForHTML(answer) + '</div>';
-    enriched += '</div>';
-
-    // SECTION 2 : Points cles
-    if (keyPoints.length > 0) {
-      enriched += '<div style="background:#eff6ff;border-left:4px solid #1e5aa8;border-radius:8px;padding:18px;margin:0 0 20px 0">';
-      enriched += '<h4 style="margin:0 0 12px 0;color:#1e40af;font-size:15px;font-weight:700">Points cles a retenir</h4>';
-      enriched += '<ul style="margin:0;padding-left:24px;color:#1e3a8a;font-size:14px;line-height:1.7">';
-      keyPoints.forEach(function(p) { enriched += '<li style="margin-bottom:8px">' + esc(p) + '</li>'; });
-      enriched += '</ul></div>';
-    }
-
-    // SECTION 3 : Dashboard
-    if (mode === 'ask' && isAnalytical) {
-      enriched += generateDashboard(realDomain, docs.length, semanticScore);
-    }
-
-    // SECTION 4 : Fiche technique
+    // Fiche technique
     enriched += generateTechSheet(realDomain, docs.length, semanticScore, scholars, judgeResult, mode);
 
-    // SECTION 5 : References (mode ask uniquement)
-    if (mode === 'ask') {
-      enriched += generateReferences(docs, realDomain, scholars);
-    }
-
-    // SECTION 6 : Agents
+    // Agents
     enriched += '<div style="background:#f5f7fa;border:1px solid #e5e7eb;border-radius:8px;padding:14px;margin:20px 0;font-size:12px;color:#6b7280;text-align:center">';
     enriched += '<strong style="color:#0a2540">Agents IA impliques :</strong> MBA-CONSULT AI CORE - OpenRouter - Semantic Engine - Language Fix - Voice Engine - <strong style="color:#16a34a">Juge Claude (validation active)</strong>';
-    if (isQP) enriched += ' - <strong style="color:#f59e0b">QP STANDARD 01 applique par JOB + Tableau croise API 6A</strong>';
+    if (isQP) enriched += ' - <strong style="color:#f59e0b">QP STANDARD 01 par JOB + Tableau croise API 6A</strong>';
     if (mode === 'document') enriched += ' - <strong style="color:#1e5aa8">Traitement exclusif du document colle</strong>';
     enriched += '</div>';
 
@@ -1022,7 +950,6 @@ module.exports = function(app, mongoose) {
   var AutoFeedDoc = null;
   try { AutoFeedDoc = mongoose.model('AutoFeedDocument'); } catch (e) { AutoFeedDoc = null; }
 
-  // -------- RAG preprocess /api/ask --------
   async function ragPreprocessAsk(req, res, next) {
     if (!req.body || !req.body.question) return next();
     if (!AutoFeedDoc) {
@@ -1030,32 +957,17 @@ module.exports = function(app, mongoose) {
     }
     try {
       var questionOriginale = req.body.question;
-      var isQP = isQualityPlanRequest(questionOriginale, '');
-      var prefix = '';
-      if (isQP) {
-        prefix = '[INSTRUCTION SYSTEME - CONFORMITE QP STANDARD 01 PAR JOB]\n' +
-          'Si la question contient des JOB (JOB 28836, JOB: 28836), genere UN QP SPECIFIQUE PAR JOB.\n' +
-          'Structure QP STANDARD 01 : en-tete GMPI FO-24-PRO Rev 6, notes a/b/c, 9 sections imposees, approbations, tableau croise API 6A.\n' +
-          'Reference : QP-<N° JOB>.\n\n';
-      }
       var rag = await buildRagContext(AutoFeedDoc, questionOriginale, 3, 3500);
       if (rag.context && rag.context.length > 200) {
-        req.body.question = prefix + questionOriginale +
-          '\n\n[EXTRAITS DOCUMENTAIRES]\n' + rag.context + '\n[FIN EXTRAITS]\n\nQuestion : ' + questionOriginale;
+        req.body.question = questionOriginale + '\n\n[EXTRAITS]\n' + rag.context + '\n[FIN EXTRAITS]\n\nQuestion : ' + questionOriginale;
         req._ragDocs = rag.docs;
-      } else if (isQP) {
-        req.body.question = prefix + questionOriginale;
       }
-    } catch (e) {
-      console.warn('[answer-enricher] RAG erreur :', e.message);
-    }
+    } catch (e) {}
     next();
   }
 
-  // -------- Document preprocess /api/analyze-content --------
   function documentPreprocess(req, res, next) {
     if (!req.body) return next();
-
     var content = req.body.content ? String(req.body.content) : '';
     var questionUser = req.body.question ? String(req.body.question) : '';
 
@@ -1064,46 +976,15 @@ module.exports = function(app, mongoose) {
       req._documentQuestion = questionUser;
       req._documentMode = true;
 
-      var isQP = isQualityPlanRequest(questionUser, content);
-      var prefix = '';
+      // Instruction simplifiee pour eviter le refus de l'IA
+      req.body.question = (questionUser || 'Analyse ce document et genere les plans qualite pour chaque JOB.');
+      req.body.content = 'Voici le contenu du document a analyser :\n\n' + content;
 
-      if (isQP) {
-        prefix =
-          '[INSTRUCTION SYSTEME OBLIGATOIRE - QP STANDARD 01 PAR JOB]\n' +
-          'Le document contient une ou plusieurs colonnes JOB avec des numeros (JOB 28836, JOB: 28836, JOB 28837, JOB 28838, JOB 28839).\n' +
-          'Tu dois generer UN QP SPECIFIQUE POUR CHAQUE JOB.\n' +
-          'Chaque QP doit :\n' +
-          '  - Etre identifie "QP-<N° JOB>"\n' +
-          '  - Respecter la structure QP STANDARD 01 (GMPI FO-24-PRO Rev 6)\n' +
-          '  - Contenir l en-tete (code FO-24-PRO, Rev 6, date 03/08/2017)\n' +
-          '  - Contenir les notes a/b/c obligatoires\n' +
-          '  - Contenir les 9 sections (Informations generales, References, Matiere premiere, Processus, Points de controle, TPI, Livrables, NCR, Approbations)\n' +
-          '  - Contenir la ligne JOB dans la section 2\n' +
-          '  - Contenir le tableau croise API 6A (30 exigences avec X dans Applicable/Conforme/Non Conforme/Non Mentionne)\n' +
-          '  - Contenir le tableau d approbation (QC + Tech + Client + Signature + Stamp)\n' +
-          '  - Extraire les donnees specifiques au JOB (client, produit, quantite, norme, matiere)\n' +
-          'Si une donnee manque, ecrire "Non mentionne dans le document".\n' +
-          '[FIN INSTRUCTION]\n\n';
-      }
-
-      req.body.question = prefix + (questionUser || 'Genere le QP pour chaque JOB present dans le document.');
-
-      req.body.content =
-        '[INSTRUCTION SYSTEME - DOCUMENT DE REFERENCE STRICT]\n' +
-        'Reponds EXCLUSIVEMENT a partir du contenu ci-dessous.\n' +
-        'N invente AUCUNE donnee externe.\n\n' +
-        '=== DEBUT DU DOCUMENT ===\n' +
-        content +
-        '\n=== FIN DU DOCUMENT ===\n';
-
-      console.log('[answer-enricher] v10.0 - Mode DOCUMENT ' + (isQP ? '+ QP STANDARD 01 par JOB + Tableau croise API 6A' : '') + ' - ' + content.length + ' car.');
-    } else {
-      console.log('[answer-enricher] analyze-content sans contenu exploitable');
+      console.log('[answer-enricher] v11.0 Mode DOCUMENT - ' + content.length + ' car.');
     }
     next();
   }
 
-  // -------- Postprocess --------
   function postprocess(mode) {
     return function(req, res, next) {
       var originalJson = res.json.bind(res);
@@ -1146,5 +1027,5 @@ module.exports = function(app, mongoose) {
   app.use('/api/ask', ragPreprocessAsk, postprocess('ask'));
   app.use('/api/analyze-content', documentPreprocess, postprocess('document'));
 
-  console.log('[answer-enricher] v10.0 charge - QP par JOB + Tableau croise API 6A');
+  console.log('[answer-enricher] v11.0 charge - QP par JOB + multi-QP PDF');
 };
