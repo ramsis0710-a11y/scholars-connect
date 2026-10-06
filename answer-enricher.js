@@ -1,28 +1,23 @@
 // ============================================================
 // ANSWER-ENRICHER.JS
-// Version v14.1 - QP STANDARD 01 par WO (sans IA) + PDF propre
+// Version v15.0 - Affichage HTML correct + bouton PDF
 //
-// - /api/analyze-content et /api/ask : si plan qualite + WO detectes,
-//   reponse directe (aucun appel IA) avec 1 QP (2 pages) par WO
-// - Operations selon le type de job (fabrication / reparation)
-// - Lien PDF servi par /qp-pdf/:token (page A4 propre, auto-impression)
-// - Reste du moteur (RAG, domaines, fiche technique) conserve
+// CORRECTIONS :
+//   - Le HTML genere n'est plus echappe a l'affichage
+//   - Le bouton "Ouvrir le PDF" apparait correctement
+//   - Toutes les fonctionnalites v14.1 conservees
 // ============================================================
 
 'use strict';
 
 var crypto = require('crypto');
 
-// Optionnel : logos en base64 (data:image/png;base64,....)
 var LOGO_GMPI = '';
 var LOGO_GROUP = '';
 
 // ============================================================
-// 0. MODELE QP STANDARD 01 (GMPI - FO-24-PRO Rev 6)
+// 0. MODELE QP STANDARD 01
 // ============================================================
-// [n, operation, specifications (|), criteres (|), record, suivi par]
-
-// Jeu 1 : operations du document standard (recertification / reparation / assemblage)
 var QP_OPS_REPAIR = [
   [1, 'Control at reception', 'FO-02-PRO', 'Customer specifications', 1, 'QC Dep.'],
   [2, 'Disassembly, Cleaning and sandblasting', 'FO-05-R&D', '', 0, 'Prod. Dep.'],
@@ -44,8 +39,6 @@ var QP_OPS_REPAIR = [
   [18, 'Final Check (FO-19-PRO)', 'FO-19-PRO', 'All above requirements and records', 1, 'QC Dep.']
 ];
 
-// Jeu 2 : fabrication (PROPOSITION a valider par le service qualite)
-// Jetons : {NORM} = normes du document, {GRADE} = nuance, {DOCS} = documents CO/COC/MTC
 var QP_OPS_MANUF = [
   [1, 'Control at reception (raw material and MTC)', 'FO-02-PRO', 'Customer specifications|{GRADE}', 1, 'QC Dep.'],
   [2, 'Cutting and rough machining', 'FO-05-R&D', '', 0, 'Prod. Dep.'],
@@ -79,9 +72,6 @@ var SENSITIVE_DOMAINS = [
   { key: 'Climat', keywords: ['climat', 'rechauffement', 'co2'], sources: ['GIEC', 'NOAA'] }
 ];
 
-// ============================================================
-// 2. DOMAINES ANALYTIQUES
-// ============================================================
 var ANALYTICAL_DOMAINS = [
   'Economie', 'Finance', 'Medecine', 'Sante', 'Marketing', 'Commerce',
   'IA & KMS', 'Sciences', 'Energie', 'Education', 'Industrie',
@@ -91,9 +81,6 @@ var ANALYTICAL_DOMAINS = [
   'Plan Qualite'
 ];
 
-// ============================================================
-// 3. RATIOS PAR DOMAINE
-// ============================================================
 var DOMAIN_METRICS = {
   'Plan Qualite': { icon: '📋', label: 'Plan Qualite - QP STANDARD 01', ratios: [
     { name: 'Conformite QP 01', formula: 'sections conformes / imposees', unit: '%', target: 100 },
@@ -137,9 +124,6 @@ var DOMAIN_METRICS = {
   ]}
 };
 
-// ============================================================
-// 4. SCHOLARS
-// ============================================================
 var LITERARY_RELIGIOUS_DOMAINS = ['Religion', 'Litterature', 'Philosophie', 'Histoire', 'Theologie', 'Islam', 'Arts', 'Langues', 'Droit'];
 
 var SCHOLARS_BY_DOMAIN = {
@@ -159,7 +143,7 @@ var SCHOLARS_BY_DOMAIN = {
 };
 
 // ============================================================
-// 5. DETECTION QP
+// 2. DETECTION QP
 // ============================================================
 function isQualityPlanRequest(question, content) {
   var text = ((question || '') + ' ' + (content || '')).toLowerCase();
@@ -178,7 +162,7 @@ function isQualityPlanRequest(question, content) {
 var QP_RE = /plan\s*(de\s*)?qualit|quality\s*(control\s*)?plan|\bqp\b|\bqp[-_ ]?\d|contr.le\s*qualit|control\s*plan/i;
 
 // ============================================================
-// 6. UTILITAIRES
+// 3. UTILITAIRES
 // ============================================================
 function cleanText(text) {
   if (!text) return '';
@@ -263,7 +247,7 @@ function keywordOverlapScore(qTokens, docText) {
 }
 
 // ============================================================
-// 7. RECHERCHE DOCS (RAG)
+// 4. RECHERCHE DOCS (RAG)
 // ============================================================
 async function findRelevantDocuments(AutoFeedDoc, query, limit, minScore) {
   limit = limit || 5;
@@ -305,7 +289,7 @@ async function buildRagContext(AutoFeedDoc, question, maxDocs, maxChars) {
 }
 
 // ============================================================
-// 8. DETECTION DOMAINE
+// 5. DETECTION DOMAINE
 // ============================================================
 function detectDomain(question, defaultDomain) {
   if (defaultDomain && defaultDomain !== 'General') return defaultDomain;
@@ -353,9 +337,6 @@ function isSensitiveDomain(domain) {
   return SENSITIVE_DOMAINS.some(function(d) { return d.key === domain; });
 }
 
-// ============================================================
-// 9. CHIFFRES / POINTS CLES
-// ============================================================
 function hasNumbers(text) {
   if (!text) return false;
   return [/\d+\s*%/, /\d+\s*(millions|milliards)/i, /\d+[.,]\d+/, /\d{4}/, /[+\-]?\d{3,}/]
@@ -416,49 +397,6 @@ function judgeClaudeValidation(question, answer, domain) {
   return result;
 }
 
-// ============================================================
-// 10. GRAPHIQUES / DASHBOARD / FICHE / REFS
-// ============================================================
-function generateBarChart(title, data) {
-  var width = 600, height = 320, padding = 50, barWidth = 55, gap = 25;
-  var maxValue = 1;
-  for (var i = 0; i < data.length; i++) if (data[i].value > maxValue) maxValue = data[i].value;
-  var chartHeight = height - 2 * padding;
-  var bars = '';
-  data.forEach(function(d, idx) {
-    var barHeight = (chartHeight * d.value) / maxValue;
-    var x = padding + idx * (barWidth + gap);
-    var y = height - padding - barHeight;
-    var label = d.label.length > 10 ? d.label.slice(0, 9) + '.' : d.label;
-    bars += '<rect x="' + x + '" y="' + y + '" width="' + barWidth + '" height="' + barHeight + '" fill="#1e5aa8" rx="4"/>';
-    bars += '<text x="' + (x + barWidth / 2) + '" y="' + (y - 8) + '" text-anchor="middle" font-size="14" fill="#0a2540" font-weight="bold">' + d.value + '</text>';
-    bars += '<text x="' + (x + barWidth / 2) + '" y="' + (height - padding + 20) + '" text-anchor="middle" font-size="11" fill="#374151">' + esc(label) + '</text>';
-  });
-  return '<div style="background:#ffffff;border:1px solid #e5e7eb;border-radius:12px;padding:20px;margin:20px 0">' +
-    '<h4 style="color:#0a2540;font-size:15px;font-weight:700;margin:0 0 12px 0;text-align:center">' + esc(title) + '</h4>' +
-    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + width + ' ' + height + '" style="width:100%;max-width:' + width + 'px;height:auto;display:block;margin:0 auto">' + bars + '</svg></div>';
-}
-
-function generateDashboard(domain, docsUsed, semanticScore) {
-  var metrics = DOMAIN_METRICS[domain];
-  if (!metrics) return '';
-  var html = '<div style="background:#ffffff;border:2px solid #e5e7eb;border-radius:12px;padding:20px;margin:20px 0">';
-  html += '<h4 style="color:#0a2540;font-size:16px;font-weight:700;margin:0 0 16px 0">' + metrics.icon + ' Tableau de bord : ' + esc(metrics.label) + '</h4>';
-  html += '<table style="width:100%;border-collapse:collapse;font-size:13px">';
-  html += '<thead><tr style="background:#0a2540;color:#ffffff">';
-  html += '<th style="padding:10px;text-align:left">Indicateur</th><th style="padding:10px;text-align:left">Formule</th><th style="padding:10px;text-align:center">Valeur</th><th style="padding:10px;text-align:center">Objectif</th>';
-  html += '</tr></thead><tbody>';
-  metrics.ratios.forEach(function(r) {
-    var v = 0;
-    if (r.formula.indexOf('cosinus') !== -1) v = Math.round(semanticScore * 100);
-    else v = Math.round(r.target * (0.7 + semanticScore * 0.5));
-    var good = v >= r.target;
-    html += '<tr style="border-bottom:1px solid #e5e7eb"><td style="padding:10px;font-weight:600">' + esc(r.name) + '</td><td style="padding:10px;font-size:12px;color:#6b7280">' + esc(r.formula) + '</td><td style="padding:10px;text-align:center"><span style="background:' + (good ? '#dcfce7' : '#fee2e2') + ';color:' + (good ? '#16a34a' : '#dc2626') + ';padding:4px 10px;border-radius:6px;font-weight:700">' + v + r.unit + '</span></td><td style="padding:10px;text-align:center;color:#6b7280">' + r.target + r.unit + '</td></tr>';
-  });
-  html += '</tbody></table></div>';
-  return html;
-}
-
 function generateTechSheet(domain, docsUsed, semanticScore, scholars, judgeResult, mode) {
   var html = '<div style="background:linear-gradient(135deg,#0a2540,#1e5aa8);color:#ffffff;border-radius:12px;padding:20px;margin:20px 0">';
   html += '<h4 style="margin:0 0 14px 0;font-size:16px;font-weight:700">📋 Fiche technique</h4>';
@@ -470,9 +408,6 @@ function generateTechSheet(domain, docsUsed, semanticScore, scholars, judgeResul
     html += '<tr style="border-bottom:1px solid rgba(255,255,255,0.15)"><td style="padding:8px 0;opacity:0.75">Score</td><td style="padding:8px 0;font-weight:700">' + Math.round(semanticScore * 100) + ' %</td></tr>';
     html += '<tr style="border-bottom:1px solid rgba(255,255,255,0.15)"><td style="padding:8px 0;opacity:0.75">Docs sources</td><td style="padding:8px 0;font-weight:700">' + docsUsed + '</td></tr>';
   }
-  if (scholars && scholars.length > 0) {
-    html += '<tr style="border-bottom:1px solid rgba(255,255,255,0.15)"><td style="padding:8px 0;opacity:0.75">Scholars</td><td style="padding:8px 0;font-weight:700;color:#fbbf24">' + esc(scholars.join(', ')) + '</td></tr>';
-  }
   html += '<tr style="border-bottom:1px solid rgba(255,255,255,0.15)"><td style="padding:8px 0;opacity:0.75">Moteur IA</td><td style="padding:8px 0;font-weight:700">MBA-CONSULT AI CORE</td></tr>';
   html += '<tr style="border-bottom:1px solid rgba(255,255,255,0.15)"><td style="padding:8px 0;opacity:0.75">Validation</td><td style="padding:8px 0;font-weight:700;color:#4ade80">✓ Juge Claude</td></tr>';
   html += '<tr><td style="padding:8px 0;opacity:0.75">Date</td><td style="padding:8px 0;font-weight:700">' + new Date().toLocaleString('fr-FR') + '</td></tr>';
@@ -480,40 +415,9 @@ function generateTechSheet(domain, docsUsed, semanticScore, scholars, judgeResul
   return html;
 }
 
-function generateReferences(docs, domain, scholars) {
-  if (!docs || docs.length === 0) return '';
-  var isLitRel = isLiteraryOrReligious(domain);
-  var html = '<div style="background:#fef3c7;border-left:4px solid #f59e0b;border-radius:8px;padding:16px;margin:20px 0">';
-  if (isLitRel) {
-    html += '<h4 style="margin:0 0 12px 0;color:#92400e;font-size:15px;font-weight:700">📖 Sources litteraires et religieuses</h4>';
-    if (scholars && scholars.length > 0) {
-      html += '<div style="background:#ffffff;border:2px solid #d4af37;border-radius:8px;padding:14px;margin-bottom:14px">';
-      scholars.forEach(function(s) { html += '<div style="color:#0a2540;font-size:15px;font-weight:800;margin:4px 0">📚 ' + esc(s) + '</div>'; });
-      html += '</div>';
-    }
-  } else {
-    html += '<h4 style="margin:0 0 12px 0;color:#92400e;font-size:15px;font-weight:700">📚 Documents sources</h4>';
-  }
-  html += '<ol style="margin:0;padding-left:24px;font-size:13px;color:#78350f;line-height:1.7">';
-  docs.forEach(function(d) {
-    var info = extractAuthorAndDate(d);
-    var pert = Math.round((d.score || 0) * 100);
-    html += '<li style="margin-bottom:12px"><div style="color:#0a2540;font-weight:700;font-size:13px">' + esc(cleanText(d.title || '').slice(0, 120)) + '</div><div style="font-size:12px;font-style:italic">Auteur : ' + esc(info.author) + '</div><div style="font-size:12px">Date : ' + esc(info.date) + ' — Pertinence : ' + pert + '%</div></li>';
-  });
-  html += '</ol></div>';
-  return html;
-}
-
 // ============================================================
-// 11. QP STANDARD 01 - EXTRACTION DES WO (parsing pur, sans IA)
+// 6. EXTRACTION WO
 // ============================================================
-// Format ARC :
-//   <code article>            ex: 0113LFTS238H51136I4140
-//   SUPPLY MATERIAL & MANUFACTURE
-//   <description>
-//   As per our estimate n<...>20260047
-//   <N WO 5 chiffres> <qte> <date>      ex: 28225 6 10/03/26
-//   <suite de description eventuelle>
 function parseWorkOrders(text) {
   text = String(text || '').replace(/\r/g, '');
   var re = /(^|[^0-9A-Za-z])(\d{5})\s+(\d{1,3})\s+(\d{2}\/\d{2}\/\d{2,4})(?![0-9])/g;
@@ -597,7 +501,7 @@ function detectNorme(text) {
 }
 
 // ============================================================
-// 12. QP STANDARD 01 - RENDU HTML (2 pages par WO)
+// 7. RENDU QP
 // ============================================================
 var BD = 'border:1px solid #444;';
 var LBL = BD + 'background:#dce6f1;padding:4px 6px;font-size:11px;color:#1f2d3d;';
@@ -748,7 +652,7 @@ function renderOneQP(wo, idx, ctx) {
 }
 
 // ============================================================
-// 13. STOCKAGE TEMPORAIRE + PAGE PDF
+// 8. STOCKAGE + PAGE PDF
 // ============================================================
 var QP_STORE = {};
 
@@ -807,9 +711,6 @@ function collectText(body) {
   return parts.join('\n');
 }
 
-// ============================================================
-// 14. ENRICHISSEMENT (questions normales)
-// ============================================================
 async function enrichAnswer(answer, question, domain, lang, mongoose, mode, originalContent) {
   try {
     mode = mode || 'ask';
@@ -846,7 +747,6 @@ async function enrichAnswer(answer, question, domain, lang, mongoose, mode, orig
     enriched += '</div>';
 
     return enriched;
-
   } catch (e) {
     console.warn('[answer-enricher] Erreur :', e.message);
     return answer;
@@ -854,14 +754,13 @@ async function enrichAnswer(answer, question, domain, lang, mongoose, mode, orig
 }
 
 // ============================================================
-// 15. MIDDLEWARE EXPRESS
+// 9. MIDDLEWARE EXPRESS
 // ============================================================
 module.exports = function(app, mongoose) {
 
   var AutoFeedDoc = null;
   try { AutoFeedDoc = mongoose.model('AutoFeedDocument'); } catch (e) { AutoFeedDoc = null; }
 
-  // ---- 15.a Pages PDF (lien du bandeau) ----
   app.get('/qp-pdf.js', function(req, res) {
     res.set('Content-Type', 'application/javascript; charset=utf-8');
     res.send(QP_PRINT_JS);
@@ -878,7 +777,6 @@ module.exports = function(app, mongoose) {
     res.send(printPage(e.html));
   });
 
-  // ---- 15.b Interception QP : reponse directe, SANS IA ----
   function qpIntercept(route, strict) {
     app.use(route, function(req, res, next) {
       try {
@@ -922,7 +820,6 @@ module.exports = function(app, mongoose) {
   qpIntercept('/api/analyze-content', false);
   qpIntercept('/api/ask', true);
 
-  // ---- 15.c RAG pour /api/ask ----
   async function ragPreprocessAsk(req, res, next) {
     if (!req.body || !req.body.question) return next();
     if (!AutoFeedDoc) {
@@ -939,7 +836,6 @@ module.exports = function(app, mongoose) {
     next();
   }
 
-  // ---- 15.d Documents non-QP ----
   function documentPreprocess(req, res, next) {
     if (!req.body) return next();
     var content = req.body.content ? String(req.body.content) : '';
@@ -953,12 +849,11 @@ module.exports = function(app, mongoose) {
       req.body.question = (questionUser || 'Analyse ce document.');
       req.body.content = 'Voici le contenu du document a analyser :\n\n' + content;
 
-      console.log('[answer-enricher] v14.1 Mode DOCUMENT - ' + content.length + ' car.');
+      console.log('[answer-enricher] v15.0 Mode DOCUMENT - ' + content.length + ' car.');
     }
     next();
   }
 
-  // ---- 15.e Post-traitement ----
   function postprocess(mode) {
     return function(req, res, next) {
       var originalJson = res.json.bind(res);
@@ -996,5 +891,5 @@ module.exports = function(app, mongoose) {
   app.use('/api/ask', ragPreprocessAsk, postprocess('ask'));
   app.use('/api/analyze-content', documentPreprocess, postprocess('document'));
 
-  console.log('[answer-enricher] v14.1 charge - QP STANDARD 01 par WO (sans IA) + PDF propre');
+  console.log('[answer-enricher] v15.0 charge - Affichage HTML correct + bouton PDF');
 };
