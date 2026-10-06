@@ -1,9 +1,10 @@
 // ============================================================
 // ANSWER-ENRICHER.JS
-// Version v14.0 - QP STANDARD 01 par WO (sans IA) + PDF propre
+// Version v14.1 - QP STANDARD 01 par WO (sans IA) + PDF propre
 //
 // - /api/analyze-content et /api/ask : si plan qualite + WO detectes,
 //   reponse directe (aucun appel IA) avec 1 QP (2 pages) par WO
+// - Operations selon le type de job (fabrication / reparation)
 // - Lien PDF servi par /qp-pdf/:token (page A4 propre, auto-impression)
 // - Reste du moteur (RAG, domaines, fiche technique) conserve
 // ============================================================
@@ -20,7 +21,9 @@ var LOGO_GROUP = '';
 // 0. MODELE QP STANDARD 01 (GMPI - FO-24-PRO Rev 6)
 // ============================================================
 // [n, operation, specifications (|), criteres (|), record, suivi par]
-var QP_OPS = [
+
+// Jeu 1 : operations du document standard (recertification / reparation / assemblage)
+var QP_OPS_REPAIR = [
   [1, 'Control at reception', 'FO-02-PRO', 'Customer specifications', 1, 'QC Dep.'],
   [2, 'Disassembly, Cleaning and sandblasting', 'FO-05-R&D', '', 0, 'Prod. Dep.'],
   [3, 'Visual and dimensional inspection of body, union connections and Flanges', 'FO-04-PRO|FO-51-PRO', 'API 6A|ASME B16.5|ASME B31.3', 1, 'QC Dep.'],
@@ -39,6 +42,21 @@ var QP_OPS = [
   [16, 'Storage Compound and Protection', 'IN-02-PRO|API 6A|ASME B16.5', 'IN-02-PRO|API 6A|ASME B16.5', 0, 'Prod. Dep.'],
   [17, 'Handling and Storage', 'IN-02-PRO', 'IN-02-PRO', 0, 'Prod. Dep.'],
   [18, 'Final Check (FO-19-PRO)', 'FO-19-PRO', 'All above requirements and records', 1, 'QC Dep.']
+];
+
+// Jeu 2 : fabrication (PROPOSITION a valider par le service qualite)
+// Jetons : {NORM} = normes du document, {GRADE} = nuance, {DOCS} = documents CO/COC/MTC
+var QP_OPS_MANUF = [
+  [1, 'Control at reception (raw material and MTC)', 'FO-02-PRO', 'Customer specifications|{GRADE}', 1, 'QC Dep.'],
+  [2, 'Cutting and rough machining', 'FO-05-R&D', '', 0, 'Prod. Dep.'],
+  [3, 'Final machining and thread machining', 'FO-05-R&D', '', 0, 'Prod. Dep.'],
+  [4, 'Visual and dimensional inspection (including threads)', 'FO-04-PRO|FO-51-PRO', '{NORM}|Customer specifications', 1, 'QC Dep.'],
+  [5, 'Hardness testing (if required)', 'ASTM E10|ASTM E18', '{NORM}|Customer specifications', 1, 'QC Dep.'],
+  [6, 'MPI inspection (if required)', 'ASTM E709', '{NORM}|Customer specifications', 1, 'QC Dep.'],
+  [7, 'Marking : Hard Stamping', 'IN-09-PRO', 'IN-09-PRO', 0, 'Prod. Dep.'],
+  [8, 'Painting (if applicable) and thread protectors', 'FO-05-R&D|PR-01-CMT', 'Customer specifications', 0, 'Prod. Dep.'],
+  [9, 'Handling and Storage', 'IN-02-PRO', 'IN-02-PRO', 0, 'Prod. Dep.'],
+  [10, 'Final Check (FO-19-PRO){DOCS}', 'FO-19-PRO', 'All above requirements and records', 1, 'QC Dep.']
 ];
 
 var QP_NOTES = [
@@ -148,7 +166,7 @@ function isQualityPlanRequest(question, content) {
   var triggers = [
     'plan qualite', 'plan qualité', 'plan de qualite', 'plan de qualité',
     'quality control plan', 'quality plan', 'qp ', 'qp-', 'qp_', 'qp+',
-    'qp01', 'qp 01', 'qp standard', 'controle qualite', 'contrôle qualité',
+    'qp01', 'qp 01', 'qp standard', 'controle qualite', 'contrôle qualite',
     'control plan', 'plan de controle', 'plan de contrôle'
   ];
   for (var i = 0; i < triggers.length; i++) {
@@ -489,8 +507,15 @@ function generateReferences(docs, domain, scholars) {
 // ============================================================
 // 11. QP STANDARD 01 - EXTRACTION DES WO (parsing pur, sans IA)
 // ============================================================
+// Format ARC :
+//   <code article>            ex: 0113LFTS238H51136I4140
+//   SUPPLY MATERIAL & MANUFACTURE
+//   <description>
+//   As per our estimate n<...>20260047
+//   <N WO 5 chiffres> <qte> <date>      ex: 28225 6 10/03/26
+//   <suite de description eventuelle>
 function parseWorkOrders(text) {
-  text = String(text || '');
+  text = String(text || '').replace(/\r/g, '');
   var re = /(^|[^0-9A-Za-z])(\d{5})\s+(\d{1,3})\s+(\d{2}\/\d{2}\/\d{2,4})(?![0-9])/g;
   var hits = [], seen = {}, m;
   while ((m = re.exec(text)) !== null) {
@@ -503,27 +528,53 @@ function parseWorkOrders(text) {
       end: m.index + m[0].length
     });
   }
+
+  var codes = [];
+  var codeRe = /^[ \t]*(\d{4}[A-Z][A-Z0-9]{6,})[ \t]*$/gm;
+  var cm;
+  while ((cm = codeRe.exec(text)) !== null) codes.push({ code: cm[1], idx: cm.index });
+
+  var pages = [];
+  var pageRe = /^[ \t]*Page\s+\d+\s*\/\s*\d+/gmi;
+  var pm;
+  while ((pm = pageRe.exec(text)) !== null) pages.push(pm.index);
+
   for (var i = 0; i < hits.length; i++) {
-    var prevEnd = i > 0 ? hits[i - 1].end : 0;
-    var nextStart = i + 1 < hits.length ? hits[i + 1].start : text.length;
-    hits[i].before = text.slice(prevEnd, hits[i].start);
-    hits[i].after = text.slice(hits[i].end, nextStart);
+    var h = hits[i];
+    var c = null;
+    for (var j = 0; j < codes.length; j++) { if (codes[j].idx < h.start) c = codes[j]; }
+    var blockStart = c ? c.idx : (i > 0 ? hits[i - 1].end : 0);
+
+    var blockEnd = text.length;
+    for (var j2 = 0; j2 < codes.length; j2++) {
+      if (codes[j2].idx > h.end) { blockEnd = Math.min(blockEnd, codes[j2].idx); break; }
+    }
+    for (var p = 0; p < pages.length; p++) {
+      if (pages[p] > h.end) { blockEnd = Math.min(blockEnd, pages[p]); break; }
+    }
+    if (i + 1 < hits.length && !codes.length) blockEnd = Math.min(blockEnd, hits[i + 1].start);
+
+    h.code = c ? c.code : '';
+    h.before = text.slice(blockStart, h.start);
+    h.after = text.slice(h.end, blockEnd);
   }
   return hits;
 }
 
 function describeWO(h) {
   var b = h.before;
-  var code = (b.match(/\b\d{4}[A-Z][A-Z0-9]{6,}\b/) || [''])[0];
-  var est = (b.match(/estimate\s*n\S*\s*(\d+)/i) || ['', ''])[1];
+  var code = h.code || (b.match(/\b\d{4}[A-Z][A-Z0-9]{6,}\b/) || [''])[0];
+  var est = (b.match(/estimate\s*n[^\d\s]*\s*(\d+)/i) || ['', ''])[1];
   var kind = '';
   var k = b.toUpperCase().lastIndexOf('MANUFACTURE');
   if (k !== -1) { kind = 'SUPPLY MATERIAL & MANUFACTURE'; b = b.slice(k + 11); }
   b = b.replace(/As\s+per\s+our\s+estimate[^\n]*/i, ' ');
   if (code) b = b.split(code).join(' ');
-  var desc = b.replace(/\s+/g, ' ').trim().slice(0, 300);
-  if (desc.length < 8) desc = h.after.replace(/\s+/g, ' ').trim().slice(0, 200);
-  return { code: code, est: est, kind: kind, desc: desc };
+  var cont = String(h.after || '').replace(/\s+/g, ' ').trim();
+  var gm = String(h.after || '').match(/GRADE\s*:\s*([^\n\r]+)/i);
+  var grade = gm ? gm[1].replace(/\.\s*$/, '').trim() : '';
+  var desc = (b.replace(/\s+/g, ' ').trim() + ' ' + cont).trim().slice(0, 350);
+  return { code: code, est: est, kind: kind, desc: desc, grade: grade };
 }
 
 function detectCustomer(text) {
@@ -539,8 +590,10 @@ function detectPO(text) {
 }
 
 function detectNorme(text) {
-  var m = String(text).match(/Manufactured\s+According\s+to\s+([^\n\r]+)/i);
-  return m ? m[1].trim().slice(0, 80) : '';
+  var m = String(text).match(/Manufactured\s+According\s+to\s+([\s\S]{3,200}?)\s+Latest\s+Edition/i);
+  if (m) return m[1].replace(/\s+/g, ' ').trim() + ' Latest Edition';
+  var m2 = String(text).match(/Manufactured\s+According\s+to\s+([^\n\r]+)/i);
+  return m2 ? m2[1].trim().slice(0, 80) : '';
 }
 
 // ============================================================
@@ -565,6 +618,18 @@ function todayFR() {
 function logoBox(src, alt, fallback) {
   if (src) return '<img src="' + src + '" alt="' + alt + '" style="max-width:100%;max-height:48px">';
   return fallback;
+}
+
+function fillOps(ops, ctx, grade) {
+  var normAcc = ctx.normeAcc || 'Customer specifications';
+  function fx(s) {
+    return String(s).replace('{NORM}', normAcc).replace('{GRADE}', grade ? 'Grade: ' + grade : '')
+      .split('|').filter(function(x) { return x.trim() !== ''; }).join('|');
+  }
+  return ops.map(function(o) {
+    var name = String(o[1]).replace('{DOCS}', ctx.hasDocs ? ' and documents (CO, COC, MTC)' : '');
+    return [o[0], name, fx(o[2]), fx(o[3]), o[4], o[5]];
+  });
 }
 
 function qpHeader(pageNo) {
@@ -617,7 +682,7 @@ function qpPage1(d) {
     td(th + 'width:9%', 'Followed by') +
     td(th + 'width:14%', 'Signature') +
     '</tr>';
-  QP_OPS.forEach(function(o) {
+  d.ops.forEach(function(o) {
     var opHtml = esc(o[1]).replace('+ UT for weld joints', '<span style="color:#d00000">+ UT for weld joints</span>');
     var c = BD + 'padding:3px 5px;font-size:9px;color:#111;';
     ops += '<tr>' +
@@ -662,6 +727,9 @@ function renderOneQP(wo, idx, ctx) {
   };
   if (!type.proto && !type.manuf && !type.repair && !type.assembly) type.manuf = true;
 
+  var baseOps = (type.repair || type.assembly) ? QP_OPS_REPAIR : QP_OPS_MANUF;
+  var ops = fillOps(baseOps, ctx, info.grade);
+
   var l1 = esc((info.kind || 'JOB') + (ctx.norme ? ' AS PER ' + ctx.norme.toUpperCase() : '') + ' FOR :');
   var l2 = '- ' + esc(info.desc) + (wo.qte ? ', QTY: ' + esc(wo.qte) : '') +
     (info.code ? ', REF: ' + esc(info.code) : '') + (info.est ? ', ESTIMATE No ' + esc(info.est) : '');
@@ -672,7 +740,8 @@ function renderOneQP(wo, idx, ctx) {
     po: ctx.po,
     dated: todayFR(),
     brief: l1 + '<br>' + l2,
-    type: type
+    type: type,
+    ops: ops
   };
   var style = 'background:#fff;padding:0;margin:0;' + (idx > 0 ? 'page-break-before:always;' : '');
   return '<div class="qp-document" data-qp="QP-' + esc(wo.id) + '" style="' + style + '">' + qpPage1(d) + qpPage2() + '</div>';
@@ -705,7 +774,15 @@ var QP_PRINT_JS = "window.addEventListener('load',function(){var b=document.getE
 function buildQPAnswer(text) {
   var wos = parseWorkOrders(text);
   if (wos.length === 0) return { wos: wos, html: '' };
-  var ctx = { customer: detectCustomer(text), po: detectPO(text), norme: detectNorme(text) };
+  var norme = detectNorme(text);
+  var normeAcc = norme.replace(/\s*Latest\s+Edition\s*$/i, '').split(/\s*[,&]\s*/).filter(function(x) { return x.trim() !== ''; }).join('|');
+  var ctx = {
+    customer: detectCustomer(text),
+    po: detectPO(text),
+    norme: norme,
+    normeAcc: normeAcc,
+    hasDocs: /\bCOC\b/i.test(text) && /\bMTC\b/i.test(text)
+  };
   var qps = wos.map(function(w, i) { return renderOneQP(w, i, ctx); }).join('');
   var token = storeQP(qps);
   var chips = wos.map(function(w) {
@@ -823,7 +900,7 @@ module.exports = function(app, mongoose) {
           return res.json({
             answer: '<div style="background:#fef2f2;border:2px solid #dc2626;border-radius:8px;padding:14px">' +
               '<div style="color:#991b1b;font-weight:700">Aucun WO detecte dans le document</div>' +
-              '<div style="font-size:12px;color:#7f1d1d;margin-top:4px">Le document doit contenir des lignes du type : 28636 1 18/07/26 (N&deg; WO, quantite, date). Champs recus : ' + esc(fields) + '</div></div>',
+              '<div style="font-size:12px;color:#7f1d1d;margin-top:4px">Le document doit contenir des lignes du type : 28225 6 10/03/26 (N&deg; WO, quantite, date). Champs recus : ' + esc(fields) + '</div></div>',
             enriched: true
           });
         }
@@ -876,7 +953,7 @@ module.exports = function(app, mongoose) {
       req.body.question = (questionUser || 'Analyse ce document.');
       req.body.content = 'Voici le contenu du document a analyser :\n\n' + content;
 
-      console.log('[answer-enricher] v14.0 Mode DOCUMENT - ' + content.length + ' car.');
+      console.log('[answer-enricher] v14.1 Mode DOCUMENT - ' + content.length + ' car.');
     }
     next();
   }
@@ -919,5 +996,5 @@ module.exports = function(app, mongoose) {
   app.use('/api/ask', ragPreprocessAsk, postprocess('ask'));
   app.use('/api/analyze-content', documentPreprocess, postprocess('document'));
 
-  console.log('[answer-enricher] v14.0 charge - QP STANDARD 01 par WO (sans IA) + PDF propre');
+  console.log('[answer-enricher] v14.1 charge - QP STANDARD 01 par WO (sans IA) + PDF propre');
 };
