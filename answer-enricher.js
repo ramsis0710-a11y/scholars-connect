@@ -1,74 +1,50 @@
 // ============================================================
 // ANSWER-ENRICHER.JS
-// Version v9.0 - Multi-WO robuste + HTML masque + PDF propre
+// Version v14.0 - QP STANDARD 01 par WO (sans IA) + PDF propre
+//
+// - /api/analyze-content et /api/ask : si plan qualite + WO detectes,
+//   reponse directe (aucun appel IA) avec 1 QP (2 pages) par WO
+// - Lien PDF servi par /qp-pdf/:token (page A4 propre, auto-impression)
+// - Reste du moteur (RAG, domaines, fiche technique) conserve
 // ============================================================
 
 'use strict';
 
-// ============================================================
-// 0. MODELE QP STANDARD 01
-// ============================================================
-var QP_STANDARD_01 = {
-  company: 'Global Metallic Product Industries (GMPI)',
-  code: 'FO-24-PRO',
-  revIndex: '6',
-  revDate: '03/08/2017',
-  title: 'Quality Control Plan',
-  editedBy: 'QC Department',
-  approvedBy: 'Tech. Department',
-  signatureFields: ['Edited by (QC Dep.)', 'Approved by (Tech. Dep.)', 'Signature client', 'Stamp'],
-  notes: [
-    'a) For operation instruction, refer to Work Order (WO) Document Reference FO-05-R&D',
-    'b) Any NCR detected shall be treated according to procedure PR-01-PRO',
-    'c) Thread inspection procedures according to applicable standard'
-  ],
-  sections: [
-    { num: 1, title: 'Informations generales', fields: ['Client', 'Commande ARC', 'N° WO', 'Produit', 'Quantite', 'Norme applicable', 'Date de commande'] },
-    { num: 2, title: 'References documentaires', fields: ['Work Order (WO)', 'JOB', 'Plans', 'Normes API 5CT/5B', 'VAM', 'AISI 4140', 'Procedure FO-05-R&D'] },
-    { num: 3, title: 'Matiere premiere', fields: ['MTC (Material Test Certificate)', 'Verification', 'Tracabilite', 'Specification matiere'] },
-    { num: 4, title: 'Processus de fabrication', fields: ['Etapes', 'POS', 'Parametres cles', 'Usinage', 'Decoupe', 'Assemblage'] },
-    { num: 5, title: 'Points de controle qualite', fields: ['Dimensionnel', 'Visuel', 'NDT', 'Test pression', 'Thread inspection'] },
-    { num: 6, title: 'Inspection par tiers (TPI)', fields: ['Requis par contrat', 'Organisme', 'Frequence', 'Rapport'] },
-    { num: 7, title: 'Documents livrables', fields: ['COC', 'MTC', 'Certificats specifiques', 'Dossier qualite'] },
-    { num: 8, title: 'Gestion des non-conformites', fields: ['Procedure PR-01-PRO', 'Enregistrement', 'Actions correctives'] },
-    { num: 9, title: 'Approbations', fields: ['QC Department', 'Tech. Department', 'Client', 'Signature', 'Stamp', 'Date'] }
-  ]
-};
+var crypto = require('crypto');
+
+// Optionnel : logos en base64 (data:image/png;base64,....)
+var LOGO_GMPI = '';
+var LOGO_GROUP = '';
 
 // ============================================================
-// 0.b EXIGENCES API 6A
+// 0. MODELE QP STANDARD 01 (GMPI - FO-24-PRO Rev 6)
 // ============================================================
-var API_6A_REQUIREMENTS = [
-  { num: 1,  req: 'Commande / Work Order documente',                ref: 'FO-05-R&D' },
-  { num: 2,  req: 'Instruction de travail (Operation Instruction)',  ref: 'FO-05-R&D' },
-  { num: 3,  req: 'Traitement des NCR',                             ref: 'PR-01-PRO' },
-  { num: 4,  req: "Procedure d'inspection des filetages",           ref: 'API 6A' },
-  { num: 5,  req: 'Certificat matiere (MTR)',                       ref: 'API 6A / EN 10204 3.1' },
-  { num: 6,  req: 'Controle chimique matiere',                      ref: 'API 6A' },
-  { num: 7,  req: 'Controle mecanique matiere',                     ref: 'API 6A' },
-  { num: 8,  req: 'Traitement thermique',                           ref: 'API 6A' },
-  { num: 9,  req: 'Controle de durete',                             ref: 'API 6A' },
-  { num: 10, req: 'Controle dimensionnel',                          ref: 'API 6A' },
-  { num: 11, req: 'Controle visuel',                                ref: 'API 6A' },
-  { num: 12, req: 'Controle non destructif (NDT) - PT',             ref: 'API 6A' },
-  { num: 13, req: 'Controle non destructif (NDT) - MT',             ref: 'API 6A' },
-  { num: 14, req: 'Controle non destructif (NDT) - UT',             ref: 'API 6A' },
-  { num: 15, req: 'Controle non destructif (NDT) - RT',             ref: 'API 6A' },
-  { num: 16, req: 'Test de pression hydrostatique',                 ref: 'API 6A' },
-  { num: 17, req: 'Test de pression gaz',                           ref: 'API 6A' },
-  { num: 18, req: 'Test de fonctionnement (Function Test)',         ref: 'API 6A' },
-  { num: 19, req: 'Inspection des filetages',                       ref: 'API 6A' },
-  { num: 20, req: 'Controle de revetement / peinture',              ref: 'API 6A' },
-  { num: 21, req: 'Marquage produit',                               ref: 'API 6A' },
-  { num: 22, req: 'Tracabilite matiere',                            ref: 'API 6A' },
-  { num: 23, req: 'PSL (Product Specification Level)',              ref: 'API 6A' },
-  { num: 24, req: 'Classe de materiau',                             ref: 'API 6A' },
-  { num: 25, req: 'Conditions de service H2S',                      ref: 'API 6A / NACE MR0175' },
-  { num: 26, req: 'Inspection tierce (TPI)',                        ref: 'API 6A' },
-  { num: 27, req: 'Certificat de conformite',                       ref: 'API 6A' },
-  { num: 28, req: 'Rapport de test final',                          ref: 'API 6A' },
-  { num: 29, req: 'Emballage et preservation',                      ref: 'API 6A' },
-  { num: 30, req: "Document d'approbation QC",                      ref: 'FO-24-PRO' }
+// [n, operation, specifications (|), criteres (|), record, suivi par]
+var QP_OPS = [
+  [1, 'Control at reception', 'FO-02-PRO', 'Customer specifications', 1, 'QC Dep.'],
+  [2, 'Disassembly, Cleaning and sandblasting', 'FO-05-R&D', '', 0, 'Prod. Dep.'],
+  [3, 'Visual and dimensional inspection of body, union connections and Flanges', 'FO-04-PRO|FO-51-PRO', 'API 6A|ASME B16.5|ASME B31.3', 1, 'QC Dep.'],
+  [4, 'Hummer union connections repair (if applicable)', 'FO-05-R&D', '', 0, 'Prod. Dep.'],
+  [5, 'Flange repair (if applicable)', 'FO-05-R&D', '', 0, 'Prod. Dep.'],
+  [6, 'Visual and dimensional inspection after repair (if applicable)', 'FO-04-PRO|FO-51-PRO', 'API 6A|ASME B16.5|ASME B31.3', 1, 'QC Dep.'],
+  [7, 'MPI Weld joints inspection', 'ASTM E709', 'API 6A|ASME B16.5|ASME B31.3', 1, 'QC Dep.'],
+  [8, 'Wall thickness measurement + UT for weld joints', 'ASME B31.3', 'ASME B31.3|API 570', 1, 'QC Dep.'],
+  [9, 'Hardness testing of body', 'ASTM E10|ASTM E18', 'API 6A|ASME B31.3', 1, 'QC Dep.'],
+  [10, 'Hardness testing of weld joints', 'ASTM E10|ASTM E18', 'API 6A|ASME B31.3', 1, 'QC Dep.'],
+  [11, 'Assembly', 'FO-05-R&D', '', 0, 'Maint. Dep'],
+  [12, 'Hydrostatic Pressure Test', 'FO-29-PRO|API 6A|ASME B31.3', 'FO-29-PRO|API 6A|ASME B31.3', 1, 'Maint. Dep'],
+  [13, 'Painting', 'FO-05-R&D|PR-01-CMT', 'Customer specifications', 0, 'Prod. Dep.'],
+  [14, 'Painting control', 'PR-01-CMT|FO-02-CMT', 'PR-01-CMT|Customer specifications', 1, 'QC Dep.'],
+  [15, 'Marking : Hard Stamping (NEW TAG)', 'IN-09-PRO', 'IN-09-PRO', 0, 'Prod. Dep.'],
+  [16, 'Storage Compound and Protection', 'IN-02-PRO|API 6A|ASME B16.5', 'IN-02-PRO|API 6A|ASME B16.5', 0, 'Prod. Dep.'],
+  [17, 'Handling and Storage', 'IN-02-PRO', 'IN-02-PRO', 0, 'Prod. Dep.'],
+  [18, 'Final Check (FO-19-PRO)', 'FO-19-PRO', 'All above requirements and records', 1, 'QC Dep.']
+];
+
+var QP_NOTES = [
+  'a) For operation instruction, refer to Work Order (WO) Document Reference FO-05-R&D',
+  'b) Any NCR detected shall be treated according to procedure PR-01-PRO',
+  'c) Thread inspection procedures :'
 ];
 
 // ============================================================
@@ -165,7 +141,7 @@ var SCHOLARS_BY_DOMAIN = {
 };
 
 // ============================================================
-// 5. DETECTION QP + EXTRACTION WO (v9.0 - robuste)
+// 5. DETECTION QP
 // ============================================================
 function isQualityPlanRequest(question, content) {
   var text = ((question || '') + ' ' + (content || '')).toLowerCase();
@@ -181,58 +157,7 @@ function isQualityPlanRequest(question, content) {
   return false;
 }
 
-function extractWorkOrders(question, content) {
-  var text = ((question || '') + '\n' + (content || ''));
-  var wos = [];
-  var seen = {};
-
-  // v9.0 : accepte 2 formats :
-  //  1) WO + numero pur (WO 28836, WO-28836, Work Order 28836)  -> priorite
-  //  2) WO + code alphanumerique (WO 0113XO6F1002M4F602F602)    -> fallback
-  // On garde le "raw" pour identifier la zone, mais on normalise l'id sans prefixe WO-
-  var patterns = [
-    { rx: /\bWO[\s_:#-]+(\d{4,8})\b/gi,                             type: 'num' },
-    { rx: /\bWork\s+Order[\s_:#-]*(\d{4,8})\b/gi,                   type: 'num' },
-    { rx: /\bW\/O[\s_:#-]*(\d{4,8})\b/gi,                           type: 'num' },
-    { rx: /\bWO[\s_:#-]+([A-Z0-9][A-Z0-9\-_.\/]{5,40})\b/gi,        type: 'alpha' },
-    { rx: /\bWork\s+Order[\s_:#-]*([A-Z0-9][A-Z0-9\-_.\/]{5,40})\b/gi, type: 'alpha' }
-  ];
-
-  for (var p = 0; p < patterns.length; p++) {
-    var rx = patterns[p].rx;
-    var m;
-    while ((m = rx.exec(text)) !== null) {
-      var raw = (m[1] || '').trim();
-      if (raw.length < 4) continue;
-      // Normaliser : on enleve WO- du debut si present, on garde le code
-      var key = raw.toUpperCase();
-      if (seen[key]) continue;
-      seen[key] = true;
-      wos.push({
-        id: raw,          // ex: "28836" ou "0113XO6F1002M4F602F602"
-        raw: raw,
-        type: patterns[p].type
-      });
-    }
-  }
-
-  return wos;
-}
-
-function extractWoBlock(content, wo, allWos) {
-  if (!content || !wo) return content || '';
-  var idx = content.toUpperCase().indexOf(String(wo.raw).toUpperCase());
-  if (idx === -1) return content.slice(0, 6000);
-
-  var nextIdx = content.length;
-  for (var i = 0; i < allWos.length; i++) {
-    var other = allWos[i];
-    if (other.raw === wo.raw) continue;
-    var oIdx = content.toUpperCase().indexOf(String(other.raw).toUpperCase(), idx + 1);
-    if (oIdx !== -1 && oIdx < nextIdx) nextIdx = oIdx;
-  }
-  return content.slice(idx, Math.min(nextIdx, idx + 8000));
-}
+var QP_RE = /plan\s*(de\s*)?qualit|quality\s*(control\s*)?plan|\bqp\b|\bqp[-_ ]?\d|contr.le\s*qualit|control\s*plan/i;
 
 // ============================================================
 // 6. UTILITAIRES
@@ -255,18 +180,38 @@ function esc(s) {
   return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
-// v9.0 : formatForHTML ne sert plus a afficher le QP dans le chat
-// On garde uniquement une version texte minimaliste pour les reponses non-QP
 function formatForHTML(text) {
   if (!text) return '';
   var clean = cleanText(text);
   var lines = clean.split('\n');
   var output = [];
+  var inList = false;
   for (var i = 0; i < lines.length; i++) {
     var line = lines[i].trim();
-    if (line === '') { output.push('<br>'); continue; }
+    if (line === '') {
+      if (inList) { output.push('</ul>'); inList = false; }
+      output.push('<br>');
+      continue;
+    }
+    var numM = line.match(/^(\d+)\.\s+(.+)$/);
+    if (numM) {
+      if (inList) { output.push('</ul>'); inList = false; }
+      output.push('<h4 style="color:#0a2540;font-size:15px;font-weight:700;margin:16px 0 8px 0;padding-bottom:4px;border-bottom:1px solid #e5e7eb">' + numM[1] + '. ' + esc(numM[2]) + '</h4>');
+      continue;
+    }
+    var isBullet = /^[•◦▪▫]\s+/.test(line) || /^[-*]\s+/.test(line);
+    if (isBullet) {
+      if (!inList) {
+        output.push('<ul style="margin:8px 0;padding-left:24px;color:#17202a;list-style-type:disc">');
+        inList = true;
+      }
+      output.push('<li style="margin:6px 0;line-height:1.6">' + esc(line.replace(/^[•◦▪▫\-*]\s+/, '')) + '</li>');
+      continue;
+    }
+    if (inList) { output.push('</ul>'); inList = false; }
     output.push('<p style="margin:8px 0;line-height:1.75;color:#17202a">' + esc(line) + '</p>');
   }
+  if (inList) output.push('</ul>');
   return output.join('\n');
 }
 
@@ -300,7 +245,7 @@ function keywordOverlapScore(qTokens, docText) {
 }
 
 // ============================================================
-// 7. RECHERCHE DOCS
+// 7. RECHERCHE DOCS (RAG)
 // ============================================================
 async function findRelevantDocuments(AutoFeedDoc, query, limit, minScore) {
   limit = limit || 5;
@@ -349,7 +294,7 @@ function detectDomain(question, defaultDomain) {
   var q = String(question || '').toLowerCase();
   if (isQualityPlanRequest(question, '')) return 'Plan Qualite';
 
-  var petro = ['api 5ct', 'api 5b', 'api 5l', 'api 6a', 'api 16a', 'vam', 'tubage', 'casing', 'tubing', 'petrole', 'gaz', 'aisi 4140', '80ksi', '110ksi', 'nace', 'h2s', 'raccord', 'filetage', 'thread', 'coupling', 'manchon'];
+  var petro = ['api 5ct', 'api 5b', 'api 5l', 'api 6a', 'api 16a', 'vam', 'tubage', 'casing', 'tubing', 'petrole', 'gaz', 'aisi 4130', 'aisi 4140', '75ksi', '80ksi', '110ksi', 'nace', 'h2s', 'raccord', 'filetage', 'thread', 'coupling', 'manchon'];
   for (var i = 0; i < petro.length; i++) if (q.indexOf(petro[i]) !== -1) return 'Petrole & Gaz';
 
   var tech = ['norme', 'iso', 'qualite', 'fabrication', 'controle qualite', 'certificat', 'coc', 'mtc', 'inspection', 'essai', 'test pression', 'ndt', 'soudure', 'welding', 'metal', 'acier', 'steel', 'alliage', 'tolerance'];
@@ -391,7 +336,7 @@ function isSensitiveDomain(domain) {
 }
 
 // ============================================================
-// 9. CHIFFRES / POINTS CLES / SCHOLARS
+// 9. CHIFFRES / POINTS CLES
 // ============================================================
 function hasNumbers(text) {
   if (!text) return false;
@@ -454,8 +399,48 @@ function judgeClaudeValidation(question, answer, domain) {
 }
 
 // ============================================================
-// 10. FICHE TECHNIQUE (sans dashboard pour QP)
+// 10. GRAPHIQUES / DASHBOARD / FICHE / REFS
 // ============================================================
+function generateBarChart(title, data) {
+  var width = 600, height = 320, padding = 50, barWidth = 55, gap = 25;
+  var maxValue = 1;
+  for (var i = 0; i < data.length; i++) if (data[i].value > maxValue) maxValue = data[i].value;
+  var chartHeight = height - 2 * padding;
+  var bars = '';
+  data.forEach(function(d, idx) {
+    var barHeight = (chartHeight * d.value) / maxValue;
+    var x = padding + idx * (barWidth + gap);
+    var y = height - padding - barHeight;
+    var label = d.label.length > 10 ? d.label.slice(0, 9) + '.' : d.label;
+    bars += '<rect x="' + x + '" y="' + y + '" width="' + barWidth + '" height="' + barHeight + '" fill="#1e5aa8" rx="4"/>';
+    bars += '<text x="' + (x + barWidth / 2) + '" y="' + (y - 8) + '" text-anchor="middle" font-size="14" fill="#0a2540" font-weight="bold">' + d.value + '</text>';
+    bars += '<text x="' + (x + barWidth / 2) + '" y="' + (height - padding + 20) + '" text-anchor="middle" font-size="11" fill="#374151">' + esc(label) + '</text>';
+  });
+  return '<div style="background:#ffffff;border:1px solid #e5e7eb;border-radius:12px;padding:20px;margin:20px 0">' +
+    '<h4 style="color:#0a2540;font-size:15px;font-weight:700;margin:0 0 12px 0;text-align:center">' + esc(title) + '</h4>' +
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + width + ' ' + height + '" style="width:100%;max-width:' + width + 'px;height:auto;display:block;margin:0 auto">' + bars + '</svg></div>';
+}
+
+function generateDashboard(domain, docsUsed, semanticScore) {
+  var metrics = DOMAIN_METRICS[domain];
+  if (!metrics) return '';
+  var html = '<div style="background:#ffffff;border:2px solid #e5e7eb;border-radius:12px;padding:20px;margin:20px 0">';
+  html += '<h4 style="color:#0a2540;font-size:16px;font-weight:700;margin:0 0 16px 0">' + metrics.icon + ' Tableau de bord : ' + esc(metrics.label) + '</h4>';
+  html += '<table style="width:100%;border-collapse:collapse;font-size:13px">';
+  html += '<thead><tr style="background:#0a2540;color:#ffffff">';
+  html += '<th style="padding:10px;text-align:left">Indicateur</th><th style="padding:10px;text-align:left">Formule</th><th style="padding:10px;text-align:center">Valeur</th><th style="padding:10px;text-align:center">Objectif</th>';
+  html += '</tr></thead><tbody>';
+  metrics.ratios.forEach(function(r) {
+    var v = 0;
+    if (r.formula.indexOf('cosinus') !== -1) v = Math.round(semanticScore * 100);
+    else v = Math.round(r.target * (0.7 + semanticScore * 0.5));
+    var good = v >= r.target;
+    html += '<tr style="border-bottom:1px solid #e5e7eb"><td style="padding:10px;font-weight:600">' + esc(r.name) + '</td><td style="padding:10px;font-size:12px;color:#6b7280">' + esc(r.formula) + '</td><td style="padding:10px;text-align:center"><span style="background:' + (good ? '#dcfce7' : '#fee2e2') + ';color:' + (good ? '#16a34a' : '#dc2626') + ';padding:4px 10px;border-radius:6px;font-weight:700">' + v + r.unit + '</span></td><td style="padding:10px;text-align:center;color:#6b7280">' + r.target + r.unit + '</td></tr>';
+  });
+  html += '</tbody></table></div>';
+  return html;
+}
+
 function generateTechSheet(domain, docsUsed, semanticScore, scholars, judgeResult, mode) {
   var html = '<div style="background:linear-gradient(135deg,#0a2540,#1e5aa8);color:#ffffff;border-radius:12px;padding:20px;margin:20px 0">';
   html += '<h4 style="margin:0 0 14px 0;font-size:16px;font-weight:700">📋 Fiche technique</h4>';
@@ -477,257 +462,276 @@ function generateTechSheet(domain, docsUsed, semanticScore, scholars, judgeResul
   return html;
 }
 
-// ============================================================
-// 11. EXTRACTION QP PAR WO
-// ============================================================
-function extractFieldFromBlock(block, patterns) {
-  if (!block) return '';
-  for (var i = 0; i < patterns.length; i++) {
-    var m = block.match(patterns[i]);
-    if (m && m[1]) return m[1].trim();
-  }
-  return '';
-}
-
-function buildQPSectionsForWO(wo, block, globalContent) {
-  var client = extractFieldFromBlock(block, [/(?:client|customer|destinataire)\s*[:#\-]\s*([^\n\r]{2,120})/i])
-            || extractFieldFromBlock(globalContent, [/(?:client|customer)\s*[:#\-]\s*([^\n\r]{2,120})/i]);
-  var produit = extractFieldFromBlock(block, [/(?:produit|product|article|item|designation|description)\s*[:#\-]\s*([^\n\r]{3,120})/i]);
-  var qte = extractFieldFromBlock(block, [/(?:qte|qté|quantite|quantité|qty|quantity)\s*[:#\-]?\s*(\d[\d\s.,]*)/i]);
-  if (!qte) {
-    var mQty = block.match(/(\d+)\s*(?:pcs|pieces|pièces|units|unités)/i);
-    if (mQty) qte = mQty[1];
-  }
-  var estimation = extractFieldFromBlock(block, [/(?:estimation)\s*[:#\-]?\s*([A-Z0-9\-_\/]{3,40})/i]);
-  var arc = extractFieldFromBlock(block, [/(?:ARC|commande|order)\s*[:#\-]?\s*([A-Z0-9\-_\/]{3,40})/i]);
-  var norme = extractFieldFromBlock(block, [/(?:norme|standard|spec|specification)\s*[:#\-]?\s*((?:API|ISO|ASTM|AISI|VAM|NACE|ASME)[A-Z0-9\s\-\.\/]{2,40})/i])
-            || 'API 6A Latest Edition';
-  var matiere = extractFieldFromBlock(block, [/(?:matiere|matière|material|acier|steel)\s*[:#\-]?\s*([A-Z0-9\s\-\.\/]{3,60})/i])
-              || (block.match(/(AISI\s*\d{4}[-\s]?\d*\s*KSI)/i) || [])[1] || '';
-  var classeMat = extractFieldFromBlock(block, [/(?:classe de materiau|classe de matériau|material class|classe)\s*[:#\-]?\s*([A-Z0-9\-_\/]{2,40})/i]);
-  var psl = extractFieldFromBlock(block, [/(?:PSL)\s*[:#\-]?\s*(\d+)/i]);
-  var service = extractFieldFromBlock(block, [/(?:conditions de service|service)\s*[:#\-]?\s*([^\n\r]{2,60})/i])
-             || (/H2S/i.test(block) ? 'H2S Services' : '');
-  var testPression = (block.match(/Test de pression[^\n\r]*/i) || [''])[0].replace(/^Test de pression\s*[:#-]?\s*/i, '');
-
-  return {
-    client: client,
-    produit: produit,
-    qte: qte,
-    estimation: estimation,
-    arc: arc,
-    norme: norme,
-    matiere: matiere,
-    classeMat: classeMat,
-    psl: psl,
-    service: service,
-    testPression: testPression
-  };
-}
-
-// ============================================================
-// 12. RENDU HTML QP (dans le PDF uniquement)
-// ============================================================
-function renderQPHeader(wo) {
-  var h = QP_STANDARD_01;
-  return '<table style="width:100%;border-collapse:collapse;font-family:Arial,sans-serif;font-size:11px;margin-bottom:0">' +
-    '<tr>' +
-    '<td rowspan="3" style="border:1px solid #0a2540;padding:8px;width:45%;vertical-align:middle">' +
-    '<div style="font-weight:700;font-size:13px;color:#0a2540">' + esc(h.company) + '</div>' +
-    '<div style="font-size:10px;color:#374151;margin-top:2px">Code : ' + esc(h.code) + '</div>' +
-    '<div style="font-size:10px;color:#374151">Indice de Rev : ' + esc(h.revIndex) + '</div>' +
-    '<div style="font-size:10px;color:#374151">Date de Rev : ' + esc(h.revDate) + '</div>' +
-    '</td>' +
-    '<td rowspan="2" style="border:1px solid #0a2540;padding:8px;width:45%;text-align:center;vertical-align:middle">' +
-    '<div style="font-weight:800;font-size:14px;color:#0a2540">' + esc(h.title) + '</div>' +
-    '<div style="font-size:12px;color:#991b1b;margin-top:6px;font-weight:700">QP-' + esc(wo.id) + '</div>' +
-    '</td>' +
-    '<td style="border:1px solid #0a2540;padding:6px;width:10%;text-align:center;font-size:10px;font-weight:700">N° page</td>' +
-    '</tr>' +
-    '<tr><td style="border:1px solid #0a2540;padding:6px;text-align:center;font-size:11px">1/1</td></tr>' +
-    '<tr>' +
-    '<td style="border:1px solid #0a2540;padding:6px;font-size:10px;text-align:center">Edited by : QC Dep.</td>' +
-    '<td style="border:1px solid #0a2540;padding:6px;font-size:10px;text-align:center">Approved by : Tech. Dep.</td>' +
-    '</tr>' +
-    '<tr>' +
-    '<td style="border:1px solid #0a2540;padding:6px;font-size:10px;text-align:center">Signature : ____________</td>' +
-    '<td style="border:1px solid #0a2540;padding:6px;font-size:10px;text-align:center">Signature : ____________</td>' +
-    '<td style="border:1px solid #0a2540;padding:6px;font-size:10px;text-align:center">Stamp</td>' +
-    '</tr>' +
-    '</table>';
-}
-
-function renderQPNotes() {
-  var notes = QP_STANDARD_01.notes;
-  var html = '<table style="width:100%;border-collapse:collapse;font-family:Arial,sans-serif;font-size:10px;margin-top:0">';
-  html += '<tr><td style="border:1px solid #0a2540;padding:6px;background:#f5f7fa;font-weight:700;color:#0a2540">Notes :</td></tr>';
-  notes.forEach(function(n) {
-    html += '<tr><td style="border:1px solid #0a2540;padding:6px;color:#17202a">' + esc(n) + '</td></tr>';
-  });
-  html += '</table>';
-  return html;
-}
-
-function renderQPSection(num, title, rows) {
-  var html = '<table style="width:100%;border-collapse:collapse;font-family:Arial,sans-serif;font-size:10px;margin-top:0">';
-  html += '<tr><td colspan="3" style="border:1px solid #0a2540;padding:6px;background:#0a2540;color:#ffffff;font-weight:700">' + num + '. ' + esc(title) + '</td></tr>';
-  if (rows && rows.length > 0) {
-    rows.forEach(function(r) {
-      html += '<tr>' +
-        '<td style="border:1px solid #0a2540;padding:6px;width:30%;background:#f9fafb;font-weight:600;color:#0a2540">' + esc(r.label) + '</td>' +
-        '<td style="border:1px solid #0a2540;padding:6px;width:70%;color:#17202a">' + esc(r.value || 'Non mentionne dans le document') + '</td>' +
-        '</tr>';
-    });
+function generateReferences(docs, domain, scholars) {
+  if (!docs || docs.length === 0) return '';
+  var isLitRel = isLiteraryOrReligious(domain);
+  var html = '<div style="background:#fef3c7;border-left:4px solid #f59e0b;border-radius:8px;padding:16px;margin:20px 0">';
+  if (isLitRel) {
+    html += '<h4 style="margin:0 0 12px 0;color:#92400e;font-size:15px;font-weight:700">📖 Sources litteraires et religieuses</h4>';
+    if (scholars && scholars.length > 0) {
+      html += '<div style="background:#ffffff;border:2px solid #d4af37;border-radius:8px;padding:14px;margin-bottom:14px">';
+      scholars.forEach(function(s) { html += '<div style="color:#0a2540;font-size:15px;font-weight:800;margin:4px 0">📚 ' + esc(s) + '</div>'; });
+      html += '</div>';
+    }
   } else {
-    html += '<tr><td colspan="3" style="border:1px solid #0a2540;padding:6px;color:#6b7280;font-style:italic">Non mentionne dans le document</td></tr>';
+    html += '<h4 style="margin:0 0 12px 0;color:#92400e;font-size:15px;font-weight:700">📚 Documents sources</h4>';
   }
-  html += '</table>';
+  html += '<ol style="margin:0;padding-left:24px;font-size:13px;color:#78350f;line-height:1.7">';
+  docs.forEach(function(d) {
+    var info = extractAuthorAndDate(d);
+    var pert = Math.round((d.score || 0) * 100);
+    html += '<li style="margin-bottom:12px"><div style="color:#0a2540;font-weight:700;font-size:13px">' + esc(cleanText(d.title || '').slice(0, 120)) + '</div><div style="font-size:12px;font-style:italic">Auteur : ' + esc(info.author) + '</div><div style="font-size:12px">Date : ' + esc(info.date) + ' — Pertinence : ' + pert + '%</div></li>';
+  });
+  html += '</ol></div>';
   return html;
 }
 
-function renderQPApprovals() {
-  return '<table style="width:100%;border-collapse:collapse;font-family:Arial,sans-serif;font-size:10px;margin-top:0">' +
-    '<tr><td colspan="3" style="border:1px solid #0a2540;padding:6px;background:#0a2540;color:#ffffff;font-weight:700">9. Approbations</td></tr>' +
-    '<tr>' +
-    '<td style="border:1px solid #0a2540;padding:8px;width:33%;text-align:center">QC Department<br><span style="font-size:9px;color:#6b7280">Name : ______________</span><br><span style="font-size:9px;color:#6b7280">Signature : __________</span><br><span style="font-size:9px;color:#6b7280">Date : ____ / ____ / ________</span></td>' +
-    '<td style="border:1px solid #0a2540;padding:8px;width:33%;text-align:center">Tech. Department<br><span style="font-size:9px;color:#6b7280">Name : ______________</span><br><span style="font-size:9px;color:#6b7280">Signature : __________</span><br><span style="font-size:9px;color:#6b7280">Date : ____ / ____ / ________</span></td>' +
-    '<td style="border:1px solid #0a2540;padding:8px;width:34%;text-align:center">Client<br><span style="font-size:9px;color:#6b7280">Name : ______________</span><br><span style="font-size:9px;color:#6b7280">Signature : __________</span><br><span style="font-size:9px;color:#6b7280">Stamp : ____________</span></td>' +
+// ============================================================
+// 11. QP STANDARD 01 - EXTRACTION DES WO (parsing pur, sans IA)
+// ============================================================
+function parseWorkOrders(text) {
+  text = String(text || '');
+  var re = /(^|[^0-9A-Za-z])(\d{5})\s+(\d{1,3})\s+(\d{2}\/\d{2}\/\d{2,4})(?![0-9])/g;
+  var hits = [], seen = {}, m;
+  while ((m = re.exec(text)) !== null) {
+    var id = m[2];
+    if (seen[id]) continue;
+    seen[id] = 1;
+    hits.push({
+      id: id, qte: m[3], date: m[4],
+      start: m.index + m[1].length,
+      end: m.index + m[0].length
+    });
+  }
+  for (var i = 0; i < hits.length; i++) {
+    var prevEnd = i > 0 ? hits[i - 1].end : 0;
+    var nextStart = i + 1 < hits.length ? hits[i + 1].start : text.length;
+    hits[i].before = text.slice(prevEnd, hits[i].start);
+    hits[i].after = text.slice(hits[i].end, nextStart);
+  }
+  return hits;
+}
+
+function describeWO(h) {
+  var b = h.before;
+  var code = (b.match(/\b\d{4}[A-Z][A-Z0-9]{6,}\b/) || [''])[0];
+  var est = (b.match(/estimate\s*n\S*\s*(\d+)/i) || ['', ''])[1];
+  var kind = '';
+  var k = b.toUpperCase().lastIndexOf('MANUFACTURE');
+  if (k !== -1) { kind = 'SUPPLY MATERIAL & MANUFACTURE'; b = b.slice(k + 11); }
+  b = b.replace(/As\s+per\s+our\s+estimate[^\n]*/i, ' ');
+  if (code) b = b.split(code).join(' ');
+  var desc = b.replace(/\s+/g, ' ').trim().slice(0, 300);
+  if (desc.length < 8) desc = h.after.replace(/\s+/g, ' ').trim().slice(0, 200);
+  return { code: code, est: est, kind: kind, desc: desc };
+}
+
+function detectCustomer(text) {
+  var m = String(text).match(/([A-Z][A-Z0-9 &.,'-]{3,60}?\s(?:FZE|FZCO|FZC|LLC|LTD|LIMITED|B\.V\.|S\.A\.|SARL|GMBH|INC|CORP))\b/);
+  return m ? m[1].replace(/\s+/g, ' ').trim() : 'XXXXXXX';
+}
+
+function detectPO(text) {
+  var m = String(text).match(/(?:P\.?O\.?|Purchase\s*Order|Order|ARC)\D{0,15}(\d{8,12})/i);
+  if (m) return m[1];
+  var m2 = String(text).match(/\b(\d{10})\b/);
+  return m2 ? m2[1] : 'NA';
+}
+
+function detectNorme(text) {
+  var m = String(text).match(/Manufactured\s+According\s+to\s+([^\n\r]+)/i);
+  return m ? m[1].trim().slice(0, 80) : '';
+}
+
+// ============================================================
+// 12. QP STANDARD 01 - RENDU HTML (2 pages par WO)
+// ============================================================
+var BD = 'border:1px solid #444;';
+var LBL = BD + 'background:#dce6f1;padding:4px 6px;font-size:11px;color:#1f2d3d;';
+var VAL = BD + 'padding:4px 6px;font-size:11px;color:#111;';
+
+function td(style, content, attrs) {
+  return '<td' + (attrs ? ' ' + attrs : '') + ' style="' + style + '">' + content + '</td>';
+}
+function lines(s) {
+  if (!s) return '';
+  return String(s).split('|').map(esc).join('<br>');
+}
+function pad2(n) { return (n < 10 ? '0' : '') + n; }
+function todayFR() {
+  var d = new Date();
+  return pad2(d.getDate()) + '/' + pad2(d.getMonth() + 1) + '/' + d.getFullYear();
+}
+function logoBox(src, alt, fallback) {
+  if (src) return '<img src="' + src + '" alt="' + alt + '" style="max-width:100%;max-height:48px">';
+  return fallback;
+}
+
+function qpHeader(pageNo) {
+  var codes = ['Cod : FO-24-PRO', 'Indice de Rev :6', 'Date de Rev :03/08/2017', 'N&deg; de page :' + pageNo + '/1'];
+  var c = codes.map(function(t, i) {
+    return '<div style="padding:2px 6px;font-size:9px;' + (i < 3 ? 'border-bottom:1px solid #444;' : '') + '">' + t + '</div>';
+  }).join('');
+  var gmpi = logoBox(LOGO_GMPI, 'GMPI', '<span style="display:inline-block;background:#0b3d91;color:#fff;font-weight:800;font-size:18px;padding:4px 10px;border-radius:4px">GMPI</span>');
+  var grp = logoBox(LOGO_GROUP, 'GLOBAL GROUP', '<span style="font-weight:800;font-size:12px;letter-spacing:1px">GLOBAL GROUP</span>');
+  return '<table style="width:100%;border-collapse:collapse;margin-bottom:10px;font-family:Arial,sans-serif"><tr>' +
+    td(BD + 'width:20%;padding:6px;text-align:center', gmpi, 'rowspan="2"') +
+    td(BD + 'text-align:center;padding:8px;font-size:13px;color:#111', 'Global Metallic Product Industries (GMPI)') +
+    td(BD + 'width:22%;padding:0;vertical-align:top', c, 'rowspan="2"') +
+    td(BD + 'width:18%;padding:6px;text-align:center', grp, 'rowspan="2"') +
+    '</tr><tr>' +
+    td(BD + 'text-align:center;padding:10px;font-size:12px;color:#111', 'Quality control plan') +
     '</tr></table>';
 }
 
-function renderCrossTableAPI6A(data, wo) {
-  var html = '<table style="width:100%;border-collapse:collapse;font-family:Arial,sans-serif;font-size:9px;margin-top:10px">';
-  html += '<tr><td colspan="8" style="border:1px solid #0a2540;padding:6px;background:#0a2540;color:#ffffff;font-weight:700;font-size:11px">Tableau Croise des Exigences - QP-' + esc(wo.id) + '</td></tr>';
-  html += '<tr style="background:#f5f7fa;font-weight:700">' +
-    '<td style="border:1px solid #0a2540;padding:4px;width:4%">N°</td>' +
-    '<td style="border:1px solid #0a2540;padding:4px;width:36%">Exigence</td>' +
-    '<td style="border:1px solid #0a2540;padding:4px;width:14%">Ref. Norme</td>' +
-    '<td style="border:1px solid #0a2540;padding:4px;width:7%;text-align:center">Applic.</td>' +
-    '<td style="border:1px solid #0a2540;padding:4px;width:7%;text-align:center">Conforme</td>' +
-    '<td style="border:1px solid #0a2540;padding:4px;width:8%;text-align:center">Non Conf.</td>' +
-    '<td style="border:1px solid #0a2540;padding:4px;width:8%;text-align:center">Non Ment.</td>' +
-    '<td style="border:1px solid #0a2540;padding:4px;width:16%">Observation</td>' +
+function qpChk(v) { return td(VAL + 'width:4%;text-align:center;font-weight:700;', v ? 'X' : ''); }
+function qpTyp(label) { return td(VAL + 'text-align:center;font-size:10px;', label); }
+
+function qpPage1(d) {
+  var info = '<table style="width:100%;border-collapse:collapse;margin-bottom:10px;font-family:Arial,sans-serif">' +
+    '<tr>' + td(LBL + 'width:20%', 'Quality Control Plan N&deg;') + td(VAL + 'width:20%', esc(d.qpNo)) +
+    td(LBL + 'width:16%', 'Customer Name') + td(VAL + 'width:22%;font-weight:700', esc(d.customer)) +
+    td(LBL + 'width:8%', 'Part') + td(VAL + 'text-align:center', '1 OF 1') + '</tr>' +
+    '<tr>' + td(LBL, 'Work Order N&deg;') + td(VAL, esc(d.wo)) +
+    td(LBL, 'Purchase Order N&deg;') + td(VAL, esc(d.po)) +
+    td(LBL, 'Dated') + td(VAL + 'font-weight:700;text-align:center', esc(d.dated)) + '</tr>' +
+    '<tr>' + td(LBL, 'In Brief Job') + td(VAL + 'height:55px;vertical-align:top', d.brief, 'colspan="5"') + '</tr>' +
+    '</table>';
+
+  var type = '<table style="width:100%;border-collapse:collapse;margin-bottom:10px;font-family:Arial,sans-serif"><tr>' +
+    td(LBL + 'width:16%', 'Type of Job (X)') +
+    qpTyp('PROTOTYPE') + qpChk(d.type.proto) +
+    qpTyp('PRODUCT MANUFACTURE') + qpChk(d.type.manuf) +
+    qpTyp('OVERALL REPAIR') + qpChk(d.type.repair) +
+    qpTyp('ASSEMBLY DESASSEMBLY') + qpChk(d.type.assembly) +
+    '</tr></table>';
+
+  var th = LBL + 'text-align:center;font-size:9px;';
+  var ops = '<table style="width:100%;border-collapse:collapse;margin-bottom:10px;font-family:Arial,sans-serif"><tr>' +
+    td(th + 'width:30px', '&nbsp;') +
+    td(th + 'width:32%', 'Manufacture and Checking Operations') +
+    td(th + 'width:7%', 'Third Party') +
+    td(th + 'width:15%', 'Applicable Specification') +
+    td(th + 'width:15%', 'Acceptance Criteria') +
+    td(th + 'width:8%', 'Record Required') +
+    td(th + 'width:9%', 'Followed by') +
+    td(th + 'width:14%', 'Signature') +
     '</tr>';
-
-  for (var i = 0; i < API_6A_REQUIREMENTS.length; i++) {
-    var r = API_6A_REQUIREMENTS[i];
-    var conforme = 'X';
-    var nonMentionne = '';
-    var nonConforme = '';
-    var observation = '';
-
-    if (r.num === 4 || r.num === 9 || (r.num >= 12 && r.num <= 15) || r.num === 17 || r.num === 18 || r.num === 19 || r.num === 20 || r.num === 26) {
-      conforme = ''; nonMentionne = 'X'; observation = 'Non mentionne';
-    } else if (r.num === 1) { observation = 'WO-' + wo.id; }
-    else if (r.num === 2) { observation = 'Ref. note a'; }
-    else if (r.num === 3) { observation = 'Ref. note b'; }
-    else if (r.num === 5) { observation = data.matiere || 'Non mentionne'; }
-    else if (r.num === 6) { observation = data.matiere || ''; }
-    else if (r.num === 7) {
-      var k = (data.matiere || '').match(/(\d+)\s*KSI/i);
-      observation = k ? k[1] + ' KSI' : 'Non mentionne';
-    } else if (r.num === 8) { observation = 'Non mentionne'; }
-    else if (r.num === 10) { observation = 'Selon plan'; }
-    else if (r.num === 11) { observation = 'Selon procedure'; }
-    else if (r.num === 16) { observation = data.testPression || 'Test de pression'; }
-    else if (r.num === 21) { observation = 'Selon norme'; }
-    else if (r.num === 22) { observation = 'Selon procedure'; }
-    else if (r.num === 23) { observation = data.psl ? 'PSL ' + data.psl : 'Non mentionne'; }
-    else if (r.num === 24) { observation = data.classeMat || 'Non mentionne'; }
-    else if (r.num === 25) { observation = data.service || 'H2S Services'; }
-    else if (r.num === 27) { observation = 'Selon norme'; }
-    else if (r.num === 28) { observation = 'Selon norme'; }
-    else if (r.num === 29) { observation = 'Selon norme'; }
-    else if (r.num === 30) { observation = 'Section 9'; }
-
-    html += '<tr>' +
-      '<td style="border:1px solid #0a2540;padding:4px;text-align:center">' + r.num + '</td>' +
-      '<td style="border:1px solid #0a2540;padding:4px">' + esc(r.req) + '</td>' +
-      '<td style="border:1px solid #0a2540;padding:4px">' + esc(r.ref) + '</td>' +
-      '<td style="border:1px solid #0a2540;padding:4px;text-align:center;font-weight:700">X</td>' +
-      '<td style="border:1px solid #0a2540;padding:4px;text-align:center;font-weight:700;color:#16a34a">' + conforme + '</td>' +
-      '<td style="border:1px solid #0a2540;padding:4px;text-align:center;font-weight:700;color:#dc2626">' + nonConforme + '</td>' +
-      '<td style="border:1px solid #0a2540;padding:4px;text-align:center;font-weight:700;color:#f59e0b">' + nonMentionne + '</td>' +
-      '<td style="border:1px solid #0a2540;padding:4px">' + esc(observation) + '</td>' +
+  QP_OPS.forEach(function(o) {
+    var opHtml = esc(o[1]).replace('+ UT for weld joints', '<span style="color:#d00000">+ UT for weld joints</span>');
+    var c = BD + 'padding:3px 5px;font-size:9px;color:#111;';
+    ops += '<tr>' +
+      td(c + 'text-align:center;font-weight:700', o[0]) +
+      td(c, opHtml) +
+      td(c, '') +
+      td(c + 'text-align:center', lines(o[2])) +
+      td(c + 'text-align:center', lines(o[3])) +
+      td(c + 'text-align:center;font-weight:700;font-size:11px', o[4] ? 'X' : '') +
+      td(c + 'text-align:center', esc(o[5])) +
+      td(c, '') +
       '</tr>';
-  }
-  html += '</table>';
-  return html;
-}
-
-function renderSingleQP(wo, block, globalContent) {
-  var s = buildQPSectionsForWO(wo, block, globalContent);
-  var html = '<div class="qp-document" data-wo="' + esc(wo.id) + '" style="page-break-after:always;margin:0 0 40px 0;background:#ffffff;border:2px solid #0a2540;border-radius:4px;padding:0">';
-  html += renderQPHeader(wo);
-  html += renderQPNotes();
-  html += renderQPSection(1, QP_STANDARD_01.sections[0].title, [
-    { label: 'Client', value: s.client },
-    { label: 'Commande ARC', value: s.arc },
-    { label: 'N° WO', value: wo.id },
-    { label: 'Produit', value: s.produit },
-    { label: 'Quantite', value: s.qte },
-    { label: 'Norme applicable', value: s.norme }
-  ]);
-  html += renderQPSection(2, QP_STANDARD_01.sections[1].title, [
-    { label: 'Work Order', value: 'WO-' + wo.id + ' - Document Reference FO-05-R&D' },
-    { label: 'JOB', value: wo.id },
-    { label: 'Norme principale', value: s.norme },
-    { label: 'Procedure', value: 'FO-24-PRO Rev. 6' }
-  ]);
-  html += renderQPSection(3, QP_STANDARD_01.sections[2].title, [
-    { label: 'MTC', value: s.matiere ? 'MTC requis pour ' + s.matiere : 'MTC requis' },
-    { label: 'Tracabilite', value: 'Tracabilite complete exigee' },
-    { label: 'Specification matiere', value: s.matiere }
-  ]);
-  html += renderQPSection(4, QP_STANDARD_01.sections[3].title, [
-    { label: 'Etapes', value: 'Decoupe - Usinage - Assemblage - Controle final' },
-    { label: 'POS', value: 'POS par etape selon FO-05-R&D' },
-    { label: 'Parametres cles', value: 'Selon norme applicable' }
-  ]);
-  html += renderQPSection(5, QP_STANDARD_01.sections[4].title, [
-    { label: 'Dimensionnel', value: 'Inspection dimensionnelle a chaque etape' },
-    { label: 'Visuel', value: 'Inspection visuelle 100%' },
-    { label: 'NDT', value: 'Si requis par norme' },
-    { label: 'Test pression', value: s.testPression || 'Si applicable selon norme' }
-  ]);
-  html += renderQPSection(6, QP_STANDARD_01.sections[5].title, [
-    { label: 'TPI', value: 'Selon contrat client' },
-    { label: 'Organisme', value: 'A designer par le client' }
-  ]);
-  html += renderQPSection(7, QP_STANDARD_01.sections[6].title, [
-    { label: 'COC', value: 'Certificat de conformite requis' },
-    { label: 'MTC', value: 'Material Test Certificate requis' },
-    { label: 'Autres', value: 'Documents supplementaires factures' }
-  ]);
-  html += renderQPSection(8, QP_STANDARD_01.sections[7].title, [
-    { label: 'Procedure NCR', value: 'PR-01-PRO' },
-    { label: 'Enregistrement', value: 'Registre NCR obligatoire' },
-    { label: 'Actions correctives', value: 'Definies selon PR-01-PRO' }
-  ]);
-  html += renderQPApprovals();
-  html += renderCrossTableAPI6A(s, wo);
-  html += '</div>';
-  return html;
-}
-
-function renderAllQPs(wos, content) {
-  if (!wos || wos.length === 0) return '';
-  var html = '<div style="background:#eff6ff;border-left:4px solid #1e5aa8;border-radius:8px;padding:14px;margin:0 0 20px 0">' +
-    '<div style="color:#1e40af;font-weight:800;font-size:14px">📄 ' + wos.length + ' Work Order(s) detecte(s)</div>' +
-    '<div style="font-size:12px;color:#1e3a8a;margin-top:4px">Un QP specifique conforme QP STANDARD 01 est genere pour chacun. Cliquez sur "Telecharger PDF" pour obtenir le document complet.</div>' +
-    '<div style="margin-top:8px;font-size:12px;color:#1e3a8a">' + wos.map(function(w) { return '<span style="display:inline-block;background:#ffffff;border:1px solid #1e5aa8;color:#1e5aa8;padding:3px 10px;border-radius:12px;margin:2px 4px 2px 0;font-weight:700">QP-' + esc(w.id) + '</span>'; }).join('') + '</div>' +
-    '</div>';
-
-  wos.forEach(function(wo) {
-    var block = extractWoBlock(content, wo, wos);
-    html += renderSingleQP(wo, block, content);
   });
+  ops += '</table>';
 
-  return html;
+  var comments = '<table style="width:100%;border-collapse:collapse;font-family:Arial,sans-serif"><tr>' +
+    td(LBL + 'width:20%;height:60px;vertical-align:top', 'Comments') + td(VAL, '') + '</tr></table>';
+
+  return '<div>' + qpHeader('1') + info + type + ops + comments + '</div>';
+}
+
+function qpPage2() {
+  var th = LBL + 'text-align:center;padding:8px;';
+  var notes = '<div style="font-weight:700;font-size:10px;margin-bottom:3px">Notes :</div>' +
+    QP_NOTES.map(function(n) { return '<div style="font-size:10px;padding-left:12px;margin:2px 0">' + esc(n) + '</div>'; }).join('');
+  var t = '<table style="width:100%;border-collapse:collapse;font-family:Arial,sans-serif"><tr>' +
+    td(th + 'width:25%', 'Edited by') + td(th + 'width:25%', 'Approved by') + td(th, 'Signature and Stamp for Approval') + '</tr>' +
+    '<tr>' + td(VAL + 'text-align:center;padding:10px', 'QC Dep.') + td(VAL + 'text-align:center;padding:10px', 'Tech. Dep.') +
+    td(VAL + 'height:110px', '', 'rowspan="2"') + '</tr>' +
+    '<tr>' + td(VAL + 'height:80px;vertical-align:top', notes, 'colspan="2"') + '</tr></table>';
+  return '<div style="page-break-before:always">' + qpHeader('2') + t + '</div>';
+}
+
+function renderOneQP(wo, idx, ctx) {
+  var info = describeWO(wo);
+  var up = (info.kind + ' ' + info.desc).toUpperCase();
+  var type = {
+    proto: /PROTOTYPE/.test(up),
+    manuf: /MANUFACTUR/.test(up),
+    repair: /REPAIR|RECERTIF|REFURB/.test(up),
+    assembly: /ASSEMBL|RECERTIF/.test(up)
+  };
+  if (!type.proto && !type.manuf && !type.repair && !type.assembly) type.manuf = true;
+
+  var l1 = esc((info.kind || 'JOB') + (ctx.norme ? ' AS PER ' + ctx.norme.toUpperCase() : '') + ' FOR :');
+  var l2 = '- ' + esc(info.desc) + (wo.qte ? ', QTY: ' + esc(wo.qte) : '') +
+    (info.code ? ', REF: ' + esc(info.code) : '') + (info.est ? ', ESTIMATE No ' + esc(info.est) : '');
+  var d = {
+    qpNo: 'QP-' + wo.id,
+    wo: wo.id,
+    customer: ctx.customer,
+    po: ctx.po,
+    dated: todayFR(),
+    brief: l1 + '<br>' + l2,
+    type: type
+  };
+  var style = 'background:#fff;padding:0;margin:0;' + (idx > 0 ? 'page-break-before:always;' : '');
+  return '<div class="qp-document" data-qp="QP-' + esc(wo.id) + '" style="' + style + '">' + qpPage1(d) + qpPage2() + '</div>';
 }
 
 // ============================================================
-// 13. ENRICHISSEMENT
+// 13. STOCKAGE TEMPORAIRE + PAGE PDF
+// ============================================================
+var QP_STORE = {};
+
+function storeQP(html) {
+  var now = Date.now();
+  Object.keys(QP_STORE).forEach(function(k) { if (QP_STORE[k].exp < now) delete QP_STORE[k]; });
+  var token = crypto.randomBytes(16).toString('hex');
+  QP_STORE[token] = { html: html, exp: now + 2 * 60 * 60 * 1000 };
+  return token;
+}
+
+function printPage(qpsHtml) {
+  return '<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>Quality Control Plan</title>' +
+    '<style>@page{size:A4;margin:8mm}body{font-family:Arial,sans-serif;margin:0;background:#fff;color:#111}' +
+    '.pb{position:fixed;top:12px;right:12px;background:#0a2540;color:#fff;border:0;padding:12px 22px;border-radius:8px;font-weight:700;cursor:pointer;z-index:9}' +
+    '@media print{.pb{display:none}}</style></head><body>' +
+    '<button id="pb" class="pb" type="button">Imprimer / Enregistrer en PDF</button>' +
+    qpsHtml + '<script src="/qp-pdf.js"></script></body></html>';
+}
+
+var QP_PRINT_JS = "window.addEventListener('load',function(){var b=document.getElementById('pb');if(b){b.addEventListener('click',function(){window.print();});}setTimeout(function(){window.print();},700);});";
+
+function buildQPAnswer(text) {
+  var wos = parseWorkOrders(text);
+  if (wos.length === 0) return { wos: wos, html: '' };
+  var ctx = { customer: detectCustomer(text), po: detectPO(text), norme: detectNorme(text) };
+  var qps = wos.map(function(w, i) { return renderOneQP(w, i, ctx); }).join('');
+  var token = storeQP(qps);
+  var chips = wos.map(function(w) {
+    return '<span style="display:inline-block;background:#ffffff;border:1px solid #1e5aa8;color:#1e5aa8;padding:4px 12px;border-radius:14px;margin:3px 5px 3px 0;font-weight:700">QP-' + esc(w.id) + '</span>';
+  }).join('');
+  var banner = '<div style="background:#eff6ff;border-left:4px solid #1e5aa8;border-radius:8px;padding:18px;margin:0 0 16px 0;font-family:Arial,sans-serif">' +
+    '<div style="color:#1e40af;font-weight:800;font-size:15px">' + wos.length + ' Work Order(s) detecte(s) - 1 QP conforme QP STANDARD 01 par WO</div>' +
+    '<div style="font-size:13px;color:#1e3a8a;margin:6px 0 10px 0">Chaque QP occupe 2 pages A4, comme le document standard (FO-24-PRO Rev 6).</div>' +
+    '<div style="margin-bottom:12px">' + chips + '</div>' +
+    '<a href="/qp-pdf/' + token + '" target="_blank" rel="noopener" style="display:inline-block;background:#0a2540;color:#ffffff;text-decoration:none;padding:12px 22px;border-radius:8px;font-weight:700;font-size:14px">Ouvrir le PDF des ' + wos.length + ' QP</a>' +
+    '<div style="font-size:12px;color:#1e3a8a;margin-top:8px">Dans la fenetre ouverte, choisissez Imprimer puis Enregistrer au format PDF.</div>' +
+    '</div>';
+  var hidden = '<div class="qp-print-container" style="display:none">' + qps + '</div>';
+  return { wos: wos, html: banner + hidden };
+}
+
+function collectText(body) {
+  var parts = [];
+  Object.keys(body || {}).forEach(function(k) {
+    if (typeof body[k] === 'string') parts.push(body[k]);
+  });
+  return parts.join('\n');
+}
+
+// ============================================================
+// 14. ENRICHISSEMENT (questions normales)
 // ============================================================
 async function enrichAnswer(answer, question, domain, lang, mongoose, mode, originalContent) {
   try {
@@ -736,7 +740,6 @@ async function enrichAnswer(answer, question, domain, lang, mongoose, mode, orig
     var isQP = isQualityPlanRequest(question, contentSource);
     var realDomain = isQP ? 'Plan Qualite' : detectDomain(question, domain);
     var isLitRel = isLiteraryOrReligious(realDomain);
-    var isAnalytical = isAnalyticalDomain(realDomain);
     var judgeResult = judgeClaudeValidation(question, answer, realDomain);
 
     var AutoFeedDoc = null;
@@ -752,51 +755,16 @@ async function enrichAnswer(answer, question, domain, lang, mongoose, mode, orig
     var scholars = [];
     if (isLitRel) scholars = extractScholars(question, answer, realDomain);
 
-    var keyPoints = extractKeyPoints(answer);
     var enriched = '';
+    enriched += '<div style="background:#ffffff;border:1px solid #e5e7eb;border-radius:12px;padding:24px;margin:0 0 20px 0">';
+    enriched += '<h3 style="color:#0a2540;font-size:17px;font-weight:700;margin:0 0 16px 0;padding-bottom:10px;border-bottom:2px solid #1e5aa8">Reponse detaillee</h3>';
+    enriched += '<div style="font-size:14px;color:#17202a">' + formatForHTML(answer) + '</div>';
+    enriched += '</div>';
 
-    // v9.0 : QP complet cache (invisible dans le chat, utilise uniquement par le PDF)
-    if (isQP) {
-      var wos = extractWorkOrders(question, contentSource);
-      if (wos.length > 0) {
-        var qpHtml = renderAllQPs(wos, contentSource);
-        // Enveloppe dans un div cache : visible uniquement par le bouton PDF
-        enriched += '<div class="qp-hidden" style="display:none!important;visibility:hidden!important;height:0!important;overflow:hidden!important;position:absolute!important;left:-99999px!important" aria-hidden="true">' + qpHtml + '</div>';
-
-        // Message utilisateur : nombre de QP + instruction PDF
-        enriched += '<div style="background:#eff6ff;border-left:4px solid #1e5aa8;border-radius:8px;padding:18px;margin:0 0 20px 0">';
-        enriched += '<div style="color:#1e40af;font-weight:800;font-size:15px">📄 ' + wos.length + ' Work Order(s) detecte(s)</div>';
-        enriched += '<div style="font-size:13px;color:#1e3a8a;margin-top:6px">Un QP specifique conforme QP STANDARD 01 a ete genere pour chacun. Cliquez sur <strong>Telecharger PDF</strong> sous ce message pour obtenir les ' + wos.length + ' QP dans un document A4 formate.</div>';
-        enriched += '<div style="margin-top:10px;font-size:13px;color:#1e3a8a">' + wos.map(function(w) { return '<span style="display:inline-block;background:#ffffff;border:1px solid #1e5aa8;color:#1e5aa8;padding:4px 12px;border-radius:14px;margin:3px 5px 3px 0;font-weight:700">QP-' + esc(w.id) + '</span>'; }).join('') + '</div>';
-        enriched += '</div>';
-      } else {
-        enriched += '<div style="background:#fef2f2;border:2px solid #dc2626;border-radius:8px;padding:14px;margin:0 0 20px 0">' +
-          '<div style="color:#991b1b;font-weight:700">⚠️ Aucun WO detecte dans le document</div>' +
-          '<div style="font-size:12px;color:#7f1d1d;margin-top:4px">Verifiez que le document contient des Work Orders (WO 28836, WO-28836, Work Order 28836...).</div></div>';
-      }
-    } else {
-      // SECTION : Reponse detaillee pour questions normales
-      enriched += '<div style="background:#ffffff;border:1px solid #e5e7eb;border-radius:12px;padding:24px;margin:0 0 20px 0">';
-      enriched += '<h3 style="color:#0a2540;font-size:17px;font-weight:700;margin:0 0 16px 0;padding-bottom:10px;border-bottom:2px solid #1e5aa8">Reponse detaillee</h3>';
-      enriched += '<div style="font-size:14px;color:#17202a">' + formatForHTML(answer) + '</div>';
-      enriched += '</div>';
-
-      if (keyPoints.length > 0) {
-        enriched += '<div style="background:#eff6ff;border-left:4px solid #1e5aa8;border-radius:8px;padding:18px;margin:0 0 20px 0">';
-        enriched += '<h4 style="margin:0 0 12px 0;color:#1e40af;font-size:15px;font-weight:700">Points cles a retenir</h4>';
-        enriched += '<ul style="margin:0;padding-left:24px;color:#1e3a8a;font-size:14px;line-height:1.7">';
-        keyPoints.forEach(function(p) { enriched += '<li style="margin-bottom:8px">' + esc(p) + '</li>'; });
-        enriched += '</ul></div>';
-      }
-    }
-
-    // Fiche technique
     enriched += generateTechSheet(realDomain, docs.length, semanticScore, scholars, judgeResult, mode);
 
-    // Agents
     enriched += '<div style="background:#f5f7fa;border:1px solid #e5e7eb;border-radius:8px;padding:14px;margin:20px 0;font-size:12px;color:#6b7280;text-align:center">';
     enriched += '<strong style="color:#0a2540">Agents IA impliques :</strong> MBA-CONSULT AI CORE - OpenRouter - Semantic Engine - Language Fix - Voice Engine - <strong style="color:#16a34a">Juge Claude (validation active)</strong>';
-    if (isQP) enriched += ' - <strong style="color:#f59e0b">QP STANDARD 01 par WO + Tableau croise API 6A</strong>';
     if (mode === 'document') enriched += ' - <strong style="color:#1e5aa8">Traitement exclusif du document colle</strong>';
     enriched += '</div>';
 
@@ -809,13 +777,75 @@ async function enrichAnswer(answer, question, domain, lang, mongoose, mode, orig
 }
 
 // ============================================================
-// 14. MIDDLEWARE EXPRESS
+// 15. MIDDLEWARE EXPRESS
 // ============================================================
 module.exports = function(app, mongoose) {
 
   var AutoFeedDoc = null;
   try { AutoFeedDoc = mongoose.model('AutoFeedDocument'); } catch (e) { AutoFeedDoc = null; }
 
+  // ---- 15.a Pages PDF (lien du bandeau) ----
+  app.get('/qp-pdf.js', function(req, res) {
+    res.set('Content-Type', 'application/javascript; charset=utf-8');
+    res.send(QP_PRINT_JS);
+  });
+
+  app.get('/qp-pdf/:token', function(req, res) {
+    var e = QP_STORE[req.params.token];
+    if (!e || e.exp < Date.now()) {
+      return res.status(404).send('QP expire. Regenerez le plan qualite depuis le chat.');
+    }
+    res.set('Content-Type', 'text/html; charset=utf-8');
+    res.set('X-Robots-Tag', 'noindex');
+    res.set('Content-Security-Policy', "default-src 'none'; style-src 'unsafe-inline'; img-src data: 'self'; script-src 'self'");
+    res.send(printPage(e.html));
+  });
+
+  // ---- 15.b Interception QP : reponse directe, SANS IA ----
+  function qpIntercept(route, strict) {
+    app.use(route, function(req, res, next) {
+      try {
+        if (req.method !== 'POST' || !req.body) return next();
+        if (!req.headers.authorization) return next();
+        var question = String(req.body.question || '');
+        var wantsQP = QP_RE.test(question) || (!strict && !question.trim());
+        if (!wantsQP) return next();
+
+        var text = collectText(req.body) + '\n' + question;
+        var out = buildQPAnswer(text);
+
+        if (out.wos.length === 0) {
+          if (strict) return next();
+          var fields = Object.keys(req.body).map(function(k) {
+            return k + ' (' + (typeof req.body[k] === 'string' ? req.body[k].length + ' car.' : typeof req.body[k]) + ')';
+          }).join(', ');
+          console.log('[answer-enricher] Aucun WO detecte. Champs recus : ' + fields);
+          return res.json({
+            answer: '<div style="background:#fef2f2;border:2px solid #dc2626;border-radius:8px;padding:14px">' +
+              '<div style="color:#991b1b;font-weight:700">Aucun WO detecte dans le document</div>' +
+              '<div style="font-size:12px;color:#7f1d1d;margin-top:4px">Le document doit contenir des lignes du type : 28636 1 18/07/26 (N&deg; WO, quantite, date). Champs recus : ' + esc(fields) + '</div></div>',
+            enriched: true
+          });
+        }
+
+        console.log('[answer-enricher] QP direct (sans IA) - ' + out.wos.length + ' WO : ' + out.wos.map(function(w) { return w.id; }).join(', '));
+        return res.json({
+          answer: out.html,
+          enriched: true,
+          qpStandard01: true,
+          treatmentMode: 'parsing-direct',
+          workOrdersDetected: out.wos.map(function(w) { return 'QP-' + w.id; })
+        });
+      } catch (e) {
+        console.warn('[answer-enricher] Erreur QP :', e.message);
+        return next();
+      }
+    });
+  }
+  qpIntercept('/api/analyze-content', false);
+  qpIntercept('/api/ask', true);
+
+  // ---- 15.c RAG pour /api/ask ----
   async function ragPreprocessAsk(req, res, next) {
     if (!req.body || !req.body.question) return next();
     if (!AutoFeedDoc) {
@@ -823,28 +853,18 @@ module.exports = function(app, mongoose) {
     }
     try {
       var questionOriginale = req.body.question;
-      var isQP = isQualityPlanRequest(questionOriginale, '');
-      var prefix = '';
-      if (isQP) {
-        prefix = '[INSTRUCTION SYSTEME - QP STANDARD 01 PAR WO]\n' +
-          'Si la question contient des Work Orders, genere UN QP SPECIFIQUE PAR WO.\n' +
-          'Reference : QP-<N° WO>.\n\n';
-      }
       var rag = await buildRagContext(AutoFeedDoc, questionOriginale, 3, 3500);
       if (rag.context && rag.context.length > 200) {
-        req.body.question = prefix + questionOriginale +
-          '\n\n[EXTRAITS DOCUMENTAIRES]\n' + rag.context + '\n[FIN EXTRAITS]\n\nQuestion : ' + questionOriginale;
+        req.body.question = questionOriginale + '\n\n[EXTRAITS]\n' + rag.context + '\n[FIN EXTRAITS]\n\nQuestion : ' + questionOriginale;
         req._ragDocs = rag.docs;
-      } else if (isQP) {
-        req.body.question = prefix + questionOriginale;
       }
     } catch (e) {}
     next();
   }
 
+  // ---- 15.d Documents non-QP ----
   function documentPreprocess(req, res, next) {
     if (!req.body) return next();
-
     var content = req.body.content ? String(req.body.content) : '';
     var questionUser = req.body.question ? String(req.body.question) : '';
 
@@ -853,36 +873,20 @@ module.exports = function(app, mongoose) {
       req._documentQuestion = questionUser;
       req._documentMode = true;
 
-      var isQP = isQualityPlanRequest(questionUser, content);
-      var prefix = '';
+      req.body.question = (questionUser || 'Analyse ce document.');
+      req.body.content = 'Voici le contenu du document a analyser :\n\n' + content;
 
-      if (isQP) {
-        prefix =
-          '[INSTRUCTION SYSTEME OBLIGATOIRE - QP STANDARD 01 PAR WO]\n' +
-          'Genere UN QP SPECIFIQUE POUR CHAQUE WO present dans le document.\n' +
-          'Chaque QP doit contenir : en-tete GMPI FO-24-PRO Rev 6, notes a/b/c, 9 sections, ligne JOB, tableau croise API 6A, approbations.\n' +
-          'Reference : QP-<N° WO>.\n' +
-          'Si une donnee manque, ecrire "Non mentionne dans le document".\n' +
-          '[FIN INSTRUCTION]\n\n';
-      }
-
-      req.body.question = prefix + (questionUser || 'Genere le QP pour chaque WO present dans le document.');
-
-      req.body.content =
-        '[INSTRUCTION SYSTEME - DOCUMENT DE REFERENCE STRICT]\n' +
-        'Reponds EXCLUSIVEMENT a partir du contenu ci-dessous.\n\n' +
-        '=== DEBUT DU DOCUMENT ===\n' + content + '\n=== FIN DU DOCUMENT ===\n';
-
-      console.log('[answer-enricher] v9.0 - Mode DOCUMENT ' + (isQP ? '+ QP par WO (cache HTML)' : '') + ' - ' + content.length + ' car.');
+      console.log('[answer-enricher] v14.0 Mode DOCUMENT - ' + content.length + ' car.');
     }
     next();
   }
 
+  // ---- 15.e Post-traitement ----
   function postprocess(mode) {
     return function(req, res, next) {
       var originalJson = res.json.bind(res);
       res.json = function(data) {
-        if (!data || !data.answer) return originalJson(data);
+        if (!data || !data.answer || data.enriched) return originalJson(data);
 
         var questionPourDetection = '';
         var contenuPourDetection = '';
@@ -903,11 +907,6 @@ module.exports = function(app, mongoose) {
             data.enriched = true;
             data.enrichedAt = new Date().toISOString();
             if (mode === 'document') data.treatmentMode = 'exclusive-document';
-            if (isQualityPlanRequest(questionPourDetection, contenuPourDetection)) {
-              var wos = extractWorkOrders(questionPourDetection, contenuPourDetection);
-              data.qpStandard01 = true;
-              data.workOrdersDetected = wos.map(function(w) { return 'QP-' + w.id; });
-            }
             originalJson(data);
           })
           .catch(function() { originalJson(data); });
@@ -920,5 +919,5 @@ module.exports = function(app, mongoose) {
   app.use('/api/ask', ragPreprocessAsk, postprocess('ask'));
   app.use('/api/analyze-content', documentPreprocess, postprocess('document'));
 
-  console.log('[answer-enricher] v9.0 charge - multi-WO robuste + HTML masque + PDF propre');
+  console.log('[answer-enricher] v14.0 charge - QP STANDARD 01 par WO (sans IA) + PDF propre');
 };
