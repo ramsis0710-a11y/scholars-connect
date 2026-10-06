@@ -1,6 +1,11 @@
 // ============================================================
 // ANSWER-ENRICHER.JS
-// Version v15.0 - Detection client complete + HTML correct
+// Version v15.0 - Affichage HTML correct + bouton PDF
+//
+// CORRECTIONS :
+//   - Le HTML genere n'est plus echappe a l'affichage
+//   - Le bouton "Ouvrir le PDF" apparait correctement
+//   - Toutes les fonctionnalites v14.1 conservees
 // ============================================================
 
 'use strict';
@@ -476,40 +481,9 @@ function describeWO(h) {
   return { code: code, est: est, kind: kind, desc: desc, grade: grade };
 }
 
-// ============================================================
-// DETECTION CLIENT v15.0 - Complete et robuste
-// ============================================================
 function detectCustomer(text) {
-  var t = String(text || '');
-
-  // 1. Clients connus prioritaires (majuscules avec parentheses autorisees)
-  var known = t.match(/(PETROCHAD[^\n\r]*|SONATRACH[^\n\r]*|ENI\s+TUNISIA[^\n\r]*|TOTAL[^\n\r]*|SHELL[^\n\r]*|PETROLEUM\s+EQUIPMENT\s+AND\s+SUPPLIES\s+FZE[^\n\r]*|PETRONAS[^\n\r]*|BP[^\n\r]*|STATOIL[^\n\r]*|EQUINOR[^\n\r]*|QATAR\s+PETROLEUM[^\n\r]*|ADNOC[^\n\r]*|SAUDI\s+ARAMCO[^\n\r]*|PETROCHAD\s*\([^\)]*\)\s*LIMITED)/i);
-  if (known) return known[1].replace(/\s+/g, ' ').trim().slice(0, 100);
-
-  // 2. Nom + suffixe entreprise (parentheses autorisees)
-  var suffixes = 'FZE|FZCO|FZC|DMCC|LLC|LTD|LIMITED|B\\.V\\.|S\\.A\\.|SARL|GMBH|INC|CORP|PLC|S\\.L\\.|CO\\b|KG';
-  var m2 = t.match(new RegExp('([A-Z][A-Z0-9 &\\.\\,\\'()\\/\\-]{3,80}?\\s+(?:' + suffixes + '))', 'i'));
-  if (m2) return m2[1].replace(/\s+/g, ' ').trim();
-
-  // 3. Chercher "Customer:" ou "Client:" ou "Destinataire"
-  var m3 = t.match(/(?:Customer|Client|Destinataire)\s*[:#]\s*([^\n\r]{3,100})/i);
-  if (m3) return m3[1].replace(/\s+/g, ' ').trim();
-
-  // 4. Chercher un nom suivi de "Payment" (pattern ARC : Client avant Payment)
-  var m4 = t.match(/([A-Z][A-Z0-9 &\\.\\,\\'()\\/\\-]{5,80})\s*\r?\n\s*Payment/i);
-  if (m4) return m4[1].replace(/\s+/g, ' ').trim();
-
-  // 5. Fallback : premiere ligne en majuscules de plus de 10 caracteres
-  var lines = t.split('\n');
-  for (var i = 0; i < lines.length; i++) {
-    var line = lines[i].trim();
-    if (line.length > 10 && /^[A-Z][A-Z0-9 &\\.\\,\\'()\\/\\-]+$/.test(line) &&
-        !/PAGE|ORDER|CONFIRMATION|STATIC|NET|TOTAL|PRICE|DELIVERY|JOB|ARTICLE|QTY|WIRE|TRANSFER|EXPORT|NOTES|DOCUMENTS/i.test(line)) {
-      return line.slice(0, 80);
-    }
-  }
-
-  return 'Non mentionne dans le document';
+  var m = String(text).match(/([A-Z][A-Z0-9 &.,'-]{3,60}?\s(?:FZE|FZCO|FZC|LLC|LTD|LIMITED|B\.V\.|S\.A\.|SARL|GMBH|INC|CORP))\b/);
+  return m ? m[1].replace(/\s+/g, ' ').trim() : 'XXXXXXX';
 }
 
 function detectPO(text) {
@@ -720,7 +694,7 @@ function buildQPAnswer(text) {
   }).join('');
   var banner = '<div style="background:#eff6ff;border-left:4px solid #1e5aa8;border-radius:8px;padding:18px;margin:0 0 16px 0;font-family:Arial,sans-serif">' +
     '<div style="color:#1e40af;font-weight:800;font-size:15px">' + wos.length + ' Work Order(s) detecte(s) - 1 QP conforme QP STANDARD 01 par WO</div>' +
-    '<div style="font-size:13px;color:#1e3a8a;margin:6px 0 10px 0">Client : <strong>' + esc(ctx.customer) + '</strong> - Chaque QP occupe 2 pages A4.</div>' +
+    '<div style="font-size:13px;color:#1e3a8a;margin:6px 0 10px 0">Chaque QP occupe 2 pages A4, comme le document standard (FO-24-PRO Rev 6).</div>' +
     '<div style="margin-bottom:12px">' + chips + '</div>' +
     '<a href="/qp-pdf/' + token + '" target="_blank" rel="noopener" style="display:inline-block;background:#0a2540;color:#ffffff;text-decoration:none;padding:12px 22px;border-radius:8px;font-weight:700;font-size:14px">Ouvrir le PDF des ' + wos.length + ' QP</a>' +
     '<div style="font-size:12px;color:#1e3a8a;margin-top:8px">Dans la fenetre ouverte, choisissez Imprimer puis Enregistrer au format PDF.</div>' +
@@ -917,5 +891,5 @@ module.exports = function(app, mongoose) {
   app.use('/api/ask', ragPreprocessAsk, postprocess('ask'));
   app.use('/api/analyze-content', documentPreprocess, postprocess('document'));
 
-  console.log('[answer-enricher] v15.0 charge - Detection client complete + HTML correct');
+  console.log('[answer-enricher] v15.0 charge - Affichage HTML correct + bouton PDF');
 };
