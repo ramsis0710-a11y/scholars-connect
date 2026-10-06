@@ -14,7 +14,7 @@
 .msg.bot{align-self:flex-start;background:#f5f7fa;color:#17202a}
 .msg .meta{font-size:.75rem;color:#6b7280;margin-top:6px}
 .msg.user .meta{color:rgba(255,255,255,.7)}
-.msg-actions{display:flex;gap:8px;margin-top:8px;font-size:.8rem}
+.msg-actions{display:flex;gap:8px;margin-top:8px;font-size:.8rem;flex-wrap:wrap}
 .msg-actions button{background:white;border:1px solid #e5e7eb;padding:4px 10px;border-radius:6px;cursor:pointer;font-size:.8rem;color:#0a2540}
 .input-area{padding:16px;background:#f9fafb;border-top:1px solid #e5e7eb;display:flex;flex-direction:column;gap:10px}
 .row-input{display:flex;gap:10px;align-items:flex-end}
@@ -54,7 +54,10 @@ textarea:focus{border-color:#1e5aa8}
 <body>
 
 <div class="header">
-  <div class="logo"><div class="mark">SC</div><div><h1>Scholars Connect</h1><p id="user-display">Assistant IA</p></div></div>
+  <div class="logo">
+    <div class="mark">SC</div>
+    <div><h1>Scholars Connect</h1><p id="user-display">Assistant IA</p></div>
+  </div>
   <div class="nav" id="nav-user"></div>
 </div>
 
@@ -62,14 +65,13 @@ textarea:focus{border-color:#1e5aa8}
   <div class="chat-card">
     <div class="messages" id="messages"></div>
     <div class="input-area">
-      <div class="dict-badge" id="dict-status">Dictee en cours... Parlez puis faites une pause de 10 secondes.</div>
+      <div class="dict-badge" id="dict-status">Dictee en cours...</div>
       <div class="options-bar">
         <label>Langue :
           <select id="lang" style="min-width:180px">
             <option value="ar">العربية</option>
             <option value="fr" selected>Français</option>
             <option value="en">English</option>
-            <option disabled>---------------</option>
             <option value="es">Español</option>
             <option value="de">Deutsch</option>
             <option value="it">Italiano</option>
@@ -143,74 +145,15 @@ textarea:focus{border-color:#1e5aa8}
   </div>
 </div>
 
+<script src="/app.js"></script>
 <script>
 // ============================================================
-// FONCTIONS DE BASE (independantes de app.js)
+// FONCTIONS UTILITAIRES
 // ============================================================
-
-// apiCall - fonction principale pour tous les appels API
-async function apiCall(path, options) {
-  options = options || {};
-  const token = localStorage.getItem('token') || '';
-  const headers = {
-    'Content-Type': 'application/json; charset=utf-8',
-    'Authorization': token ? 'Bearer ' + token : ''
-  };
-  const url = path.indexOf('/api') === 0 ? path : '/api' + path;
-  const r = await fetch(url, {
-    method: options.method || 'GET',
-    headers: headers,
-    body: options.body || null
-  });
-  if (!r.ok) {
-    const err = await r.json().catch(function() { return { error: 'HTTP ' + r.status }; });
-    throw new Error(err.error || ('HTTP ' + r.status));
-  }
-  return r.json();
-}
-window.apiCall = apiCall;
-
-// requireLogin - verifie la session
-function requireLogin() {
-  const token = localStorage.getItem('token');
-  if (!token) {
-    window.location.href = '/login';
-    return false;
-  }
-  return true;
-}
-window.requireLogin = requireLogin;
-
-// updateNav - met a jour le header
-function updateNav() {
-  const el = document.getElementById('nav-user');
-  if (el) {
-    const token = localStorage.getItem('token');
-    const user = JSON.parse(localStorage.getItem('user') || 'null');
-    if (token && user) {
-      el.innerHTML = '<span class="muted">' + user.email + '</span> <button onclick="logout()">Deconnexion</button>';
-      const ud = document.getElementById('user-display');
-      if (ud) ud.textContent = user.email;
-    } else {
-      el.innerHTML = '<a href="/login">Connexion</a> <a href="/register">Inscription</a>';
-    }
-  }
-}
-window.updateNav = updateNav;
-
-// logout
-function logout() {
-  localStorage.removeItem('token');
-  localStorage.removeItem('user');
-  window.location.href = '/login';
-}
-window.logout = logout;
-
-// addMsg - ajoute un message dans le chat
 function addMsg(text, who) {
-  const messages = document.getElementById('messages');
+  var messages = document.getElementById('messages');
   if (!messages) return null;
-  const div = document.createElement('div');
+  var div = document.createElement('div');
   div.className = 'msg ' + who;
   div.textContent = text;
   messages.appendChild(div);
@@ -219,94 +162,96 @@ function addMsg(text, who) {
 }
 window.addMsg = addMsg;
 
-// addBotMsg - ajoute un message bot avec meta
-function addBotMsg(text, scholar) {
-  const div = addMsg(text, 'bot');
-  if (!div) return null;
+function addBotMsg(text, scholar, isHTML) {
+  var messages = document.getElementById('messages');
+  if (!messages) return null;
+  var div = document.createElement('div');
+  div.className = 'msg bot';
+
+  // v15.0 : utiliser innerHTML pour interpreter le HTML
+  if (isHTML) {
+    div.innerHTML = text;
+  } else {
+    div.textContent = text;
+  }
+
   if (scholar) {
-    const meta = document.createElement('div');
+    var meta = document.createElement('div');
     meta.className = 'meta';
     meta.textContent = 'Source : ' + scholar;
     div.appendChild(meta);
   }
+  messages.appendChild(div);
+  messages.scrollTop = messages.scrollHeight;
   return div;
 }
 window.addBotMsg = addBotMsg;
 
-// ============================================================
-// VOCAL
-// ============================================================
-function cleanForSpeech(text) {
-  if (!text) return '';
-  var t = String(text);
-  t = t.replace(/\*\*/g, '').replace(/\*/g, '');
-  t = t.replace(/^#+\s*/gm, '').replace(/_/g, ' ');
-  t = t.replace(/~/g, ' ').replace(/\|/g, ' ');
-  t = t.replace(/->/g, ' vers ').replace(/=>/g, ' donne ');
-  t = t.replace(/=/g, ' egale ').replace(/\+/g, ' plus ');
-  t = t.replace(/(\d)\s*-\s*(\d)/g, '$1 moins $2');
-  t = t.replace(/(\d)\s*\*\s*(\d)/g, '$1 fois $2');
-  t = t.replace(/(\d)\s*x\s*(\d)/g, '$1 fois $2');
-  t = t.replace(/(\d)\s*\/\s*(\d)/g, '$1 divise par $2');
-  t = t.replace(/%/g, ' pour cent ');
-  t = t.replace(/\s+/g, ' ');
-  return t.trim();
-}
-
-window.speak = function(text, lang) {
-  if (!('speechSynthesis' in window)) { alert('Synthese vocale non supportee.'); return; }
-  var cleanText = cleanForSpeech(text);
-  if (!cleanText) return;
-  lang = lang || 'fr-FR';
-  speechSynthesis.cancel();
-  var u = new SpeechSynthesisUtterance(cleanText);
-  u.lang = lang;
-  u.rate = 0.9;
-  u.pitch = 0.85;
-  u.volume = 1.0;
-  var voices = speechSynthesis.getVoices();
-  var prefix = lang.split('-')[0];
-  var chosen = null;
-  if (prefix === 'ar') {
-    chosen = voices.find(function(v){ return v.lang.indexOf('ar') === 0 && /Majed|Naayf|Maged/i.test(v.name); })
-          || voices.find(function(v){ return v.lang === 'ar-001'; })
-          || voices.find(function(v){ return v.lang.indexOf('ar') === 0; });
-  } else {
-    chosen = voices.find(function(v){ return v.lang.indexOf(prefix) === 0 && /Thomas|Henri|Paul|Guillaume|Yannick/i.test(v.name); })
-          || voices.find(function(v){ return v.lang.indexOf(prefix) === 0; });
+function requireLogin() {
+  var token = localStorage.getItem('token');
+  if (!token) {
+    window.location.href = '/login';
+    return false;
   }
-  if (chosen) u.voice = chosen;
-  speechSynthesis.speak(u);
-};
-
-if (speechSynthesis && speechSynthesis.onvoiceschanged !== undefined) {
-  speechSynthesis.onvoiceschanged = function() { speechSynthesis.getVoices(); };
+  return true;
 }
+window.requireLogin = requireLogin;
 
-// ============================================================
-// PARTAGE
-// ============================================================
-function shareText(text) {
-  if (navigator.share) {
-    navigator.share({ title: 'Scholars Connect', text: text }).catch(function(){});
+function updateNav() {
+  var el = document.getElementById('nav-user');
+  if (!el) return;
+  var token = localStorage.getItem('token');
+  var user = JSON.parse(localStorage.getItem('user') || 'null');
+  if (token && user) {
+    el.innerHTML = '<span class="muted">' + (user.email || '') + '</span> <button onclick="logout()">Deconnexion</button>';
+    var ud = document.getElementById('user-display');
+    if (ud) ud.textContent = user.email || 'Assistant IA';
   } else {
-    navigator.clipboard.writeText(text);
-    alert('Texte copie dans le presse-papiers.');
+    el.innerHTML = '<a href="/login">Connexion</a> <a href="/register">Inscription</a>';
   }
 }
-window.shareMessage = shareText;
+window.updateNav = updateNav;
+
+function logout() {
+  localStorage.removeItem('token');
+  localStorage.removeItem('user');
+  window.location.href = '/login';
+}
+window.logout = logout;
 
 // ============================================================
-// ANALYSE DOCUMENT
+// API CALL
+// ============================================================
+async function apiCall(path, options) {
+  options = options || {};
+  var token = localStorage.getItem('token') || '';
+  var headers = {
+    'Content-Type': 'application/json; charset=utf-8',
+    'Authorization': token ? 'Bearer ' + token : ''
+  };
+  var url = path.indexOf('/api') === 0 ? path : '/api' + path;
+  var r = await fetch(url, {
+    method: options.method || 'GET',
+    headers: headers,
+    body: options.body || null
+  });
+  if (!r.ok) {
+    var err = await r.json().catch(function() { return { error: 'HTTP ' + r.status }; });
+    throw new Error(err.error || ('HTTP ' + r.status));
+  }
+  return r.json();
+}
+window.apiCall = apiCall;
+
+// ============================================================
+// ANALYSE DOCUMENT (v15.0 - avec innerHTML)
 // ============================================================
 window.openAnalyzeDialog = function() {
   document.getElementById('analyze-dialog').classList.add('active');
 };
-
 window.closeAnalyzeDialog = function() {
   document.getElementById('analyze-dialog').classList.remove('active');
 };
-
 window.switchDialogTab = function(tab, el) {
   document.querySelectorAll('.dialog-tab').forEach(function(t){ t.classList.remove('active'); });
   document.querySelectorAll('.dialog-panel').forEach(function(p){ p.classList.remove('active'); });
@@ -316,9 +261,11 @@ window.switchDialogTab = function(tab, el) {
 
 window.analyzeContent = async function() {
   console.log('[analyzeContent] Demarrage...');
+
   var activeTab = document.querySelector('.dialog-tab.active');
   var tab = activeTab ? activeTab.getAttribute('data-tab') : 'text';
   var content = '', type = 'text';
+
   if (tab === 'url') {
     content = document.getElementById('content-url').value.trim();
     type = 'url';
@@ -327,12 +274,19 @@ window.analyzeContent = async function() {
   } else {
     content = document.getElementById('content-text').value.trim();
   }
+
   console.log('[analyzeContent] Length:', content.length, 'Type:', type);
-  if (!content) { alert('Contenu vide. Collez du texte.'); return; }
+
+  if (!content) {
+    alert('Contenu vide. Collez du texte avant d\'analyser.');
+    return;
+  }
+
   var question = document.getElementById('content-question').value.trim();
   var language = document.getElementById('lang').value;
 
   window.closeAnalyzeDialog();
+
   addMsg('[Document] ' + (question || 'Analyse ce document'), 'user');
   var loading = addMsg('Analyse en cours...', 'bot');
 
@@ -349,9 +303,12 @@ window.analyzeContent = async function() {
     });
     console.log('[analyzeContent] Reponse:', r);
     if (loading) loading.remove();
-    addBotMsg(r.answer, null);
+
+    // v15.0 : AFFICHER LE HTML CORRECTEMENT avec innerHTML
+    addBotMsg(r.answer, null, true);
+
     if (document.getElementById('autoSpeak').checked) {
-      window.speak(r.answer, language === 'ar' ? 'ar-SA' : (language === 'en' ? 'en-US' : 'fr-FR'));
+      window.speak && window.speak(r.answer, language === 'ar' ? 'ar-SA' : (language === 'en' ? 'en-US' : 'fr-FR'));
     }
   } catch (e) {
     console.error('[analyzeContent] Erreur:', e);
@@ -366,23 +323,23 @@ document.addEventListener('keydown', function(e){ if (e.key === 'Escape') window
 // ============================================================
 async function loadDomains() {
   try {
-    const r = await apiCall('/domains');
-    const list = document.getElementById('domain-list');
+    var r = await apiCall('/domains');
+    var list = document.getElementById('domain-list');
     if (!list) return;
     list.innerHTML = '';
     r.domains.forEach(function(d) {
-      const opt = document.createElement('option');
+      var opt = document.createElement('option');
       opt.value = d;
       list.appendChild(opt);
     });
-  } catch (e) { console.warn('Domains error:', e.message); }
+  } catch (e) { console.warn('Domains load error:', e.message); }
 }
 
 async function addNewDomain() {
-  const name = prompt('Nouveau domaine (ex: Medecine, Astronomie...)');
+  var name = prompt('Nouveau domaine');
   if (!name || !name.trim()) return;
   try {
-    const r = await apiCall('/domains', { method: 'POST', body: JSON.stringify({ name: name.trim() }) });
+    var r = await apiCall('/domains', { method: 'POST', body: JSON.stringify({ name: name.trim() }) });
     await loadDomains();
     document.getElementById('domain').value = r.name;
     alert(r.created ? 'Domaine ajoute : ' + r.name : 'Ce domaine existe deja');
@@ -391,34 +348,33 @@ async function addNewDomain() {
 window.addNewDomain = addNewDomain;
 
 // ============================================================
-// INITIALISATION
+// HISTORIQUE
 // ============================================================
-if (requireLogin()) {
+(async function() {
+  if (!requireLogin()) return;
   updateNav();
   loadDomains();
 
   document.getElementById('domain').addEventListener('input', function(e) {
-    const v = e.target.value.toLowerCase();
-    const area = document.getElementById('scholar-area');
+    var v = e.target.value.toLowerCase();
+    var area = document.getElementById('scholar-area');
     if (area) {
-      area.style.display = (v.includes('relig') || v.includes('islam') || v.includes('theo') || v.includes('sunnah') || v.includes('hadith')) ? 'block' : 'none';
+      area.style.display = (v.indexOf('relig') !== -1 || v.indexOf('islam') !== -1 || v.indexOf('theo') !== -1) ? 'block' : 'none';
     }
   });
 
-  // Charger l'historique
-  (async () => {
-    try {
-      const r = await apiCall('/history');
-      if (r.items && r.items.length) {
-        const last5 = r.items.slice(0, 5).reverse();
-        for (const it of last5) {
-          addMsg(it.question, 'user');
-          addBotMsg(it.answer, it.scholar);
-        }
+  try {
+    var r = await apiCall('/history');
+    if (r.items && r.items.length) {
+      var last5 = r.items.slice(0, 5).reverse();
+      for (var i = 0; i < last5.length; i++) {
+        addMsg(last5[i].question, 'user');
+        // v15.0 : les reponses historiques peuvent contenir du HTML
+        addBotMsg(last5[i].answer, last5[i].scholar, true);
       }
-    } catch (e) { console.warn('History error:', e.message); }
-  })();
-}
+    }
+  } catch (e) { console.warn('History load error:', e.message); }
+})();
 </script>
 
 <script src="/voice-fix.js"></script>
