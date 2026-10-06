@@ -486,6 +486,7 @@ function describeWO(h) {
 // ============================================================
 // FONCTION detectCustomer v15.1 - SEULE MODIFICATION
 // Detection etendue : PETROCHAD + clients connus + parentheses
+// Syntaxe 100% valide (pas de guillemets imbriques)
 // ============================================================
 function detectCustomer(text) {
   var t = String(text || '');
@@ -494,9 +495,10 @@ function detectCustomer(text) {
   var known = t.match(/(PETROCHAD[^\n\r]*|SONATRACH[^\n\r]*|ENI\s+TUNISIA[^\n\r]*|TOTAL[^\n\r]*|SHELL[^\n\r]*|PETROLEUM\s+EQUIPMENT\s+AND\s+SUPPLIES\s+FZE[^\n\r]*|PETRONAS[^\n\r]*|BP[^\n\r]*|STATOIL[^\n\r]*|EQUINOR[^\n\r]*|QATAR\s+PETROLEUM[^\n\r]*|ADNOC[^\n\r]*|SAUDI\s+ARAMCO[^\n\r]*)/i);
   if (known) return known[1].replace(/\s+/g, ' ').trim().slice(0, 100);
 
-  // 2. Nom + suffixe entreprise (parentheses autorisees)
-  var suffixes = 'FZE|FZCO|FZC|DMCC|LLC|LTD|LIMITED|B\\.V\\.|S\\.A\\.|SARL|GMBH|INC|CORP|PLC|S\\.L\\.|CO\\b|KG';
-  var m2 = t.match(new RegExp('([A-Z][A-Z0-9 &\\.\\,\\'()\\/\\-]{3,80}?\\s+(?:' + suffixes + '))', 'i'));
+  // 2. Nom + suffixe entreprise (regex litterale, parentheses autorisees)
+  var suffixes = 'FZE|FZCO|FZC|DMCC|LLC|LTD|LIMITED|B\\.V\\.|S\\.A\\.|SARL|GMBH|INC|CORP|PLC|S\\.L\\.|CO|KG';
+  var re2 = new RegExp('([A-Z][A-Z0-9 &.,()\\/\\-]{3,80}?\\s+(?:' + suffixes + '))', 'i');
+  var m2 = t.match(re2);
   if (m2) return m2[1].replace(/\s+/g, ' ').trim();
 
   // 3. Chercher "Customer:" ou "Client:" ou "Destinataire"
@@ -504,14 +506,14 @@ function detectCustomer(text) {
   if (m3) return m3[1].replace(/\s+/g, ' ').trim();
 
   // 4. Chercher un nom suivi de "Payment" (pattern ARC : Client avant Payment)
-  var m4 = t.match(/([A-Z][A-Z0-9 &\\.\\,\\'()\\/\\-]{5,80})\s*\r?\n\s*Payment/i);
+  var m4 = t.match(/([A-Z][A-Z0-9 &.,()\/\-]{5,80})\s*\r?\n\s*Payment/i);
   if (m4) return m4[1].replace(/\s+/g, ' ').trim();
 
   // 5. Fallback : premiere ligne en majuscules de plus de 10 caracteres
   var lines = t.split('\n');
   for (var i = 0; i < lines.length; i++) {
     var line = lines[i].trim();
-    if (line.length > 10 && /^[A-Z][A-Z0-9 &\\.\\,\\'()\\/\\-]+$/.test(line) &&
+    if (line.length > 10 && /^[A-Z][A-Z0-9 &.,()\/\-]+$/.test(line) &&
         !/PAGE|ORDER|CONFIRMATION|STATIC|NET|TOTAL|PRICE|DELIVERY|JOB|ARTICLE|QTY|WIRE|TRANSFER|EXPORT|NOTES|DOCUMENTS/i.test(line)) {
       return line.slice(0, 80);
     }
