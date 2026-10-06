@@ -482,7 +482,7 @@ function describeWO(h) {
 }
 
 function detectCustomer(text) {
-  var m = String(text).match(/([A-Z][A-Z0-9 &.,'-]{3,60}?\s(?:FZE|FZCO|FZC|LLC|LTD|LIMITED|B\.V\.|S\.A\.|SARL|GMBH|INC|CORP))\b/);
+ var m = String(text).match(/([A-Z][A-Z0-9 &.,'()\/-]{3,80}?(?:FZE|FZCO|FZC|LLC|LTD|LIMITED|B\.V\.|S\.A\.|SARL|GMBH|INC|CORP|LIMITED)\b)/);
   return m ? m[1].replace(/\s+/g, ' ').trim() : 'XXXXXXX';
 }
 
