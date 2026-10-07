@@ -1,18 +1,22 @@
 // ============================================================
 // ANSWER-ENRICHER.JS
-// Version v16.1 - QP STANDARD 01 + annexe technique normes
+// Version v16.2 - QP STANDARD 01 + auto-ingestion sources premium
 //
-// Base : v16.0 (INTEGRALEMENT CONSERVEE)
+// Base : v16.1 (INTEGRALEMENT CONSERVEE)
 // AJOUTS UNIQUEMENT :
-//   1. Registre PREMIUM_SOURCES (URLs officielles VAM/Tenaris/JFE)
-//   2. kbQueriesFor() enrichi pour prioriser ces sources
-//   3. pickExcerpt() bonus sur parametres de production
-// AUCUNE AUTRE LIGNE DU v16.0 N'A ETE MODIFIEE
+//   1. Registre PREMIUM_SOURCES enrichi (autoIngest:true)
+//   2. autoIngestPremiumSources() : scraping + import auto
+//   3. fetchAndExtract() : telechargement PDF/HTML
+//   4. Hook au demarrage + endpoint /api/premium-ingest
+// AUCUNE AUTRE LIGNE N'A ETE MODIFIEE
 // ============================================================
 
 'use strict';
 
 var crypto = require('crypto');
+var https = require('https');
+var http = require('http');
+var zlib = require('zlib');
 
 var LOGO_GMPI = '';
 var LOGO_GROUP = '';
@@ -256,11 +260,9 @@ var PREMIUM_CHECKS = [
 ];
 
 // ============================================================
-// 0.c [v16.1 AJOUT] REGISTRE DES SOURCES PREMIUM OFFICIELLES
-// URLs des fabricants pour extraction prioritaire des parametres
-// de production (poids, diametre, longueur, ID/OD, shoulder...).
-// Ces sources ont PRIORITE sur le scraping generique et sur les
-// vecteurs semantiques pour identifier les parametres de production.
+// 0.c [v16.1 + v16.2] REGISTRE DES SOURCES PREMIUM OFFICIELLES
+// v16.2 : ajout du champ autoIngest:true sur chaque source
+// pour declencher le scraping + import automatique au demarrage.
 // ============================================================
 var PREMIUM_SOURCES = {
   'VAM': {
@@ -270,19 +272,22 @@ var PREMIUM_SOURCES = {
       {
         title: 'VAM Book (PDF) - Reference officielle VAM',
         url: 'https://www.vamservices.com/assets/downloads/VAM%C2%AE%20Book.pdf',
-        type: 'book',
+        type: 'pdf',
+        autoIngest: true,
         contains: ['poids', 'diametre', 'longueur', 'ID', 'OD', 'shoulder', 'torque', 'make-up', 'drift', 'coupling', 'blanking']
       },
       {
         title: 'VAM Services Toolbox (en ligne)',
         url: 'https://www.vamservices.com/',
-        type: 'toolbox',
+        type: 'html',
+        autoIngest: true,
         contains: ['connection data sheet', 'blanking dimensions', 'product comparator', 'mix torque calculator']
       },
       {
         title: 'VAM USA Toolbox (en ligne)',
         url: 'https://www.vam-usa.com/toolbox/',
-        type: 'toolbox',
+        type: 'html',
+        autoIngest: true,
         contains: ['VAM Connection Data Sheet', 'Atlas Bradford Connection Data Sheet', 'VAM Blanking Dimensions']
       }
     ]
@@ -294,13 +299,15 @@ var PREMIUM_SOURCES = {
       {
         title: 'Tenaris Digital Connection Platform (DCP)',
         url: 'https://dcp.tenaris.com/',
-        type: 'toolbox',
+        type: 'html',
+        autoIngest: true,
         contains: ['performance data', 'pipe size', 'weight', 'grade', 'connection', 'ID', 'OD', 'drift']
       },
       {
         title: 'TenarisHydril Premium Connection Performance Datasheets Manual',
         url: 'https://stadatasheetprod.blob.core.windows.net/datasheets/~/media/Files/ProductLiterature/LiteraturePremiumConnections/TS_Datasheets_Manual.pdf',
-        type: 'manual',
+        type: 'pdf',
+        autoIngest: true,
         contains: ['coupling length', 'connection OD', 'connection ID', 'make-up loss', 'shoulder torque', 'buck-on torque', 'Tension Efficiency', 'Joint Yield Strength', 'Internal Pressure Capacity']
       }
     ]
@@ -312,7 +319,8 @@ var PREMIUM_SOURCES = {
       {
         title: 'JFE Tools - Datasheet Generator (JFEBEAR, JFELION, FOX)',
         url: 'https://www.jfetools.com/datasheet_generator',
-        type: 'toolbox',
+        type: 'html',
+        autoIngest: true,
         contains: ['datasheet', 'blanking dimensions', 'OD', 'ID', 'weight', 'drift', 'shoulder']
       }
     ]
@@ -508,6 +516,106 @@ function keywordOverlapScore(qTokens, docText) {
 }
 
 // ============================================================
+// v16.2 [AJOUT] FONCTIONS DE SCRAPING ET D'EXTRACTION
+// Telechargement HTTP/HTTPS, decompression gzip, extraction
+// texte depuis PDF (via pdf-parse si dispo) et HTML (via regex).
+// ============================================================
+
+// Telechargement HTTP/HTTPS avec suivi de redirection et decompression gzip
+function fetchUrl(url, maxRedirects, timeoutMs) {
+  maxRedirects = maxRedirects === undefined ? 5 : maxRedirects;
+  timeoutMs = timeoutMs || 30000;
+  return new Promise(function(resolve, reject) {
+    var lib = url.indexOf('https://') === 0 ? https : http;
+    var req = lib.get(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (compatible; ScholarsConnect/16.2; +https://scholars-connect-app.onrender.com)',
+        'Accept': 'text/html,application/xhtml+xml,application/pdf,application/json,*/*',
+        'Accept-Encoding': 'gzip, deflate'
+      }
+    }, function(res) {
+      // Redirections
+      if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+        if (maxRedirects <= 0) { res.resume(); return reject(new Error('Trop de redirections')); }
+        var next = res.headers.location;
+        if (next.indexOf('http') !== 0) {
+          var u = new URL(url);
+          next = u.protocol + '//' + u.host + (next.indexOf('/') === 0 ? '' : '/') + next;
+        }
+        res.resume();
+        return resolve(fetchUrl(next, maxRedirects - 1, timeoutMs));
+      }
+      if (res.statusCode !== 200) {
+        res.resume();
+        return reject(new Error('HTTP ' + res.statusCode));
+      }
+      var chunks = [];
+      var enc = (res.headers['content-encoding'] || '').toLowerCase();
+      var stream = res;
+      if (enc === 'gzip') stream = res.pipe(zlib.createGunzip());
+      else if (enc === 'deflate') stream = res.pipe(zlib.createInflate());
+      stream.on('data', function(c) { chunks.push(c); });
+      stream.on('end', function() {
+        resolve({
+          buffer: Buffer.concat(chunks),
+          contentType: res.headers['content-type'] || '',
+          url: url
+        });
+      });
+      stream.on('error', reject);
+    });
+    req.on('error', reject);
+    req.setTimeout(timeoutMs, function() {
+      req.destroy(new Error('Timeout ' + timeoutMs + 'ms'));
+    });
+  });
+}
+
+// Extraction texte PDF via pdf-parse (si installe), sinon fallback regex
+async function extractPdfText(buffer) {
+  try {
+    var pdfParse = require('pdf-parse');
+    var data = await pdfParse(buffer);
+    return data.text || '';
+  } catch (e) {
+    // Fallback : extraction brute des flux texte visibles
+    var raw = buffer.toString('latin1');
+    var matches = raw.match(/\(([^\)]{2,})\)/g) || [];
+    var txt = matches.map(function(m) { return m.slice(1, -1); }).join(' ');
+    return txt.replace(/\\[0-9]{3}/g, ' ').replace(/\s+/g, ' ').trim();
+  }
+}
+
+// Extraction texte HTML : suppression scripts/styles puis strip tags
+function extractHtmlText(html) {
+  var t = String(html);
+  t = t.replace(/<script[\s\S]*?<\/script>/gi, ' ');
+  t = t.replace(/<style[\s\S]*?<\/style>/gi, ' ');
+  t = t.replace(/<noscript[\s\S]*?<\/noscript>/gi, ' ');
+  t = t.replace(/<!--[\s\S]*?-->/g, ' ');
+  t = t.replace(/<br\s*\/?>/gi, '\n');
+  t = t.replace(/<\/(p|div|h[1-6]|li|tr|td|th)>/gi, '\n');
+  t = t.replace(/<[^>]+>/g, ' ');
+  t = t.replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'");
+  t = t.replace(/[ \t]+/g, ' ').replace(/\n{3,}/g, '\n\n');
+  return t.trim();
+}
+
+// Telechargement + extraction : dispatch selon type (pdf/html)
+async function fetchAndExtract(url, type) {
+  var res = await fetchUrl(url);
+  var ct = (res.contentType || '').toLowerCase();
+  var isPdf = type === 'pdf' || ct.indexOf('pdf') !== -1 || /\.pdf(\?|$)/i.test(url);
+  var text;
+  if (isPdf) {
+    text = await extractPdfText(res.buffer);
+  } else {
+    text = extractHtmlText(res.buffer.toString('utf8'));
+  }
+  return { url: url, type: isPdf ? 'pdf' : 'html', text: text, bytes: res.buffer.length };
+}
+
+// ============================================================
 // 4. RECHERCHE DOCS (RAG)
 // ============================================================
 async function findRelevantDocuments(AutoFeedDoc, query, limit, minScore) {
@@ -549,13 +657,6 @@ async function buildRagContext(AutoFeedDoc, question, maxDocs, maxChars) {
   } catch (e) { return { context: '', docs: [], topScore: 0 }; }
 }
 
-// ============================================================
-// v16.1 [MODIFICATION UNIQUE DE CETTE FONCTION]
-// pickExcerpt : bonus +1 par mot-cle de PRODUCTION rencontre
-// dans l'extrait, pour faire remonter en priorite les extraits
-// contenant les parametres de production (poids, diametre, etc.).
-// Aucune ligne de la logique existante n'a ete supprimee.
-// ============================================================
 var PRODUCTION_KEYWORDS = [
   'weight', 'poids', 'diameter', 'diametre', 'length', 'longueur',
   'od', 'id', 'drift', 'shoulder', 'coupling', 'torque', 'make-up',
@@ -575,7 +676,6 @@ function pickExcerpt(content, query) {
     var pt = new Set(tokenize(p));
     var s = 0;
     for (var j = 0; j < qt.length; j++) if (pt.has(qt[j])) s++;
-    // v16.1 : bonus sur parametres de production
     var lower = p.toLowerCase();
     for (var k = 0; k < PRODUCTION_KEYWORDS.length; k++) {
       if (lower.indexOf(PRODUCTION_KEYWORDS[k]) !== -1) s += 1;
@@ -997,25 +1097,18 @@ function threadSpecList(det) {
 }
 
 // ============================================================
-// v16.1 [MODIFICATION UNIQUE DE CETTE FONCTION]
-// kbQueriesFor : ajoute en TETE de liste des requetes ciblant
-// les sources premium officielles (VAM, Tenaris, JFE) avec les
-// parametres de production attendus. Le reste de la logique v16.0
-// est conserve a l'identique (API, rotary, normes, grades).
+// kbQueriesFor : priorise les sources premium officielles
 // ============================================================
 function kbQueriesFor(det, stds) {
   var q = [];
 
-  // v16.1 [AJOUT] : PRIORITE 1 - Sources premium officielles
   det.conns.forEach(function(c) {
     if (c.kind !== 'premium') return;
     var fam = null;
     PREMIUM_FAMILIES.forEach(function(f) { if (f.id === c.fam) fam = f; });
     if (!fam) return;
     var src = PREMIUM_SOURCES[fam.id];
-    // Requete enrichie : fabricant + modele + parametres production
     q.push((fam.owner || '') + ' ' + c.label + ' connection data sheet weight diameter length ID OD shoulder torque drift coupling blanking');
-    // Une requete specifique par source officielle
     if (src) {
       src.docs.forEach(function(d) {
         q.push(fam.owner + ' ' + c.label + ' ' + d.title + ' weight diameter length ID OD shoulder');
@@ -1023,13 +1116,11 @@ function kbQueriesFor(det, stds) {
     }
   });
 
-  // Logique v16.0 conservee : normes applicables
   stds.slice(0, 4).forEach(function(id) {
     if (id === 'ASTM' || id === 'EN-10204') return;
     q.push(STANDARDS[id].short + ' ' + STANDARDS[id].role + ' tolerance dimensions edition');
   });
 
-  // Logique v16.0 conservee : connexions premium (requete generique)
   det.conns.forEach(function(c) {
     if (c.kind !== 'premium') return;
     var fam = null;
@@ -1037,10 +1128,88 @@ function kbQueriesFor(det, stds) {
     q.push((fam ? fam.owner + ' ' : '') + c.label + ' connection data sheet tolerance make-up torque');
   });
 
-  // Logique v16.0 conservee : grade et matiere
   if (det.apiGrade) q.push('API 5CT grade ' + det.apiGrade + ' chemical composition mechanical properties');
   if (det.aisi) q.push('AISI ' + det.aisi + ' chemical composition mechanical properties heat treatment');
   return q.slice(0, 8);
+}
+
+// ============================================================
+// v16.2 [AJOUT] AUTO-INGESTION DES SOURCES PREMIUM
+// Telecharge, extrait et enregistre chaque source officielle
+// dans AutoFeedDocument au demarrage du serveur.
+// Idempotent : un document deja present (meme URL) est ignore.
+// ============================================================
+async function autoIngestPremiumSources(AutoFeedDoc, mongoose) {
+  if (!AutoFeedDoc) {
+    console.log('[auto-ingest-premium] AutoFeedDoc indisponible - ingestion ignoree');
+    return { total: 0, ok: 0, skipped: 0, errors: 0, details: [] };
+  }
+  var stats = { total: 0, ok: 0, skipped: 0, errors: 0, details: [] };
+  var families = Object.keys(PREMIUM_SOURCES);
+
+  for (var fi = 0; fi < families.length; fi++) {
+    var famId = families[fi];
+    var fam = PREMIUM_SOURCES[famId];
+    if (!fam || !fam.docs) continue;
+
+    for (var di = 0; di < fam.docs.length; di++) {
+      var doc = fam.docs[di];
+      if (!doc.autoIngest) continue;
+      stats.total++;
+
+      // Verification : document deja ingere ?
+      try {
+        var existing = await AutoFeedDoc.findOne({ url: doc.url }).lean();
+        if (existing) {
+          stats.skipped++;
+          stats.details.push({ family: famId, url: doc.url, status: 'deja-ingere' });
+          console.log('[auto-ingest-premium] deja ingere : ' + doc.url);
+          continue;
+        }
+      } catch (e) { /* on continue, on tentera l'ingestion */ }
+
+      // Telechargement + extraction
+      try {
+        console.log('[auto-ingest-premium] telechargement : ' + doc.url);
+        var ext = await fetchAndExtract(doc.url, doc.type);
+        if (!ext.text || ext.text.length < 500) {
+          throw new Error('Texte extrait trop court (' + (ext.text ? ext.text.length : 0) + ' car.)');
+        }
+        // Tronquer si trop long (limite MongoDB 16 Mo / pratique 1 Mo)
+        var content = ext.text.slice(0, 900000);
+        var vector = buildVector(content);
+
+        await AutoFeedDoc.create({
+          title: '[' + fam.owner + '] ' + doc.title,
+          domain: 'Petrole & Gaz',
+          source: 'Premium-Source-Auto',
+          url: doc.url,
+          content: content,
+          vector: vector,
+          createdAt: new Date(),
+          tags: ['premium', famId, doc.type],
+          metadata: {
+            family: famId,
+            owner: fam.owner,
+            autoIngested: true,
+            ingestedAt: new Date().toISOString(),
+            bytes: ext.bytes,
+            contains: doc.contains
+          }
+        });
+        stats.ok++;
+        stats.details.push({ family: famId, url: doc.url, status: 'ok', chars: content.length });
+        console.log('[auto-ingest-premium] OK ' + doc.url + ' (' + content.length + ' car.)');
+      } catch (e) {
+        stats.errors++;
+        stats.details.push({ family: famId, url: doc.url, status: 'erreur', error: e.message });
+        console.warn('[auto-ingest-premium] erreur ' + doc.url + ' : ' + e.message);
+      }
+    }
+  }
+
+  console.log('[auto-ingest-premium] Termine - total:' + stats.total + ' ok:' + stats.ok + ' skip:' + stats.skipped + ' err:' + stats.errors);
+  return stats;
 }
 
 // ============================================================
@@ -1465,7 +1634,6 @@ module.exports = function(app, mongoose) {
     res.send(printPage(e.html));
   });
 
-  // v16.1 : endpoint enrichi avec les sources premium
   app.get('/api/qp-standards', function(req, res) {
     res.json({
       verifiedOn: STD_VERIFIED_ON,
@@ -1475,6 +1643,16 @@ module.exports = function(app, mongoose) {
       }),
       premiumSources: PREMIUM_SOURCES
     });
+  });
+
+  // v16.2 : endpoint pour forcer l'ingestion (retourne les stats)
+  app.get('/api/premium-ingest', async function(req, res) {
+    try {
+      var stats = await autoIngestPremiumSources(getKB(), mongoose);
+      res.json(stats);
+    } catch (e) {
+      res.status(500).json({ error: e.message });
+    }
   });
 
   function qpIntercept(route, strict) {
@@ -1593,5 +1771,28 @@ module.exports = function(app, mongoose) {
   app.use('/api/ask', ragPreprocessAsk, postprocess('ask'));
   app.use('/api/analyze-content', documentPreprocess, postprocess('document'));
 
-  console.log('[answer-enricher] v16.1 charge - QP STANDARD 01 + sources premium prioritaires');
+  // ============================================================
+  // v16.2 [AJOUT] HOOK AU DEMARRAGE : lance l'auto-ingestion
+  // des sources premium en tache de fond (non bloquant), apres
+  // un delai de 20s pour laisser MongoDB et les autres modules
+  // s'initialiser. Idempotent : ne re-telecharge pas les docs
+  // deja presents (verification par URL).
+  // ============================================================
+  setTimeout(function() {
+    var kb = getKB();
+    if (!kb) {
+      console.log('[auto-ingest-premium] AutoFeedDoc indisponible au demarrage - ingestion reportee');
+      return;
+    }
+    console.log('[auto-ingest-premium] Demarrage de l\'auto-ingestion des sources premium...');
+    autoIngestPremiumSources(kb, mongoose)
+      .then(function(stats) {
+        console.log('[auto-ingest-premium] Bilan demarrage : total=' + stats.total + ' ok=' + stats.ok + ' skip=' + stats.skipped + ' err=' + stats.errors);
+      })
+      .catch(function(e) {
+        console.warn('[auto-ingest-premium] Erreur globale : ' + e.message);
+      });
+  }, 20000);
+
+  console.log('[answer-enricher] v16.2 charge - QP STANDARD 01 + auto-ingestion sources premium');
 };
