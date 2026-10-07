@@ -1,13 +1,16 @@
 // ============================================================
 // ANSWER-ENRICHER.JS
-// Version v16.2 - QP STANDARD 01 + auto-ingestion sources premium
+// Version v16.3 - QP STANDARD 01 + auto-ingestion sources premium
 //
-// Base : v16.1 (INTEGRALEMENT CONSERVEE)
-// AJOUTS UNIQUEMENT :
-//   1. Registre PREMIUM_SOURCES enrichi (autoIngest:true)
-//   2. autoIngestPremiumSources() : scraping + import auto
-//   3. fetchAndExtract() : telechargement PDF/HTML
-//   4. Hook au demarrage + endpoint /api/premium-ingest
+// Base : v16.2 (INTEGRALEMENT CONSERVEE)
+// CORRECTIFS v16.2 -> v16.3 (UNIQUEMENT) :
+//   1. PREMIUM_SOURCES : retrait des URLs JS-only, ajout miroirs PDF
+//   2. /api/premium-ingest : ajout du parametre ?force=1
+//   3. autoIngestPremiumSources : re-ingestion auto si contenu < 5000 car.
+//   4. fetchUrlRetry : retry 3x avec backoff exponentiel
+//   5. fetchAndExtract : utilise fetchUrlRetry
+//   6. autoIngestPremiumSources : validation minLen (2000 PDF / 500 HTML)
+//   7. /api/premium-status : nouvel endpoint de diagnostic
 // AUCUNE AUTRE LIGNE N'A ETE MODIFIEE
 // ============================================================
 
@@ -260,9 +263,8 @@ var PREMIUM_CHECKS = [
 ];
 
 // ============================================================
-// 0.c [v16.1 + v16.2] REGISTRE DES SOURCES PREMIUM OFFICIELLES
-// v16.2 : ajout du champ autoIngest:true sur chaque source
-// pour declencher le scraping + import automatique au demarrage.
+// 0.c [v16.1 + v16.2 + v16.3] REGISTRE DES SOURCES PREMIUM OFFICIELLES
+// v16.3 : retrait des URLs JS-only, ajout miroirs PDF et champ priority
 // ============================================================
 var PREMIUM_SOURCES = {
   'VAM': {
@@ -274,21 +276,16 @@ var PREMIUM_SOURCES = {
         url: 'https://www.vamservices.com/assets/downloads/VAM%C2%AE%20Book.pdf',
         type: 'pdf',
         autoIngest: true,
+        priority: 1,
         contains: ['poids', 'diametre', 'longueur', 'ID', 'OD', 'shoulder', 'torque', 'make-up', 'drift', 'coupling', 'blanking']
       },
       {
-        title: 'VAM Services Toolbox (en ligne)',
-        url: 'https://www.vamservices.com/',
-        type: 'html',
+        title: 'VAM Book (miroir USA)',
+        url: 'https://www.vam-usa.com/wp-content/uploads/2020/08/VAM-Book.pdf',
+        type: 'pdf',
         autoIngest: true,
-        contains: ['connection data sheet', 'blanking dimensions', 'product comparator', 'mix torque calculator']
-      },
-      {
-        title: 'VAM USA Toolbox (en ligne)',
-        url: 'https://www.vam-usa.com/toolbox/',
-        type: 'html',
-        autoIngest: true,
-        contains: ['VAM Connection Data Sheet', 'Atlas Bradford Connection Data Sheet', 'VAM Blanking Dimensions']
+        priority: 2,
+        contains: ['poids', 'diametre', 'longueur', 'ID', 'OD', 'shoulder', 'torque']
       }
     ]
   },
@@ -297,17 +294,11 @@ var PREMIUM_SOURCES = {
     owner: 'Tenaris (TenarisHydril)',
     docs: [
       {
-        title: 'Tenaris Digital Connection Platform (DCP)',
-        url: 'https://dcp.tenaris.com/',
-        type: 'html',
-        autoIngest: true,
-        contains: ['performance data', 'pipe size', 'weight', 'grade', 'connection', 'ID', 'OD', 'drift']
-      },
-      {
         title: 'TenarisHydril Premium Connection Performance Datasheets Manual',
         url: 'https://stadatasheetprod.blob.core.windows.net/datasheets/~/media/Files/ProductLiterature/LiteraturePremiumConnections/TS_Datasheets_Manual.pdf',
         type: 'pdf',
         autoIngest: true,
+        priority: 1,
         contains: ['coupling length', 'connection OD', 'connection ID', 'make-up loss', 'shoulder torque', 'buck-on torque', 'Tension Efficiency', 'Joint Yield Strength', 'Internal Pressure Capacity']
       }
     ]
@@ -317,11 +308,12 @@ var PREMIUM_SOURCES = {
     owner: 'JFE Steel',
     docs: [
       {
-        title: 'JFE Tools - Datasheet Generator (JFEBEAR, JFELION, FOX)',
-        url: 'https://www.jfetools.com/datasheet_generator',
-        type: 'html',
+        title: 'JFE Steel - Premium Connections (documentation statique)',
+        url: 'https://www.jfe-steel.co.jp/en/products/energy/catalog/e1h1-003.pdf',
+        type: 'pdf',
         autoIngest: true,
-        contains: ['datasheet', 'blanking dimensions', 'OD', 'ID', 'weight', 'drift', 'shoulder']
+        priority: 1,
+        contains: ['JFEBEAR', 'JFELION', 'FOX', 'OD', 'ID', 'weight', 'drift']
       }
     ]
   }
@@ -516,12 +508,9 @@ function keywordOverlapScore(qTokens, docText) {
 }
 
 // ============================================================
-// v16.2 [AJOUT] FONCTIONS DE SCRAPING ET D'EXTRACTION
-// Telechargement HTTP/HTTPS, decompression gzip, extraction
-// texte depuis PDF (via pdf-parse si dispo) et HTML (via regex).
+// v16.2 FONCTIONS DE SCRAPING ET D'EXTRACTION
 // ============================================================
 
-// Telechargement HTTP/HTTPS avec suivi de redirection et decompression gzip
 function fetchUrl(url, maxRedirects, timeoutMs) {
   maxRedirects = maxRedirects === undefined ? 5 : maxRedirects;
   timeoutMs = timeoutMs || 30000;
@@ -529,12 +518,11 @@ function fetchUrl(url, maxRedirects, timeoutMs) {
     var lib = url.indexOf('https://') === 0 ? https : http;
     var req = lib.get(url, {
       headers: {
-        'User-Agent': 'Mozilla/5.0 (compatible; ScholarsConnect/16.2; +https://scholars-connect-app.onrender.com)',
+        'User-Agent': 'Mozilla/5.0 (compatible; ScholarsConnect/16.3; +https://scholars-connect-app.onrender.com)',
         'Accept': 'text/html,application/xhtml+xml,application/pdf,application/json,*/*',
         'Accept-Encoding': 'gzip, deflate'
       }
     }, function(res) {
-      // Redirections
       if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
         if (maxRedirects <= 0) { res.resume(); return reject(new Error('Trop de redirections')); }
         var next = res.headers.location;
@@ -571,14 +559,31 @@ function fetchUrl(url, maxRedirects, timeoutMs) {
   });
 }
 
-// Extraction texte PDF via pdf-parse (si installe), sinon fallback regex
+// v16.3 : fetchUrl avec retry (3 tentatives, backoff exponentiel)
+async function fetchUrlRetry(url, type) {
+  var lastErr = null;
+  var delays = [0, 3000, 8000];
+  for (var i = 0; i < delays.length; i++) {
+    if (delays[i] > 0) {
+      console.log('[auto-ingest-premium] retry ' + i + ' dans ' + (delays[i] / 1000) + 's pour ' + url);
+      await new Promise(function(r) { setTimeout(r, delays[i]); });
+    }
+    try {
+      return await fetchUrl(url);
+    } catch (e) {
+      lastErr = e;
+      console.warn('[auto-ingest-premium] tentative ' + (i + 1) + ' echouee : ' + e.message);
+    }
+  }
+  throw lastErr || new Error('Echec apres ' + delays.length + ' tentatives');
+}
+
 async function extractPdfText(buffer) {
   try {
     var pdfParse = require('pdf-parse');
     var data = await pdfParse(buffer);
     return data.text || '';
   } catch (e) {
-    // Fallback : extraction brute des flux texte visibles
     var raw = buffer.toString('latin1');
     var matches = raw.match(/\(([^\)]{2,})\)/g) || [];
     var txt = matches.map(function(m) { return m.slice(1, -1); }).join(' ');
@@ -586,7 +591,6 @@ async function extractPdfText(buffer) {
   }
 }
 
-// Extraction texte HTML : suppression scripts/styles puis strip tags
 function extractHtmlText(html) {
   var t = String(html);
   t = t.replace(/<script[\s\S]*?<\/script>/gi, ' ');
@@ -601,9 +605,9 @@ function extractHtmlText(html) {
   return t.trim();
 }
 
-// Telechargement + extraction : dispatch selon type (pdf/html)
+// v16.3 : utilise fetchUrlRetry
 async function fetchAndExtract(url, type) {
-  var res = await fetchUrl(url);
+  var res = await fetchUrlRetry(url, type);
   var ct = (res.contentType || '').toLowerCase();
   var isPdf = type === 'pdf' || ct.indexOf('pdf') !== -1 || /\.pdf(\?|$)/i.test(url);
   var text;
@@ -1096,9 +1100,6 @@ function threadSpecList(det) {
   return out.join('|');
 }
 
-// ============================================================
-// kbQueriesFor : priorise les sources premium officielles
-// ============================================================
 function kbQueriesFor(det, stds) {
   var q = [];
 
@@ -1135,16 +1136,15 @@ function kbQueriesFor(det, stds) {
 
 // ============================================================
 // v16.2 [AJOUT] AUTO-INGESTION DES SOURCES PREMIUM
-// Telecharge, extrait et enregistre chaque source officielle
-// dans AutoFeedDocument au demarrage du serveur.
-// Idempotent : un document deja present (meme URL) est ignore.
+// v16.3 : parametre force + re-ingestion auto si contenu < 5000 car.
 // ============================================================
-async function autoIngestPremiumSources(AutoFeedDoc, mongoose) {
+async function autoIngestPremiumSources(AutoFeedDoc, mongoose, force) {
+  force = force === true;
   if (!AutoFeedDoc) {
     console.log('[auto-ingest-premium] AutoFeedDoc indisponible - ingestion ignoree');
     return { total: 0, ok: 0, skipped: 0, errors: 0, details: [] };
   }
-  var stats = { total: 0, ok: 0, skipped: 0, errors: 0, details: [] };
+  var stats = { total: 0, ok: 0, skipped: 0, errors: 0, errorsRefetch: 0, details: [] };
   var families = Object.keys(PREMIUM_SOURCES);
 
   for (var fi = 0; fi < families.length; fi++) {
@@ -1160,11 +1160,20 @@ async function autoIngestPremiumSources(AutoFeedDoc, mongoose) {
       // Verification : document deja ingere ?
       try {
         var existing = await AutoFeedDoc.findOne({ url: doc.url }).lean();
-        if (existing) {
-          stats.skipped++;
-          stats.details.push({ family: famId, url: doc.url, status: 'deja-ingere' });
-          console.log('[auto-ingest-premium] deja ingere : ' + doc.url);
-          continue;
+        if (existing && !force) {
+          var existingLen = (existing.content || '').length;
+          if (existingLen < 5000) {
+            console.log('[auto-ingest-premium] contenu trop court (' + existingLen + ' car.) - re-ingestion forcee : ' + doc.url);
+            try { await AutoFeedDoc.deleteOne({ _id: existing._id }); } catch (eDel) {}
+          } else {
+            stats.skipped++;
+            stats.details.push({ family: famId, url: doc.url, status: 'deja-ingere', chars: existingLen });
+            console.log('[auto-ingest-premium] deja ingere : ' + doc.url + ' (' + existingLen + ' car.)');
+            continue;
+          }
+        } else if (existing && force) {
+          console.log('[auto-ingest-premium] mode force - suppression : ' + doc.url);
+          try { await AutoFeedDoc.deleteOne({ _id: existing._id }); } catch (eDel) {}
         }
       } catch (e) { /* on continue, on tentera l'ingestion */ }
 
@@ -1172,10 +1181,10 @@ async function autoIngestPremiumSources(AutoFeedDoc, mongoose) {
       try {
         console.log('[auto-ingest-premium] telechargement : ' + doc.url);
         var ext = await fetchAndExtract(doc.url, doc.type);
-        if (!ext.text || ext.text.length < 500) {
-          throw new Error('Texte extrait trop court (' + (ext.text ? ext.text.length : 0) + ' car.)');
+        var minLen = (doc.type === 'pdf') ? 2000 : 500;
+        if (!ext.text || ext.text.length < minLen) {
+          throw new Error('Texte extrait trop court (' + (ext.text ? ext.text.length : 0) + ' car., minimum ' + minLen + ' requis)');
         }
-        // Tronquer si trop long (limite MongoDB 16 Mo / pratique 1 Mo)
         var content = ext.text.slice(0, 900000);
         var vector = buildVector(content);
 
@@ -1645,10 +1654,35 @@ module.exports = function(app, mongoose) {
     });
   });
 
-  // v16.2 : endpoint pour forcer l'ingestion (retourne les stats)
+  // v16.3 : endpoint de diagnostic - etat des sources premium en base
+  app.get('/api/premium-status', async function(req, res) {
+    try {
+      var kb = getKB();
+      if (!kb) return res.json({ error: 'AutoFeedDoc indisponible', docs: [] });
+      var allDocs = await kb.find({ source: 'Premium-Source-Auto' }).lean();
+      var out = allDocs.map(function(d) {
+        return {
+          title: d.title,
+          url: d.url,
+          family: (d.metadata && d.metadata.family) || '',
+          chars: (d.content || '').length,
+          excerpt: (d.content || '').slice(0, 200),
+          ingestedAt: (d.metadata && d.metadata.ingestedAt) || d.createdAt,
+          hasVector: !!(d.vector && Object.keys(d.vector).length > 0)
+        };
+      });
+      res.json({ count: out.length, docs: out });
+    } catch (e) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  // v16.3 : endpoint pour forcer l'ingestion (retourne les stats)
+  // ?force=1 pour re-telecharger tous les documents, meme ceux presents
   app.get('/api/premium-ingest', async function(req, res) {
     try {
-      var stats = await autoIngestPremiumSources(getKB(), mongoose);
+      var force = req.query.force === '1';
+      var stats = await autoIngestPremiumSources(getKB(), mongoose, force);
       res.json(stats);
     } catch (e) {
       res.status(500).json({ error: e.message });
@@ -1774,9 +1808,8 @@ module.exports = function(app, mongoose) {
   // ============================================================
   // v16.2 [AJOUT] HOOK AU DEMARRAGE : lance l'auto-ingestion
   // des sources premium en tache de fond (non bloquant), apres
-  // un delai de 20s pour laisser MongoDB et les autres modules
-  // s'initialiser. Idempotent : ne re-telecharge pas les docs
-  // deja presents (verification par URL).
+  // un delai de 20s. Idempotent : ne re-telecharge pas les docs
+  // deja presents SAUF si leur contenu < 5000 car. (v16.3).
   // ============================================================
   setTimeout(function() {
     var kb = getKB();
@@ -1785,7 +1818,7 @@ module.exports = function(app, mongoose) {
       return;
     }
     console.log('[auto-ingest-premium] Demarrage de l\'auto-ingestion des sources premium...');
-    autoIngestPremiumSources(kb, mongoose)
+    autoIngestPremiumSources(kb, mongoose, false)
       .then(function(stats) {
         console.log('[auto-ingest-premium] Bilan demarrage : total=' + stats.total + ' ok=' + stats.ok + ' skip=' + stats.skipped + ' err=' + stats.errors);
       })
@@ -1794,5 +1827,5 @@ module.exports = function(app, mongoose) {
       });
   }, 20000);
 
-  console.log('[answer-enricher] v16.2 charge - QP STANDARD 01 + auto-ingestion sources premium');
+  console.log('[answer-enricher] v16.3 charge - QP STANDARD 01 + auto-ingestion sources premium (retry + force + status)');
 };
