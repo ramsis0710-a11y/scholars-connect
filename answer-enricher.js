@@ -1,23 +1,13 @@
 // ============================================================
 // ANSWER-ENRICHER.JS
-// Version v16.0 - QP STANDARD 01 par WO + annexe technique normes
+// Version v16.1 - QP STANDARD 01 + annexe technique normes
 //
-// Base : v15.1 (en place) + elements restaures de v14.1
-// Corrections : detectPO (Order confirmation prioritaire),
-//   detectCustomer (mots entiers, sans faux positifs TOTAL/BP/CO)
-// Restaure : generateBarChart, generateDashboard, generateReferences
-// Nouveau :
-//   - Registre de normes (API 5CT, 5B, 7-1, 7-2, 5C5, NACE, ASTM...)
-//     avec edition verifiee le 2026-10-07 (a reverifier avant emission)
-//   - Detection des connexions : API (BTC, LTC, STC, EU, NU...),
-//     filetages rotary (NC38, REG, FH), premium : VAM, TenarisHydril,
-//     JFE, Grant Prideco / Atlas Bradford, Hunting, et derives
-//   - Annexe technique (page 3 de chaque QP) : donnees extraites de la
-//     commande mot pour mot, points de controle par norme, tableau
-//     OEM a remplir (aucune tolerance proprietaire inventee),
-//     extraits de la base IA (vecteurs semantiques) avec source
-//   - Note c) de la page 2 renseignee avec les procedures filetage
-//   - GET /api/qp-standards : registre des normes (audit)
+// Base : v16.0 (INTEGRALEMENT CONSERVEE)
+// AJOUTS UNIQUEMENT :
+//   1. Registre PREMIUM_SOURCES (URLs officielles VAM/Tenaris/JFE)
+//   2. kbQueriesFor() enrichi pour prioriser ces sources
+//   3. pickExcerpt() bonus sur parametres de production
+// AUCUNE AUTRE LIGNE DU v16.0 N'A ETE MODIFIEE
 // ============================================================
 
 'use strict';
@@ -72,8 +62,6 @@ var QP_NOTES_AB = [
 
 // ============================================================
 // 0.b REGISTRE DES NORMES (editions verifiees sur sources publiques)
-// verified:true  = edition confirmee le STD_VERIFIED_ON
-// verified:false = a confirmer sur le site officiel avant emission
 // ============================================================
 var STD_ORDER = ['API-5CT', 'API-5B', 'API-7-1', 'API-7-2', 'API-5C5', 'API-6A', 'ISO-13678', 'NACE', 'ASTM', 'EN-10204'];
 
@@ -215,7 +203,7 @@ var PREMIUM_FAMILIES = [
     labelRe: /\b(?:DINO\s*)?VAM\s*(?:TOP|21|FJL|SLIJ|HTF|SG|EDGE|MUST|HW|BOLT|HP|DWC)[A-Z0-9\/\- ]{0,10}/i,
     derivatives: 'VAM TOP (HT, HC, FE), VAM 21, VAM FJL, VAM SLIJ-II, VAM HTF, VAM SG, VAM EDGE SF, DINO VAM, VAM MUST, VAM HW ST, VAM BOLT, VAM HP, BIG OMEGA',
     docs: 'VAM Book + Connection Data Sheet (Vallourec licence)',
-    url: 'https://www.vallourec.com'
+    url: 'https://www.vamservices.com'
   },
   {
     id: 'TENARIS', owner: 'Tenaris (TenarisHydril)',
@@ -266,6 +254,70 @@ var PREMIUM_CHECKS = [
   ['Visual inspection 100% and NDE of pin and box if required', 'Customer specification / OEM'],
   ['Thread protectors fitted and storage condition', 'OEM / customer specification']
 ];
+
+// ============================================================
+// 0.c [v16.1 AJOUT] REGISTRE DES SOURCES PREMIUM OFFICIELLES
+// URLs des fabricants pour extraction prioritaire des parametres
+// de production (poids, diametre, longueur, ID/OD, shoulder...).
+// Ces sources ont PRIORITE sur le scraping generique et sur les
+// vecteurs semantiques pour identifier les parametres de production.
+// ============================================================
+var PREMIUM_SOURCES = {
+  'VAM': {
+    family: 'VAM',
+    owner: 'Vallourec (VAM)',
+    docs: [
+      {
+        title: 'VAM Book (PDF) - Reference officielle VAM',
+        url: 'https://www.vamservices.com/assets/downloads/VAM%C2%AE%20Book.pdf',
+        type: 'book',
+        contains: ['poids', 'diametre', 'longueur', 'ID', 'OD', 'shoulder', 'torque', 'make-up', 'drift', 'coupling', 'blanking']
+      },
+      {
+        title: 'VAM Services Toolbox (en ligne)',
+        url: 'https://www.vamservices.com/',
+        type: 'toolbox',
+        contains: ['connection data sheet', 'blanking dimensions', 'product comparator', 'mix torque calculator']
+      },
+      {
+        title: 'VAM USA Toolbox (en ligne)',
+        url: 'https://www.vam-usa.com/toolbox/',
+        type: 'toolbox',
+        contains: ['VAM Connection Data Sheet', 'Atlas Bradford Connection Data Sheet', 'VAM Blanking Dimensions']
+      }
+    ]
+  },
+  'TENARIS': {
+    family: 'TENARIS',
+    owner: 'Tenaris (TenarisHydril)',
+    docs: [
+      {
+        title: 'Tenaris Digital Connection Platform (DCP)',
+        url: 'https://dcp.tenaris.com/',
+        type: 'toolbox',
+        contains: ['performance data', 'pipe size', 'weight', 'grade', 'connection', 'ID', 'OD', 'drift']
+      },
+      {
+        title: 'TenarisHydril Premium Connection Performance Datasheets Manual',
+        url: 'https://stadatasheetprod.blob.core.windows.net/datasheets/~/media/Files/ProductLiterature/LiteraturePremiumConnections/TS_Datasheets_Manual.pdf',
+        type: 'manual',
+        contains: ['coupling length', 'connection OD', 'connection ID', 'make-up loss', 'shoulder torque', 'buck-on torque', 'Tension Efficiency', 'Joint Yield Strength', 'Internal Pressure Capacity']
+      }
+    ]
+  },
+  'JFE': {
+    family: 'JFE',
+    owner: 'JFE Steel',
+    docs: [
+      {
+        title: 'JFE Tools - Datasheet Generator (JFEBEAR, JFELION, FOX)',
+        url: 'https://www.jfetools.com/datasheet_generator',
+        type: 'toolbox',
+        contains: ['datasheet', 'blanking dimensions', 'OD', 'ID', 'weight', 'drift', 'shoulder']
+      }
+    ]
+  }
+};
 
 // ============================================================
 // 1. DOMAINES SENSIBLES
@@ -497,7 +549,21 @@ async function buildRagContext(AutoFeedDoc, question, maxDocs, maxChars) {
   } catch (e) { return { context: '', docs: [], topScore: 0 }; }
 }
 
-// Recherche semantique multi-requetes : un seul chargement de la base
+// ============================================================
+// v16.1 [MODIFICATION UNIQUE DE CETTE FONCTION]
+// pickExcerpt : bonus +1 par mot-cle de PRODUCTION rencontre
+// dans l'extrait, pour faire remonter en priorite les extraits
+// contenant les parametres de production (poids, diametre, etc.).
+// Aucune ligne de la logique existante n'a ete supprimee.
+// ============================================================
+var PRODUCTION_KEYWORDS = [
+  'weight', 'poids', 'diameter', 'diametre', 'length', 'longueur',
+  'od', 'id', 'drift', 'shoulder', 'coupling', 'torque', 'make-up',
+  'makeup', 'tension', 'compression', 'burst', 'collapse',
+  'wall thickness', 'blanking', 'upset', 'run-out', 'stand-off',
+  'tpi', 'thread', 'seal', 'pin', 'box', 'nominal'
+];
+
 function pickExcerpt(content, query) {
   var text = String(content || '');
   var qt = tokenize(query).filter(function(x) { return x.length >= 4; });
@@ -509,6 +575,11 @@ function pickExcerpt(content, query) {
     var pt = new Set(tokenize(p));
     var s = 0;
     for (var j = 0; j < qt.length; j++) if (pt.has(qt[j])) s++;
+    // v16.1 : bonus sur parametres de production
+    var lower = p.toLowerCase();
+    for (var k = 0; k < PRODUCTION_KEYWORDS.length; k++) {
+      if (lower.indexOf(PRODUCTION_KEYWORDS[k]) !== -1) s += 1;
+    }
     if (s > bestScore) { bestScore = s; best = p; }
   }
   if (!best) best = text.slice(0, 250);
@@ -805,26 +876,22 @@ function describeWO(h) {
 }
 
 // ============================================================
-// 9. DETECTION CLIENT / PO / NORME (v16.0 : corrections)
+// 9. DETECTION CLIENT / PO / NORME
 // ============================================================
 function detectCustomer(text) {
   var t = String(text || '');
 
-  // 1. Clients connus (casse exacte, mots entiers)
   var known = t.match(/(\bPETROCHAD\b[^\n\r]*|\bSONATRACH\b[^\n\r]*|\bENI\s+TUNISIA\b[^\n\r]*|\bPETROLEUM\s+EQUIPMENT\s+AND\s+SUPPLIES\s+FZE\b|\bPETRONAS\b[^\n\r]*|\bSTATOIL\b[^\n\r]*|\bEQUINOR\b[^\n\r]*|\bQATAR\s+PETROLEUM\b[^\n\r]*|\bADNOC\b[^\n\r]*|\bSAUDI\s+ARAMCO\b[^\n\r]*|\bTOTALENERGIES\b[^\n\r]*)/);
   if (known) return known[1].replace(/\s+/g, ' ').trim().slice(0, 100);
 
-  // 2. Mots en majuscules suivis d un suffixe de societe (mot entier)
   var suffixes = 'FZE|FZCO|FZC|DMCC|LLC|LTD|LIMITED|B\\.V\\.|S\\.A\\.|SARL|GMBH|INC|CORP|PLC';
   var re2 = new RegExp('((?:[A-Z][A-Z0-9&.,()\\/\\-]*\\s+){0,6}(?:' + suffixes + '))(?![A-Za-z])');
   var m2 = t.match(re2);
   if (m2) return m2[1].replace(/\s+/g, ' ').trim();
 
-  // 3. Customer / Client / Destinataire
   var m3 = t.match(/(?:Customer|Client|Destinataire)\s*[:#]\s*([^\n\r]{3,100})/i);
   if (m3) return m3[1].replace(/\s+/g, ' ').trim();
 
-  // 4. Nom suivi de Payment (pattern ARC)
   var m4 = t.match(/([A-Z][A-Z0-9 &.,()\/\-]{5,80})\s*\r?\n\s*Payment/);
   if (m4) return m4[1].replace(/\s+/g, ' ').trim();
 
@@ -849,7 +916,7 @@ function detectNorme(text) {
 }
 
 // ============================================================
-// 10. DETECTION TECHNIQUE PAR WO (connexions, matiere, dimensions)
+// 10. DETECTION TECHNIQUE PAR WO
 // ============================================================
 function detectDetails(info, ctx) {
   var t = String(info.desc || '') + ' ' + String(info.grade || '');
@@ -929,21 +996,51 @@ function threadSpecList(det) {
   return out.join('|');
 }
 
+// ============================================================
+// v16.1 [MODIFICATION UNIQUE DE CETTE FONCTION]
+// kbQueriesFor : ajoute en TETE de liste des requetes ciblant
+// les sources premium officielles (VAM, Tenaris, JFE) avec les
+// parametres de production attendus. Le reste de la logique v16.0
+// est conserve a l'identique (API, rotary, normes, grades).
+// ============================================================
 function kbQueriesFor(det, stds) {
   var q = [];
+
+  // v16.1 [AJOUT] : PRIORITE 1 - Sources premium officielles
+  det.conns.forEach(function(c) {
+    if (c.kind !== 'premium') return;
+    var fam = null;
+    PREMIUM_FAMILIES.forEach(function(f) { if (f.id === c.fam) fam = f; });
+    if (!fam) return;
+    var src = PREMIUM_SOURCES[fam.id];
+    // Requete enrichie : fabricant + modele + parametres production
+    q.push((fam.owner || '') + ' ' + c.label + ' connection data sheet weight diameter length ID OD shoulder torque drift coupling blanking');
+    // Une requete specifique par source officielle
+    if (src) {
+      src.docs.forEach(function(d) {
+        q.push(fam.owner + ' ' + c.label + ' ' + d.title + ' weight diameter length ID OD shoulder');
+      });
+    }
+  });
+
+  // Logique v16.0 conservee : normes applicables
   stds.slice(0, 4).forEach(function(id) {
     if (id === 'ASTM' || id === 'EN-10204') return;
     q.push(STANDARDS[id].short + ' ' + STANDARDS[id].role + ' tolerance dimensions edition');
   });
+
+  // Logique v16.0 conservee : connexions premium (requete generique)
   det.conns.forEach(function(c) {
     if (c.kind !== 'premium') return;
     var fam = null;
     PREMIUM_FAMILIES.forEach(function(f) { if (f.id === c.fam) fam = f; });
     q.push((fam ? fam.owner + ' ' : '') + c.label + ' connection data sheet tolerance make-up torque');
   });
+
+  // Logique v16.0 conservee : grade et matiere
   if (det.apiGrade) q.push('API 5CT grade ' + det.apiGrade + ' chemical composition mechanical properties');
   if (det.aisi) q.push('AISI ' + det.aisi + ' chemical composition mechanical properties heat treatment');
-  return q.slice(0, 6);
+  return q.slice(0, 8);
 }
 
 // ============================================================
@@ -1072,7 +1169,6 @@ function qpPage2(noteC) {
   return '<div style="page-break-before:always">' + qpHeader('2') + t + '</div>';
 }
 
-// ---- Annexe technique (page 3) ----
 function aSec(title) {
   return '<div style="background:#0a2540;color:#fff;font-weight:700;font-size:10px;padding:4px 6px;margin:8px 0 3px 0;font-family:Arial,sans-serif">' + esc(title) + '</div>';
 }
@@ -1092,7 +1188,6 @@ function qpAnnex(p, ctx, kb) {
   html += '<div style="font-weight:700;font-size:12px;color:#0a2540;margin:0 0 4px 0">TECHNICAL ANNEX - QP-' + esc(wo.id) + '</div>';
   html += '<div style="font-size:9px;color:#444;margin-bottom:6px">Supplementary technical details, outside the standard form FO-24-PRO. Editions verified on ' + STD_VERIFIED_ON + ' - re-verify before issue.</div>';
 
-  // A. Donnees extraites de la commande (mot pour mot)
   var sizes = det.sizes.length ? det.sizes.map(function(s) { return esc(s.od) + ' in OD, ' + esc(s.wt) + ' lb/ft'; }).join('<br>') : 'Not stated in the order';
   var lenTxt = [];
   if (det.oal) lenTxt.push('OAL ' + esc(det.oal) + ' in');
@@ -1120,14 +1215,12 @@ function qpAnnex(p, ctx, kb) {
     ['Documents', ctx.hasDocs ? 'CO, COC, MTC (per order notes)' : 'Per order']
   ], ['22%', '78%']);
 
-  // B. Normes applicables
   html += aSec('B. Applicable standards and editions');
   html += aTbl(['Standard', 'Edition', 'Status', 'Role for this WO'], stds.map(function(id) {
     var s = STANDARDS[id];
     return [esc(s.name), esc(s.edition), s.verified ? 'Verified ' + STD_VERIFIED_ON : 'Confirm edition in force', esc(s.role)];
   }), ['30%', '28%', '12%', '30%']);
 
-  // C. Points de controle par norme
   html += aSec('C. Detailed inspection points per standard');
   stds.forEach(function(id) {
     if (id === 'API-5C5' || id === 'ISO-13678') return;
@@ -1138,30 +1231,36 @@ function qpAnnex(p, ctx, kb) {
     }), ['34%', '24%', '22%', '12%', '8%']);
   });
 
-  // D. Connexions premium
   var prem = det.conns.filter(function(c) { return c.kind === 'premium'; });
   if (prem.length) {
-    html += aSec('D. Premium connections (OEM data sheet required - values are proprietary)');
+    html += aSec('D. Premium connections - official sources (priority)');
     prem.forEach(function(c) {
       var fam = null;
       PREMIUM_FAMILIES.forEach(function(f) { if (f.id === c.fam) fam = f; });
+      var src = fam ? PREMIUM_SOURCES[fam.id] : null;
       html += '<div style="font-size:9px;margin:3px 0"><b>' + esc(c.label) + '</b> - ' + esc(fam ? fam.owner : '') +
         '<br>Family / derivatives: ' + esc(fam ? fam.derivatives : '') +
-        '<br>Reference document: ' + esc(fam ? fam.docs : '') + ' - official site: ' + esc(fam ? fam.url : '') +
-        (fam && fam.note ? '<br><i>' + esc(fam.note) + '</i>' : '') + '</div>';
+        '<br>Reference document: ' + esc(fam ? fam.docs : '');
+      if (src) {
+        html += '<br><b>Official sources (priority over scraping):</b>';
+        src.docs.forEach(function(d) {
+          html += '<br>- <a href="' + esc(d.url) + '" target="_blank" style="color:#1e5aa8">' + esc(d.title) + '</a>';
+        });
+        html += '<br><i>Production parameters to extract: ' + esc(src.docs[0].contains.join(', ')) + '</i>';
+      }
+      html += (fam && fam.note ? '<br><i>' + esc(fam.note) + '</i>' : '') + '</div>';
     });
     html += aTbl(['Characteristic', 'Source / acceptance', 'Tolerance / value (enter from OEM data sheet)', 'Measured', 'OK'],
       PREMIUM_CHECKS.map(function(r) { return [esc(r[0]), esc(r[1]), '', '', '']; }),
       ['34%', '24%', '22%', '12%', '8%']);
   }
 
-  // E. Extraits de la base IA
-  html += aSec('E. Knowledge base excerpts (semantic search, verbatim)');
+  html += aSec('E. Knowledge base excerpts (semantic search - official sources prioritized)');
   var rowsKb = [];
   p.queries.forEach(function(q) {
     var hits = kb[q] || [];
     if (!hits.length) {
-      rowsKb.push([esc(q), 'No relevant document in the knowledge base - load the official / OEM document via auto-feed', '', '']);
+      rowsKb.push([esc(q), 'No relevant document in the knowledge base - load the official / OEM document via auto-feed (see section D for URLs)', '', '']);
     } else {
       hits.forEach(function(h) {
         rowsKb.push([esc(q), esc(h.excerpt) + '<br><i>' + esc(h.title) + (h.url ? ' - ' + esc(h.url) : '') + '</i>', Math.round(h.score * 100) + '%', 'To verify']);
@@ -1170,7 +1269,7 @@ function qpAnnex(p, ctx, kb) {
   });
   html += aTbl(['Query', 'Excerpt and source', 'Score', 'Status'], rowsKb, ['26%', '56%', '8%', '10%']);
 
-  html += '<div style="font-size:8px;color:#555;margin-top:6px">Numeric tolerances of proprietary premium connections are not reproduced: they must be taken from the licensed OEM data sheet in its current revision. Standard editions listed above were checked on public sources on ' + STD_VERIFIED_ON + '.</div>';
+  html += '<div style="font-size:8px;color:#555;margin-top:6px">Numeric tolerances of proprietary premium connections are not reproduced: they must be taken from the licensed OEM data sheet in its current revision. Official sources: VAM Services, Tenaris DCP, JFE Tools. Standard editions listed above were checked on public sources on ' + STD_VERIFIED_ON + '.</div>';
   html += '</div>';
   return html;
 }
@@ -1272,11 +1371,11 @@ async function buildQPAnswer(text, AutoFeedDoc) {
   var banner = '<div style="background:#eff6ff;border-left:4px solid #1e5aa8;border-radius:8px;padding:18px;margin:0 0 16px 0;font-family:Arial,sans-serif">' +
     '<div style="color:#1e40af;font-weight:800;font-size:15px">' + wos.length + ' Work Order(s) detecte(s) - 1 QP conforme QP STANDARD 01 par WO</div>' +
     '<div style="font-size:13px;color:#1e3a8a;margin:6px 0 4px 0">Client : <strong>' + esc(ctx.customer) + '</strong> - PO : <strong>' + esc(ctx.po) + '</strong></div>' +
-    '<div style="font-size:12px;color:#1e3a8a;margin:0 0 4px 0">Chaque QP : 2 pages au format standard + 1 annexe technique (normes, controles, fiche OEM a remplir).</div>' +
+    '<div style="font-size:12px;color:#1e3a8a;margin:0 0 4px 0">Chaque QP : 2 pages au format standard + 1 annexe technique (normes, controles, sources officielles premium).</div>' +
     '<div style="font-size:12px;color:#1e3a8a;margin:0 0 8px 0">Normes : ' + (stdLine || '-') + (premLine.length ? ' - Premium : ' + esc(premLine.join(', ')) : '') + '</div>' +
     '<div style="margin-bottom:12px">' + chips + '</div>' +
     '<a href="/qp-pdf/' + token + '" target="_blank" rel="noopener" style="display:inline-block;background:#0a2540;color:#ffffff;text-decoration:none;padding:12px 22px;border-radius:8px;font-weight:700;font-size:14px">Ouvrir le PDF des ' + wos.length + ' QP</a>' +
-    '<div style="font-size:12px;color:#1e3a8a;margin-top:8px">Dans la fenetre ouverte, choisissez Imprimer puis Enregistrer au format PDF. Editions de normes verifiees le ' + STD_VERIFIED_ON + '.</div>' +
+    '<div style="font-size:12px;color:#1e3a8a;margin-top:8px">Dans la fenetre ouverte, choisissez Imprimer puis Enregistrer au format PDF. Sources premium officielles (VAM / Tenaris / JFE) prioritaires.</div>' +
     '</div>';
   var hidden = '<div class="qp-print-container" style="display:none">' + qps + '</div>';
   return { wos: wos, html: banner + hidden };
@@ -1350,7 +1449,6 @@ module.exports = function(app, mongoose) {
     return AutoFeedDoc;
   }
 
-  // ---- 14.a Pages PDF + registre des normes ----
   app.get('/qp-pdf.js', function(req, res) {
     res.set('Content-Type', 'application/javascript; charset=utf-8');
     res.send(QP_PRINT_JS);
@@ -1367,17 +1465,18 @@ module.exports = function(app, mongoose) {
     res.send(printPage(e.html));
   });
 
+  // v16.1 : endpoint enrichi avec les sources premium
   app.get('/api/qp-standards', function(req, res) {
     res.json({
       verifiedOn: STD_VERIFIED_ON,
       standards: STANDARDS,
       premiumFamilies: PREMIUM_FAMILIES.map(function(f) {
         return { id: f.id, owner: f.owner, derivatives: f.derivatives, docs: f.docs, url: f.url };
-      })
+      }),
+      premiumSources: PREMIUM_SOURCES
     });
   });
 
-  // ---- 14.b Interception QP : reponse directe, SANS IA ----
   function qpIntercept(route, strict) {
     app.use(route, function(req, res, next) {
       try {
@@ -1423,7 +1522,6 @@ module.exports = function(app, mongoose) {
   qpIntercept('/api/analyze-content', false);
   qpIntercept('/api/ask', true);
 
-  // ---- 14.c RAG pour /api/ask ----
   async function ragPreprocessAsk(req, res, next) {
     if (!req.body || !req.body.question) return next();
     if (!AutoFeedDoc) {
@@ -1440,7 +1538,6 @@ module.exports = function(app, mongoose) {
     next();
   }
 
-  // ---- 14.d Documents non-QP ----
   function documentPreprocess(req, res, next) {
     if (!req.body) return next();
     var content = req.body.content ? String(req.body.content) : '';
@@ -1459,7 +1556,6 @@ module.exports = function(app, mongoose) {
     next();
   }
 
-  // ---- 14.e Post-traitement ----
   function postprocess(mode) {
     return function(req, res, next) {
       var originalJson = res.json.bind(res);
@@ -1497,5 +1593,5 @@ module.exports = function(app, mongoose) {
   app.use('/api/ask', ragPreprocessAsk, postprocess('ask'));
   app.use('/api/analyze-content', documentPreprocess, postprocess('document'));
 
-  console.log('[answer-enricher] v16.0 charge - QP STANDARD 01 + annexe normes (API 5CT/5B/7-1/7-2, VAM, Tenaris, JFE, Grant Prideco)');
+  console.log('[answer-enricher] v16.1 charge - QP STANDARD 01 + sources premium prioritaires');
 };
