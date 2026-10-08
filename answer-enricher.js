@@ -982,34 +982,154 @@ function describeWO(h) {
 // ============================================================
 // 9. DETECTION CLIENT / PO / NORME
 // ============================================================
+
+// ------------------------------------------------------------
+// Identification du client dans l ARC
+// Priorite : 1) lignes juste au-dessus de "Payment ... Tax code"
+//            2) lignes qui suivent la valeur sous "Our ref."
+//            3) libelle explicite Customer / Client
+//            4) liste de clients connus (PETROCHAD, ...)
+//            5) nom en majuscules + suffixe de societe
+// ------------------------------------------------------------
 function detectCustomer(text) {
-  var t = String(text || '');
+  var t = String(text || '').replace(/\r/g, '');
+  var lines = t.split('\n').map(function(l) { return l.replace(/\s+/g, ' ').trim(); });
 
-  var known = t.match(/(\bPETROCHAD\b[^\n\r]*|\bSONATRACH\b[^\n\r]*|\bENI\s+TUNISIA\b[^\n\r]*|\bPETROLEUM\s+EQUIPMENT\s+AND\s+SUPPLIES\s+FZE\b|\bPETRONAS\b[^\n\r]*|\bSTATOIL\b[^\n\r]*|\bEQUINOR\b[^\n\r]*|\bQATAR\s+PETROLEUM\b[^\n\r]*|\bADNOC\b[^\n\r]*|\bSAUDI\s+ARAMCO\b[^\n\r]*|\bTOTALENERGIES\b[^\n\r]*)/);
-  if (known) return known[1].replace(/\s+/g, ' ').trim().slice(0, 100);
+  function done(rule, value) {
+    console.log('[answer-enricher] client detecte (' + rule + ') : ' + value);
+    return value;
+  }
 
-  var suffixes = 'FZE|FZCO|FZC|DMCC|LLC|LTD|LIMITED|B\\.V\\.|S\\.A\\.|SARL|GMBH|INC|CORP|PLC';
-  var re2 = new RegExp('((?:[A-Z][A-Z0-9&.,()\\/\\-]*\\s+){0,6}(?:' + suffixes + '))(?![A-Za-z])');
-  var m2 = t.match(re2);
-  if (m2) return m2[1].replace(/\s+/g, ' ').trim();
+  function isNoise(s) {
+    if (/^(?:Your\s+order|Date\b|Our\s+ref|Payment\b|Tax\s+code|Order\s+confirmation|Delivery\b|Job\b|Article\b|Page\b|NOTES?\b|Person\b|Email\b|Static|Qty\b)/i.test(s)) return true;
+    if (/^[\d\/.\-:\s]+$/.test(s)) return true;
+    if (/@/.test(s)) return true;
+    if (/^[\-\u2022*]/.test(s)) return true;
+    if (/\bPO\s*Box\b|\bP\.O\.\s*Box\b|^Utd\.|\bEmirates?\b|\bFree\s+Trade\s+Zone\b|\bStreet\b|\bRoad\b|\bAvenue\b/i.test(s)) return true;
+    return false;
+  }
 
+  function looksLikeName(s) {
+    if (!s || s.length < 3 || s.length > 100) return false;
+    if (!/[A-Za-z]{3,}/.test(s)) return false;
+    if (isNoise(s)) return false;
+    if (s.split(' ').length > 10) return false;
+    return true;
+  }
+
+  // 1. Structure ARC : le nom du client est juste au-dessus de "Payment ... Tax code"
+  for (var i = 0; i < lines.length; i++) {
+    if (/^Payment\b/i.test(lines[i])) {
+      var found = [];
+      var j = i - 1;
+      while (j >= 0 && lines[j] === '') j--;
+      while (j >= 0 && found.length < 2 && looksLikeName(lines[j])) {
+        found.unshift(lines[j]);
+        j--;
+      }
+      if (found.length) {
+        return done('avant-Payment', found.join(' ').replace(/\s+/g, ' ').trim().slice(0, 100));
+      }
+    }
+  }
+
+  // 2. Lignes qui suivent la valeur sous "Our ref."
+  for (var a = 0; a < lines.length; a++) {
+    if (/Our\s+ref/i.test(lines[a])) {
+      var scanned = 0;
+      for (var b = a + 1; b < lines.length && scanned < 6; b++) {
+        if (lines[b] === '') continue;
+        scanned++;
+        if (looksLikeName(lines[b])) {
+          return done('apres-Our-ref', lines[b].slice(0, 100));
+        }
+      }
+    }
+  }
+
+  // 3. Libelle explicite Customer / Client / Destinataire
   var m3 = t.match(/(?:Customer|Client|Destinataire)\s*[:#]\s*([^\n\r]{3,100})/i);
-  if (m3) return m3[1].replace(/\s+/g, ' ').trim();
+  if (m3) return done('libelle', m3[1].replace(/\s+/g, ' ').trim());
 
-  var m4 = t.match(/([A-Z][A-Z0-9 &.,()\/\-]{5,80})\s*\r?\n\s*Payment/);
-  if (m4) return m4[1].replace(/\s+/g, ' ').trim();
+  // 4. Clients connus (casse exacte, mots entiers)
+  var known = t.match(/(\bPETROCHAD\b[^\n\r]*|\bSONATRACH\b[^\n\r]*|\bENI\s+TUNISIA\b[^\n\r]*|\bPETROLEUM\s+EQUIPMENT\s+AND\s+SUPPLIES\s+FZE\b|\bPETRONAS\b[^\n\r]*|\bSTATOIL\b[^\n\r]*|\bEQUINOR\b[^\n\r]*|\bQATAR\s+PETROLEUM\b[^\n\r]*|\bADNOC\b[^\n\r]*|\bSAUDI\s+ARAMCO\b[^\n\r]*|\bTOTALENERGIES\b[^\n\r]*)/);
+  if (known) return done('liste-connue', known[1].replace(/\s+/g, ' ').trim().slice(0, 100));
 
-  return 'Non mentionne dans le document';
+  // 5. Mots en majuscules (au moins un) suivis d un suffixe de societe
+  var suffixes = 'FZE|FZCO|FZC|DMCC|LLC|LTD|LIMITED|B\\.V\\.|S\\.A\\.R\\.L\\.|S\\.A\\.|S\\.P\\.A\\.|SARL|SPA|SAS|GMBH|INC|CORP|PLC|SA|AG|NV|BV|ASA';
+  var re5 = new RegExp('(?:^|\\s)((?:[A-Z][A-Z0-9&.,()\\/\\-]*\\s+){1,6}(?:' + suffixes + '))(?![A-Za-z0-9])', 'g');
+  var m5;
+  while ((m5 = re5.exec(t)) !== null) {
+    var cand = m5[1].replace(/\s+/g, ' ').trim();
+    if (/GMPI|GLOBAL\s+METALLIC|GLOBAL\s+GROUP/.test(cand)) continue;
+    return done('suffixe-societe', cand);
+  }
+
+  return done('introuvable', 'XXXXXXX');
 }
 
+// ------------------------------------------------------------
+// Numero d ordre d achat = numero de "Order confirmation" de l ARC
+// Priorite : 1) Order confirmation NNNNNNNNNN
+//            2) libelle Purchase Order / P.O.
+//            3) valeur sous "Your order"
+//            4) nombre a 10 chiffres
+// ------------------------------------------------------------
 function detectPO(text) {
-  var s = String(text);
-  var c = s.match(/Order\s+confirmation\s*(\d{8,12})/i);
-  if (c) return c[1];
-  var m = s.match(/(?:\bP\.?O\.?\b|Purchase\s*Order|\bARC\b)\D{0,15}(\d{8,12})/i);
-  if (m) return m[1];
-  var m2 = s.match(/\b(\d{10})\b/);
-  return m2 ? m2[1] : 'NA';
+  var s = String(text || '').replace(/\r/g, '');
+
+  function done(rule, value) {
+    console.log('[answer-enricher] PO detecte (' + rule + ') : ' + value);
+    return value;
+  }
+
+  function validPO(tok) {
+    tok = String(tok || '').replace(/[,;:]+$/, '');
+    if (tok.length < 6 || tok.length > 25) return '';
+    if (!/^[A-Za-z0-9][A-Za-z0-9\-\/._]*$/.test(tok)) return '';
+    if ((tok.match(/\d/g) || []).length < 5) return '';
+    if (/^\d{1,2}[\/.\-]\d{1,2}[\/.\-]\d{2,4}$/.test(tok)) return '';
+    return tok;
+  }
+
+  // 1. "Order confirmation" = ordre d achat du plan qualite
+  var re1 = /Order\s+confirmation\b\s*(?:N[^A-Za-z0-9\s]{0,2}\.?|No\.?|number)?\s*[:#]?\s*([A-Za-z0-9][A-Za-z0-9\-\/._]{4,24})/gi;
+  var m1;
+  while ((m1 = re1.exec(s)) !== null) {
+    var v1 = validPO(m1[1]);
+    if (v1) return done('Order-confirmation', v1);
+  }
+
+  // 2. Libelle Purchase Order / P.O. / Customer PO
+  var re2 = /(?:Purchase\s*Order|\bP\.O\.|Customer\s+PO)\s*(?:No\.?|N[^A-Za-z0-9\s]{0,2})?\s*[:#]?\s*([A-Za-z0-9][A-Za-z0-9\-\/._]{4,24})/gi;
+  var m2;
+  while ((m2 = re2.exec(s)) !== null) {
+    var v2 = validPO(m2[1]);
+    if (v2) return done('libelle-Purchase-Order', v2);
+  }
+
+  // 3. Valeur sous l en-tete "Your order"
+  var lines = s.split('\n').map(function(l) { return l.replace(/\s+/g, ' ').trim(); });
+  for (var i = 0; i < lines.length; i++) {
+    if (/Your\s+order\b/i.test(lines[i])) {
+      var seen = 0;
+      for (var n = i + 1; n < lines.length && seen < 3; n++) {
+        if (lines[n] === '') continue;
+        seen++;
+        var toks = lines[n].split(' ');
+        for (var k = 0; k < toks.length; k++) {
+          var v3 = validPO(toks[k]);
+          if (v3) return done('Your-order', v3);
+        }
+      }
+    }
+  }
+
+  // 4. Dernier repli : premier nombre a 10 chiffres
+  var m4 = s.match(/\b(\d{10})\b/);
+  if (m4) return done('nombre-10-chiffres', m4[1]);
+
+  return done('introuvable', 'NA');
 }
 
 function detectNorme(text) {
