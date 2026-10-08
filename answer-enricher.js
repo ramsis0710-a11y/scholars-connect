@@ -1,21 +1,17 @@
 // ============================================================
 // ANSWER-ENRICHER.JS
-// Version v16.5 - QP STANDARD 01 + sources premium + administration
+// Version v16.6 - QP STANDARD 01 + sources premium + administration
 //
-// Base : v16.4 (INTEGRALEMENT CONSERVEE)
-// CORRECTIFS v16.4 -> v16.5 (UNIQUEMENT) :
-//   1. PREMIUM_SOURCES : retrait URLs mortes (VAM miroir USA 404,
-//      JFE 404). Ajout note sur les sources non telechargeables.
-//   2. cleanupStalePremiumDocs() : suppression auto des docs premium
-//      < 5000 car. (menus de sites JS-only inutiles) au demarrage.
-//   3. extractTextFromInput() : detection du binaire PDF (%PDF-)
-//      colle dans le champ ARC et extraction via pdf-parse.
-//   4. /qp-admin : bouton "Fichier PDF" qui lit le binaire dans le
-//      navigateur et l envoie a /api/qp-generate-pdf.
-//   5. /api/qp-generate-pdf : nouvel endpoint acceptant le binaire
-//      PDF brut (Content-Type: application/pdf), extrait le texte,
-//      puis genere les QP.
-//   6. /api/qp-generate : log diagnostic (texte vs PDF binaire).
+// Base : v16.5 (INTEGRALEMENT CONSERVEE)
+// CORRECTIFS v16.5 -> v16.6 (UNIQUEMENT) :
+//   1. detectPO : ignore les valeurs REV.XX / Rev.XX (revision de
+//      commande) et retombe sur la valeur sous "Your order".
+//   2. parseWorkOrders : accepte \s+ (multi-espaces, tabulations,
+//      sauts de ligne) entre N° WO / quantite / date.
+//   3. /api/qp-generate-pdf et /api/qp-generate : renvoient les 800
+//      premiers caracteres du texte extrait (preview) pour diagnostic.
+//   4. extractPdfText : fallback multi-parseurs (pdf-parse 1.x,
+//      pdf-parse 2.x, pdfjs-dist, puis regex) + log du parseur utilise.
 // AUCUNE AUTRE LIGNE N'A ETE MODIFIEE
 // ============================================================
 
@@ -37,6 +33,7 @@ var QP_MAX_BYTES = parseInt(process.env.QP_MAX_BYTES, 10) || 0;
 var KB_SCAN_LIMIT = 2000;
 var LAST_PDF_PARSER = '';
 var PREMIUM_MIN_CHARS = 5000;
+var PDF_PREVIEW_CHARS = 800;
 
 // ============================================================
 // 0. MODELE QP STANDARD 01 (GMPI - FO-24-PRO Rev 6)
@@ -276,13 +273,7 @@ var PREMIUM_CHECKS = [
 ];
 
 // ============================================================
-// 0.c [v16.5] REGISTRE DES SOURCES PREMIUM OFFICIELLES
-// Correctif 1 : retrait des URLs mortes confirmees 404 :
-//   - VAM Book (miroir USA) : https://www.vam-usa.com/wp-content/uploads/2020/08/VAM-Book.pdf -> 404
-//   - JFE Steel - Premium Connections : https://www.jfe-steel.co.jp/en/products/energy/catalog/e1h1-003.pdf -> 404
-// Les 2 sources operationnelles confirmees restent :
-//   - VAM Book (424 872 car.)
-//   - TenarisHydril Datasheets Manual (13 506 car.)
+// 0.c REGISTRE DES SOURCES PREMIUM OFFICIELLES
 // ============================================================
 var PREMIUM_SOURCES = {
   'VAM': {
@@ -320,7 +311,6 @@ var PREMIUM_SOURCES = {
   }
 };
 
-// Outils interactifs officiels (non telechargeables : a ouvrir manuellement)
 var PREMIUM_TOOLS = [
   { family: 'VAM', title: 'VAM Services (Connection Data Sheets, Mix Torque Calculator)', url: 'https://www.vamservices.com/' },
   { family: 'VAM', title: 'VAM USA Toolbox', url: 'https://www.vam-usa.com/toolbox/' },
@@ -520,7 +510,6 @@ function escapeRegex(s) {
   return String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-// Lecture du corps brut d une requete (ARC en text/plain), sans limite logicielle
 function readRawBody(req, maxBytes) {
   return new Promise(function(resolve, reject) {
     var chunks = [];
@@ -538,7 +527,23 @@ function readRawBody(req, maxBytes) {
   });
 }
 
-// v16.5 [Correctif 3] : detection et extraction si l entree est un binaire PDF
+function readRawBodyBuffer(req, maxBytes) {
+  return new Promise(function(resolve, reject) {
+    var chunks = [];
+    var size = 0;
+    req.on('data', function(c) {
+      size += c.length;
+      if (maxBytes && size > maxBytes) {
+        req.destroy();
+        return reject(new Error('Taille superieure a QP_MAX_BYTES (' + maxBytes + ' octets)'));
+      }
+      chunks.push(c);
+    });
+    req.on('end', function() { resolve(Buffer.concat(chunks)); });
+    req.on('error', reject);
+  });
+}
+
 function isPdfBuffer(text) {
   return String(text || '').slice(0, 5) === '%PDF-';
 }
@@ -566,7 +571,7 @@ function fetchUrl(url, maxRedirects, timeoutMs) {
     var lib = url.indexOf('https://') === 0 ? https : http;
     var req = lib.get(url, {
       headers: {
-        'User-Agent': 'Mozilla/5.0 (compatible; ScholarsConnect/16.5; +https://scholars-connect-app.onrender.com)',
+        'User-Agent': 'Mozilla/5.0 (compatible; ScholarsConnect/16.6; +https://scholars-connect-app.onrender.com)',
         'Accept': 'text/html,application/xhtml+xml,application/pdf,application/json,*/*',
         'Accept-Encoding': 'gzip, deflate'
       }
@@ -625,30 +630,72 @@ async function fetchUrlRetry(url, type) {
   throw lastErr || new Error('Echec apres ' + delays.length + ' tentatives');
 }
 
+// v16.6 [Correctif 4] : fallback multi-parseurs
+//   1) pdf-parse 1.x (module.exports = function)
+//   2) pdf-parse 2.x (module.exports.PDFParse)
+//   3) pdfjs-dist (si installe)
+//   4) regex brute (dernier recours)
 async function extractPdfText(buffer) {
   LAST_PDF_PARSER = '';
+
+  // 1. pdf-parse 1.x
   try {
     var mod = require('pdf-parse');
     if (typeof mod === 'function') {
       var data = await mod(buffer);
-      LAST_PDF_PARSER = 'pdf-parse';
-      return data.text || '';
+      var t1 = (data && data.text) || '';
+      if (t1 && t1.length > 200) {
+        LAST_PDF_PARSER = 'pdf-parse-1.x';
+        return t1;
+      }
+      console.log('[answer-enricher] pdf-parse 1.x retourne ' + t1.length + ' car. - essai des fallbacks...');
     }
+    // 2. pdf-parse 2.x
     if (mod && mod.PDFParse) {
       var parser = new mod.PDFParse({ data: buffer });
       var res2 = await parser.getText();
-      LAST_PDF_PARSER = 'pdf-parse';
-      return (res2 && res2.text) || '';
+      var t2 = (res2 && res2.text) || '';
+      if (t2 && t2.length > 200) {
+        LAST_PDF_PARSER = 'pdf-parse-2.x';
+        return t2;
+      }
+      console.log('[answer-enricher] pdf-parse 2.x retourne ' + t2.length + ' car. - essai des fallbacks...');
     }
-    throw new Error('API pdf-parse non reconnue');
   } catch (e) {
-    console.warn('[auto-ingest-premium] pdf-parse indisponible (' + e.message + ') - extraction de secours de faible qualite');
-    LAST_PDF_PARSER = 'fallback';
-    var raw = buffer.toString('latin1');
-    var matches = raw.match(/\(([^\)]{2,})\)/g) || [];
-    var txt = matches.map(function(m) { return m.slice(1, -1); }).join(' ');
-    return txt.replace(/\\[0-9]{3}/g, ' ').replace(/\s+/g, ' ').trim();
+    console.warn('[answer-enricher] pdf-parse indisponible (' + e.message + ') - essai pdfjs-dist...');
   }
+
+  // 3. pdfjs-dist
+  try {
+    var pdfjs = require('pdfjs-dist/legacy/build/pdf.js');
+    var doc = await pdfjs.getDocument({ data: new Uint8Array(buffer), disableWorker: true }).promise;
+    var parts = [];
+    for (var p = 1; p <= doc.numPages; p++) {
+      var page = await doc.getPage(p);
+      var content = await page.getTextContent();
+      var line = content.items.map(function(it) { return it.str; }).join(' ');
+      parts.push(line);
+    }
+    var t3 = parts.join('\n').replace(/\s{3,}/g, ' ').trim();
+    if (t3 && t3.length > 200) {
+      LAST_PDF_PARSER = 'pdfjs-dist';
+      console.log('[answer-enricher] pdfjs-dist : ' + t3.length + ' car. extraits sur ' + doc.numPages + ' pages');
+      return t3;
+    }
+    console.log('[answer-enricher] pdfjs-dist retourne ' + t3.length + ' car. - dernier recours regex...');
+  } catch (e) {
+    console.warn('[answer-enricher] pdfjs-dist indisponible (' + e.message + ') - dernier recours regex...');
+  }
+
+  // 4. Fallback regex brute
+  LAST_PDF_PARSER = 'fallback-regex';
+  console.warn('[answer-enricher] Extraction PDF via regex brute (qualite faible). Installez "pdf-parse": "1.1.1" dans package.json.');
+  var raw = buffer.toString('latin1');
+  var matches = raw.match(/\(([^\)]{2,})\)/g) || [];
+  var txt = matches.map(function(m) { return m.slice(1, -1); }).join(' ');
+  txt = txt.replace(/\\[0-9]{3}/g, ' ');
+  txt = txt.replace(/\\(\w)/g, '$1');
+  return txt.replace(/\s+/g, ' ').trim();
 }
 
 function extractHtmlText(html) {
@@ -1072,10 +1119,14 @@ function generateReferences(docs, domain, scholars) {
 
 // ============================================================
 // 8. EXTRACTION WO
+// v16.6 [Correctif 2] : \s+ au lieu de \s pour accepter les
+// multi-espaces, tabulations et sauts de ligne entre N° WO,
+// quantite et date (comme produits par pdf-parse parfois).
 // ============================================================
 function parseWorkOrders(text) {
   text = String(text || '').replace(/\r/g, '');
-  var re = /(^|[^0-9A-Za-z])(\d{5})\s+(\d{1,3})\s+(\d{2}\/\d{2}\/\d{2,4})(?![0-9])/g;
+  // v16.6 : \s+ tolere les sauts de ligne entre numero, quantite et date
+  var re = /(^|[^0-9A-Za-z])(\d{5})[\s\u00A0]+(\d{1,3})[\s\u00A0]+(\d{2}\/\d{2}\/\d{2,4})(?![0-9])/g;
   var hits = [], seen = {}, m;
   while ((m = re.exec(text)) !== null) {
     var id = m[2];
@@ -1149,7 +1200,7 @@ function detectCustomer(text) {
   }
 
   function isNoise(s) {
-    if (/^(?:Your\s+order|Date\b|Our\s+ref|Payment\b|Tax\s+code|Order\s+confirmation|Delivery\b|Job\b|Article\b|Page\b|NOTES?\b|Person\b|Email\b|Static|Qty\b)/i.test(s)) return true;
+    if (/^(?:Your\s+order|Date\b|Our\s+ref|Payment\b|Tax\s+code|Order\s+confirmation|Delivery\b|Job\b|Article\b|Page\b|NOTES?\b|Person\b|Email\b|Static|Qty\b|Dubai|Consignee)/i.test(s)) return true;
     if (/^[\d\/.\-:\s]+$/.test(s)) return true;
     if (/@/.test(s)) return true;
     if (/^[\-\u2022*]/.test(s)) return true;
@@ -1211,6 +1262,8 @@ function detectCustomer(text) {
   return done('introuvable', 'XXXXXXX');
 }
 
+// v16.6 [Correctif 1] : detectPO ignore les valeurs REV.XX / Rev.XX
+// (revision de commande) et retombe sur la valeur sous "Your order".
 function detectPO(text) {
   var s = String(text || '').replace(/\r/g, '');
 
@@ -1228,20 +1281,35 @@ function detectPO(text) {
     return tok;
   }
 
+  // v16.6 : rejette les valeurs qui commencent par REV, REV., REVISION, R. (revision)
+  function isRevisionValue(tok) {
+    return /^(?:REV|REV\.|REVISION|R\.|VER|V\.)\s*\d*$/i.test(String(tok || '').trim());
+  }
+
+  // 1. "Order confirmation" SAUF si la valeur est une revision
   var re1 = /Order\s+confirmation\b\s*(?:N[^A-Za-z0-9\s]{0,2}\.?|No\.?|number)?\s*[:#]?\s*([A-Za-z0-9][A-Za-z0-9\-\/._]{3,24})/gi;
   var m1;
   while ((m1 = re1.exec(s)) !== null) {
-    var v1 = validPO(m1[1]);
+    var raw1 = m1[1];
+    if (isRevisionValue(raw1)) {
+      console.log('[answer-enricher] PO : valeur "' + raw1 + '" ignoree (revision, pas un n° de commande)');
+      continue;
+    }
+    var v1 = validPO(raw1);
     if (v1) return done('Order-confirmation', v1);
   }
 
+  // 2. Libelle Purchase Order / P.O. / Customer PO
   var re2 = /(?:Purchase\s*Order|\bP\.O\.|Customer\s+PO)\s*(?:No\.?|N[^A-Za-z0-9\s]{0,2})?\s*[:#]?\s*([A-Za-z0-9][A-Za-z0-9\-\/._]{3,24})/gi;
   var m2;
   while ((m2 = re2.exec(s)) !== null) {
-    var v2 = validPO(m2[1]);
+    var raw2 = m2[1];
+    if (isRevisionValue(raw2)) continue;
+    var v2 = validPO(raw2);
     if (v2) return done('libelle-Purchase-Order', v2);
   }
 
+  // 3. Valeur sous l en-tete "Your order" (v16.6 : prioritaire si Order confirmation n'est qu'une revision)
   var lines = s.split('\n').map(function(l) { return l.replace(/\s+/g, ' ').trim(); });
   for (var i = 0; i < lines.length; i++) {
     if (/Your\s+order\b/i.test(lines[i])) {
@@ -1258,6 +1326,7 @@ function detectPO(text) {
     }
   }
 
+  // 4. Dernier repli : premier nombre a 10 chiffres
   var m4 = s.match(/\b(\d{10})\b/);
   if (m4) return done('nombre-10-chiffres', m4[1]);
 
@@ -1431,8 +1500,8 @@ async function autoIngestPremiumSources(AutoFeedDoc, mongoose, force) {
       try {
         console.log('[auto-ingest-premium] telechargement : ' + doc.url);
         var ext = await fetchAndExtract(doc.url, doc.type);
-        if (doc.type === 'pdf' && ext.parser !== 'pdf-parse') {
-          throw new Error('pdf-parse absent ou incompatible - ajoutez "pdf-parse": "1.1.1" dans package.json');
+        if (doc.type === 'pdf' && ext.parser === 'fallback-regex') {
+          throw new Error('Extraction PDF de secours (regex) - installez "pdf-parse": "1.1.1" ou "pdfjs-dist" dans package.json');
         }
         var minLen = (doc.type === 'pdf') ? 2000 : 500;
         if (!ext.text || ext.text.length < minLen) {
@@ -1456,12 +1525,13 @@ async function autoIngestPremiumSources(AutoFeedDoc, mongoose, force) {
             autoIngested: true,
             ingestedAt: new Date().toISOString(),
             bytes: ext.bytes,
+            parser: ext.parser,
             contains: doc.contains
           }
         });
         stats.ok++;
-        stats.details.push({ family: famId, url: doc.url, status: 'ok', chars: content.length });
-        console.log('[auto-ingest-premium] OK ' + doc.url + ' (' + content.length + ' car.)');
+        stats.details.push({ family: famId, url: doc.url, status: 'ok', chars: content.length, parser: ext.parser });
+        console.log('[auto-ingest-premium] OK ' + doc.url + ' (' + content.length + ' car., parser=' + ext.parser + ')');
       } catch (e) {
         stats.errors++;
         stats.details.push({ family: famId, url: doc.url, status: 'erreur', error: e.message });
@@ -1474,9 +1544,6 @@ async function autoIngestPremiumSources(AutoFeedDoc, mongoose, force) {
   return stats;
 }
 
-// v16.5 [Correctif 2] : suppression des docs premium parasites (< 5000 car.)
-// Ces docs proviennent des sites JS-only (menus uniquement) qui polluent
-// la recherche sans apporter d'information technique utile.
 async function cleanupStalePremiumDocs(AutoFeedDoc) {
   if (!AutoFeedDoc) return { scanned: 0, deleted: 0, errors: 0 };
   var out = { scanned: 0, deleted: 0, errors: 0, details: [] };
@@ -1501,7 +1568,6 @@ async function cleanupStalePremiumDocs(AutoFeedDoc) {
   return out;
 }
 
-// v16.5 : une seule ingestion a la fois (demarrage, restauration, endpoint)
 var INGEST_PROMISE = null;
 function runIngestSafe(kb, mongoose, force) {
   if (INGEST_PROMISE) return INGEST_PROMISE;
@@ -1915,7 +1981,7 @@ function collectText(body) {
 }
 
 // ============================================================
-// v16.5 TEST AUTOMATIQUE : N WO doivent donner N plans qualite
+// TEST AUTOMATIQUE : N WO doivent donner N plans qualite
 // ============================================================
 function makeSyntheticARC(n) {
   var L = [];
@@ -1976,9 +2042,8 @@ function runSelfTest(n) {
 }
 
 // ============================================================
-// v16.5 PAGE D ADMINISTRATION : un seul bouton TOUT EXECUTER
-// Correctif 4 : ajout d un bouton "Fichier PDF" qui lit le binaire
-// du PDF dans le navigateur et l envoie a /api/qp-generate-pdf
+// PAGE D ADMINISTRATION
+// v16.6 [Correctif 3] : affichage du preview du texte extrait
 // ============================================================
 function adminPage() {
   return [
@@ -2007,6 +2072,7 @@ function adminPage() {
     'table{border-collapse:collapse;width:100%;font-size:12px;margin-top:6px}',
     'td,th{border:1px solid #cbd5e1;padding:4px 6px;text-align:left;vertical-align:top}',
     'details{margin-top:6px}',
+    'pre.pdf-preview{background:#0f172a;color:#e2e8f0;padding:12px;border-radius:8px;font-size:11px;font-family:monospace;white-space:pre-wrap;max-height:300px;overflow:auto}',
     '.pdf-zone{background:#fff;border:2px dashed #1e5aa8;border-radius:10px;padding:16px;margin:10px 0;font-size:13px}',
     '.pdf-zone input{margin-top:8px}',
     '</style></head><body><div class="wrap">',
@@ -2016,7 +2082,7 @@ function adminPage() {
     '<textarea id="arc" placeholder="Collez ici le TEXTE du document ARC (pas le PDF : utilisez le bouton ci-dessous)..."></textarea>',
     '<div class="pdf-zone">',
     '<b>Ou chargez directement un fichier PDF :</b>',
-    '<div>Le PDF sera lu automatiquement cote serveur (extraction de texte via pdf-parse).</div>',
+    '<div>Le PDF sera lu automatiquement cote serveur (extraction de texte via pdf-parse / pdfjs-dist).</div>',
     '<input type="file" id="pdfFile" accept=".pdf,application/pdf">',
     '</div>',
     '<div class="row">',
@@ -2031,7 +2097,6 @@ function adminPage() {
   ].join('\n');
 }
 
-// Code execute DANS LE NAVIGATEUR (servi par /qp-admin.js via toString)
 function adminClient() {
   var out = document.getElementById("out");
   var btn = document.getElementById("go");
@@ -2070,7 +2135,6 @@ function adminClient() {
   function sleep(ms) { return new Promise(function(r) { setTimeout(r, ms); }); }
   function big(n) { return new Array(n + 1).join("x"); }
 
-  // v16.5 : envoi du binaire PDF a /api/qp-generate-pdf
   async function sendPdf(file) {
     var buf = await file.arrayBuffer();
     var r = await fetch("/api/qp-generate-pdf", {
@@ -2084,7 +2148,15 @@ function adminClient() {
     return { ok: r.ok, status: r.status, data: data, text: txt };
   }
 
-  // v16.5 : generation seule depuis un PDF choisi
+  // v16.6 : affiche le preview du texte extrait (diagnostic)
+  function showPdfPreview(data) {
+    if (!data || !data.pdfPreview) return;
+    var pre = document.createElement("pre");
+    pre.className = "pdf-preview";
+    pre.textContent = data.pdfPreview;
+    out.appendChild(pre);
+  }
+
   async function pdfOnly() {
     out.innerHTML = "";
     var f = document.getElementById("pdfFile").files[0];
@@ -2096,16 +2168,18 @@ function adminClient() {
       return;
     }
     if (!r.data.ok) {
-      line("ko", esc(r.data.error || "Erreur inconnue") + " (" + (r.data.chars || 0) + " caracteres extraits)");
+      line("ko", esc(r.data.error || "Erreur inconnue") + " (" + (r.data.pdfTextChars || 0) + " car. extraits, parser=" + esc(r.data.parser || "?") + ")");
+      showPdfPreview(r.data);
       return;
     }
-    line("ok", r.data.wo + " WO detectes - " + r.data.qpDocs + " plans qualite generes - " + r.data.pdfTextChars + " car. extraits du PDF - " + r.data.ms + " ms");
+    line("ok", r.data.wo + " WO detectes - " + r.data.qpDocs + " plans qualite generes - " + r.data.pdfTextChars + " car. extraits (parser=" + esc(r.data.parser || "?") + ") - " + r.data.ms + " ms");
     line("info", "Client : <b>" + esc(r.data.customer) + "</b> - Purchase Order : <b>" + esc(r.data.po) + "</b>");
     line("info", "WO : " + esc(r.data.ids.join(", ")) + (r.data.wo > r.data.ids.length ? " ..." : ""));
     var lk = r.data.links.map(function(l) {
       return "<a href=\"" + esc(l.url) + "\" target=\"_blank\" rel=\"noopener\">PDF QP " + l.from + " a " + l.to + "</a>";
     }).join(" &nbsp; ");
     line("ok", "Ouvrir : " + lk);
+    showPdfPreview(r.data);
   }
 
   async function run() {
@@ -2180,12 +2254,12 @@ function adminClient() {
         var p = job.result.premium || { total: 0, ok: 0, skipped: 0, errors: 0, details: [] };
         var c = job.result.cleanup || { scanned: 0, deleted: 0 };
         var allGood = p.errors === 0;
-        line("info", "Nettoyage : " + c.scanned + " analyses, " + c.deleted + " supprimes (docs parasites < " + 5000 + " car.)");
+        line("info", "Nettoyage : " + c.scanned + " analyses, " + c.deleted + " supprimes (docs parasites < 5000 car.)");
         line(allGood ? "ok" : "ko", "Sources : " + p.total + " - rechargees " + p.ok + " - deja presentes " + p.skipped + " - erreurs " + p.errors + " - vecteurs reconstruits " + job.result.vectorsRebuilt);
         var detRows = (p.details || []).map(function(x) {
-          return "<tr><td>" + esc(x.family) + "</td><td>" + esc(x.status) + "</td><td>" + (x.chars || "") + "</td><td>" + esc(x.error || x.url || "") + "</td></tr>";
+          return "<tr><td>" + esc(x.family) + "</td><td>" + esc(x.status) + "</td><td>" + (x.chars || "") + "</td><td>" + esc(x.parser || "") + "</td><td>" + esc(x.error || x.url || "") + "</td></tr>";
         }).join("");
-        line("info", "<table><tr><th>Famille</th><th>Etat</th><th>Car.</th><th>Detail</th></tr>" + detRows + "</table>");
+        line("info", "<table><tr><th>Famille</th><th>Etat</th><th>Car.</th><th>Parser</th><th>Detail</th></tr>" + detRows + "</table>");
         mark("Restauration des sources premium", allGood);
       } else if (job && job.error) {
         line("ko", "Erreur de restauration : " + esc(job.error));
@@ -2239,7 +2313,6 @@ function adminClient() {
     var pdfF = document.getElementById("pdfFile").files[0];
     if (!arc.trim() && f) { arc = await f.text(); }
 
-    // 5a. Si un PDF est choisi, on l envoie d abord (prioritaire)
     if (pdfF) {
       line("info", "PDF detecte (" + Math.round(pdfF.size / 1024) + " Ko) - envoi binaire et extraction serveur...");
       var g2 = await sendPdf(pdfF);
@@ -2247,22 +2320,23 @@ function adminClient() {
         line("ko", "Envoi PDF impossible (HTTP " + g2.status + ") : " + esc(g2.text.slice(0, 300)));
         mark("Generation depuis le PDF", false);
       } else if (!g2.data.ok) {
-        line("ko", esc(g2.data.error || "Aucun WO detecte dans le PDF") + " (" + (g2.data.pdfTextChars || 0) + " car. extraits)");
+        line("ko", esc(g2.data.error || "Aucun WO detecte dans le PDF") + " (" + (g2.data.pdfTextChars || 0) + " car. extraits, parser=" + esc(g2.data.parser || "?") + ")");
+        showPdfPreview(g2.data);
         mark("Generation depuis le PDF", false);
       } else {
-        line(g2.data.match ? "ok" : "ko", "PDF : " + g2.data.wo + " WO detectes - " + g2.data.qpDocs + " plans qualite generes - " + g2.data.pdfTextChars + " car. extraits - " + g2.data.ms + " ms");
+        line(g2.data.match ? "ok" : "ko", "PDF : " + g2.data.wo + " WO detectes - " + g2.data.qpDocs + " plans qualite generes - " + g2.data.pdfTextChars + " car. extraits (parser=" + esc(g2.data.parser || "?") + ") - " + g2.data.ms + " ms");
         line("info", "Client : <b>" + esc(g2.data.customer) + "</b> - Purchase Order : <b>" + esc(g2.data.po) + "</b>");
         line("info", "WO : " + esc(g2.data.ids.join(", ")) + (g2.data.wo > g2.data.ids.length ? " ..." : ""));
         var lk2 = g2.data.links.map(function(l) {
           return "<a href=\"" + esc(l.url) + "\" target=\"_blank\" rel=\"noopener\">PDF QP " + l.from + " a " + l.to + "</a>";
         }).join(" &nbsp; ");
         line("ok", "Ouvrir : " + lk2);
+        showPdfPreview(g2.data);
         mark("Generation depuis le PDF", !!g2.data.match);
       }
     } else if (!arc.trim()) {
       line("info", "Aucun ARC fourni (ni texte ni PDF) : etape ignoree. Collez votre ARC ou choisissez un PDF, puis relancez.");
     } else {
-      // 5b. Sinon, envoi texte brut
       var g = await api("/api/qp-generate", { method: "POST", headers: headers({ "Content-Type": "text/plain" }), body: arc });
       if (!g.ok || !g.data) {
         line("ko", "Generation impossible (HTTP " + g.status + ") : " + esc(g.text.slice(0, 300)));
@@ -2294,7 +2368,32 @@ function adminClient() {
   }
 
   btn.addEventListener("click", run);
-  pdfBtn.addEventListener("click", pdfOnly);
+  pdfBtn.addEventListener("click", pdfOnce);
+
+  async function pdfOnce() {
+    out.innerHTML = "";
+    var f = document.getElementById("pdfFile").files[0];
+    if (!f) { line("ko", "Choisissez un fichier PDF avant de cliquer."); return; }
+    line("info", "Envoi du PDF (" + Math.round(f.size / 1024) + " Ko) et extraction...");
+    var r = await sendPdf(f);
+    if (!r.ok || !r.data) {
+      line("ko", "Erreur HTTP " + r.status + " : " + esc(r.text.slice(0, 400)));
+      return;
+    }
+    if (!r.data.ok) {
+      line("ko", esc(r.data.error || "Erreur inconnue") + " (" + (r.data.pdfTextChars || 0) + " car. extraits, parser=" + esc(r.data.parser || "?") + ")");
+      showPdfPreview(r.data);
+      return;
+    }
+    line("ok", r.data.wo + " WO detectes - " + r.data.qpDocs + " plans qualite generes - " + r.data.pdfTextChars + " car. extraits (parser=" + esc(r.data.parser || "?") + ") - " + r.data.ms + " ms");
+    line("info", "Client : <b>" + esc(r.data.customer) + "</b> - Purchase Order : <b>" + esc(r.data.po) + "</b>");
+    line("info", "WO : " + esc(r.data.ids.join(", ")) + (r.data.wo > r.data.ids.length ? " ..." : ""));
+    var lk = r.data.links.map(function(l) {
+      return "<a href=\"" + esc(l.url) + "\" target=\"_blank\" rel=\"noopener\">PDF QP " + l.from + " a " + l.to + "</a>";
+    }).join(" &nbsp; ");
+    line("ok", "Ouvrir : " + lk);
+    showPdfPreview(r.data);
+  }
 }
 
 // ============================================================
@@ -2367,6 +2466,10 @@ module.exports = function(app, mongoose) {
 
   function pdfParseInstalled() {
     try { require.resolve('pdf-parse'); return true; } catch (e) { return false; }
+  }
+
+  function pdfjsInstalled() {
+    try { require.resolve('pdfjs-dist'); return true; } catch (e) { return false; }
   }
 
   app.get('/qp-pdf.js', function(req, res) {
@@ -2449,11 +2552,12 @@ module.exports = function(app, mongoose) {
             url: p.url,
             family: (p.metadata && p.metadata.family) || '',
             chars: p.chars || 0,
+            parser: (p.metadata && p.metadata.parser) || '',
             ingestedAt: (p.metadata && p.metadata.ingestedAt) || p.createdAt
           };
         }),
         tools: PREMIUM_TOOLS,
-        env: { pdfParse: pdfParseInstalled(), node: process.version, maxBytes: QP_MAX_BYTES, minPremiumChars: PREMIUM_MIN_CHARS }
+        env: { pdfParse: pdfParseInstalled(), pdfjs: pdfjsInstalled(), node: process.version, maxBytes: QP_MAX_BYTES, minPremiumChars: PREMIUM_MIN_CHARS }
       });
     } catch (e) {
       res.status(500).json({ error: e.message });
@@ -2509,8 +2613,7 @@ module.exports = function(app, mongoose) {
     }
   });
 
-  // v16.5 : generation depuis texte brut (ARC en text/plain)
-  // Correctif 6 : log et detection PDF binaire
+  // v16.6 : /api/qp-generate retourne aussi le preview du texte extrait
   app.post('/api/qp-generate', async function(req, res) {
     if (!needAuth(req, res)) return;
     try {
@@ -2521,7 +2624,6 @@ module.exports = function(app, mongoose) {
       else text = await readRawBody(req, QP_MAX_BYTES);
       if (!text || !text.trim()) return res.status(400).json({ ok: false, error: 'ARC vide', chars: 0 });
 
-      // v16.5 : si l entree est un binaire PDF, on le signale et on l extrait
       var detected = isPdfBuffer(text) ? 'pdf' : 'text';
       if (detected === 'pdf') {
         console.log('[answer-enricher] /api/qp-generate : binaire PDF recu dans le champ texte - extraction automatique...');
@@ -2554,22 +2656,12 @@ module.exports = function(app, mongoose) {
     }
   });
 
-  // v16.5 [Correctif 5] : generation depuis un PDF binaire (Content-Type: application/pdf)
+  // v16.6 : /api/qp-generate-pdf retourne aussi le preview du texte extrait
   app.post('/api/qp-generate-pdf', async function(req, res) {
     if (!needAuth(req, res)) return;
     try {
       var t0 = Date.now();
-      var buf = await new Promise(function(resolve, reject) {
-        var chunks = [];
-        var size = 0;
-        req.on('data', function(c) {
-          size += c.length;
-          if (QP_MAX_BYTES && size > QP_MAX_BYTES) { req.destroy(); return reject(new Error('PDF > QP_MAX_BYTES')); }
-          chunks.push(c);
-        });
-        req.on('end', function() { resolve(Buffer.concat(chunks)); });
-        req.on('error', reject);
-      });
+      var buf = await readRawBodyBuffer(req, QP_MAX_BYTES);
       if (!buf || buf.length < 100) return res.status(400).json({ ok: false, error: 'PDF vide ou trop petit', bytes: buf ? buf.length : 0 });
       if (buf.slice(0, 5).toString() !== '%PDF-') {
         return res.status(400).json({ ok: false, error: 'Le fichier recu n est pas un PDF (entete %PDF- absente)', bytes: buf.length });
@@ -2577,14 +2669,29 @@ module.exports = function(app, mongoose) {
       console.log('[answer-enricher] /api/qp-generate-pdf : PDF recu (' + buf.length + ' octets) - extraction...');
       var txt = await extractPdfText(buf);
       var pdfTextChars = (txt || '').length;
+      var preview = (txt || '').slice(0, PDF_PREVIEW_CHARS);
       console.log('[answer-enricher] PDF extrait : ' + pdfTextChars + ' car. (parser=' + LAST_PDF_PARSER + ')');
-      if (!txt || pdfTextChars < 500) {
-        return res.json({ ok: false, error: 'Extraction PDF insuffisante (' + pdfTextChars + ' car.) - verifiez que pdf-parse est installe (npm)', bytes: buf.length, pdfTextChars: pdfTextChars, parser: LAST_PDF_PARSER });
+      if (!txt || pdfTextChars < 100) {
+        return res.json({
+          ok: false,
+          error: 'Extraction PDF insuffisante (' + pdfTextChars + ' car.) - verifiez que pdf-parse ou pdfjs-dist est installe',
+          bytes: buf.length,
+          pdfTextChars: pdfTextChars,
+          parser: LAST_PDF_PARSER,
+          pdfPreview: preview
+        });
       }
 
       var out = await buildQPAnswer(txt, getKB());
       if (!out.wos.length) {
-        return res.json({ ok: false, error: 'Aucun WO detecte dans le PDF (format attendu : 28225 6 10/03/26)', bytes: buf.length, pdfTextChars: pdfTextChars, parser: LAST_PDF_PARSER });
+        return res.json({
+          ok: false,
+          error: 'Aucun WO detecte dans le PDF (format attendu : 28225 6 10/03/26)',
+          bytes: buf.length,
+          pdfTextChars: pdfTextChars,
+          parser: LAST_PDF_PARSER,
+          pdfPreview: preview
+        });
       }
 
       console.log('[answer-enricher] /api/qp-generate-pdf - ' + out.wos.length + ' WO, ' + out.qpDocs + ' QP, ' + pdfTextChars + ' car.');
@@ -2594,6 +2701,7 @@ module.exports = function(app, mongoose) {
         bytes: buf.length,
         pdfTextChars: pdfTextChars,
         parser: LAST_PDF_PARSER,
+        pdfPreview: preview,
         wo: out.wos.length,
         qpDocs: out.qpDocs,
         match: out.wos.length === out.qpDocs,
@@ -2620,11 +2728,12 @@ module.exports = function(app, mongoose) {
           family: (d.metadata && d.metadata.family) || '',
           chars: (d.content || '').length,
           excerpt: (d.content || '').slice(0, 200),
+          parser: (d.metadata && d.metadata.parser) || '',
           ingestedAt: (d.metadata && d.metadata.ingestedAt) || d.createdAt,
           hasVector: !!(d.vector && Object.keys(d.vector).length > 0)
         };
       });
-      res.json({ count: out.length, pdfParse: pdfParseInstalled(), minPremiumChars: PREMIUM_MIN_CHARS, docs: out });
+      res.json({ count: out.length, pdfParse: pdfParseInstalled(), pdfjs: pdfjsInstalled(), minPremiumChars: PREMIUM_MIN_CHARS, docs: out });
     } catch (e) {
       res.status(500).json({ error: e.message });
     }
@@ -2714,7 +2823,7 @@ module.exports = function(app, mongoose) {
       req.body.question = (questionUser || 'Analyse ce document.');
       req.body.content = 'Voici le contenu du document a analyser :\n\n' + content;
 
-      console.log('[answer-enricher] v16.5 Mode DOCUMENT - ' + content.length + ' car.');
+      console.log('[answer-enricher] v16.6 Mode DOCUMENT - ' + content.length + ' car.');
     }
     next();
   }
@@ -2757,7 +2866,7 @@ module.exports = function(app, mongoose) {
   app.use('/api/analyze-content', documentPreprocess, postprocess('document'));
 
   // ============================================================
-  // HOOK AU DEMARRAGE : nettoyage + auto-ingestion premium
+  // HOOK AU DEMARRAGE
   // ============================================================
   setTimeout(function() {
     var kb = getKB();
@@ -2776,5 +2885,5 @@ module.exports = function(app, mongoose) {
     });
   }, 20000);
 
-  console.log('[answer-enricher] v16.5 charge - QP STANDARD 01 + sources premium + page /qp-admin (texte + PDF)');
+  console.log('[answer-enricher] v16.6 charge - QP STANDARD 01 + sources premium + preview PDF + fallback parseurs');
 };
