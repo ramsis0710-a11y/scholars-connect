@@ -1,17 +1,21 @@
 // ============================================================
 // ANSWER-ENRICHER.JS
-// Version v16.6 - QP STANDARD 01 + sources premium + administration
+// Version v16.7 - QP STANDARD 01 + sources premium + administration
 //
-// Base : v16.5 (INTEGRALEMENT CONSERVEE)
-// CORRECTIFS v16.5 -> v16.6 (UNIQUEMENT) :
-//   1. detectPO : ignore les valeurs REV.XX / Rev.XX (revision de
-//      commande) et retombe sur la valeur sous "Your order".
-//   2. parseWorkOrders : accepte \s+ (multi-espaces, tabulations,
-//      sauts de ligne) entre N° WO / quantite / date.
-//   3. /api/qp-generate-pdf et /api/qp-generate : renvoient les 800
-//      premiers caracteres du texte extrait (preview) pour diagnostic.
-//   4. extractPdfText : fallback multi-parseurs (pdf-parse 1.x,
-//      pdf-parse 2.x, pdfjs-dist, puis regex) + log du parseur utilise.
+// Base : v16.6 (INTEGRALEMENT CONSERVEE)
+// CORRECTIFS v16.6 -> v16.7 (UNIQUEMENT) :
+//   1. parseWorkOrders : detecte le WO dans les DEUX ordres
+//      - Ordre standard  : 28802 6 05/10/26 (N° Qte Date)
+//      - Ordre inverse   : 6 05/10/26 \n 28802 (Qte Date N°)
+//      (pdf-parse inverse parfois les colonnes du tableau ARC)
+//   2. parseWorkOrders : exclut les faux positifs "estimate n°XXXXX"
+//      et "PN°:XXXXX" qui pourraient matcher comme WO.
+//   3. detectPO : ignore REV.XX / REV. XX / REV.XX. (variantes).
+//   4. detectCustomer : variante pour ARC dont le client est sur la
+//      ligne suivant le numero "Our ref."
+//   5. extractPdfText (post-traitement) : reinsere des \n avant les
+//      mots-cles structurants du format ARC (Order confirmation,
+//      Payment, Job, Page, etc.) quand pdf-parse a tout aplati.
 // AUCUNE AUTRE LIGNE N'A ETE MODIFIEE
 // ============================================================
 
@@ -561,6 +565,46 @@ async function extractTextFromInput(text) {
 }
 
 // ============================================================
+// v16.7 [Correctif 5] : POST-TRAITEMENT DU TEXTE PDF
+// pdf-parse aplatit parfois tous les retours a la ligne en un
+// seul flux. On reinsere des \n avant les mots-cles structurants
+// du format ARC pour reconstruire une structure exploitable.
+// ============================================================
+var PDF_STRUCT_KEYS = [
+  /(?=Person\s*:)/gi,
+  /(?=Your\s+order\b)/gi,
+  /(?=Our\s+ref\.?)/gi,
+  /(?=Payment\b)/gi,
+  /(?=Tax\s+code\b)/gi,
+  /(?=Order\s+confirmation\b)/gi,
+  /(?=Delivery\b)/gi,
+  /(?=Job\s+Article\b)/gi,
+  /(?=Article\s*\/\s*Description\b)/gi,
+  /(?=Qty\.?\s*Net\s*UP)/gi,
+  /(?=Net\s*UP\s*Total\s*price)/gi,
+  /(?=SUPPLY\s+MATERIAL\s*&\s*MANUFACTURE)/gi,
+  /(?=As\s+per\s+our\s+estimate\b)/gi,
+  /(?=Grade\s*:)/gi,
+  /(?=PN\s*[°o]?\s*:)/gi,
+  /(?=Page\s+\d+\s*\/\s*\d+)/gi
+];
+
+function reflowPdfText(text) {
+  var t = String(text || '');
+  if (t.length < 50) return t;
+  // 1. Reinserer \n avant chaque mot-cle structurant
+  for (var i = 0; i < PDF_STRUCT_KEYS.length; i++) {
+    t = t.replace(PDF_STRUCT_KEYS[i], '\n$&');
+  }
+  // 2. Separer les N° WO 5 chiffres qui seraient colles a une quantite
+  //    Ex : "6 05/10/2628802" -> "6 05/10/26\n28802"
+  t = t.replace(/(\d{2}\/\d{2}\/\d{2,4})(\d{5})\b/g, '$1\n$2');
+  // 3. Nettoyer les \n multiples
+  t = t.replace(/\n{3,}/g, '\n\n').replace(/[ \t]{2,}/g, ' ');
+  return t.trim();
+}
+
+// ============================================================
 // FONCTIONS DE SCRAPING ET D EXTRACTION
 // ============================================================
 
@@ -571,7 +615,7 @@ function fetchUrl(url, maxRedirects, timeoutMs) {
     var lib = url.indexOf('https://') === 0 ? https : http;
     var req = lib.get(url, {
       headers: {
-        'User-Agent': 'Mozilla/5.0 (compatible; ScholarsConnect/16.6; +https://scholars-connect-app.onrender.com)',
+        'User-Agent': 'Mozilla/5.0 (compatible; ScholarsConnect/16.7; +https://scholars-connect-app.onrender.com)',
         'Accept': 'text/html,application/xhtml+xml,application/pdf,application/json,*/*',
         'Accept-Encoding': 'gzip, deflate'
       }
@@ -630,11 +674,6 @@ async function fetchUrlRetry(url, type) {
   throw lastErr || new Error('Echec apres ' + delays.length + ' tentatives');
 }
 
-// v16.6 [Correctif 4] : fallback multi-parseurs
-//   1) pdf-parse 1.x (module.exports = function)
-//   2) pdf-parse 2.x (module.exports.PDFParse)
-//   3) pdfjs-dist (si installe)
-//   4) regex brute (dernier recours)
 async function extractPdfText(buffer) {
   LAST_PDF_PARSER = '';
 
@@ -646,7 +685,7 @@ async function extractPdfText(buffer) {
       var t1 = (data && data.text) || '';
       if (t1 && t1.length > 200) {
         LAST_PDF_PARSER = 'pdf-parse-1.x';
-        return t1;
+        return reflowPdfText(t1);
       }
       console.log('[answer-enricher] pdf-parse 1.x retourne ' + t1.length + ' car. - essai des fallbacks...');
     }
@@ -657,7 +696,7 @@ async function extractPdfText(buffer) {
       var t2 = (res2 && res2.text) || '';
       if (t2 && t2.length > 200) {
         LAST_PDF_PARSER = 'pdf-parse-2.x';
-        return t2;
+        return reflowPdfText(t2);
       }
       console.log('[answer-enricher] pdf-parse 2.x retourne ' + t2.length + ' car. - essai des fallbacks...');
     }
@@ -680,7 +719,7 @@ async function extractPdfText(buffer) {
     if (t3 && t3.length > 200) {
       LAST_PDF_PARSER = 'pdfjs-dist';
       console.log('[answer-enricher] pdfjs-dist : ' + t3.length + ' car. extraits sur ' + doc.numPages + ' pages');
-      return t3;
+      return reflowPdfText(t3);
     }
     console.log('[answer-enricher] pdfjs-dist retourne ' + t3.length + ' car. - dernier recours regex...');
   } catch (e) {
@@ -695,7 +734,7 @@ async function extractPdfText(buffer) {
   var txt = matches.map(function(m) { return m.slice(1, -1); }).join(' ');
   txt = txt.replace(/\\[0-9]{3}/g, ' ');
   txt = txt.replace(/\\(\w)/g, '$1');
-  return txt.replace(/\s+/g, ' ').trim();
+  return reflowPdfText(txt.replace(/\s+/g, ' ').trim());
 }
 
 function extractHtmlText(html) {
@@ -1119,26 +1158,61 @@ function generateReferences(docs, domain, scholars) {
 
 // ============================================================
 // 8. EXTRACTION WO
-// v16.6 [Correctif 2] : \s+ au lieu de \s pour accepter les
-// multi-espaces, tabulations et sauts de ligne entre N° WO,
-// quantite et date (comme produits par pdf-parse parfois).
+// v16.7 [Correctif 1] : detection DOUBLE ORDRE
+//   1) Ordre standard  : 28802 6 05/10/26      (N° Qte Date)
+//   2) Ordre inverse   : 6 05/10/26 \n 28802   (Qte Date N°)
+// v16.7 [Correctif 2] : exclusion des faux positifs estimate/PN°
 // ============================================================
+function isEstimateNumber(txt, idx) {
+  // Regarde 25 caracteres avant la position pour voir si c'est un estimate/PN°
+  var back = txt.slice(Math.max(0, idx - 30), idx);
+  if (/estimate\s*n[°o]?\s*$/i.test(back)) return true;
+  if (/PN\s*[°o]?\s*:?\s*$/i.test(back)) return true;
+  if (/n[°o]\s*$/i.test(back)) return true;
+  return false;
+}
+
 function parseWorkOrders(text) {
   text = String(text || '').replace(/\r/g, '');
-  // v16.6 : \s+ tolere les sauts de ligne entre numero, quantite et date
-  var re = /(^|[^0-9A-Za-z])(\d{5})[\s\u00A0]+(\d{1,3})[\s\u00A0]+(\d{2}\/\d{2}\/\d{2,4})(?![0-9])/g;
   var hits = [], seen = {}, m;
-  while ((m = re.exec(text)) !== null) {
-    var id = m[2];
-    if (seen[id]) continue;
-    seen[id] = 1;
+
+  // ---- ORDRE 1 : standard N° Qte Date ----
+  var re1 = /(^|[^0-9A-Za-z])(\d{5})[\s\u00A0]+(\d{1,3})[\s\u00A0]+(\d{2}\/\d{2}\/\d{2,4})(?![0-9])/g;
+  while ((m = re1.exec(text)) !== null) {
+    var id1 = m[2];
+    var pos1 = m.index + m[1].length;
+    if (isEstimateNumber(text, pos1)) continue;
+    if (seen[id1]) continue;
+    seen[id1] = 1;
     hits.push({
-      id: id, qte: m[3], date: m[4],
-      start: m.index + m[1].length,
-      end: m.index + m[0].length
+      id: id1, qte: m[3], date: m[4],
+      start: pos1,
+      end: m.index + m[0].length,
+      order: 'standard'
     });
   }
 
+  // ---- ORDRE 2 : inverse Qte Date \n N° ----
+  // Cherche : chiffre (quantite) + date + retour ligne + 5 chiffres
+  var re2 = /(\d{1,3})[\s\u00A0]+(\d{2}\/\d{2}\/\d{2,4})[\s\u00A0]*\r?\n[\s\u00A0]*(\d{5})(?![0-9])/g;
+  while ((m = re2.exec(text)) !== null) {
+    var id2 = m[3];
+    var pos2 = m.index + m[0].length - m[3].length;
+    if (isEstimateNumber(text, pos2)) continue;
+    if (seen[id2]) continue;
+    seen[id2] = 1;
+    hits.push({
+      id: id2, qte: m[1], date: m[2],
+      start: pos2,
+      end: m.index + m[0].length,
+      order: 'inverse'
+    });
+  }
+
+  // Trier par position dans le texte (pour l'affichage sequentiel)
+  hits.sort(function(a, b) { return a.start - b.start; });
+
+  // Construire before/after pour chaque WO
   var codes = [];
   var codeRe = /^[ \t]*(\d{4}[A-Z][A-Z0-9]{6,})[ \t]*$/gm;
   var cm;
@@ -1216,6 +1290,21 @@ function detectCustomer(text) {
     return true;
   }
 
+  // v16.7 [Correctif 4] : nouvelle priorite pour ARC pdf-parse inverse
+  // Structure ARC type : Our ref / 4585446304 / PETROLEUM EQUIPMENT AND SUPPLIES FZE
+  for (var a0 = 0; a0 < lines.length; a0++) {
+    if (/Our\s+ref/i.test(lines[a0]) || /^\d{10}$/.test(lines[a0])) {
+      var scan0 = 0;
+      for (var b0 = a0 + 1; b0 < lines.length && scan0 < 5; b0++) {
+        if (lines[b0] === '') continue;
+        scan0++;
+        if (looksLikeName(lines[b0])) {
+          return done('apres-Our-ref', lines[b0].slice(0, 100));
+        }
+      }
+    }
+  }
+
   for (var i = 0; i < lines.length; i++) {
     if (/^Payment\b/i.test(lines[i])) {
       var found = [];
@@ -1227,19 +1316,6 @@ function detectCustomer(text) {
       }
       if (found.length) {
         return done('avant-Payment', found.join(' ').replace(/\s+/g, ' ').trim().slice(0, 100));
-      }
-    }
-  }
-
-  for (var a = 0; a < lines.length; a++) {
-    if (/Our\s+ref/i.test(lines[a])) {
-      var scanned = 0;
-      for (var b = a + 1; b < lines.length && scanned < 6; b++) {
-        if (lines[b] === '') continue;
-        scanned++;
-        if (looksLikeName(lines[b])) {
-          return done('apres-Our-ref', lines[b].slice(0, 100));
-        }
       }
     }
   }
@@ -1262,8 +1338,7 @@ function detectCustomer(text) {
   return done('introuvable', 'XXXXXXX');
 }
 
-// v16.6 [Correctif 1] : detectPO ignore les valeurs REV.XX / Rev.XX
-// (revision de commande) et retombe sur la valeur sous "Your order".
+// v16.7 [Correctif 3] : detectPO ignore REV.XX variantes
 function detectPO(text) {
   var s = String(text || '').replace(/\r/g, '');
 
@@ -1281,12 +1356,12 @@ function detectPO(text) {
     return tok;
   }
 
-  // v16.6 : rejette les valeurs qui commencent par REV, REV., REVISION, R. (revision)
+  // v16.7 : rejette REV, REV., REV.01, REVISION, VER, V., R. et variantes
   function isRevisionValue(tok) {
-    return /^(?:REV|REV\.|REVISION|R\.|VER|V\.)\s*\d*$/i.test(String(tok || '').trim());
+    var x = String(tok || '').trim();
+    return /^(?:REV|REV\.|REVISION|R\.|VER|V\.)\s*\.?\s*\d*\s*$/i.test(x);
   }
 
-  // 1. "Order confirmation" SAUF si la valeur est une revision
   var re1 = /Order\s+confirmation\b\s*(?:N[^A-Za-z0-9\s]{0,2}\.?|No\.?|number)?\s*[:#]?\s*([A-Za-z0-9][A-Za-z0-9\-\/._]{3,24})/gi;
   var m1;
   while ((m1 = re1.exec(s)) !== null) {
@@ -1299,7 +1374,6 @@ function detectPO(text) {
     if (v1) return done('Order-confirmation', v1);
   }
 
-  // 2. Libelle Purchase Order / P.O. / Customer PO
   var re2 = /(?:Purchase\s*Order|\bP\.O\.|Customer\s+PO)\s*(?:No\.?|N[^A-Za-z0-9\s]{0,2})?\s*[:#]?\s*([A-Za-z0-9][A-Za-z0-9\-\/._]{3,24})/gi;
   var m2;
   while ((m2 = re2.exec(s)) !== null) {
@@ -1309,7 +1383,6 @@ function detectPO(text) {
     if (v2) return done('libelle-Purchase-Order', v2);
   }
 
-  // 3. Valeur sous l en-tete "Your order" (v16.6 : prioritaire si Order confirmation n'est qu'une revision)
   var lines = s.split('\n').map(function(l) { return l.replace(/\s+/g, ' ').trim(); });
   for (var i = 0; i < lines.length; i++) {
     if (/Your\s+order\b/i.test(lines[i])) {
@@ -1326,7 +1399,6 @@ function detectPO(text) {
     }
   }
 
-  // 4. Dernier repli : premier nombre a 10 chiffres
   var m4 = s.match(/\b(\d{10})\b/);
   if (m4) return done('nombre-10-chiffres', m4[1]);
 
@@ -2043,7 +2115,6 @@ function runSelfTest(n) {
 
 // ============================================================
 // PAGE D ADMINISTRATION
-// v16.6 [Correctif 3] : affichage du preview du texte extrait
 // ============================================================
 function adminPage() {
   return [
@@ -2148,7 +2219,6 @@ function adminClient() {
     return { ok: r.ok, status: r.status, data: data, text: txt };
   }
 
-  // v16.6 : affiche le preview du texte extrait (diagnostic)
   function showPdfPreview(data) {
     if (!data || !data.pdfPreview) return;
     var pre = document.createElement("pre");
@@ -2368,32 +2438,7 @@ function adminClient() {
   }
 
   btn.addEventListener("click", run);
-  pdfBtn.addEventListener("click", pdfOnce);
-
-  async function pdfOnce() {
-    out.innerHTML = "";
-    var f = document.getElementById("pdfFile").files[0];
-    if (!f) { line("ko", "Choisissez un fichier PDF avant de cliquer."); return; }
-    line("info", "Envoi du PDF (" + Math.round(f.size / 1024) + " Ko) et extraction...");
-    var r = await sendPdf(f);
-    if (!r.ok || !r.data) {
-      line("ko", "Erreur HTTP " + r.status + " : " + esc(r.text.slice(0, 400)));
-      return;
-    }
-    if (!r.data.ok) {
-      line("ko", esc(r.data.error || "Erreur inconnue") + " (" + (r.data.pdfTextChars || 0) + " car. extraits, parser=" + esc(r.data.parser || "?") + ")");
-      showPdfPreview(r.data);
-      return;
-    }
-    line("ok", r.data.wo + " WO detectes - " + r.data.qpDocs + " plans qualite generes - " + r.data.pdfTextChars + " car. extraits (parser=" + esc(r.data.parser || "?") + ") - " + r.data.ms + " ms");
-    line("info", "Client : <b>" + esc(r.data.customer) + "</b> - Purchase Order : <b>" + esc(r.data.po) + "</b>");
-    line("info", "WO : " + esc(r.data.ids.join(", ")) + (r.data.wo > r.data.ids.length ? " ..." : ""));
-    var lk = r.data.links.map(function(l) {
-      return "<a href=\"" + esc(l.url) + "\" target=\"_blank\" rel=\"noopener\">PDF QP " + l.from + " a " + l.to + "</a>";
-    }).join(" &nbsp; ");
-    line("ok", "Ouvrir : " + lk);
-    showPdfPreview(r.data);
-  }
+  pdfBtn.addEventListener("click", pdfOnly);
 }
 
 // ============================================================
@@ -2613,7 +2658,6 @@ module.exports = function(app, mongoose) {
     }
   });
 
-  // v16.6 : /api/qp-generate retourne aussi le preview du texte extrait
   app.post('/api/qp-generate', async function(req, res) {
     if (!needAuth(req, res)) return;
     try {
@@ -2656,7 +2700,6 @@ module.exports = function(app, mongoose) {
     }
   });
 
-  // v16.6 : /api/qp-generate-pdf retourne aussi le preview du texte extrait
   app.post('/api/qp-generate-pdf', async function(req, res) {
     if (!needAuth(req, res)) return;
     try {
@@ -2823,7 +2866,7 @@ module.exports = function(app, mongoose) {
       req.body.question = (questionUser || 'Analyse ce document.');
       req.body.content = 'Voici le contenu du document a analyser :\n\n' + content;
 
-      console.log('[answer-enricher] v16.6 Mode DOCUMENT - ' + content.length + ' car.');
+      console.log('[answer-enricher] v16.7 Mode DOCUMENT - ' + content.length + ' car.');
     }
     next();
   }
@@ -2885,5 +2928,5 @@ module.exports = function(app, mongoose) {
     });
   }, 20000);
 
-  console.log('[answer-enricher] v16.6 charge - QP STANDARD 01 + sources premium + preview PDF + fallback parseurs');
+  console.log('[answer-enricher] v16.7 charge - QP STANDARD 01 + sources premium + WO double ordre + pdf-parse reflow');
 };
