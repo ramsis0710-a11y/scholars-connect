@@ -1,19 +1,19 @@
 // ============================================================
 // ANSWER-ENRICHER.JS
-// Version v16.15 - COMPLET ET DEFINITIF
-// BASE : v16.14 (INTEGRALEMENT CONSERVEE)
+// Version v16.16 - COMPLET ET DEFINITIF
+// BASE : v16.15 (INTEGRALEMENT CONSERVEE)
 //
-// CORRECTIF v16.14 -> v16.15 (UNIQUEMENT) :
-//   [C11] famMatchDoc : accepte si connexion dans titre OU metadata
-//         OU contenu (au lieu du seul titre).
-//   [C12] premiumChunkSearch : si contenu < 2000 chars, prend tout
-//         le contenu sans fenetre glissante.
-//   [C13] kbQueriesFor : ajout mots-cles FRANCAIS (poids, diametre,
-//         longueur, filetage) en plus de l'anglais.
-//   [C14] Diagnostic visible : le bandeau du QP affiche le DETAIL
-//         du calcul de confiance pour identifier ce qui manque.
+// CORRECTIF v16.15 -> v16.16 (UNIQUEMENT) :
+//   [C15] splitPremiumManual : extraction par LIGNES de tableau
+//         - Detecte les lignes contenant TSH 511 / VAM TOP / etc.
+//         - Extrait la ligne + 2 lignes de contexte avant + 2 apres
+//         - SUPPRIME le fallback par blocs generiques de 3000 car.
+//           (source du bruit : 146 blocs "Block-N" contenant tous
+//            l'introduction du manuel au lieu des vraies fiches)
+//         - Ajout d'une 2eme passe par regex compacte si aucune
+//           ligne tableau n'est detectee.
 //
-// TOUT LE RESTE EST INCHANGE PAR RAPPORT A v16.14.
+// TOUT LE RESTE EST INCHANGE PAR RAPPORT A v16.15.
 // ============================================================
 
 'use strict';
@@ -713,7 +713,7 @@ function fetchUrl(url, maxRedirects, timeoutMs) {
     var lib = url.indexOf('https://') === 0 ? https : http;
     var req = lib.get(url, {
       headers: {
-        'User-Agent': 'Mozilla/5.0 (compatible; ScholarsConnect/16.15; +https://scholars-connect-app.onrender.com)',
+        'User-Agent': 'Mozilla/5.0 (compatible; ScholarsConnect/16.16; +https://scholars-connect-app.onrender.com)',
         'Accept': 'text/html,application/xhtml+xml,application/pdf,application/json,*/*',
         'Accept-Encoding': 'gzip, deflate'
       }
@@ -962,6 +962,12 @@ function hasToken(win, variants) {
 
 // ============================================================
 // [A1] DECOUPAGE SEMANTIQUE DES MANUELS PREMIUM
+// v16.16 : extraction par LIGNES de tableau
+//   - Detecte les lignes contenant TSH 511 / VAM TOP / etc.
+//   - Extrait la ligne + 2 lignes de contexte avant + 2 apres
+//   - SUPPRIME le fallback par blocs generiques de 3000 car.
+//   - Ajoute une 2eme passe par regex compacte si aucune ligne
+//     tableau n'est detectee.
 // ============================================================
 function splitPremiumManual(text, family) {
   var content = String(text || '');
@@ -969,91 +975,98 @@ function splitPremiumManual(text, family) {
 
   var sheets = [];
   var seen = {};
+  var lines = content.split(/\r?\n/);
 
-  var re1 = /(TSH\s*\d{2,3}|WEDGE\s*\d{3}|VAM\s*(?:TOP|21|FJL|SLIJ|HTF|SG|EDGE|MUST|HW|BOLT|HP|DWC|BIG\s*OMEGA)|HYDRIL\s*PH-?\d)\s+(\d+(?:\s+\d\/\d)?)\s+(\d+(?:\.\d+)?)/gi;
-  var matches1 = [];
-  var m;
-  while ((m = re1.exec(content)) !== null) {
-    matches1.push({ conn: m[1], od: m[2], wt: m[3], idx: m.index, src: 'compact' });
-  }
+  var connPattern = /\b(TSH\s*\d{2,3}|WEDGE\s*\d{3}|VAM\s*(?:TOP|21|FJL|SLIJ|HTF|SG|EDGE|MUST|HW|BOLT|HP|DWC|BIG\s*OMEGA)|HYDRIL\s*PH-?\d|JFE\s?(?:BEAR|LION)|FOX|SEAL-?LOCK|TEC-?LOCK)\b/i;
 
-  var re2 = /(TSH\s*\d{2,3}|WEDGE\s*\d{3}|VAM\s*(?:TOP|21|FJL|SLIJ|HTF|SG|EDGE|MUST|HW|BOLT|HP|DWC)|HYDRIL\s*PH-?\d)([\s\u00A0]+[\d.,\/]+){2,8}/gi;
-  var matches2 = [];
-  while ((m = re2.exec(content)) !== null) {
-    var nums = m[0].match(/\d+(?:[.,]\d+)?/g) || [];
-    if (nums.length < 3) continue;
+  for (var i = 0; i < lines.length; i++) {
+    var line = lines[i];
+    if (line.length < 15 || line.length > 500) continue;
+
+    var connMatch = line.match(connPattern);
+    if (!connMatch) continue;
+
+    var nums = line.match(/\d+(?:[.,]\d+)?/g) || [];
+    if (nums.length < 2) continue;
+
+    var connLabel = connMatch[1].replace(/\s+/g, ' ').trim();
+
     var od = '', wt = '';
-    for (var i = 0; i < nums.length - 1; i++) {
-      var n1 = parseFloat(nums[i].replace(',', '.'));
-      var n2 = parseFloat(nums[i + 1].replace(',', '.'));
+    for (var j = 0; j < nums.length - 1; j++) {
+      var n1 = parseFloat(nums[j].replace(',', '.'));
+      var n2 = parseFloat(nums[j + 1].replace(',', '.'));
       if (n1 >= 2 && n1 <= 20 && n2 >= 4 && n2 <= 100) {
-        od = nums[i];
-        wt = nums[i + 1];
+        od = nums[j];
+        wt = nums[j + 1];
         break;
       }
     }
-    if (!od || !wt) continue;
-    matches2.push({ conn: m[1], od: od, wt: wt, idx: m.index, src: 'table' });
-  }
 
-  var re3 = /(?:Connection|Conn(?:ection)?|Type)\s*[:=]\s*(TSH\s*\d{2,3}|WEDGE\s*\d{3}|VAM\s*\w+|HYDRIL\s*PH-?\d)/gi;
-  var matches3 = [];
-  while ((m = re3.exec(content)) !== null) {
-    var window = content.slice(m.index, m.index + 500);
-    var odM = window.match(/(?:OD|Outside\s*Diameter|Nominal\s*OD)\s*[:=]?\s*([\d.,]+)/i);
-    var wtM = window.match(/(?:Weight|WT|lb\/ft|Poids)\s*[:=]?\s*([\d.,]+)/i);
-    if (odM && wtM) {
-      matches3.push({ conn: m[1], od: odM[1], wt: wtM[1], idx: m.index, src: 'structured' });
+    var ctxStart = Math.max(0, i - 2);
+    var ctxEnd = Math.min(lines.length, i + 3);
+    var ctxLines = lines.slice(ctxStart, ctxEnd).join('\n');
+
+    var key = connLabel.toUpperCase().replace(/\s+/g, '') + '|' + od + '|' + wt + '|' + i;
+    if (seen[key]) continue;
+    seen[key] = 1;
+
+    if (!od) {
+      var ctxNums = ctxLines.match(/\d+(?:[.,]\d+)?/g) || [];
+      for (var k = 0; k < ctxNums.length - 1; k++) {
+        var m1 = parseFloat(ctxNums[k].replace(',', '.'));
+        var m2 = parseFloat(ctxNums[k + 1].replace(',', '.'));
+        if (m1 >= 2 && m1 <= 20 && m2 >= 4 && m2 <= 100) {
+          od = ctxNums[k];
+          wt = ctxNums[k + 1];
+          break;
+        }
+      }
     }
-  }
 
-  var allMatches = matches1.concat(matches2).concat(matches3);
-  if (allMatches.length === 0) {
-    console.log('[splitPremiumManual] Aucun pattern fiche trouvé - fallback blocs 3000 car.');
-    var BLOCK = 3000, OVERLAP = 400;
-    for (var pos = 0; pos < content.length; pos += (BLOCK - OVERLAP)) {
-      var block = content.slice(pos, pos + BLOCK);
-      if (block.length < 400) continue;
-      var connM = block.match(/(TSH\s*\d{2,3}|WEDGE\s*\d{3}|VAM\s*(?:TOP|21|FJL|SLIJ|HTF|SG|EDGE))\b/i);
-      var connLabel = connM ? connM[1].replace(/\s+/g, ' ').trim() : ('Block-' + Math.floor(pos / BLOCK));
-      var key = connLabel.toUpperCase() + '|block' + Math.floor(pos / BLOCK);
-      if (seen[key]) continue;
-      seen[key] = 1;
-      sheets.push({
-        conn: connLabel,
-        od: 'multi',
-        wt: 'multi',
-        content: block
-      });
-    }
-    return sheets;
-  }
-
-  allMatches.sort(function(a, b) { return a.idx - b.idx; });
-
-  for (var i = 0; i < allMatches.length; i++) {
-    var mm = allMatches[i];
-    var key2 = mm.conn.toUpperCase().replace(/\s+/g, '') + '|' + mm.od + '|' + mm.wt;
-    if (seen[key2]) continue;
-    seen[key2] = 1;
-    var start = mm.idx;
-    var end = (i + 1 < allMatches.length) ? allMatches[i + 1].idx : content.length;
-    var preStart = Math.max(0, start - 200);
-    var sheetContent = content.slice(preStart, end).trim();
-    if (sheetContent.length < 150) continue;
     sheets.push({
-      conn: mm.conn.replace(/\s+/g, ' ').trim(),
-      od: mm.od,
-      wt: mm.wt,
-      content: sheetContent
+      conn: connLabel,
+      od: od || 'multi',
+      wt: wt || 'multi',
+      content: ctxLines
     });
+
+    if (sheets.length >= 800) break;
   }
 
-  console.log('[splitPremiumManual] ' + sheets.length + ' fiches extraites (strategy: ' +
-    (matches1.length > 0 ? 'compact=' + matches1.length + ' ' : '') +
-    (matches2.length > 0 ? 'table=' + matches2.length + ' ' : '') +
-    (matches3.length > 0 ? 'structured=' + matches3.length : '') + ')');
+  if (sheets.length === 0) {
+    console.log('[splitPremiumManual] Aucune ligne tableau trouvee - tentative regex compacte');
+    var reCompact = /(TSH\s*\d{2,3}|WEDGE\s*\d{3}|VAM\s*(?:TOP|21|FJL|SLIJ|HTF|SG|EDGE)|HYDRIL\s*PH-?\d)[^\n]{5,200}/gi;
+    var m;
+    while ((m = reCompact.exec(content)) !== null) {
+      var found = m[0];
+      var nums2 = found.match(/\d+(?:[.,]\d+)?/g) || [];
+      if (nums2.length < 2) continue;
+      var od2 = '', wt2 = '';
+      for (var kk = 0; kk < nums2.length - 1; kk++) {
+        var v1 = parseFloat(nums2[kk].replace(',', '.'));
+        var v2 = parseFloat(nums2[kk + 1].replace(',', '.'));
+        if (v1 >= 2 && v1 <= 20 && v2 >= 4 && v2 <= 100) {
+          od2 = nums2[kk];
+          wt2 = nums2[kk + 1];
+          break;
+        }
+      }
+      var key2 = m[1].toUpperCase().replace(/\s+/g, '') + '|' + od2 + '|' + wt2 + '|' + m.index;
+      if (seen[key2]) continue;
+      seen[key2] = 1;
+      var ctxStart2 = Math.max(0, m.index - 300);
+      var ctxEnd2 = Math.min(content.length, m.index + 500);
+      sheets.push({
+        conn: m[1].replace(/\s+/g, ' ').trim(),
+        od: od2 || 'multi',
+        wt: wt2 || 'multi',
+        content: content.slice(ctxStart2, ctxEnd2)
+      });
+      if (sheets.length >= 800) break;
+    }
+  }
 
+  console.log('[splitPremiumManual] ' + sheets.length + ' fiches extraites sur ' + lines.length + ' lignes (' + family + ')');
   return sheets;
 }
 
@@ -1096,7 +1109,6 @@ function extractMatchesWO(excerpt, wo, det) {
 
 // ============================================================
 // [A6] SCORE DE CONFIANCE GLOBAL DU QP
-// v16.15 : retourne aussi le DETAIL du calcul pour diagnostic
 // ============================================================
 function qpConfidenceDetail(p, kb) {
   var detail = {
@@ -1105,7 +1117,7 @@ function qpConfidenceDetail(p, kb) {
     conn: 0, connMax: 20,
     grade: 0, gradeMax: 15,
     api: 0, apiMax: 15,
-    officialHits: 0, officialMax: 20,
+    officialHits: 0, officialMax: 0,
     coverage: 0, coverageMax: 10,
     totalHits: 0, totalOfficial: 0, totalMatched: 0
   };
@@ -1139,9 +1151,6 @@ function qpConfidenceScore(p, kb) {
   return qpConfidenceDetail(p, kb).total;
 }
 
-// ============================================================
-// [C7] premiumChunkSearch v16.15 : sans fenetre glissante si court
-// ============================================================
 function premiumChunkSearch(d, q) {
   var content = String(d.content || '');
   if (content.length < 200) return null;
@@ -1153,7 +1162,6 @@ function premiumChunkSearch(d, q) {
   var wtV = sm ? numVariants(sm[2]) : [];
   var W = 1500, STEP = 1000, best = '', bestScore = 0;
 
-  // v16.15 : si contenu < 2000 chars, prendre tout le contenu
   if (content.length < 2000) {
     best = content;
     var low = content.toLowerCase();
@@ -1191,14 +1199,10 @@ function premiumChunkSearch(d, q) {
   return { score: Math.min(1, bestScore / 12), excerpt: best.replace(/\s+/g, ' ').trim().slice(0, 600) };
 }
 
-// ============================================================
-// [C8] famMatchDoc v16.15 : connexion dans titre OU metadata OU contenu
-// ============================================================
 function famMatchDoc(d, q) {
   var title = String(d.title || '');
   var familyMeta = String((d.metadata && d.metadata.family) || '');
   var connMeta = String((d.metadata && d.metadata.connection) || '');
-  // v16.15 : recherche connexion dans un extrait du contenu
   var contentSample = String(d.content || '').slice(0, 3000);
 
   var qConn = q.match(/(TSH\s*\d{2,3}|WEDGE\s*\d{3}|VAM\s*(?:TOP|21|FJL|SLIJ|HTF|SG|EDGE|MUST|HW|BOLT|HP|DWC)|HYDRIL\s*PH-?\d|JFE\s?(?:BEAR|LION)|FOX|SEAL-?LOCK|TEC-?LOCK)/i);
@@ -1858,9 +1862,6 @@ function threadSpecList(det) {
   return out.join('|');
 }
 
-// ============================================================
-// [C13] kbQueriesFor v16.15 : ajout mots-cles francais
-// ============================================================
 function kbQueriesFor(det, stds) {
   var q = [];
   var szTxt = det.sizes.length ? ' size ' + det.sizes[0].od + ' ' + det.sizes[0].wt + ' lb/ft' : '';
@@ -2439,9 +2440,6 @@ function prepareQPs(text) {
   return { wos: wos, ctx: ctx, prepared: prepared };
 }
 
-// ============================================================
-// [C14] buildQPAnswer v16.15 : diagnostic visible dans le bandeau
-// ============================================================
 async function buildQPAnswer(text, AutoFeedDoc) {
   var prep = prepareQPs(text);
   if (!prep) return { wos: [], html: '', links: [], qpDocs: 0, ctx: null };
@@ -2456,7 +2454,6 @@ async function buildQPAnswer(text, AutoFeedDoc) {
   var smallHtml = '';
   var confidenceSum = 0;
   var confidenceCount = 0;
-  // Diagnostic agrege sur tous les WO
   var aggDetail = { size: 0, conn: 0, grade: 0, api: 0, officialMax: 0, coverage: 0, totalHits: 0, totalOfficial: 0, totalMatched: 0 };
   for (var s = 0; s < prepared.length; s += QP_CHUNK) {
     var part = prepared.slice(s, s + QP_CHUNK);
@@ -2484,7 +2481,6 @@ async function buildQPAnswer(text, AutoFeedDoc) {
   var confColor = avgConfidence >= 80 ? '#dcfce7' : (avgConfidence >= 50 ? '#fef3c7' : '#fee2e2');
   var confTextColor = avgConfidence >= 80 ? '#14532d' : (avgConfidence >= 50 ? '#78350f' : '#7f1d1d');
 
-  // Diagnostic affichage
   var avgSize = confidenceCount > 0 ? Math.round(aggDetail.size / confidenceCount) : 0;
   var avgConn = confidenceCount > 0 ? Math.round(aggDetail.conn / confidenceCount) : 0;
   var avgGrade = confidenceCount > 0 ? Math.round(aggDetail.grade / confidenceCount) : 0;
@@ -3324,5 +3320,5 @@ module.exports = function(app, mongoose) {
     });
   }, 20000);
 
-  console.log('[answer-enricher] v16.15 charge - diagnostic confiance + matching FR/EN + content-based famMatch + short-content direct');
+  console.log('[answer-enricher] v16.16 charge - decoupage par lignes de tableau + suppression fallback blocs + regex compacte');
 };
