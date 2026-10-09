@@ -2393,6 +2393,7 @@ function qpAnnex(p, ctx, kb) {
         if (h.official) officialHits++;
         var matches = h.official ? extractMatchesWO(h.excerpt, wo, det) : true;
         if (matches) matchedHits++;
+        h.matchesWO = matches;
         var badge = h.official ? '<b style="color:#0a7a2f">[OFFICIAL SOURCE]</b> ' : '';
         var crossBadge = h.official
           ? (matches
