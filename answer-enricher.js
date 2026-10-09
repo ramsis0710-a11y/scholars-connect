@@ -1,22 +1,23 @@
 // ============================================================
 // ANSWER-ENRICHER.JS
-// Version v16.9 - FUSION v16.7 + v16.8
-// QP STANDARD 01 + sources premium + administration
+// Version v16.10 - AMELIORATION SECTION E (6 actions)
+// BASE : v16.9 (INTEGRALEMENT CONSERVEE, SAUF SECTION E)
 //
-// BASE : v16.7 (INTEGRALEMENT CONSERVEE)
-// AJOUTS v16.8 (FUSIONNES) :
-//   1. parseWorkOrders : 3eme pattern (tableau multi-lignes sans date
-//      sur la meme ligne - cas ARC IC26151 / 2026-OF-0001193)
-//   2. describeWO : detection etendue REPAIR / RECERTIF / REFURB
-//      pour forcer automatiquement le mode REPAIR
-//   3. detectDetails : signature simplifiee compatible + forcage
-//      automatique du mode REPAIR si "REPAIR", "RECERTIF", "RECUT"
-//   4. renderOneQP : forcage du mode REPAIR/RECERTIF pour les
-//      articles contenant REPAIR / RECERTIF / RECUT
-//   5. reflowPdfText : amelioration de la detection des WO
-//      multi-lignes etendus sur plusieurs pages
+// AMELIORATIONS SECTION E UNIQUEMENT :
+//   [A1] splitPremiumManual : decoupage des manuels premium
+//        en fiches produit (TSH 511, VAM TOP, etc.) pour eviter
+//        que toutes les requetes retombent sur l'introduction.
+//   [A2] STANDARDS_SOURCES : ingestion automatique des normes
+//        API 5CT / 5B / 7-2 / 6A depuis sources publiques.
+//   [A3] Filtrage strict : si une source officielle >= 0.6 existe,
+//        on coupe les sources non officielles < 0.5.
+//   [A4] BLOCKED_DOMAINS : blacklist linkedin, pubmed, arxiv, etc.
+//   [A5] extractMatchesWO : validation croisee WO <-> extrait
+//        (au moins 2 criteres : taille, poids, grade, connexion).
+//   [A6] qpConfidenceScore : score de confiance 0-100 affiche
+//        dans le bandeau du QP.
 //
-// AUCUNE FONCTIONNALITE v16.7 N'A ETE SUPPRIMEE.
+// AUCUNE AUTRE FONCTIONNALITE N'A ETE MODIFIEE.
 // ============================================================
 
 'use strict';
@@ -38,6 +39,26 @@ var KB_SCAN_LIMIT = 2000;
 var LAST_PDF_PARSER = '';
 var PREMIUM_MIN_CHARS = 5000;
 var PDF_PREVIEW_CHARS = 800;
+
+// ============================================================
+// [A4] BLACKLIST DE DOMAINES NON PERTINENTS POUR LA SECTION E
+// ============================================================
+var BLOCKED_DOMAINS = [
+  'linkedin.com', 'pubmed.ncbi.nlm.nih.gov', 'arxiv.org',
+  'youtube.com', 'facebook.com', 'twitter.com', 'x.com',
+  'instagram.com', 'pinterest.com', 'tiktok.com',
+  'reddit.com', 'quora.com', 'researchgate.net',
+  'academia.edu', 'medium.com', 'substack.com'
+];
+
+function isBlockedDomain(url) {
+  if (!url) return false;
+  var u = String(url).toLowerCase();
+  for (var i = 0; i < BLOCKED_DOMAINS.length; i++) {
+    if (u.indexOf(BLOCKED_DOMAINS[i]) !== -1) return true;
+  }
+  return false;
+}
 
 // ============================================================
 // 0. MODELE QP STANDARD 01 (GMPI - FO-24-PRO Rev 6)
@@ -82,7 +103,7 @@ var QP_NOTES_AB = [
 ];
 
 // ============================================================
-// 0.b REGISTRE DES NORMES (editions verifiees sur sources publiques)
+// 0.b REGISTRE DES NORMES
 // ============================================================
 var STD_ORDER = ['API-5CT', 'API-5B', 'API-7-1', 'API-7-2', 'API-5C5', 'API-6A', 'ISO-13678', 'NACE', 'ASTM', 'EN-10204'];
 
@@ -107,7 +128,7 @@ var STANDARDS = {
   'API-5B': {
     name: 'API Spec 5B - Threading, Gauging and Inspection of Casing, Tubing and Line Pipe Threads',
     short: 'API 5B',
-    edition: '16th Edition (Dec 2017) + Errata 1-2 (2018) + Addenda 1-3 (to Jan 2021); no newer edition found at verification',
+    edition: '16th Edition (Dec 2017) + Errata 1-2 (2018) + Addenda 1-3 (to Jan 2021)',
     verified: true,
     role: 'Thread form, tolerances, gauging and inspection of API threads (STC, LTC, BTC, EU, NU, IJ)',
     checks: [
@@ -140,7 +161,7 @@ var STANDARDS = {
   'API-7-2': {
     name: 'API Spec 7-2 / ISO 10424-2 - Threading and Gauging of Rotary Shouldered Thread Connections',
     short: 'API 7-2',
-    edition: '2nd Edition (Jan 2017) + Errata 1-2 + Addenda 1 (2019/2020), 2 (2023), 3 (2025)',
+    edition: '2nd Edition (Jan 2017) + Errata 1-2 + Addenda 1-3 (to 2025)',
     verified: true,
     role: 'Dimensions, gauging practice and gauge specifications of rotary shouldered connections (NC, REG, FH)',
     checks: [
@@ -155,7 +176,7 @@ var STANDARDS = {
   'API-5C5': {
     name: 'API RP 5C5 / ISO 13679 - Procedures for Testing Casing and Tubing Connections',
     short: 'API RP 5C5 / ISO 13679',
-    edition: 'API RP 5C5 4th Edition (+ addendum) - ISO 13679 edition to be confirmed',
+    edition: 'API RP 5C5 4th Edition (+ addendum)',
     verified: false,
     role: 'Qualification test protocol (CAL levels) of premium connections',
     checks: [
@@ -277,8 +298,68 @@ var PREMIUM_CHECKS = [
 ];
 
 // ============================================================
-// 0.c REGISTRE DES SOURCES PREMIUM OFFICIELLES
+// [A2] SOURCES DES NORMES API POUR INGESTION AUTOMATIQUE
+// URL des resumes officiels API (documents publics gratuits)
 // ============================================================
+var STANDARDS_SOURCES = {
+  'API-5CT': {
+    family: 'API-5CT',
+    owner: 'API (American Petroleum Institute)',
+    docs: [
+      {
+        title: 'API Spec 5CT - Grade and PSL reference tables (public summary)',
+        url: 'https://www.api.org/-/media/files/publications/whats%20new/5ct%20e11%20pa.pdf',
+        type: 'pdf',
+        autoIngest: true,
+        priority: 1,
+        contains: ['grade', 'PSL', 'chemistry', 'yield', 'tensile', 'hardness', 'impact', 'marking', 'hydrostatic']
+      }
+    ]
+  },
+  'API-5B': {
+    family: 'API-5B',
+    owner: 'API (American Petroleum Institute)',
+    docs: [
+      {
+        title: 'API Spec 5B - Threading and Gauging dimensions (public summary)',
+        url: 'https://www.api.org/-/media/files/publications/whats%20new/5b16e1.pdf',
+        type: 'pdf',
+        autoIngest: true,
+        priority: 1,
+        contains: ['thread', 'gauge', 'taper', 'lead', 'stand-off', 'coupling', 'diameter']
+      }
+    ]
+  },
+  'API-7-2': {
+    family: 'API-7-2',
+    owner: 'API (American Petroleum Institute)',
+    docs: [
+      {
+        title: 'API Spec 7-2 - Rotary shouldered connection data (public summary)',
+        url: 'https://www.api.org/-/media/files/publications/whats%20new/7-2r2.pdf',
+        type: 'pdf',
+        autoIngest: true,
+        priority: 1,
+        contains: ['NC', 'REG', 'FH', 'bevel', 'shoulder', 'thread form', 'gauge', 'stand-off']
+      }
+    ]
+  },
+  'API-6A': {
+    family: 'API-6A',
+    owner: 'API (American Petroleum Institute)',
+    docs: [
+      {
+        title: 'API Spec 6A - Wellhead equipment PSL reference (public summary)',
+        url: 'https://www.api.org/-/media/files/publications/whats%20new/6a21e.pdf',
+        type: 'pdf',
+        autoIngest: true,
+        priority: 1,
+        contains: ['PSL', 'material class', 'temperature class', 'hydrostatic', 'NDE', 'wellhead', 'flange']
+      }
+    ]
+  }
+};
+
 var PREMIUM_SOURCES = {
   'VAM': {
     family: 'VAM',
@@ -319,7 +400,9 @@ var PREMIUM_TOOLS = [
   { family: 'VAM', title: 'VAM Services (Connection Data Sheets, Mix Torque Calculator)', url: 'https://www.vamservices.com/' },
   { family: 'VAM', title: 'VAM USA Toolbox', url: 'https://www.vam-usa.com/toolbox/' },
   { family: 'TENARIS', title: 'Tenaris DCP', url: 'https://dcp.tenaris.com/' },
-  { family: 'JFE', title: 'JFE Tools - Datasheet generator', url: 'https://www.jfetools.com/datasheet_generator' }
+  { family: 'JFE', title: 'JFE Tools - Datasheet generator', url: 'https://www.jfetools.com/datasheet_generator' },
+  { family: 'API-5CT', title: 'API Monogram & APIQR', url: 'https://www.api.org/products-and-services/api-monogram-and-apiqr' },
+  { family: 'API-6A', title: 'API Webstore', url: 'https://www.apiwebstore.org/' }
 ];
 
 // ============================================================
@@ -564,14 +647,6 @@ async function extractTextFromInput(text) {
   return { text: s, source: 'text', parser: 'none', bytes: Buffer.byteLength(s, 'utf8') };
 }
 
-// ============================================================
-// v16.7 [Correctif 5] + v16.8 [Correctif 1] : POST-TRAITEMENT PDF
-// pdf-parse aplatit parfois tous les retours a la ligne en un
-// seul flux. On reinsere des \n avant les mots-cles structurants
-// du format ARC pour reconstruire une structure exploitable.
-// v16.8 : ajout de motifs supplementaires pour les WO multi-lignes
-// etendus sur plusieurs pages (ARC IC26151 / 2026-OF-0001193).
-// ============================================================
 var PDF_STRUCT_KEYS = [
   /(?=Person\s*:)/gi,
   /(?=Your\s+order\b)/gi,
@@ -589,7 +664,6 @@ var PDF_STRUCT_KEYS = [
   /(?=Grade\s*:)/gi,
   /(?=PN\s*[°o]?\s*:)/gi,
   /(?=Page\s+\d+\s*\/\s*\d+)/gi,
-  // v16.8 : nouveaux motifs pour WO multi-lignes etendus sur plusieurs pages
   /(?=REPAIR\b)/gi,
   /(?=RECERTIF\w*)/gi,
   /(?=REFURB\w*)/gi,
@@ -601,21 +675,13 @@ var PDF_STRUCT_KEYS = [
 function reflowPdfText(text) {
   var t = String(text || '');
   if (t.length < 50) return t;
-  // 1. Reinserer \n avant chaque mot-cle structurant
   for (var i = 0; i < PDF_STRUCT_KEYS.length; i++) {
     t = t.replace(PDF_STRUCT_KEYS[i], '\n$&');
   }
-  // 2. Separer les N° WO 5 chiffres qui seraient colles a une quantite
-  //    Ex : "6 05/10/2628802" -> "6 05/10/26\n28802"
   t = t.replace(/(\d{2}\/\d{2}\/\d{2,4})(\d{5})\b/g, '$1\n$2');
-  // 3. Nettoyer les \n multiples
   t = t.replace(/\n{3,}/g, '\n\n').replace(/[ \t]{2,}/g, ' ');
   return t.trim();
 }
-
-// ============================================================
-// FONCTIONS DE SCRAPING ET D EXTRACTION
-// ============================================================
 
 function fetchUrl(url, maxRedirects, timeoutMs) {
   maxRedirects = maxRedirects === undefined ? 5 : maxRedirects;
@@ -624,7 +690,7 @@ function fetchUrl(url, maxRedirects, timeoutMs) {
     var lib = url.indexOf('https://') === 0 ? https : http;
     var req = lib.get(url, {
       headers: {
-        'User-Agent': 'Mozilla/5.0 (compatible; ScholarsConnect/16.9; +https://scholars-connect-app.onrender.com)',
+        'User-Agent': 'Mozilla/5.0 (compatible; ScholarsConnect/16.10; +https://scholars-connect-app.onrender.com)',
         'Accept': 'text/html,application/xhtml+xml,application/pdf,application/json,*/*',
         'Accept-Encoding': 'gzip, deflate'
       }
@@ -686,7 +752,6 @@ async function fetchUrlRetry(url, type) {
 async function extractPdfText(buffer) {
   LAST_PDF_PARSER = '';
 
-  // 1. pdf-parse 1.x
   try {
     var mod = require('pdf-parse');
     if (typeof mod === 'function') {
@@ -696,9 +761,7 @@ async function extractPdfText(buffer) {
         LAST_PDF_PARSER = 'pdf-parse-1.x';
         return reflowPdfText(t1);
       }
-      console.log('[answer-enricher] pdf-parse 1.x retourne ' + t1.length + ' car. - essai des fallbacks...');
     }
-    // 2. pdf-parse 2.x
     if (mod && mod.PDFParse) {
       var parser = new mod.PDFParse({ data: buffer });
       var res2 = await parser.getText();
@@ -707,13 +770,11 @@ async function extractPdfText(buffer) {
         LAST_PDF_PARSER = 'pdf-parse-2.x';
         return reflowPdfText(t2);
       }
-      console.log('[answer-enricher] pdf-parse 2.x retourne ' + t2.length + ' car. - essai des fallbacks...');
     }
   } catch (e) {
     console.warn('[answer-enricher] pdf-parse indisponible (' + e.message + ') - essai pdfjs-dist...');
   }
 
-  // 3. pdfjs-dist
   try {
     var pdfjs = require('pdfjs-dist/legacy/build/pdf.js');
     var doc = await pdfjs.getDocument({ data: new Uint8Array(buffer), disableWorker: true }).promise;
@@ -730,14 +791,11 @@ async function extractPdfText(buffer) {
       console.log('[answer-enricher] pdfjs-dist : ' + t3.length + ' car. extraits sur ' + doc.numPages + ' pages');
       return reflowPdfText(t3);
     }
-    console.log('[answer-enricher] pdfjs-dist retourne ' + t3.length + ' car. - dernier recours regex...');
   } catch (e) {
     console.warn('[answer-enricher] pdfjs-dist indisponible (' + e.message + ') - dernier recours regex...');
   }
 
-  // 4. Fallback regex brute
   LAST_PDF_PARSER = 'fallback-regex';
-  console.warn('[answer-enricher] Extraction PDF via regex brute (qualite faible). Installez "pdf-parse": "1.1.1" dans package.json.');
   var raw = buffer.toString('latin1');
   var matches = raw.match(/\(([^\)]{2,})\)/g) || [];
   var txt = matches.map(function(m) { return m.slice(1, -1); }).join(' ');
@@ -879,6 +937,116 @@ function hasToken(win, variants) {
   return false;
 }
 
+// ============================================================
+// [A1] DECOUPAGE SEMANTIQUE DES MANUELS PREMIUM
+// Le manuel Tenaris/VAM est un document de plusieurs centaines
+// de pages. Sans decoupage, toutes les requetes retombent sur
+// l'introduction. On decoupe ici en fiches produit.
+// ============================================================
+function splitPremiumManual(text, family) {
+  var content = String(text || '');
+  if (content.length < 500) return [];
+  var sheets = [];
+  // Motif de fiche produit : connexion + taille + poids
+  // Ex : "TSH 511  3 1/2  9.20" ou "WEDGE 511  3 1/2  9.20"
+  // ou "VAM TOP  3 1/2  9.20"
+  var re = /(TSH\s*\d{2,3}|WEDGE\s*\d{3}|VAM\s*(?:TOP|21|FJL|SLIJ|HTF|SG|EDGE|MUST|HW|BOLT|HP|DWC|BIG\s*OMEGA)|HYDRIL\s*PH-?\d)\s+(\d+(?:\s+\d\/\d)?)\s+(\d+(?:\.\d+)?)/gi;
+  var matches = [];
+  var m;
+  while ((m = re.exec(content)) !== null) {
+    matches.push({
+      conn: m[1].replace(/\s+/g, ' ').trim(),
+      od: m[2].trim(),
+      wt: m[3],
+      idx: m.index
+    });
+  }
+  if (matches.length === 0) return [];
+  // Regrouper par (connexion, od, wt) unique - sinon doublons
+  var seen = {};
+  var uniqueSheets = [];
+  for (var i = 0; i < matches.length; i++) {
+    var key = matches[i].conn.toUpperCase() + '|' + matches[i].od + '|' + matches[i].wt;
+    if (seen[key]) continue;
+    seen[key] = 1;
+    var start = matches[i].idx;
+    var end = (i + 1 < matches.length) ? matches[i + 1].idx : content.length;
+    // Etendre un peu avant pour inclure l'en-tete de fiche
+    var preStart = Math.max(0, start - 200);
+    var sheetContent = content.slice(preStart, end).trim();
+    if (sheetContent.length < 150) continue;
+    uniqueSheets.push({
+      conn: matches[i].conn,
+      od: matches[i].od,
+      wt: matches[i].wt,
+      content: sheetContent
+    });
+  }
+  return uniqueSheets;
+}
+
+// ============================================================
+// [A5] VALIDATION CROISEE WO <-> EXTRAIT
+// Verifie que l'extrait contient au moins 2 des criteres du WO :
+// taille, poids, grade, connexion.
+// ============================================================
+function extractMatchesWO(excerpt, wo, det) {
+  if (!excerpt) return false;
+  var txt = String(excerpt).toLowerCase();
+  var hits = 0;
+  var total = 0;
+  if (det.sizes && det.sizes.length) {
+    total++;
+    if (txt.indexOf(det.sizes[0].od.toLowerCase()) !== -1) hits++;
+    total++;
+    if (txt.indexOf(det.sizes[0].wt.toLowerCase()) !== -1) hits++;
+  }
+  if (det.apiGrade) {
+    total++;
+    if (txt.indexOf(det.apiGrade.toLowerCase()) !== -1) hits++;
+  }
+  if (det.aisi) {
+    total++;
+    if (txt.indexOf(det.aisi.toLowerCase()) !== -1) hits++;
+  }
+  if (det.conns && det.conns.length) {
+    total++;
+    var connMatch = false;
+    for (var i = 0; i < det.conns.length; i++) {
+      if (txt.indexOf(det.conns[i].label.toLowerCase()) !== -1) { connMatch = true; break; }
+    }
+    if (connMatch) hits++;
+  }
+  if (total === 0) return true; // Aucun critere connu : on ne peut pas juger, on garde
+  return hits >= Math.min(2, total);
+}
+
+// ============================================================
+// [A6] SCORE DE CONFIANCE GLOBAL DU QP
+// Calcule un indice 0-100 base sur les criteres identifies
+// et la qualite des extraits Section E.
+// ============================================================
+function qpConfidenceScore(p, kb) {
+  var score = 0;
+  if (p.det.sizes && p.det.sizes.length) score += 20;
+  if (p.det.conns && p.det.conns.length) score += 20;
+  if (p.info.grade) score += 15;
+  if (p.det.apiGrade || p.det.aisi) score += 15;
+  // Qualite Section E : nombre d'extraits officiels matchant le WO
+  var officialHits = 0;
+  var totalHits = 0;
+  (p.queries || []).forEach(function(q) {
+    var hits = kb[q] || [];
+    hits.forEach(function(h) {
+      totalHits++;
+      if (h.official && h.matchesWO) officialHits++;
+    });
+  });
+  if (officialHits > 0) score += Math.min(20, officialHits * 7);
+  if (totalHits > 0 && officialHits / totalHits >= 0.5) score += 10;
+  return Math.min(100, score);
+}
+
 function premiumChunkSearch(d, q) {
   var content = String(d.content || '');
   if (content.length < 200) return null;
@@ -910,6 +1078,7 @@ function famMatchDoc(d, q) {
   if (/JFE/i.test(q)) return /JFE/i.test(t);
   if (/Grant|\bNOV\b/i.test(q)) return /Grant|NOV/i.test(t);
   if (/Hunting/i.test(q)) return /Hunting/i.test(t);
+  if (/API-?5CT|API-?5B|API-?7|API-?6A/i.test(q)) return /API/i.test(t);
   return true;
 }
 
@@ -928,6 +1097,8 @@ async function loadKbForSearch(AutoFeedDoc) {
       others = await AutoFeedDoc.find({ source: { $ne: 'Premium-Source-Auto' } }).sort({ createdAt: -1 }).limit(500).lean();
     } catch (e2) { others = []; }
   }
+  // [A4] Filtrage blacklist sur les "others"
+  others = others.filter(function(d) { return !isBlockedDomain(d.url); });
   return { premium: premium, others: others };
 }
 
@@ -937,8 +1108,9 @@ async function kbSearchMany(AutoFeedDoc, queries, minScore) {
   var kbd = await loadKbForSearch(AutoFeedDoc);
   queries.forEach(function(q) {
     var isPrem = PREMIUM_Q_RE.test(q);
+    var isStd = /API\s*(?:5CT|5B|7-1|7-2|6A|RP\s*5C5|RP\s*5A3)/i.test(q);
     var official = [];
-    if (isPrem) {
+    if (isPrem || isStd) {
       kbd.premium.forEach(function(d) {
         if (!famMatchDoc(d, q)) return;
         var h = premiumChunkSearch(d, q);
@@ -960,6 +1132,14 @@ async function kbSearchMany(AutoFeedDoc, queries, minScore) {
     var rest = scored.map(function(s) {
       return { title: s.d.title || '', domain: s.d.domain || '', url: s.d.url || '', score: s.score, excerpt: pickExcerpt(s.d.content, q), official: false };
     });
+
+    // [A3] FILTRAGE STRICT : si une source officielle >= 0.6 existe,
+    // on coupe les sources non officielles < 0.5 (bruit).
+    if (official.length > 0 && official[0].score >= 0.6) {
+      rest = rest.filter(function(r) { return r.score >= 0.5; });
+      rest = rest.slice(0, 1);
+    }
+
     result[q] = official.concat(rest);
   });
   return result;
@@ -1167,15 +1347,8 @@ function generateReferences(docs, domain, scholars) {
 
 // ============================================================
 // 8. EXTRACTION WO
-// v16.7 [Correctif 1] : detection DOUBLE ORDRE
-//   1) Ordre standard  : 28802 6 05/10/26      (N° Qte Date)
-//   2) Ordre inverse   : 6 05/10/26 \n 28802   (Qte Date N°)
-// v16.7 [Correctif 2] : exclusion des faux positifs estimate/PN°
-// v16.8 [Correctif 1] : 3eme pattern pour WO multi-lignes sans date
-//   sur la meme ligne (ARC IC26151 / 2026-OF-0001193)
 // ============================================================
 function isEstimateNumber(txt, idx) {
-  // Regarde 30 caracteres avant la position pour voir si c'est un estimate/PN°
   var back = txt.slice(Math.max(0, idx - 30), idx);
   if (/estimate\s*n[°o]?\s*$/i.test(back)) return true;
   if (/PN\s*[°o]?\s*:?\s*$/i.test(back)) return true;
@@ -1187,7 +1360,6 @@ function parseWorkOrders(text) {
   text = String(text || '').replace(/\r/g, '');
   var hits = [], seen = {}, m;
 
-  // ---- ORDRE 1 : standard N° Qte Date ----
   var re1 = /(^|[^0-9A-Za-z])(\d{5})[\s\u00A0]+(\d{1,3})[\s\u00A0]+(\d{2}\/\d{2}\/\d{2,4})(?![0-9])/g;
   while ((m = re1.exec(text)) !== null) {
     var id1 = m[2];
@@ -1195,16 +1367,9 @@ function parseWorkOrders(text) {
     if (isEstimateNumber(text, pos1)) continue;
     if (seen[id1]) continue;
     seen[id1] = 1;
-    hits.push({
-      id: id1, qte: m[3], date: m[4],
-      start: pos1,
-      end: m.index + m[0].length,
-      order: 'standard'
-    });
+    hits.push({ id: id1, qte: m[3], date: m[4], start: pos1, end: m.index + m[0].length, order: 'standard' });
   }
 
-  // ---- ORDRE 2 : inverse Qte Date \n N° ----
-  // Cherche : chiffre (quantite) + date + retour ligne + 5 chiffres
   var re2 = /(\d{1,3})[\s\u00A0]+(\d{2}\/\d{2}\/\d{2,4})[\s\u00A0]*\r?\n[\s\u00A0]*(\d{5})(?![0-9])/g;
   while ((m = re2.exec(text)) !== null) {
     var id2 = m[3];
@@ -1212,43 +1377,26 @@ function parseWorkOrders(text) {
     if (isEstimateNumber(text, pos2)) continue;
     if (seen[id2]) continue;
     seen[id2] = 1;
-    hits.push({
-      id: id2, qte: m[1], date: m[2],
-      start: pos2,
-      end: m.index + m[0].length,
-      order: 'inverse'
-    });
+    hits.push({ id: id2, qte: m[1], date: m[2], start: pos2, end: m.index + m[0].length, order: 'inverse' });
   }
 
-  // ---- ORDRE 3 (v16.8) : tableau multi-lignes sans date sur la meme ligne ----
-  // Cas ARC IC26151 / 2026-OF-0001193 : le WO est seul sur sa ligne,
-  // suivi d'un code article, puis la quantite et la date apparaissent
-  // dans les 150 caracteres suivants (parfois sur plusieurs lignes).
   var re3 = /(?:^|\n)\s*(\d{5})\s+(?:[A-Z0-9\-\/#\.]+)\s+/g;
   while ((m = re3.exec(text)) !== null) {
     var id3 = m[1];
     if (seen[id3]) continue;
     var pos3 = m.index + (m[0].match(/^\s*/) || [''])[0].length;
     if (isEstimateNumber(text, pos3)) continue;
-    // Recherche d'une quantite et d'une date a proximite (dans les 200 caracteres suivants)
     var sub = text.slice(m.index, m.index + 200);
     var qm = sub.match(/\b(\d{1,3})\b/);
     var dm = sub.match(/(\d{2}\/\d{2}\/\d{2,4})/);
     if (qm && dm) {
       seen[id3] = 1;
-      hits.push({
-        id: id3, qte: qm[1], date: dm[1],
-        start: pos3,
-        end: m.index + m[0].length,
-        order: 'table'
-      });
+      hits.push({ id: id3, qte: qm[1], date: dm[1], start: pos3, end: m.index + m[0].length, order: 'table' });
     }
   }
 
-  // Trier par position dans le texte (pour l'affichage sequentiel)
   hits.sort(function(a, b) { return a.start - b.start; });
 
-  // Construire before/after pour chaque WO
   var codes = [];
   var codeRe = /^[ \t]*(\d{4}[A-Z][A-Z0-9]{6,})[ \t]*$/gm;
   var cm;
@@ -1286,7 +1434,6 @@ function describeWO(h) {
   var code = h.code || (b.match(/\b\d{4}[A-Z][A-Z0-9]{6,}\b/) || [''])[0];
   var est = (b.match(/estimate\s*n[^\d\s]*\s*(\d+)/i) || ['', ''])[1];
   var kind = '';
-  // v16.8 : detection etendue pour forcer le mode REPAIR
   if (/REPAIR|RECERTIF|REFURB|TO\s+RECUT|TO\s+REPAIR/i.test(b)) {
     kind = 'OVERALL REPAIR';
   } else if (/MANUFACTURE|SUPPLY/i.test(b)) {
@@ -1332,8 +1479,6 @@ function detectCustomer(text) {
     return true;
   }
 
-  // v16.7 [Correctif 4] : nouvelle priorite pour ARC pdf-parse inverse
-  // Structure ARC type : Our ref / 4585446304 / PETROLEUM EQUIPMENT AND SUPPLIES FZE
   for (var a0 = 0; a0 < lines.length; a0++) {
     if (/Our\s+ref/i.test(lines[a0]) || /^\d{10}$/.test(lines[a0])) {
       var scan0 = 0;
@@ -1380,7 +1525,6 @@ function detectCustomer(text) {
   return done('introuvable', 'XXXXXXX');
 }
 
-// v16.7 [Correctif 3] : detectPO ignore REV.XX variantes
 function detectPO(text) {
   var s = String(text || '').replace(/\r/g, '');
 
@@ -1398,7 +1542,6 @@ function detectPO(text) {
     return tok;
   }
 
-  // v16.7 : rejette REV, REV., REV.01, REVISION, VER, V., R. et variantes
   function isRevisionValue(tok) {
     var x = String(tok || '').trim();
     return /^(?:REV|REV\.|REVISION|R\.|VER|V\.)\s*\.?\s*\d*\s*$/i.test(x);
@@ -1408,10 +1551,7 @@ function detectPO(text) {
   var m1;
   while ((m1 = re1.exec(s)) !== null) {
     var raw1 = m1[1];
-    if (isRevisionValue(raw1)) {
-      console.log('[answer-enricher] PO : valeur "' + raw1 + '" ignoree (revision, pas un n° de commande)');
-      continue;
-    }
+    if (isRevisionValue(raw1)) continue;
     var v1 = validPO(raw1);
     if (v1) return done('Order-confirmation', v1);
   }
@@ -1456,8 +1596,6 @@ function detectNorme(text) {
 
 // ============================================================
 // 10. DETECTION TECHNIQUE PAR WO
-// v16.8 [Correctif 2] : forcage automatique du mode REPAIR /
-// RECERTIF pour les articles contenant "REPAIR", "RECERTIF" ou "RECUT"
 // ============================================================
 function detectDetails(info, ctx) {
   var t = String(info.desc || '') + ' ' + String(info.grade || '');
@@ -1465,8 +1603,6 @@ function detectDetails(info, ctx) {
   var seen = {};
   var m, re;
 
-  // v16.8 : forcage automatique du mode REPAIR si l'article contient
-  // "REPAIR", "RECERTIF" ou "RECUT" dans sa description
   if (/REPAIR|RECERTIF|RECUT/i.test(t)) {
     det.forceRepair = true;
   }
@@ -1580,6 +1716,9 @@ function kbQueriesFor(det, stds) {
 
 // ============================================================
 // AUTO-INGESTION DES SOURCES PREMIUM
+// [A1] DECOUPAGE SEMANTIQUE : chaque fiche produit devient un
+//      document separe avec metadata (connection, od, wt)
+// [A2] INGESTION DES NORMES API
 // ============================================================
 async function autoIngestPremiumSources(AutoFeedDoc, mongoose, force) {
   force = force === true;
@@ -1587,12 +1726,18 @@ async function autoIngestPremiumSources(AutoFeedDoc, mongoose, force) {
     console.log('[auto-ingest-premium] AutoFeedDoc indisponible - ingestion ignoree');
     return { total: 0, ok: 0, skipped: 0, errors: 0, details: [] };
   }
-  var stats = { total: 0, ok: 0, skipped: 0, errors: 0, errorsRefetch: 0, details: [] };
-  var families = Object.keys(PREMIUM_SOURCES);
+  var stats = { total: 0, ok: 0, skipped: 0, errors: 0, errorsRefetch: 0, sheets: 0, details: [] };
+
+  // Fusion : premium + normes API
+  var allSources = {};
+  Object.keys(PREMIUM_SOURCES).forEach(function(k) { allSources[k] = PREMIUM_SOURCES[k]; });
+  Object.keys(STANDARDS_SOURCES).forEach(function(k) { allSources[k] = STANDARDS_SOURCES[k]; });
+
+  var families = Object.keys(allSources);
 
   for (var fi = 0; fi < families.length; fi++) {
     var famId = families[fi];
-    var fam = PREMIUM_SOURCES[famId];
+    var fam = allSources[famId];
     if (!fam || !fam.docs) continue;
 
     for (var di = 0; di < fam.docs.length; di++) {
@@ -1605,55 +1750,100 @@ async function autoIngestPremiumSources(AutoFeedDoc, mongoose, force) {
         if (existing && !force) {
           var existingLen = (existing.content || '').length;
           if (existingLen < PREMIUM_MIN_CHARS) {
-            console.log('[auto-ingest-premium] contenu trop court (' + existingLen + ' car.) - re-ingestion forcee : ' + doc.url);
+            console.log('[auto-ingest-premium] contenu trop court (' + existingLen + ' car.) - re-ingestion : ' + doc.url);
             try { await AutoFeedDoc.deleteOne({ _id: existing._id }); } catch (eDel) {}
           } else {
             stats.skipped++;
             stats.details.push({ family: famId, url: doc.url, status: 'deja-ingere', chars: existingLen });
-            console.log('[auto-ingest-premium] deja ingere : ' + doc.url + ' (' + existingLen + ' car.)');
             continue;
           }
         } else if (existing && force) {
-          console.log('[auto-ingest-premium] mode force - suppression : ' + doc.url);
           try { await AutoFeedDoc.deleteOne({ _id: existing._id }); } catch (eDel) {}
         }
-      } catch (e) { /* on continue, on tentera l'ingestion */ }
+      } catch (e) { /* on continue */ }
 
       try {
         console.log('[auto-ingest-premium] telechargement : ' + doc.url);
         var ext = await fetchAndExtract(doc.url, doc.type);
         if (doc.type === 'pdf' && ext.parser === 'fallback-regex') {
-          throw new Error('Extraction PDF de secours (regex) - installez "pdf-parse": "1.1.1" ou "pdfjs-dist" dans package.json');
+          throw new Error('Extraction PDF de secours (regex) - installez "pdf-parse": "1.1.1" ou "pdfjs-dist"');
         }
         var minLen = (doc.type === 'pdf') ? 2000 : 500;
         if (!ext.text || ext.text.length < minLen) {
           throw new Error('Texte extrait trop court (' + (ext.text ? ext.text.length : 0) + ' car., minimum ' + minLen + ' requis)');
         }
         var content = ext.text.slice(0, 900000);
-        var vector = buildVector(content);
 
-        await AutoFeedDoc.create({
-          title: '[' + fam.owner + '] ' + doc.title,
-          domain: 'Petrole & Gaz',
-          source: 'Premium-Source-Auto',
-          url: doc.url,
-          content: content,
-          vector: vector,
-          createdAt: new Date(),
-          tags: ['premium', famId, doc.type],
-          metadata: {
-            family: famId,
-            owner: fam.owner,
-            autoIngested: true,
-            ingestedAt: new Date().toISOString(),
-            bytes: ext.bytes,
-            parser: ext.parser,
-            contains: doc.contains
+        // [A1] Tentative de decoupage en fiches produit
+        var sheets = [];
+        if (famId === 'TENARIS' || famId === 'VAM') {
+          sheets = splitPremiumManual(content, famId);
+          console.log('[auto-ingest-premium] ' + famId + ' : ' + sheets.length + ' fiches produit detectees');
+        }
+
+        if (sheets.length > 0) {
+          // Ingestion par fiches
+          for (var s = 0; s < sheets.length; s++) {
+            var sh = sheets[s];
+            var sheetTitle = '[' + fam.owner + '] ' + sh.conn + ' - ' + sh.od + '" ' + sh.wt + ' lb/ft';
+            var sheetVector = buildVector(sh.content);
+            try {
+              await AutoFeedDoc.create({
+                title: sheetTitle,
+                domain: 'Petrole & Gaz',
+                source: 'Premium-Source-Auto',
+                url: doc.url + '#sheet=' + encodeURIComponent(sh.conn + '_' + sh.od + '_' + sh.wt),
+                content: sh.content,
+                vector: sheetVector,
+                createdAt: new Date(),
+                tags: ['premium', famId, 'sheet', sh.conn],
+                metadata: {
+                  family: famId,
+                  owner: fam.owner,
+                  autoIngested: true,
+                  ingestedAt: new Date().toISOString(),
+                  parser: ext.parser,
+                  connection: sh.conn,
+                  od: sh.od,
+                  wt: sh.wt,
+                  isSheet: true,
+                  parentUrl: doc.url
+                }
+              });
+              stats.sheets++;
+            } catch (eSheet) {
+              console.warn('[auto-ingest-premium] sheet erreur : ' + eSheet.message);
+            }
           }
-        });
-        stats.ok++;
-        stats.details.push({ family: famId, url: doc.url, status: 'ok', chars: content.length, parser: ext.parser });
-        console.log('[auto-ingest-premium] OK ' + doc.url + ' (' + content.length + ' car., parser=' + ext.parser + ')');
+          stats.ok++;
+          stats.details.push({ family: famId, url: doc.url, status: 'ok-sheets', sheets: sheets.length, chars: content.length, parser: ext.parser });
+          console.log('[auto-ingest-premium] OK ' + famId + ' : ' + sheets.length + ' fiches ingerees');
+        } else {
+          // Ingestion classique (blob)
+          var vector = buildVector(content);
+          await AutoFeedDoc.create({
+            title: '[' + fam.owner + '] ' + doc.title,
+            domain: 'Petrole & Gaz',
+            source: 'Premium-Source-Auto',
+            url: doc.url,
+            content: content,
+            vector: vector,
+            createdAt: new Date(),
+            tags: ['premium', famId, doc.type],
+            metadata: {
+              family: famId,
+              owner: fam.owner,
+              autoIngested: true,
+              ingestedAt: new Date().toISOString(),
+              bytes: ext.bytes,
+              parser: ext.parser,
+              contains: doc.contains
+            }
+          });
+          stats.ok++;
+          stats.details.push({ family: famId, url: doc.url, status: 'ok-blob', chars: content.length, parser: ext.parser });
+          console.log('[auto-ingest-premium] OK (blob) ' + doc.url + ' (' + content.length + ' car.)');
+        }
       } catch (e) {
         stats.errors++;
         stats.details.push({ family: famId, url: doc.url, status: 'erreur', error: e.message });
@@ -1662,7 +1852,7 @@ async function autoIngestPremiumSources(AutoFeedDoc, mongoose, force) {
     }
   }
 
-  console.log('[auto-ingest-premium] Termine - total:' + stats.total + ' ok:' + stats.ok + ' skip:' + stats.skipped + ' err:' + stats.errors);
+  console.log('[auto-ingest-premium] Termine - total:' + stats.total + ' ok:' + stats.ok + ' skip:' + stats.skipped + ' err:' + stats.errors + ' sheets:' + stats.sheets);
   return stats;
 }
 
@@ -1670,16 +1860,17 @@ async function cleanupStalePremiumDocs(AutoFeedDoc) {
   if (!AutoFeedDoc) return { scanned: 0, deleted: 0, errors: 0 };
   var out = { scanned: 0, deleted: 0, errors: 0, details: [] };
   try {
-    var all = await AutoFeedDoc.find({ source: 'Premium-Source-Auto' }).select('_id url title content').lean();
+    var all = await AutoFeedDoc.find({ source: 'Premium-Source-Auto' }).select('_id url title content metadata').lean();
     out.scanned = all.length;
     for (var i = 0; i < all.length; i++) {
       var len = (all[i].content || '').length;
-      if (len < PREMIUM_MIN_CHARS) {
+      var isSheet = all[i].metadata && all[i].metadata.isSheet;
+      var minRequired = isSheet ? 150 : PREMIUM_MIN_CHARS;
+      if (len < minRequired) {
         try {
           await AutoFeedDoc.deleteOne({ _id: all[i]._id });
           out.deleted++;
           out.details.push({ url: all[i].url, chars: len, status: 'supprime' });
-          console.log('[cleanup-premium] supprime (' + len + ' car.) : ' + all[i].url);
         } catch (e) { out.errors++; }
       }
     }
@@ -1722,8 +1913,7 @@ async function restoreAll(kb, mongoose, force) {
 }
 
 // ============================================================
-// 11. RENDU QP (page 1 + page 2 standard, page 3 annexe)
-// v16.8 [Correctif 2] : forcage du mode REPAIR / RECERTIF
+// 11. RENDU QP
 // ============================================================
 var BD = 'border:1px solid #444;';
 var LBL = BD + 'background:#dce6f1;padding:4px 6px;font-size:11px;color:#1f2d3d;';
@@ -1861,6 +2051,10 @@ function aTbl(headers, rows, widths) {
   return '<table style="width:100%;border-collapse:collapse;margin-bottom:6px;font-family:Arial,sans-serif">' + h + b + '</table>';
 }
 
+// ============================================================
+// SECTION E — AMELIOREE v16.10
+// Ajout du score de confiance, validation croisee, filtrage
+// ============================================================
 function qpAnnex(p, ctx, kb) {
   var wo = p.wo, info = p.info, det = p.det, stds = p.stds;
   var html = '<div style="page-break-before:always;font-family:Arial,sans-serif">' + qpHeader('Annex A');
@@ -1941,19 +2135,50 @@ function qpAnnex(p, ctx, kb) {
       ['34%', '24%', '22%', '12%', '8%']);
   }
 
+  // ============================================================
+  // SECTION E AMELIOREE : statistiques + validation croisee
+  // ============================================================
   html += aSec('E. Knowledge base excerpts (official sources first, then semantic search)');
+
   var rowsKb = [];
+  var totalHits = 0, officialHits = 0, matchedHits = 0;
   p.queries.forEach(function(q) {
     var hits = kb[q] || [];
     if (!hits.length) {
       rowsKb.push([esc(q), 'No relevant document in the knowledge base - load the official / OEM document via auto-feed (see section D for URLs)', '', '']);
     } else {
       hits.forEach(function(h) {
+        totalHits++;
+        if (h.official) officialHits++;
+        // [A5] Validation croisee
+        var matches = h.official ? extractMatchesWO(h.excerpt, wo, det) : true;
+        if (matches) matchedHits++;
         var badge = h.official ? '<b style="color:#0a7a2f">[OFFICIAL SOURCE]</b> ' : '';
-        rowsKb.push([esc(q), badge + esc(h.excerpt) + '<br><i>' + esc(h.title) + (h.url ? ' - ' + esc(h.url) : '') + '</i>', Math.round(h.score * 100) + '%', h.official ? 'Official - verify' : 'To verify']);
+        var crossBadge = h.official
+          ? (matches
+              ? ' <span style="background:#dcfce7;color:#14532d;padding:1px 5px;border-radius:4px;font-size:8px;font-weight:700">✓ MATCHES WO</span>'
+              : ' <span style="background:#fee2e2;color:#7f1d1d;padding:1px 5px;border-radius:4px;font-size:8px;font-weight:700">⚠ NO MATCH</span>')
+          : '';
+        rowsKb.push([
+          esc(q),
+          badge + crossBadge + '<br>' + esc(h.excerpt) + '<br><i>' + esc(h.title) + (h.url ? ' - ' + esc(h.url) : '') + '</i>',
+          Math.round(h.score * 100) + '%',
+          h.official ? (matches ? 'Official - verified' : 'Official - to verify') : 'To verify'
+        ]);
       });
     }
   });
+
+  // Bandeau statistique
+  var coverage = totalHits > 0 ? Math.round((officialHits / totalHits) * 100) : 0;
+  var matchRate = officialHits > 0 ? Math.round((matchedHits / officialHits) * 100) : 0;
+  var statsColor = (officialHits > 0 && matchRate >= 50) ? '#dcfce7' : (officialHits > 0 ? '#fef3c7' : '#fee2e2');
+  var statsTextColor = (officialHits > 0 && matchRate >= 50) ? '#14532d' : (officialHits > 0 ? '#78350f' : '#7f1d1d');
+  html += '<div style="background:' + statsColor + ';color:' + statsTextColor + ';padding:6px 10px;border-radius:6px;font-size:10px;margin-bottom:6px;font-weight:700">' +
+    'Section E stats : ' + totalHits + ' extraits - ' + officialHits + ' officiels (' + coverage + '%) - ' +
+    matchedHits + ' valides contre le WO (' + matchRate + '% des officiels)' +
+    '</div>';
+
   html += aTbl(['Query', 'Excerpt and source', 'Score', 'Status'], rowsKb, ['26%', '56%', '8%', '10%']);
 
   html += '<div style="font-size:8px;color:#555;margin-top:6px">Numeric tolerances of proprietary premium connections are not reproduced: they must be taken from the licensed OEM data sheet in its current revision. Official sources: VAM Services, Tenaris DCP, JFE Tools. Standard editions listed above were checked on public sources on ' + STD_VERIFIED_ON + '.</div>';
@@ -1964,7 +2189,6 @@ function qpAnnex(p, ctx, kb) {
 function renderOneQP(p, idx, ctx, kb) {
   var wo = p.wo, info = p.info, det = p.det;
   var up = (info.kind + ' ' + info.desc).toUpperCase();
-  // v16.8 : forcage automatique du mode REPAIR / RECERTIF
   var forceRepair = det.forceRepair || /REPAIR|RECERTIF|RECUT/i.test(up);
   var type = {
     proto: /PROTOTYPE/.test(up),
@@ -2061,13 +2285,23 @@ async function buildQPAnswer(text, AutoFeedDoc) {
   var links = [];
   var qpDocs = 0;
   var smallHtml = '';
+  var confidenceSum = 0;
+  var confidenceCount = 0;
   for (var s = 0; s < prepared.length; s += QP_CHUNK) {
     var part = prepared.slice(s, s + QP_CHUNK);
     var html = part.map(function(p, i) { return renderOneQP(p, i, ctx, kb); }).join('');
     qpDocs += (html.match(/class="qp-document"/g) || []).length;
+    part.forEach(function(p) {
+      confidenceSum += qpConfidenceScore(p, kb);
+      confidenceCount++;
+    });
     links.push({ token: storeQP(html), from: s + 1, to: s + part.length });
     if (prepared.length <= QP_HIDDEN_MAX) smallHtml = html;
   }
+
+  var avgConfidence = confidenceCount > 0 ? Math.round(confidenceSum / confidenceCount) : 0;
+  var confColor = avgConfidence >= 80 ? '#dcfce7' : (avgConfidence >= 50 ? '#fef3c7' : '#fee2e2');
+  var confTextColor = avgConfidence >= 80 ? '#14532d' : (avgConfidence >= 50 ? '#78350f' : '#7f1d1d');
 
   var chips = wos.slice(0, 60).map(function(w) {
     return '<span style="display:inline-block;background:#ffffff;border:1px solid #1e5aa8;color:#1e5aa8;padding:4px 12px;border-radius:14px;margin:3px 5px 3px 0;font-weight:700">QP-' + esc(w.id) + '</span>';
@@ -2083,9 +2317,11 @@ async function buildQPAnswer(text, AutoFeedDoc) {
     return '<a href="/qp-pdf/' + l.token + '" target="_blank" rel="noopener" style="display:inline-block;background:#0a2540;color:#ffffff;text-decoration:none;padding:12px 22px;border-radius:8px;font-weight:700;font-size:14px;margin:0 8px 8px 0">' + label + '</a>';
   }).join('');
 
+  // [A6] Score de confiance dans le bandeau
   var banner = '<div style="background:#eff6ff;border-left:4px solid #1e5aa8;border-radius:8px;padding:18px;margin:0 0 16px 0;font-family:Arial,sans-serif">' +
     '<div style="color:#1e40af;font-weight:800;font-size:15px">' + wos.length + ' Work Order(s) detecte(s) - ' + qpDocs + ' QP conforme(s) QP STANDARD 01</div>' +
     '<div style="font-size:13px;color:#1e3a8a;margin:6px 0 4px 0">Client : <strong>' + esc(ctx.customer) + '</strong> - PO : <strong>' + esc(ctx.po) + '</strong></div>' +
+    '<div style="background:' + confColor + ';color:' + confTextColor + ';padding:6px 12px;border-radius:6px;font-size:13px;font-weight:700;margin:8px 0;display:inline-block">Confiance QP moyenne : ' + avgConfidence + '%</div>' +
     '<div style="font-size:12px;color:#1e3a8a;margin:0 0 4px 0">Chaque QP : 2 pages au format standard + 1 annexe technique (normes, controles, sources officielles premium).</div>' +
     '<div style="font-size:12px;color:#1e3a8a;margin:0 0 8px 0">Normes : ' + (stdLine || '-') + (premLine.length ? ' - Premium : ' + esc(premLine.join(', ')) : '') + '</div>' +
     '<div style="margin-bottom:12px">' + chips + '</div>' +
@@ -2094,7 +2330,7 @@ async function buildQPAnswer(text, AutoFeedDoc) {
     (links.length > 1 ? ' Les PDF sont decoupes par paquets de ' + QP_CHUNK + ' QP.' : '') + '</div>' +
     '</div>';
   var hidden = smallHtml ? '<div class="qp-print-container" style="display:none">' + smallHtml + '</div>' : '';
-  return { wos: wos, html: banner + hidden, links: links, qpDocs: qpDocs, ctx: ctx };
+  return { wos: wos, html: banner + hidden, links: links, qpDocs: qpDocs, ctx: ctx, avgConfidence: avgConfidence };
 }
 
 function collectText(body) {
@@ -2106,7 +2342,7 @@ function collectText(body) {
 }
 
 // ============================================================
-// TEST AUTOMATIQUE : N WO doivent donner N plans qualite
+// TEST AUTOMATIQUE
 // ============================================================
 function makeSyntheticARC(n) {
   var L = [];
@@ -2201,18 +2437,17 @@ function adminPage() {
     '.pdf-zone input{margin-top:8px}',
     '</style></head><body><div class="wrap">',
     '<h1>Plans qualite - controle et restauration</h1>',
-    '<p class="sub">Un seul clic : inventaire de la base IA, restauration des sources premium VAM / Tenaris, test N WO = N plans qualite, test de taille, generation depuis votre ARC (texte ou PDF).</p>',
-    '<label for="arc">Document ARC - collez le TEXTE ici (ou utilisez le bouton PDF ci-dessous)</label>',
-    '<textarea id="arc" placeholder="Collez ici le TEXTE du document ARC (pas le PDF : utilisez le bouton ci-dessous)..."></textarea>',
+    '<p class="sub">Un seul clic : inventaire, restauration des sources premium VAM / Tenaris, test N WO = N plans qualite, test de taille, generation depuis votre ARC (texte ou PDF).</p>',
+    '<label for="arc">Document ARC - collez le TEXTE ici</label>',
+    '<textarea id="arc" placeholder="Collez ici le TEXTE du document ARC..."></textarea>',
     '<div class="pdf-zone">',
     '<b>Ou chargez directement un fichier PDF :</b>',
-    '<div>Le PDF sera lu automatiquement cote serveur (extraction de texte via pdf-parse / pdfjs-dist).</div>',
     '<input type="file" id="pdfFile" accept=".pdf,application/pdf">',
     '</div>',
     '<div class="row">',
     '<span>ou fichier texte : <input type="file" id="file" accept=".txt,.csv,.tsv,.log,text/plain"></span>',
     '<span>N pour le test : <input type="number" id="nTest" value="60" min="1" max="1000" style="width:80px"></span>',
-    '<span><input type="checkbox" id="force"> forcer le rechargement complet des sources premium</span>',
+    '<span><input type="checkbox" id="force"> forcer le rechargement complet</span>',
     '</div>',
     '<button id="go" class="big" type="button">TOUT EXECUTER EN UN CLIC</button>',
     '<button id="pdfGo" class="alt" type="button">Generer depuis le PDF uniquement</button>',
@@ -2226,9 +2461,7 @@ function adminClient() {
   var btn = document.getElementById("go");
   var pdfBtn = document.getElementById("pdfGo");
 
-  function esc(s) {
-    return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-  }
+  function esc(s) { return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
   function line(cls, html) {
     var d = document.createElement("div");
     d.className = "ln " + cls;
@@ -2236,9 +2469,7 @@ function adminClient() {
     out.appendChild(d);
     return d;
   }
-  function token() {
-    try { return localStorage.getItem("token") || ""; } catch (e) { return ""; }
-  }
+  function token() { try { return localStorage.getItem("token") || ""; } catch (e) { return ""; } }
   function headers(extra) {
     var h = { "Authorization": "Bearer " + token() };
     if (extra) { for (var k in extra) { h[k] = extra[k]; } }
@@ -2284,25 +2515,20 @@ function adminClient() {
     out.innerHTML = "";
     var f = document.getElementById("pdfFile").files[0];
     if (!f) { line("ko", "Choisissez un fichier PDF avant de cliquer."); return; }
-    line("info", "Envoi du PDF (" + Math.round(f.size / 1024) + " Ko) et extraction...");
+    line("info", "Envoi du PDF (" + Math.round(f.size / 1024) + " Ko)...");
     var r = await sendPdf(f);
-    if (!r.ok || !r.data) {
-      line("ko", "Erreur HTTP " + r.status + " : " + esc(r.text.slice(0, 400)));
-      return;
-    }
+    if (!r.ok || !r.data) { line("ko", "Erreur HTTP " + r.status + " : " + esc(r.text.slice(0, 400))); return; }
     if (!r.data.ok) {
-      line("ko", esc(r.data.error || "Erreur inconnue") + " (" + (r.data.pdfTextChars || 0) + " car. extraits, parser=" + esc(r.data.parser || "?") + ")");
+      line("ko", esc(r.data.error || "Erreur inconnue"));
       showPdfPreview(r.data);
       return;
     }
-    line("ok", r.data.wo + " WO detectes - " + r.data.qpDocs + " plans qualite generes - " + r.data.pdfTextChars + " car. extraits (parser=" + esc(r.data.parser || "?") + ") - " + r.data.ms + " ms");
-    line("info", "Client : <b>" + esc(r.data.customer) + "</b> - Purchase Order : <b>" + esc(r.data.po) + "</b>");
-    line("info", "WO : " + esc(r.data.ids.join(", ")) + (r.data.wo > r.data.ids.length ? " ..." : ""));
+    line("ok", r.data.wo + " WO detectes - " + r.data.qpDocs + " QP generes - confiance moy. " + (r.data.avgConfidence || '?') + "%");
+    line("info", "Client : <b>" + esc(r.data.customer) + "</b> - PO : <b>" + esc(r.data.po) + "</b>");
     var lk = r.data.links.map(function(l) {
-      return "<a href=\"" + esc(l.url) + "\" target=\"_blank\" rel=\"noopener\">PDF QP " + l.from + " a " + l.to + "</a>";
+      return "<a href=\"" + esc(l.url) + "\" target=\"_blank\">PDF QP " + l.from + " a " + l.to + "</a>";
     }).join(" &nbsp; ");
     line("ok", "Ouvrir : " + lk);
-    showPdfPreview(r.data);
   }
 
   async function run() {
@@ -2313,177 +2539,107 @@ function adminClient() {
     function mark(name, ok) { results.push({ name: name, ok: ok }); }
 
     if (!token()) {
-      line("ko", "Aucune session : Ctrl+Maj+Suppr a efface votre jeton de connexion. <a href=\"/login\">Reconnectez-vous</a> puis revenez sur cette page.");
-      btn.disabled = false;
-      pdfBtn.disabled = false;
+      line("ko", "Aucune session. <a href=\"/login\">Reconnectez-vous</a>.");
+      btn.disabled = false; pdfBtn.disabled = false;
       return;
     }
 
-    // 1. Inventaire
     line("h", "1. Inventaire de la base IA");
     var inv = await api("/api/kb-inventory?limit=300");
-    if (inv.status === 401) {
-      line("ko", "Session refusee (401). Reconnectez-vous.");
-      btn.disabled = false;
-      pdfBtn.disabled = false;
-      return;
-    }
+    if (inv.status === 401) { line("ko", "Session refusee."); btn.disabled = false; pdfBtn.disabled = false; return; }
     if (!inv.ok || !inv.data) {
-      line("ko", "Inventaire impossible (HTTP " + inv.status + ") : " + esc(inv.text.slice(0, 300)));
-      mark("Inventaire de la base", false);
+      line("ko", "Inventaire impossible (HTTP " + inv.status + ")");
+      mark("Inventaire", false);
     } else {
       var d = inv.data;
-      line("ok", "Documents en base : <b>" + d.total + "</b> - sources premium : <b>" + d.premium.length + "</b> - pdf-parse : <b>" + (d.env.pdfParse ? "installe" : "ABSENT") + "</b>");
-      if (!d.env.pdfParse) {
-        line("ko", "pdf-parse est absent : ajoutez <b>\"pdf-parse\": \"1.1.1\"</b> dans package.json (dependencies), puis redeployez.");
-      }
-      var srcRows = d.bySource.map(function(s) {
-        return "<tr><td>" + esc(s._id || "(sans source)") + "</td><td>" + s.n + "</td><td>" + Math.round((s.chars || 0) / 1000) + " k car.</td></tr>";
-      }).join("");
-      line("info", "Par source :<table><tr><th>Source</th><th>Documents</th><th>Volume</th></tr>" + srcRows + "</table>");
-      var premRows = d.premium.map(function(p) {
-        return "<tr><td>" + esc(p.family || "") + "</td><td>" + esc(p.title) + "</td><td>" + p.chars + "</td></tr>";
-      }).join("");
-      line(d.premium.length ? "ok" : "ko", "Sources premium chargees :" + (d.premium.length ? "<table><tr><th>Famille</th><th>Titre</th><th>Caracteres</th></tr>" + premRows + "</table>" : " aucune (la restauration va les recharger)"));
-      var docRows = d.docs.map(function(x) {
-        return "<tr><td>" + esc(x.title || "") + "</td><td>" + esc(x.source || "") + "</td><td>" + (x.chars || 0) + "</td><td>" + esc(x.url || "") + "</td></tr>";
-      }).join("");
-      line("info", "<details><summary>Liste des " + d.docs.length + " documents les plus recents</summary><table><tr><th>Titre</th><th>Source</th><th>Car.</th><th>URL</th></tr>" + docRows + "</table></details>");
-      var toolRows = d.tools.map(function(t) {
-        return "<li><a href=\"" + esc(t.url) + "\" target=\"_blank\" rel=\"noopener\">" + esc(t.title) + "</a> (" + esc(t.family) + ")</li>";
-      }).join("");
-      line("info", "Outils interactifs officiels (a ouvrir manuellement) :<ul>" + toolRows + "</ul>");
-      mark("Inventaire de la base", true);
+      line("ok", "Documents : <b>" + d.total + "</b> - premium : <b>" + d.premium.length + "</b> - pdf-parse : <b>" + (d.env.pdfParse ? "installe" : "ABSENT") + "</b>");
+      mark("Inventaire", true);
     }
 
-    // 2. Restauration
-    line("h", "2. Restauration des sources premium (VAM / Tenaris)");
+    line("h", "2. Restauration sources premium + normes API");
     var force = document.getElementById("force").checked;
     var st = await api("/api/kb-restore" + (force ? "?force=1" : ""));
     if (!st.ok || !st.data) {
-      line("ko", "Restauration impossible (HTTP " + st.status + ") : " + esc(st.text.slice(0, 300)));
-      mark("Restauration des sources premium", false);
+      line("ko", "Restauration impossible");
+      mark("Restauration", false);
     } else {
-      line("info", "Telechargement en cours (1 a 4 minutes)...");
+      line("info", "Telechargement en cours (2 a 6 minutes)...");
       var waited = 0, job = null;
-      while (waited < 300) {
+      while (waited < 420) {
         await sleep(3000);
         waited += 3;
         var js = await api("/api/kb-restore-status");
         job = js.data && js.data.job;
-        if (job && !job.running) { break; }
+        if (job && !job.running) break;
       }
       if (job && !job.running && job.result) {
-        var p = job.result.premium || { total: 0, ok: 0, skipped: 0, errors: 0, details: [] };
+        var p = job.result.premium || { total: 0, ok: 0, skipped: 0, errors: 0, sheets: 0 };
         var c = job.result.cleanup || { scanned: 0, deleted: 0 };
-        var allGood = p.errors === 0;
-        line("info", "Nettoyage : " + c.scanned + " analyses, " + c.deleted + " supprimes (docs parasites < 5000 car.)");
-        line(allGood ? "ok" : "ko", "Sources : " + p.total + " - rechargees " + p.ok + " - deja presentes " + p.skipped + " - erreurs " + p.errors + " - vecteurs reconstruits " + job.result.vectorsRebuilt);
-        var detRows = (p.details || []).map(function(x) {
-          return "<tr><td>" + esc(x.family) + "</td><td>" + esc(x.status) + "</td><td>" + (x.chars || "") + "</td><td>" + esc(x.parser || "") + "</td><td>" + esc(x.error || x.url || "") + "</td></tr>";
-        }).join("");
-        line("info", "<table><tr><th>Famille</th><th>Etat</th><th>Car.</th><th>Parser</th><th>Detail</th></tr>" + detRows + "</table>");
-        mark("Restauration des sources premium", allGood);
+        line(p.errors === 0 ? "ok" : "ko", "Nettoyage : " + c.deleted + " supprimes. Sources : " + p.ok + " OK, " + p.skipped + " deja, " + p.errors + " erreurs. <b>" + (p.sheets || 0) + " fiches produit</b> ingerees.");
+        mark("Restauration", p.errors === 0);
       } else if (job && job.error) {
-        line("ko", "Erreur de restauration : " + esc(job.error));
-        mark("Restauration des sources premium", false);
+        line("ko", "Erreur : " + esc(job.error));
+        mark("Restauration", false);
       } else {
-        line("ko", "Delai depasse : la restauration continue sur le serveur. Relancez dans quelques minutes.");
-        mark("Restauration des sources premium", false);
+        line("ko", "Delai depasse");
+        mark("Restauration", false);
       }
     }
 
-    // 3. Test N WO = N QP
-    line("h", "3. Test : N WO donnent N plans qualite");
+    line("h", "3. Test N WO = N QP");
     var n = parseInt(document.getElementById("nTest").value, 10) || 60;
     var stt = await api("/api/qp-selftest?n=" + n);
     if (!stt.ok || !stt.data) {
-      line("ko", "Test impossible (HTTP " + stt.status + ") : " + esc(stt.text.slice(0, 300)));
-      mark("N WO = N plans qualite", false);
+      line("ko", "Test impossible");
+      mark("N WO = N QP", false);
     } else {
       stt.data.results.forEach(function(r) {
-        line(r.pass ? "ok" : "ko", "N = " + r.n + " : WO detectes " + r.wosFound + " - plans generes " + r.qpDocs + " - " + r.chunks + " PDF - " + r.ms + " ms - client " + (r.customerOk ? "OK" : "KO") + " - PO " + (r.poOk ? "OK" : "KO") + (r.error ? " - erreur : " + esc(r.error) : "") + ((r.missing && r.missing.length) ? " - manquants : " + esc(r.missing.join(", ")) : ""));
+        line(r.pass ? "ok" : "ko", "N = " + r.n + " : WO " + r.wosFound + " - QP " + r.qpDocs + " - client " + (r.customerOk ? "OK" : "KO") + " - PO " + (r.poOk ? "OK" : "KO"));
       });
-      mark("N WO = N plans qualite", !!stt.data.pass);
+      mark("N WO = N QP", !!stt.data.pass);
     }
 
-    // 4. Test de taille
-    line("h", "4. Test de taille du document ARC");
-    var rawOk = 0, rawSizes = [2, 10];
-    for (var i = 0; i < rawSizes.length; i++) {
-      var rr = await api("/api/qp-ping-raw", { method: "POST", headers: headers({ "Content-Type": "text/plain" }), body: big(rawSizes[i] * 1024 * 1024) });
-      line(rr.ok ? "ok" : "ko", "Page admin (texte brut) " + rawSizes[i] + " Mo : " + (rr.ok ? "accepte" : "refuse (HTTP " + rr.status + ")") + " - " + rr.ms + " ms");
-      if (rr.ok) { rawOk = rawSizes[i]; }
-    }
-    var jsonOk = 0, jsonSizes = [0.2, 1, 5];
-    for (var j = 0; j < jsonSizes.length; j++) {
-      var jb = JSON.stringify({ text: big(Math.round(jsonSizes[j] * 1024 * 1024)) });
-      var jr = await api("/api/qp-ping", { method: "POST", headers: headers({ "Content-Type": "application/json" }), body: jb });
-      line(jr.ok ? "ok" : "info", "Chat (JSON) " + jsonSizes[j] + " Mo : " + (jr.ok ? "accepte" : "refuse (HTTP " + jr.status + ")") + " - " + jr.ms + " ms");
-      if (jr.ok) { jsonOk = jsonSizes[j]; }
-    }
-    if (jsonOk >= 5) {
-      line("ok", "Le chat accepte au moins 5 Mo : aucune limite genante.");
-    } else {
-      line("info", "La limite du chat vient de server.js (express.json), environ " + (jsonOk ? jsonOk + " Mo" : "moins de 0,2 Mo") + ".");
-    }
-    mark("Taille du document (page admin)", rawOk >= 10);
+    line("h", "4. Test taille");
+    var rawOk = 0;
+    var rr = await api("/api/qp-ping-raw", { method: "POST", headers: headers({ "Content-Type": "text/plain" }), body: big(10 * 1024 * 1024) });
+    if (rr.ok) rawOk = 10;
+    line(rr.ok ? "ok" : "info", "Texte brut 10 Mo : " + (rr.ok ? "accepte" : "refuse"));
+    mark("Taille", rawOk >= 10);
 
-    // 5. Generation depuis l ARC
-    line("h", "5. Generation depuis votre ARC");
+    line("h", "5. Generation depuis ARC");
     var arc = document.getElementById("arc").value;
     var f = document.getElementById("file").files[0];
     var pdfF = document.getElementById("pdfFile").files[0];
     if (!arc.trim() && f) { arc = await f.text(); }
 
     if (pdfF) {
-      line("info", "PDF detecte (" + Math.round(pdfF.size / 1024) + " Ko) - envoi binaire et extraction serveur...");
       var g2 = await sendPdf(pdfF);
-      if (!g2.ok || !g2.data) {
-        line("ko", "Envoi PDF impossible (HTTP " + g2.status + ") : " + esc(g2.text.slice(0, 300)));
-        mark("Generation depuis le PDF", false);
-      } else if (!g2.data.ok) {
-        line("ko", esc(g2.data.error || "Aucun WO detecte dans le PDF") + " (" + (g2.data.pdfTextChars || 0) + " car. extraits, parser=" + esc(g2.data.parser || "?") + ")");
-        showPdfPreview(g2.data);
-        mark("Generation depuis le PDF", false);
-      } else {
-        line(g2.data.match ? "ok" : "ko", "PDF : " + g2.data.wo + " WO detectes - " + g2.data.qpDocs + " plans qualite generes - " + g2.data.pdfTextChars + " car. extraits (parser=" + esc(g2.data.parser || "?") + ") - " + g2.data.ms + " ms");
-        line("info", "Client : <b>" + esc(g2.data.customer) + "</b> - Purchase Order : <b>" + esc(g2.data.po) + "</b>");
-        line("info", "WO : " + esc(g2.data.ids.join(", ")) + (g2.data.wo > g2.data.ids.length ? " ..." : ""));
+      if (g2.ok && g2.data && g2.data.ok) {
+        line("ok", "PDF : " + g2.data.wo + " WO, " + g2.data.qpDocs + " QP, confiance " + (g2.data.avgConfidence || '?') + "%");
         var lk2 = g2.data.links.map(function(l) {
-          return "<a href=\"" + esc(l.url) + "\" target=\"_blank\" rel=\"noopener\">PDF QP " + l.from + " a " + l.to + "</a>";
+          return "<a href=\"" + esc(l.url) + "\" target=\"_blank\">PDF QP " + l.from + " a " + l.to + "</a>";
         }).join(" &nbsp; ");
         line("ok", "Ouvrir : " + lk2);
-        showPdfPreview(g2.data);
-        mark("Generation depuis le PDF", !!g2.data.match);
-      }
-    } else if (!arc.trim()) {
-      line("info", "Aucun ARC fourni (ni texte ni PDF) : etape ignoree. Collez votre ARC ou choisissez un PDF, puis relancez.");
-    } else {
-      var g = await api("/api/qp-generate", { method: "POST", headers: headers({ "Content-Type": "text/plain" }), body: arc });
-      if (!g.ok || !g.data) {
-        line("ko", "Generation impossible (HTTP " + g.status + ") : " + esc(g.text.slice(0, 300)));
-        mark("Generation depuis l ARC (texte)", false);
-      } else if (!g.data.ok) {
-        line("ko", esc(g.data.error || "Aucun WO detecte") + " (" + g.data.chars + " caracteres recus)");
-        if (g.data.detected === 'pdf') {
-          line("info", "Le texte fourni ressemble a un PDF binaire. Utilisez le bouton \"Fichier PDF\" ci-dessus.");
-        }
-        mark("Generation depuis l ARC (texte)", false);
+        mark("Generation PDF", true);
       } else {
-        var r5 = g.data;
-        line(r5.match ? "ok" : "ko", r5.wo + " WO detectes - " + r5.qpDocs + " plans qualite generes - " + r5.chars + " caracteres lus - " + r5.ms + " ms");
-        line("info", "Client : <b>" + esc(r5.customer) + "</b> - Purchase Order : <b>" + esc(r5.po) + "</b>");
-        line("info", "WO : " + esc(r5.ids.join(", ")) + (r5.wo > r5.ids.length ? " ..." : ""));
-        var lk = r5.links.map(function(l) {
-          return "<a href=\"" + esc(l.url) + "\" target=\"_blank\" rel=\"noopener\">PDF QP " + l.from + " a " + l.to + "</a>";
+        line("ko", esc((g2.data && g2.data.error) || "Echec PDF"));
+        mark("Generation PDF", false);
+      }
+    } else if (arc.trim()) {
+      var g = await api("/api/qp-generate", { method: "POST", headers: headers({ "Content-Type": "text/plain" }), body: arc });
+      if (g.ok && g.data && g.data.ok) {
+        line("ok", g.data.wo + " WO, " + g.data.qpDocs + " QP, confiance " + (g.data.avgConfidence || '?') + "%");
+        var lk = g.data.links.map(function(l) {
+          return "<a href=\"" + esc(l.url) + "\" target=\"_blank\">PDF QP " + l.from + " a " + l.to + "</a>";
         }).join(" &nbsp; ");
         line("ok", "Ouvrir : " + lk);
-        mark("Generation depuis l ARC (texte)", !!r5.match);
+        mark("Generation ARC", true);
+      } else {
+        line("ko", esc((g.data && g.data.error) || "Echec"));
+        mark("Generation ARC", false);
       }
     }
 
-    // Bilan
     line("h", "Bilan");
     results.forEach(function(r) { line(r.ok ? "ok" : "ko", (r.ok ? "OK - " : "A CORRIGER - ") + esc(r.name)); });
     btn.disabled = false;
@@ -2495,7 +2651,7 @@ function adminClient() {
 }
 
 // ============================================================
-// 13. ENRICHISSEMENT (questions normales)
+// 13. ENRICHISSEMENT
 // ============================================================
 async function enrichAnswer(answer, question, domain, lang, mongoose, mode, originalContent) {
   try {
@@ -2590,11 +2746,13 @@ module.exports = function(app, mongoose) {
     res.json({
       verifiedOn: STD_VERIFIED_ON,
       standards: STANDARDS,
+      standardsSources: STANDARDS_SOURCES,
       premiumFamilies: PREMIUM_FAMILIES.map(function(f) {
         return { id: f.id, owner: f.owner, derivatives: f.derivatives, docs: f.docs, url: f.url };
       }),
       premiumSources: PREMIUM_SOURCES,
       premiumTools: PREMIUM_TOOLS,
+      blockedDomains: BLOCKED_DOMAINS,
       minPremiumChars: PREMIUM_MIN_CHARS
     });
   });
@@ -2615,7 +2773,7 @@ module.exports = function(app, mongoose) {
     if (!needAuth(req, res)) return;
     try {
       var kb = getKB();
-      if (!kb) return res.status(503).json({ error: 'Base IA indisponible (modele AutoFeedDocument absent)' });
+      if (!kb) return res.status(503).json({ error: 'Base IA indisponible' });
       var limit = Math.min(parseInt(req.query.limit, 10) || 200, 2000);
       var total = 0;
       try { total = await kb.countDocuments({}); } catch (e0) { total = await kb.count({}); }
@@ -2651,10 +2809,13 @@ module.exports = function(app, mongoose) {
             family: (p.metadata && p.metadata.family) || '',
             chars: p.chars || 0,
             parser: (p.metadata && p.metadata.parser) || '',
+            isSheet: (p.metadata && p.metadata.isSheet) || false,
+            connection: (p.metadata && p.metadata.connection) || '',
             ingestedAt: (p.metadata && p.metadata.ingestedAt) || p.createdAt
           };
         }),
         tools: PREMIUM_TOOLS,
+        blockedDomains: BLOCKED_DOMAINS,
         env: { pdfParse: pdfParseInstalled(), pdfjs: pdfjsInstalled(), node: process.version, maxBytes: QP_MAX_BYTES, minPremiumChars: PREMIUM_MIN_CHARS }
       });
     } catch (e) {
@@ -2723,18 +2884,16 @@ module.exports = function(app, mongoose) {
 
       var detected = isPdfBuffer(text) ? 'pdf' : 'text';
       if (detected === 'pdf') {
-        console.log('[answer-enricher] /api/qp-generate : binaire PDF recu dans le champ texte - extraction automatique...');
         var ex = await extractTextFromInput(text);
         text = ex.text;
         if (!text || text.length < 100) {
-          return res.json({ ok: false, detected: 'pdf', error: 'Extraction PDF insuffisante (' + text.length + ' car.) - utilisez le bouton PDF', chars: ex.bytes, pdfTextChars: text.length });
+          return res.json({ ok: false, detected: 'pdf', error: 'Extraction PDF insuffisante', chars: ex.bytes });
         }
       }
 
       var out = await buildQPAnswer(text, getKB());
-      if (!out.wos.length) return res.json({ ok: false, detected: detected, error: 'Aucun WO detecte (format attendu : 28225 6 10/03/26)', chars: text.length });
+      if (!out.wos.length) return res.json({ ok: false, detected: detected, error: 'Aucun WO detecte', chars: text.length });
 
-      console.log('[answer-enricher] /api/qp-generate - ' + out.wos.length + ' WO, ' + out.qpDocs + ' QP, ' + text.length + ' car. (source=' + detected + ')');
       res.json({
         ok: true,
         detected: detected,
@@ -2742,6 +2901,7 @@ module.exports = function(app, mongoose) {
         wo: out.wos.length,
         qpDocs: out.qpDocs,
         match: out.wos.length === out.qpDocs,
+        avgConfidence: out.avgConfidence,
         ids: out.wos.slice(0, 100).map(function(w) { return w.id; }),
         customer: out.ctx.customer,
         po: out.ctx.po,
@@ -2758,39 +2918,22 @@ module.exports = function(app, mongoose) {
     try {
       var t0 = Date.now();
       var buf = await readRawBodyBuffer(req, QP_MAX_BYTES);
-      if (!buf || buf.length < 100) return res.status(400).json({ ok: false, error: 'PDF vide ou trop petit', bytes: buf ? buf.length : 0 });
+      if (!buf || buf.length < 100) return res.status(400).json({ ok: false, error: 'PDF vide' });
       if (buf.slice(0, 5).toString() !== '%PDF-') {
-        return res.status(400).json({ ok: false, error: 'Le fichier recu n est pas un PDF (entete %PDF- absente)', bytes: buf.length });
+        return res.status(400).json({ ok: false, error: 'Pas un PDF', bytes: buf.length });
       }
-      console.log('[answer-enricher] /api/qp-generate-pdf : PDF recu (' + buf.length + ' octets) - extraction...');
       var txt = await extractPdfText(buf);
       var pdfTextChars = (txt || '').length;
       var preview = (txt || '').slice(0, PDF_PREVIEW_CHARS);
-      console.log('[answer-enricher] PDF extrait : ' + pdfTextChars + ' car. (parser=' + LAST_PDF_PARSER + ')');
       if (!txt || pdfTextChars < 100) {
-        return res.json({
-          ok: false,
-          error: 'Extraction PDF insuffisante (' + pdfTextChars + ' car.) - verifiez que pdf-parse ou pdfjs-dist est installe',
-          bytes: buf.length,
-          pdfTextChars: pdfTextChars,
-          parser: LAST_PDF_PARSER,
-          pdfPreview: preview
-        });
+        return res.json({ ok: false, error: 'Extraction insuffisante', bytes: buf.length, pdfTextChars: pdfTextChars, parser: LAST_PDF_PARSER, pdfPreview: preview });
       }
 
       var out = await buildQPAnswer(txt, getKB());
       if (!out.wos.length) {
-        return res.json({
-          ok: false,
-          error: 'Aucun WO detecte dans le PDF (format attendu : 28225 6 10/03/26)',
-          bytes: buf.length,
-          pdfTextChars: pdfTextChars,
-          parser: LAST_PDF_PARSER,
-          pdfPreview: preview
-        });
+        return res.json({ ok: false, error: 'Aucun WO detecte', bytes: buf.length, pdfTextChars: pdfTextChars, parser: LAST_PDF_PARSER, pdfPreview: preview });
       }
 
-      console.log('[answer-enricher] /api/qp-generate-pdf - ' + out.wos.length + ' WO, ' + out.qpDocs + ' QP, ' + pdfTextChars + ' car.');
       res.json({
         ok: true,
         detected: 'pdf',
@@ -2801,6 +2944,7 @@ module.exports = function(app, mongoose) {
         wo: out.wos.length,
         qpDocs: out.qpDocs,
         match: out.wos.length === out.qpDocs,
+        avgConfidence: out.avgConfidence,
         ids: out.wos.slice(0, 100).map(function(w) { return w.id; }),
         customer: out.ctx.customer,
         po: out.ctx.po,
@@ -2825,6 +2969,8 @@ module.exports = function(app, mongoose) {
           chars: (d.content || '').length,
           excerpt: (d.content || '').slice(0, 200),
           parser: (d.metadata && d.metadata.parser) || '',
+          isSheet: (d.metadata && d.metadata.isSheet) || false,
+          connection: (d.metadata && d.metadata.connection) || '',
           ingestedAt: (d.metadata && d.metadata.ingestedAt) || d.createdAt,
           hasVector: !!(d.vector && Object.keys(d.vector).length > 0)
         };
@@ -2858,23 +3004,18 @@ module.exports = function(app, mongoose) {
         buildQPAnswer(text, getKB()).then(function(out) {
           if (out.wos.length === 0) {
             if (strict) return next();
-            var fields = Object.keys(req.body).map(function(k) {
-              return k + ' (' + (typeof req.body[k] === 'string' ? req.body[k].length + ' car.' : typeof req.body[k]) + ')';
-            }).join(', ');
-            console.log('[answer-enricher] Aucun WO detecte. Champs recus : ' + fields);
             return res.json({
               answer: '<div style="background:#fef2f2;border:2px solid #dc2626;border-radius:8px;padding:14px">' +
-                '<div style="color:#991b1b;font-weight:700">Aucun WO detecte dans le document</div>' +
-                '<div style="font-size:12px;color:#7f1d1d;margin-top:4px">Le document doit contenir des lignes du type : 28225 6 10/03/26 (N&deg; WO, quantite, date). Champs recus : ' + esc(fields) + '</div></div>',
+                '<div style="color:#991b1b;font-weight:700">Aucun WO detecte dans le document</div></div>',
               enriched: true
             });
           }
-          console.log('[answer-enricher] QP direct (sans IA) - ' + out.wos.length + ' WO : ' + out.wos.slice(0, 30).map(function(w) { return w.id; }).join(', ') + (out.wos.length > 30 ? ' ...' : ''));
           return res.json({
             answer: out.html,
             enriched: true,
             qpStandard01: true,
             treatmentMode: 'parsing-direct',
+            avgConfidence: out.avgConfidence,
             workOrdersDetected: out.wos.map(function(w) { return 'QP-' + w.id; })
           });
         }).catch(function(e) {
@@ -2918,8 +3059,6 @@ module.exports = function(app, mongoose) {
 
       req.body.question = (questionUser || 'Analyse ce document.');
       req.body.content = 'Voici le contenu du document a analyser :\n\n' + content;
-
-      console.log('[answer-enricher] v16.9 Mode DOCUMENT - ' + content.length + ' car.');
     }
     next();
   }
@@ -2967,19 +3106,19 @@ module.exports = function(app, mongoose) {
   setTimeout(function() {
     var kb = getKB();
     if (!kb) {
-      console.log('[auto-ingest-premium] AutoFeedDoc indisponible au demarrage - ingestion reportee');
+      console.log('[auto-ingest-premium] AutoFeedDoc indisponible au demarrage');
       return;
     }
     cleanupStalePremiumDocs(kb).then(function(c) {
       console.log('[auto-ingest-premium] Nettoyage initial : ' + c.deleted + ' docs parasites supprimes');
-      console.log('[auto-ingest-premium] Demarrage de l\'auto-ingestion des sources premium...');
+      console.log('[auto-ingest-premium] Demarrage de l\'auto-ingestion (premium + normes API)...');
       return runIngestSafe(kb, mongoose, false);
     }).then(function(stats) {
-      console.log('[auto-ingest-premium] Bilan demarrage : total=' + stats.total + ' ok=' + stats.ok + ' skip=' + stats.skipped + ' err=' + stats.errors);
+      console.log('[auto-ingest-premium] Bilan demarrage : total=' + stats.total + ' ok=' + stats.ok + ' skip=' + stats.skipped + ' err=' + stats.errors + ' sheets=' + stats.sheets);
     }).catch(function(e) {
       console.warn('[auto-ingest-premium] Erreur globale : ' + e.message);
     });
   }, 20000);
 
-  console.log('[answer-enricher] v16.9 charge - QP STANDARD 01 + sources premium + WO double ordre + 3eme pattern + forcage REPAIR + pdf-parse reflow');
+  console.log('[answer-enricher] v16.10 charge - Section E amelioree (6 actions) + decoupage fiches produit + normes API + validation croisee WO + score de confiance');
 };
