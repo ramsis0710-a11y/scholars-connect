@@ -1,19 +1,19 @@
 // ============================================================
 // ANSWER-ENRICHER.JS
-// Version v16.14 - COMPLET ET DEFINITIF
-// BASE : v16.13 (INTEGRALEMENT CONSERVEE)
+// Version v16.15 - COMPLET ET DEFINITIF
+// BASE : v16.14 (INTEGRALEMENT CONSERVEE)
 //
-// CORRECTIF v16.13 -> v16.14 (UNIQUEMENT) :
-//   [C7] premiumChunkSearch : seuil abaisse de 4 a 2 pour ne
-//        pas rejeter les fiches produit contenant peu de mots-cles.
-//   [C8] famMatchDoc : match flou sur la connexion si le titre
-//        contient TSH / WEDGE / VAM / etc meme sans OD/WT precis.
-//   [C9] extractMatchesWO : validation assouplie - 1 seul critere
-//        suffit si la connexion est presente.
-//   [C10] premiumChunkSearch : boost +5 si le titre de la fiche
-//        contient la taille exacte du WO (3 1/2, 4 1/2, etc).
+// CORRECTIF v16.14 -> v16.15 (UNIQUEMENT) :
+//   [C11] famMatchDoc : accepte si connexion dans titre OU metadata
+//         OU contenu (au lieu du seul titre).
+//   [C12] premiumChunkSearch : si contenu < 2000 chars, prend tout
+//         le contenu sans fenetre glissante.
+//   [C13] kbQueriesFor : ajout mots-cles FRANCAIS (poids, diametre,
+//         longueur, filetage) en plus de l'anglais.
+//   [C14] Diagnostic visible : le bandeau du QP affiche le DETAIL
+//         du calcul de confiance pour identifier ce qui manque.
 //
-// TOUT LE RESTE EST INCHANGE PAR RAPPORT A v16.13.
+// TOUT LE RESTE EST INCHANGE PAR RAPPORT A v16.14.
 // ============================================================
 
 'use strict';
@@ -713,7 +713,7 @@ function fetchUrl(url, maxRedirects, timeoutMs) {
     var lib = url.indexOf('https://') === 0 ? https : http;
     var req = lib.get(url, {
       headers: {
-        'User-Agent': 'Mozilla/5.0 (compatible; ScholarsConnect/16.14; +https://scholars-connect-app.onrender.com)',
+        'User-Agent': 'Mozilla/5.0 (compatible; ScholarsConnect/16.15; +https://scholars-connect-app.onrender.com)',
         'Accept': 'text/html,application/xhtml+xml,application/pdf,application/json,*/*',
         'Accept-Encoding': 'gzip, deflate'
       }
@@ -903,7 +903,7 @@ var PRODUCTION_KEYWORDS = [
   'od', 'id', 'drift', 'shoulder', 'coupling', 'torque', 'make-up',
   'makeup', 'tension', 'compression', 'burst', 'collapse',
   'wall thickness', 'blanking', 'upset', 'run-out', 'stand-off',
-  'tpi', 'thread', 'seal', 'pin', 'box', 'nominal'
+  'tpi', 'thread', 'filetage', 'seal', 'pin', 'box', 'nominal'
 ];
 
 var PROD_KW_LONG = PRODUCTION_KEYWORDS.filter(function(k) { return k.length > 3; });
@@ -962,7 +962,6 @@ function hasToken(win, variants) {
 
 // ============================================================
 // [A1] DECOUPAGE SEMANTIQUE DES MANUELS PREMIUM
-// v16.13 : découpage adaptatif multi-stratégies
 // ============================================================
 function splitPremiumManual(text, family) {
   var content = String(text || '');
@@ -1060,7 +1059,6 @@ function splitPremiumManual(text, family) {
 
 // ============================================================
 // [A5] VALIDATION CROISEE WO <-> EXTRAIT
-// v16.14 : seuil assoupli - 1 critere suffit si connexion presente
 // ============================================================
 function extractMatchesWO(excerpt, wo, det) {
   if (!excerpt) return false;
@@ -1092,37 +1090,57 @@ function extractMatchesWO(excerpt, wo, det) {
   }
 
   if (total === 0) return true;
-  // v16.14 : si connexion matchee, 1 critere suffit
   if (connMatch && hits >= 1) return true;
-  // sinon, seuil normal : au moins 2 criteres ou tous si total < 2
   return hits >= Math.min(2, total);
 }
 
 // ============================================================
 // [A6] SCORE DE CONFIANCE GLOBAL DU QP
+// v16.15 : retourne aussi le DETAIL du calcul pour diagnostic
 // ============================================================
-function qpConfidenceScore(p, kb) {
-  var score = 0;
-  if (p.det.sizes && p.det.sizes.length) score += 20;
-  if (p.det.conns && p.det.conns.length) score += 20;
-  if (p.info.grade) score += 15;
-  if (p.det.apiGrade || p.det.aisi) score += 15;
-  var officialHits = 0;
-  var totalHits = 0;
+function qpConfidenceDetail(p, kb) {
+  var detail = {
+    total: 0,
+    size: 0, sizeMax: 20,
+    conn: 0, connMax: 20,
+    grade: 0, gradeMax: 15,
+    api: 0, apiMax: 15,
+    officialHits: 0, officialMax: 20,
+    coverage: 0, coverageMax: 10,
+    totalHits: 0, totalOfficial: 0, totalMatched: 0
+  };
+  if (p.det.sizes && p.det.sizes.length) { detail.size = 20; }
+  if (p.det.conns && p.det.conns.length) { detail.conn = 20; }
+  if (p.info.grade) { detail.grade = 15; }
+  if (p.det.apiGrade || p.det.aisi) { detail.api = 15; }
+  var officialHits = 0, totalHits = 0, totalOfficial = 0, totalMatched = 0;
   (p.queries || []).forEach(function(q) {
     var hits = kb[q] || [];
     hits.forEach(function(h) {
       totalHits++;
-      if (h.official && h.matchesWO) officialHits++;
+      if (h.official) {
+        totalOfficial++;
+        if (h.matchesWO) { officialHits++; totalMatched++; }
+      }
     });
   });
-  if (officialHits > 0) score += Math.min(20, officialHits * 7);
-  if (totalHits > 0 && officialHits / totalHits >= 0.5) score += 10;
-  return Math.min(100, score);
+  detail.officialHits = officialHits;
+  detail.totalHits = totalHits;
+  detail.totalOfficial = totalOfficial;
+  detail.totalMatched = totalMatched;
+  if (officialHits > 0) detail.officialMax = Math.min(20, officialHits * 7);
+  if (totalHits > 0 && officialHits / totalHits >= 0.5) detail.coverage = 10;
+  detail.total = detail.size + detail.conn + detail.grade + detail.api + detail.officialMax + detail.coverage;
+  if (detail.total > 100) detail.total = 100;
+  return detail;
+}
+
+function qpConfidenceScore(p, kb) {
+  return qpConfidenceDetail(p, kb).total;
 }
 
 // ============================================================
-// [C7] premiumChunkSearch v16.14 : seuil abaisse + boost titre
+// [C7] premiumChunkSearch v16.15 : sans fenetre glissante si court
 // ============================================================
 function premiumChunkSearch(d, q) {
   var content = String(d.content || '');
@@ -1134,17 +1152,30 @@ function premiumChunkSearch(d, q) {
   var odV = sm ? odVariants(sm[1]) : [];
   var wtV = sm ? numVariants(sm[2]) : [];
   var W = 1500, STEP = 1000, best = '', bestScore = 0;
-  for (var pos = 0; pos < content.length; pos += STEP) {
-    var win = content.slice(pos, pos + W);
-    var low = win.toLowerCase();
+
+  // v16.15 : si contenu < 2000 chars, prendre tout le contenu
+  if (content.length < 2000) {
+    best = content;
+    var low = content.toLowerCase();
     var s = 0;
     for (var i = 0; i < qList.length; i++) if (low.indexOf(qList[i]) !== -1) s += 1;
     for (var k = 0; k < PROD_KW_LONG.length; k++) if (low.indexOf(PROD_KW_LONG[k]) !== -1) s += 0.5;
-    if (odV.length && hasToken(win, odV)) s += 3;
-    if (wtV.length && hasToken(win, wtV)) s += 3;
-    if (s > bestScore) { bestScore = s; best = win; }
+    if (odV.length && hasToken(content, odV)) s += 3;
+    if (wtV.length && hasToken(content, wtV)) s += 3;
+    bestScore = s;
+  } else {
+    for (var pos = 0; pos < content.length; pos += STEP) {
+      var win = content.slice(pos, pos + W);
+      var low2 = win.toLowerCase();
+      var s2 = 0;
+      for (var i2 = 0; i2 < qList.length; i2++) if (low2.indexOf(qList[i2]) !== -1) s2 += 1;
+      for (var k2 = 0; k2 < PROD_KW_LONG.length; k2++) if (low2.indexOf(PROD_KW_LONG[k2]) !== -1) s2 += 0.5;
+      if (odV.length && hasToken(win, odV)) s2 += 3;
+      if (wtV.length && hasToken(win, wtV)) s2 += 3;
+      if (s2 > bestScore) { bestScore = s2; best = win; }
+    }
   }
-  // v16.14 : boost si le titre de la fiche contient la taille / connexion
+
   var title = String(d.title || '');
   if (odV.length) {
     for (var oi = 0; oi < odV.length; oi++) {
@@ -1156,30 +1187,32 @@ function premiumChunkSearch(d, q) {
       if (title.indexOf(wtV[wi]) !== -1) { bestScore += 5; break; }
     }
   }
-  // v16.14 : seuil abaisse de 4 a 2
   if (!best || bestScore < 2) return null;
   return { score: Math.min(1, bestScore / 12), excerpt: best.replace(/\s+/g, ' ').trim().slice(0, 600) };
 }
 
 // ============================================================
-// [C8] famMatchDoc v16.14 : match flou sur connexion
+// [C8] famMatchDoc v16.15 : connexion dans titre OU metadata OU contenu
 // ============================================================
 function famMatchDoc(d, q) {
-  var t = String(d.title || '') + ' ' + String((d.metadata && d.metadata.family) || '') + ' ' +
-    String((d.metadata && d.metadata.connection) || '');
-  // v16.14 : detection directe de la connexion dans la requete
+  var title = String(d.title || '');
+  var familyMeta = String((d.metadata && d.metadata.family) || '');
+  var connMeta = String((d.metadata && d.metadata.connection) || '');
+  // v16.15 : recherche connexion dans un extrait du contenu
+  var contentSample = String(d.content || '').slice(0, 3000);
+
   var qConn = q.match(/(TSH\s*\d{2,3}|WEDGE\s*\d{3}|VAM\s*(?:TOP|21|FJL|SLIJ|HTF|SG|EDGE|MUST|HW|BOLT|HP|DWC)|HYDRIL\s*PH-?\d|JFE\s?(?:BEAR|LION)|FOX|SEAL-?LOCK|TEC-?LOCK)/i);
   if (qConn) {
     var needle = qConn[1].replace(/\s+/g, '\\s*');
     var re = new RegExp(needle, 'i');
-    if (re.test(t)) return true;
+    if (re.test(title) || re.test(connMeta) || re.test(contentSample)) return true;
   }
-  if (/Vallourec|\bVAM\b/i.test(q)) return /Vallourec|VAM/i.test(t);
-  if (/Tenaris|Hydril/i.test(q)) return /Tenaris|Hydril/i.test(t);
-  if (/JFE/i.test(q)) return /JFE/i.test(t);
-  if (/Grant|\bNOV\b/i.test(q)) return /Grant|NOV/i.test(t);
-  if (/Hunting/i.test(q)) return /Hunting/i.test(t);
-  if (/API-?5CT|API-?5B|API-?7|API-?6A/i.test(q)) return /API/i.test(t);
+  if (/Vallourec|\bVAM\b/i.test(q)) return /Vallourec|VAM/i.test(title + ' ' + connMeta + ' ' + contentSample);
+  if (/Tenaris|Hydril/i.test(q)) return /Tenaris|Hydril/i.test(title + ' ' + familyMeta + ' ' + connMeta + ' ' + contentSample);
+  if (/JFE/i.test(q)) return /JFE/i.test(title + ' ' + connMeta + ' ' + contentSample);
+  if (/Grant|\bNOV\b/i.test(q)) return /Grant|NOV/i.test(title + ' ' + connMeta + ' ' + contentSample);
+  if (/Hunting/i.test(q)) return /Hunting/i.test(title + ' ' + connMeta + ' ' + contentSample);
+  if (/API-?5CT|API-?5B|API-?7|API-?6A/i.test(q)) return /API/i.test(title + ' ' + familyMeta + ' ' + contentSample);
   return true;
 }
 
@@ -1825,9 +1858,13 @@ function threadSpecList(det) {
   return out.join('|');
 }
 
+// ============================================================
+// [C13] kbQueriesFor v16.15 : ajout mots-cles francais
+// ============================================================
 function kbQueriesFor(det, stds) {
   var q = [];
   var szTxt = det.sizes.length ? ' size ' + det.sizes[0].od + ' ' + det.sizes[0].wt + ' lb/ft' : '';
+  var szFr = det.sizes.length ? ' poids ' + det.sizes[0].wt + ' diametre ' + det.sizes[0].od + ' longueur filetage' : ' poids diametre longueur filetage';
 
   det.conns.forEach(function(c) {
     if (c.kind !== 'premium') return;
@@ -1836,6 +1873,7 @@ function kbQueriesFor(det, stds) {
     if (!fam) return;
     var src = PREMIUM_SOURCES[fam.id];
     q.push((fam.owner || '') + ' ' + c.label + ' connection data sheet weight diameter length ID OD shoulder torque drift coupling blanking' + szTxt);
+    q.push((fam.owner || '') + ' ' + c.label + ' ' + szFr);
     if (src && src.docs) {
       src.docs.forEach(function(d) {
         q.push(fam.owner + ' ' + c.label + ' ' + d.title + ' connection data sheet weight diameter length ID OD shoulder' + szTxt);
@@ -1857,7 +1895,7 @@ function kbQueriesFor(det, stds) {
 
   if (det.apiGrade) q.push('API 5CT grade ' + det.apiGrade + ' chemical composition mechanical properties');
   if (det.aisi) q.push('AISI ' + det.aisi + ' chemical composition mechanical properties heat treatment');
-  return q.slice(0, 8);
+  return q.slice(0, 10);
 }
 
 // ============================================================
@@ -2401,6 +2439,9 @@ function prepareQPs(text) {
   return { wos: wos, ctx: ctx, prepared: prepared };
 }
 
+// ============================================================
+// [C14] buildQPAnswer v16.15 : diagnostic visible dans le bandeau
+// ============================================================
 async function buildQPAnswer(text, AutoFeedDoc) {
   var prep = prepareQPs(text);
   if (!prep) return { wos: [], html: '', links: [], qpDocs: 0, ctx: null };
@@ -2415,13 +2456,25 @@ async function buildQPAnswer(text, AutoFeedDoc) {
   var smallHtml = '';
   var confidenceSum = 0;
   var confidenceCount = 0;
+  // Diagnostic agrege sur tous les WO
+  var aggDetail = { size: 0, conn: 0, grade: 0, api: 0, officialMax: 0, coverage: 0, totalHits: 0, totalOfficial: 0, totalMatched: 0 };
   for (var s = 0; s < prepared.length; s += QP_CHUNK) {
     var part = prepared.slice(s, s + QP_CHUNK);
     var html = part.map(function(p, i) { return renderOneQP(p, i, ctx, kb); }).join('');
     qpDocs += (html.match(/class="qp-document"/g) || []).length;
     part.forEach(function(p) {
-      confidenceSum += qpConfidenceScore(p, kb);
+      var det = qpConfidenceDetail(p, kb);
+      confidenceSum += det.total;
       confidenceCount++;
+      aggDetail.size += det.size;
+      aggDetail.conn += det.conn;
+      aggDetail.grade += det.grade;
+      aggDetail.api += det.api;
+      aggDetail.officialMax += det.officialMax;
+      aggDetail.coverage += det.coverage;
+      aggDetail.totalHits += det.totalHits;
+      aggDetail.totalOfficial += det.totalOfficial;
+      aggDetail.totalMatched += det.totalMatched;
     });
     links.push({ token: storeQP(html), from: s + 1, to: s + part.length });
     if (prepared.length <= QP_HIDDEN_MAX) smallHtml = html;
@@ -2430,6 +2483,24 @@ async function buildQPAnswer(text, AutoFeedDoc) {
   var avgConfidence = confidenceCount > 0 ? Math.round(confidenceSum / confidenceCount) : 0;
   var confColor = avgConfidence >= 80 ? '#dcfce7' : (avgConfidence >= 50 ? '#fef3c7' : '#fee2e2');
   var confTextColor = avgConfidence >= 80 ? '#14532d' : (avgConfidence >= 50 ? '#78350f' : '#7f1d1d');
+
+  // Diagnostic affichage
+  var avgSize = confidenceCount > 0 ? Math.round(aggDetail.size / confidenceCount) : 0;
+  var avgConn = confidenceCount > 0 ? Math.round(aggDetail.conn / confidenceCount) : 0;
+  var avgGrade = confidenceCount > 0 ? Math.round(aggDetail.grade / confidenceCount) : 0;
+  var avgApi = confidenceCount > 0 ? Math.round(aggDetail.api / confidenceCount) : 0;
+  var avgOff = confidenceCount > 0 ? Math.round(aggDetail.officialMax / confidenceCount) : 0;
+  var avgCov = confidenceCount > 0 ? Math.round(aggDetail.coverage / confidenceCount) : 0;
+  var diagHtml = '<div style="background:#f9fafb;border:1px dashed #cbd5e1;border-radius:6px;padding:8px 12px;margin:8px 0;font-size:11px;color:#374151">' +
+    '<b>Diagnostic confiance (moyenne par WO) :</b><br>' +
+    '  • Taille / OD identifiés : ' + avgSize + '/20<br>' +
+    '  • Connexion identifiée : ' + avgConn + '/20<br>' +
+    '  • Grade identifié : ' + avgGrade + '/15<br>' +
+    '  • API / AISI identifié : ' + avgApi + '/15<br>' +
+    '  • Sources officielles matchées : ' + avgOff + '/20<br>' +
+    '  • Taux de couverture officielle : ' + avgCov + '/10<br>' +
+    '<b>Total des extraits :</b> ' + aggDetail.totalHits + ' hits - ' + aggDetail.totalOfficial + ' officiels - ' + aggDetail.totalMatched + ' validés contre le WO' +
+    '</div>';
 
   var chips = wos.slice(0, 60).map(function(w) {
     return '<span style="display:inline-block;background:#ffffff;border:1px solid #1e5aa8;color:#1e5aa8;padding:4px 12px;border-radius:14px;margin:3px 5px 3px 0;font-weight:700">QP-' + esc(w.id) + '</span>';
@@ -2449,6 +2520,7 @@ async function buildQPAnswer(text, AutoFeedDoc) {
     '<div style="color:#1e40af;font-weight:800;font-size:15px">' + wos.length + ' Work Order(s) detecte(s) - ' + qpDocs + ' QP conforme(s) QP STANDARD 01</div>' +
     '<div style="font-size:13px;color:#1e3a8a;margin:6px 0 4px 0">Client : <strong>' + esc(ctx.customer) + '</strong> - PO : <strong>' + esc(ctx.po) + '</strong></div>' +
     '<div style="background:' + confColor + ';color:' + confTextColor + ';padding:6px 12px;border-radius:6px;font-size:13px;font-weight:700;margin:8px 0;display:inline-block">Confiance QP moyenne : ' + avgConfidence + '%</div>' +
+    diagHtml +
     '<div style="font-size:12px;color:#1e3a8a;margin:0 0 4px 0">Chaque QP : 2 pages au format standard + 1 annexe technique (normes, controles, sources officielles premium).</div>' +
     '<div style="font-size:12px;color:#1e3a8a;margin:0 0 8px 0">Normes : ' + (stdLine || '-') + (premLine.length ? ' - Premium : ' + esc(premLine.join(', ')) : '') + '</div>' +
     '<div style="margin-bottom:12px">' + chips + '</div>' +
@@ -2457,7 +2529,7 @@ async function buildQPAnswer(text, AutoFeedDoc) {
     (links.length > 1 ? ' Les PDF sont decoupes par paquets de ' + QP_CHUNK + ' QP.' : '') + '</div>' +
     '</div>';
   var hidden = smallHtml ? '<div class="qp-print-container" style="display:none">' + smallHtml + '</div>' : '';
-  return { wos: wos, html: banner + hidden, links: links, qpDocs: qpDocs, ctx: ctx, avgConfidence: avgConfidence };
+  return { wos: wos, html: banner + hidden, links: links, qpDocs: qpDocs, ctx: ctx, avgConfidence: avgConfidence, diag: aggDetail };
 }
 
 function collectText(body) {
@@ -3029,6 +3101,7 @@ module.exports = function(app, mongoose) {
         qpDocs: out.qpDocs,
         match: out.wos.length === out.qpDocs,
         avgConfidence: out.avgConfidence,
+        diag: out.diag,
         ids: out.wos.slice(0, 100).map(function(w) { return w.id; }),
         customer: out.ctx.customer,
         po: out.ctx.po,
@@ -3072,6 +3145,7 @@ module.exports = function(app, mongoose) {
         qpDocs: out.qpDocs,
         match: out.wos.length === out.qpDocs,
         avgConfidence: out.avgConfidence,
+        diag: out.diag,
         ids: out.wos.slice(0, 100).map(function(w) { return w.id; }),
         customer: out.ctx.customer,
         po: out.ctx.po,
@@ -3098,6 +3172,8 @@ module.exports = function(app, mongoose) {
           parser: (d.metadata && d.metadata.parser) || '',
           isSheet: (d.metadata && d.metadata.isSheet) || false,
           connection: (d.metadata && d.metadata.connection) || '',
+          od: (d.metadata && d.metadata.od) || '',
+          wt: (d.metadata && d.metadata.wt) || '',
           ingestedAt: (d.metadata && d.metadata.ingestedAt) || d.createdAt,
           hasVector: !!(d.vector && Object.keys(d.vector).length > 0)
         };
@@ -3143,6 +3219,7 @@ module.exports = function(app, mongoose) {
             qpStandard01: true,
             treatmentMode: 'parsing-direct',
             avgConfidence: out.avgConfidence,
+            diag: out.diag,
             workOrdersDetected: out.wos.map(function(w) { return 'QP-' + w.id; })
           });
         }).catch(function(e) {
@@ -3247,5 +3324,5 @@ module.exports = function(app, mongoose) {
     });
   }, 20000);
 
-  console.log('[answer-enricher] v16.14 charge - matching ameliore + seuil abaisse + match flou connexion');
+  console.log('[answer-enricher] v16.15 charge - diagnostic confiance + matching FR/EN + content-based famMatch + short-content direct');
 };
