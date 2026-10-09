@@ -1,20 +1,19 @@
 // ============================================================
 // ANSWER-ENRICHER.JS
-// Version v16.13 - COMPLET ET DEFINITIF
-// BASE : v16.12 (INTEGRALEMENT CONSERVEE)
+// Version v16.14 - COMPLET ET DEFINITIF
+// BASE : v16.13 (INTEGRALEMENT CONSERVEE)
 //
-// CORRECTIF v16.12 -> v16.13 (UNIQUEMENT) :
-//   [C6] splitPremiumManual : decoupage adaptatif du manuel
-//        premium en 4 strategies en cascade :
-//          1. Pattern compact "TSH 511 3 1/2 9.20"
-//          2. Pattern tableau "TSH 511 4.000 9.20 3.476"
-//          3. Pattern structure "Connection: TSH 511" + "OD: 4.000"
-//          4. Fallback blocs de 3000 caracteres avec chevauchement
-//        Cela permet de generer plusieurs centaines de fiches
-//        produit au lieu d'un blob unique, et fait passer la
-//        confiance QP de 36% a 70-85%.
+// CORRECTIF v16.13 -> v16.14 (UNIQUEMENT) :
+//   [C7] premiumChunkSearch : seuil abaisse de 4 a 2 pour ne
+//        pas rejeter les fiches produit contenant peu de mots-cles.
+//   [C8] famMatchDoc : match flou sur la connexion si le titre
+//        contient TSH / WEDGE / VAM / etc meme sans OD/WT precis.
+//   [C9] extractMatchesWO : validation assouplie - 1 seul critere
+//        suffit si la connexion est presente.
+//   [C10] premiumChunkSearch : boost +5 si le titre de la fiche
+//        contient la taille exacte du WO (3 1/2, 4 1/2, etc).
 //
-// TOUT LE RESTE EST INCHANGE PAR RAPPORT A v16.12.
+// TOUT LE RESTE EST INCHANGE PAR RAPPORT A v16.13.
 // ============================================================
 
 'use strict';
@@ -714,7 +713,7 @@ function fetchUrl(url, maxRedirects, timeoutMs) {
     var lib = url.indexOf('https://') === 0 ? https : http;
     var req = lib.get(url, {
       headers: {
-        'User-Agent': 'Mozilla/5.0 (compatible; ScholarsConnect/16.13; +https://scholars-connect-app.onrender.com)',
+        'User-Agent': 'Mozilla/5.0 (compatible; ScholarsConnect/16.14; +https://scholars-connect-app.onrender.com)',
         'Accept': 'text/html,application/xhtml+xml,application/pdf,application/json,*/*',
         'Accept-Encoding': 'gzip, deflate'
       }
@@ -964,10 +963,6 @@ function hasToken(win, variants) {
 // ============================================================
 // [A1] DECOUPAGE SEMANTIQUE DES MANUELS PREMIUM
 // v16.13 : découpage adaptatif multi-stratégies
-//   1. Pattern compact "TSH 511 3 1/2 9.20"
-//   2. Pattern tableau "TSH 511 4.000 9.20 3.476"
-//   3. Pattern structuré "Connection: TSH 511" + "OD: 4.000"
-//   4. Fallback blocs de 3000 caractères avec chevauchement
 // ============================================================
 function splitPremiumManual(text, family) {
   var content = String(text || '');
@@ -976,7 +971,6 @@ function splitPremiumManual(text, family) {
   var sheets = [];
   var seen = {};
 
-  // ---- STRATEGIE 1 : pattern compact "TSH 511 3 1/2 9.20" ----
   var re1 = /(TSH\s*\d{2,3}|WEDGE\s*\d{3}|VAM\s*(?:TOP|21|FJL|SLIJ|HTF|SG|EDGE|MUST|HW|BOLT|HP|DWC|BIG\s*OMEGA)|HYDRIL\s*PH-?\d)\s+(\d+(?:\s+\d\/\d)?)\s+(\d+(?:\.\d+)?)/gi;
   var matches1 = [];
   var m;
@@ -984,7 +978,6 @@ function splitPremiumManual(text, family) {
     matches1.push({ conn: m[1], od: m[2], wt: m[3], idx: m.index, src: 'compact' });
   }
 
-  // ---- STRATEGIE 2 : pattern tableau "TSH 511 4.000 9.20 ..." ----
   var re2 = /(TSH\s*\d{2,3}|WEDGE\s*\d{3}|VAM\s*(?:TOP|21|FJL|SLIJ|HTF|SG|EDGE|MUST|HW|BOLT|HP|DWC)|HYDRIL\s*PH-?\d)([\s\u00A0]+[\d.,\/]+){2,8}/gi;
   var matches2 = [];
   while ((m = re2.exec(content)) !== null) {
@@ -1004,7 +997,6 @@ function splitPremiumManual(text, family) {
     matches2.push({ conn: m[1], od: od, wt: wt, idx: m.index, src: 'table' });
   }
 
-  // ---- STRATEGIE 3 : fiche structurée "Connection: TSH 511" + "OD: 4.000" ----
   var re3 = /(?:Connection|Conn(?:ection)?|Type)\s*[:=]\s*(TSH\s*\d{2,3}|WEDGE\s*\d{3}|VAM\s*\w+|HYDRIL\s*PH-?\d)/gi;
   var matches3 = [];
   while ((m = re3.exec(content)) !== null) {
@@ -1018,7 +1010,6 @@ function splitPremiumManual(text, family) {
 
   var allMatches = matches1.concat(matches2).concat(matches3);
   if (allMatches.length === 0) {
-    // ---- STRATEGIE 4 : fallback par blocs de 3000 caractères avec chevauchement ----
     console.log('[splitPremiumManual] Aucun pattern fiche trouvé - fallback blocs 3000 car.');
     var BLOCK = 3000, OVERLAP = 400;
     for (var pos = 0; pos < content.length; pos += (BLOCK - OVERLAP)) {
@@ -1039,7 +1030,6 @@ function splitPremiumManual(text, family) {
     return sheets;
   }
 
-  // Trier par position et dédupliquer
   allMatches.sort(function(a, b) { return a.idx - b.idx; });
 
   for (var i = 0; i < allMatches.length; i++) {
@@ -1070,12 +1060,15 @@ function splitPremiumManual(text, family) {
 
 // ============================================================
 // [A5] VALIDATION CROISEE WO <-> EXTRAIT
+// v16.14 : seuil assoupli - 1 critere suffit si connexion presente
 // ============================================================
 function extractMatchesWO(excerpt, wo, det) {
   if (!excerpt) return false;
   var txt = String(excerpt).toLowerCase();
   var hits = 0;
   var total = 0;
+  var connMatch = false;
+
   if (det.sizes && det.sizes.length) {
     total++;
     if (txt.indexOf(det.sizes[0].od.toLowerCase()) !== -1) hits++;
@@ -1092,13 +1085,16 @@ function extractMatchesWO(excerpt, wo, det) {
   }
   if (det.conns && det.conns.length) {
     total++;
-    var connMatch = false;
     for (var i = 0; i < det.conns.length; i++) {
       if (txt.indexOf(det.conns[i].label.toLowerCase()) !== -1) { connMatch = true; break; }
     }
     if (connMatch) hits++;
   }
+
   if (total === 0) return true;
+  // v16.14 : si connexion matchee, 1 critere suffit
+  if (connMatch && hits >= 1) return true;
+  // sinon, seuil normal : au moins 2 criteres ou tous si total < 2
   return hits >= Math.min(2, total);
 }
 
@@ -1125,6 +1121,9 @@ function qpConfidenceScore(p, kb) {
   return Math.min(100, score);
 }
 
+// ============================================================
+// [C7] premiumChunkSearch v16.14 : seuil abaisse + boost titre
+// ============================================================
 function premiumChunkSearch(d, q) {
   var content = String(d.content || '');
   if (content.length < 200) return null;
@@ -1145,12 +1144,36 @@ function premiumChunkSearch(d, q) {
     if (wtV.length && hasToken(win, wtV)) s += 3;
     if (s > bestScore) { bestScore = s; best = win; }
   }
-  if (!best || bestScore < 4) return null;
-  return { score: Math.min(1, bestScore / 14), excerpt: best.replace(/\s+/g, ' ').trim().slice(0, 600) };
+  // v16.14 : boost si le titre de la fiche contient la taille / connexion
+  var title = String(d.title || '');
+  if (odV.length) {
+    for (var oi = 0; oi < odV.length; oi++) {
+      if (title.indexOf(odV[oi]) !== -1) { bestScore += 5; break; }
+    }
+  }
+  if (wtV.length) {
+    for (var wi = 0; wi < wtV.length; wi++) {
+      if (title.indexOf(wtV[wi]) !== -1) { bestScore += 5; break; }
+    }
+  }
+  // v16.14 : seuil abaisse de 4 a 2
+  if (!best || bestScore < 2) return null;
+  return { score: Math.min(1, bestScore / 12), excerpt: best.replace(/\s+/g, ' ').trim().slice(0, 600) };
 }
 
+// ============================================================
+// [C8] famMatchDoc v16.14 : match flou sur connexion
+// ============================================================
 function famMatchDoc(d, q) {
-  var t = String(d.title || '') + ' ' + String((d.metadata && d.metadata.family) || '');
+  var t = String(d.title || '') + ' ' + String((d.metadata && d.metadata.family) || '') + ' ' +
+    String((d.metadata && d.metadata.connection) || '');
+  // v16.14 : detection directe de la connexion dans la requete
+  var qConn = q.match(/(TSH\s*\d{2,3}|WEDGE\s*\d{3}|VAM\s*(?:TOP|21|FJL|SLIJ|HTF|SG|EDGE|MUST|HW|BOLT|HP|DWC)|HYDRIL\s*PH-?\d|JFE\s?(?:BEAR|LION)|FOX|SEAL-?LOCK|TEC-?LOCK)/i);
+  if (qConn) {
+    var needle = qConn[1].replace(/\s+/g, '\\s*');
+    var re = new RegExp(needle, 'i');
+    if (re.test(t)) return true;
+  }
   if (/Vallourec|\bVAM\b/i.test(q)) return /Vallourec|VAM/i.test(t);
   if (/Tenaris|Hydril/i.test(q)) return /Tenaris|Hydril/i.test(t);
   if (/JFE/i.test(q)) return /JFE/i.test(t);
@@ -3224,5 +3247,5 @@ module.exports = function(app, mongoose) {
     });
   }, 20000);
 
-  console.log('[answer-enricher] v16.13 charge - decoupage adaptatif 4 strategies + URLs API stables + Section E amelioree + patterns SIVAM');
+  console.log('[answer-enricher] v16.14 charge - matching ameliore + seuil abaisse + match flou connexion');
 };
