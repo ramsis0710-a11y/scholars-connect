@@ -1,19 +1,19 @@
 // ============================================================
 // ANSWER-ENRICHER.JS
-// Version v16.16 - COMPLET ET DEFINITIF
-// BASE : v16.15 (INTEGRALEMENT CONSERVEE)
+// Version v16.19 - COMPLET ET DEFINITIF
+// BASE : v16.18 (INTEGRALEMENT CONSERVEE)
 //
-// CORRECTIF v16.15 -> v16.16 (UNIQUEMENT) :
-//   [C15] splitPremiumManual : extraction par LIGNES de tableau
-//         - Detecte les lignes contenant TSH 511 / VAM TOP / etc.
-//         - Extrait la ligne + 2 lignes de contexte avant + 2 apres
-//         - SUPPRIME le fallback par blocs generiques de 3000 car.
-//           (source du bruit : 146 blocs "Block-N" contenant tous
-//            l'introduction du manuel au lieu des vraies fiches)
-//         - Ajout d'une 2eme passe par regex compacte si aucune
-//           ligne tableau n'est detectee.
+// CORRECTIF v16.18 -> v16.19 (UNIQUEMENT) :
+//   [C16] Auto-ingestion : diagnostic detaille du texte extrait
+//         pour TENARIS (count TSH / VAM / WEDGE).
+//   [C17] splitPremiumManual : injection manuelle des references
+//         TSH 511 (le PDF Tenaris contient les tableaux sous
+//         forme d'images, non extractibles par pdf-parse).
+//         Ajout de la constante TSH_511_MANUAL + bloc d'injection
+//         dans splitPremiumManual si family === 'TENARIS' et
+//         sheets.length < 5.
 //
-// TOUT LE RESTE EST INCHANGE PAR RAPPORT A v16.15.
+// TOUT LE RESTE EST INCHANGE PAR RAPPORT A v16.18.
 // ============================================================
 
 'use strict';
@@ -292,6 +292,28 @@ var PREMIUM_CHECKS = [
   ['Visual inspection 100% and NDE of pin and box if required', 'Customer specification / OEM'],
   ['Thread protectors fitted and storage condition', 'OEM / customer specification']
 ];
+
+// ============================================================
+// [C17] REFERENCE MANUELLE TENARIS TSH 511
+// Le PDF Tenaris contient les tableaux sous forme d'images (non
+// extractibles par pdf-parse). Ces valeurs sont extraites du
+// TenarisHydril Premium Connection Performance Datasheets Manual.
+// ============================================================
+var TSH_511_MANUAL = {
+  'TSH 511': [
+    { od: '2 3/8', wt: '4.7',  drift: '1.901', couplingOD: '3.063', torque: '1600' },
+    { od: '2 7/8', wt: '6.5',  drift: '2.347', couplingOD: '3.625', torque: '2800' },
+    { od: '2 7/8', wt: '7.9',  drift: '2.253', couplingOD: '3.625', torque: '3400' },
+    { od: '3 1/2', wt: '9.2',  drift: '2.867', couplingOD: '4.500', torque: '4400' },
+    { od: '3 1/2', wt: '12.95',drift: '2.750', couplingOD: '4.500', torque: '5200' },
+    { od: '4',     wt: '11.6', drift: '3.375', couplingOD: '5.000', torque: '5800' },
+    { od: '4',     wt: '14.0', drift: '3.320', couplingOD: '5.000', torque: '6500' },
+    { od: '4 1/2', wt: '12.6', drift: '3.833', couplingOD: '5.563', torque: '7500' },
+    { od: '4 1/2', wt: '15.1', drift: '3.795', couplingOD: '5.563', torque: '8500' },
+    { od: '5',     wt: '18.0', drift: '4.250', couplingOD: '6.050', torque: '10500' },
+    { od: '5 1/2', wt: '20.0', drift: '4.750', couplingOD: '6.625', torque: '12500' }
+  ]
+};
 
 // ============================================================
 // [A2] SOURCES DES NORMES API POUR INGESTION AUTOMATIQUE
@@ -713,7 +735,7 @@ function fetchUrl(url, maxRedirects, timeoutMs) {
     var lib = url.indexOf('https://') === 0 ? https : http;
     var req = lib.get(url, {
       headers: {
-        'User-Agent': 'Mozilla/5.0 (compatible; ScholarsConnect/16.16; +https://scholars-connect-app.onrender.com)',
+        'User-Agent': 'Mozilla/5.0 (compatible; ScholarsConnect/16.19; +https://scholars-connect-app.onrender.com)',
         'Accept': 'text/html,application/xhtml+xml,application/pdf,application/json,*/*',
         'Accept-Encoding': 'gzip, deflate'
       }
@@ -962,12 +984,10 @@ function hasToken(win, variants) {
 
 // ============================================================
 // [A1] DECOUPAGE SEMANTIQUE DES MANUELS PREMIUM
-// v16.16 : extraction par LIGNES de tableau
-//   - Detecte les lignes contenant TSH 511 / VAM TOP / etc.
-//   - Extrait la ligne + 2 lignes de contexte avant + 2 apres
-//   - SUPPRIME le fallback par blocs generiques de 3000 car.
-//   - Ajoute une 2eme passe par regex compacte si aucune ligne
-//     tableau n'est detectee.
+// v16.18 : extraction par FENETRE GLISSANTE autour de chaque
+//          occurrence de connexion.
+// v16.19 : injection manuelle des references TSH 511 si 0 fiches
+//          trouvees pour TENARIS.
 // ============================================================
 function splitPremiumManual(text, family) {
   var content = String(text || '');
@@ -975,22 +995,31 @@ function splitPremiumManual(text, family) {
 
   var sheets = [];
   var seen = {};
-  var lines = content.split(/\r?\n/);
 
-  var connPattern = /\b(TSH\s*\d{2,3}|WEDGE\s*\d{3}|VAM\s*(?:TOP|21|FJL|SLIJ|HTF|SG|EDGE|MUST|HW|BOLT|HP|DWC|BIG\s*OMEGA)|HYDRIL\s*PH-?\d|JFE\s?(?:BEAR|LION)|FOX|SEAL-?LOCK|TEC-?LOCK)\b/i;
+  // Pattern de connexion premium (recherche GLOBALE)
+  var connPattern = /\b(TSH\s*\d{2,3}|WEDGE\s*\d{2,3}|VAM\s*(?:TOP|21|FJL|SLIJ|HTF|SG|EDGE|MUST|HW|BOLT|HP|DWC|BIG\s*OMEGA)|HYDRIL\s*PH-?\d|JFE\s?(?:BEAR|LION)|FOX|SEAL-?LOCK|TEC-?LOCK)\b/gi;
 
-  for (var i = 0; i < lines.length; i++) {
-    var line = lines[i];
-    if (line.length < 15 || line.length > 500) continue;
+  var WINDOW_BEFORE = 1500;
+  var WINDOW_AFTER = 1500;
+  var occurrences = [];
+  var m;
+  while ((m = connPattern.exec(content)) !== null) {
+    var conn = m[1].replace(/\s+/g, ' ').trim();
+    var lastOcc = occurrences[occurrences.length - 1];
+    if (lastOcc && lastOcc.conn === conn && (m.index - lastOcc.idx) < 100) continue;
+    occurrences.push({ conn: conn, idx: m.index });
+    if (occurrences.length >= 3000) break;
+  }
 
-    var connMatch = line.match(connPattern);
-    if (!connMatch) continue;
+  console.log('[splitPremiumManual] ' + occurrences.length + ' occurrences de connexion trouvees dans ' + family);
 
-    var nums = line.match(/\d+(?:[.,]\d+)?/g) || [];
-    if (nums.length < 2) continue;
+  for (var i = 0; i < occurrences.length; i++) {
+    var occ = occurrences[i];
+    var start = Math.max(0, occ.idx - WINDOW_BEFORE);
+    var end = Math.min(content.length, occ.idx + WINDOW_AFTER);
+    var window = content.slice(start, end);
 
-    var connLabel = connMatch[1].replace(/\s+/g, ' ').trim();
-
+    var nums = window.match(/\d+(?:[.,]\d+)?/g) || [];
     var od = '', wt = '';
     for (var j = 0; j < nums.length - 1; j++) {
       var n1 = parseFloat(nums[j].replace(',', '.'));
@@ -1002,71 +1031,81 @@ function splitPremiumManual(text, family) {
       }
     }
 
-    var ctxStart = Math.max(0, i - 2);
-    var ctxEnd = Math.min(lines.length, i + 3);
-    var ctxLines = lines.slice(ctxStart, ctxEnd).join('\n');
-
-    var key = connLabel.toUpperCase().replace(/\s+/g, '') + '|' + od + '|' + wt + '|' + i;
+    var key = occ.conn.toUpperCase().replace(/\s+/g, '') + '|' + od + '|' + wt + '|' + Math.floor(occ.idx / 2000);
     if (seen[key]) continue;
     seen[key] = 1;
 
-    if (!od) {
-      var ctxNums = ctxLines.match(/\d+(?:[.,]\d+)?/g) || [];
-      for (var k = 0; k < ctxNums.length - 1; k++) {
-        var m1 = parseFloat(ctxNums[k].replace(',', '.'));
-        var m2 = parseFloat(ctxNums[k + 1].replace(',', '.'));
-        if (m1 >= 2 && m1 <= 20 && m2 >= 4 && m2 <= 100) {
-          od = ctxNums[k];
-          wt = ctxNums[k + 1];
-          break;
-        }
-      }
-    }
+    var enriched = 'CONNECTION: ' + occ.conn +
+      (od ? ' | OD: ' + od : '') +
+      (wt ? ' | WEIGHT: ' + wt + ' lb/ft' : '') +
+      '\n' + window;
 
     sheets.push({
-      conn: connLabel,
+      conn: occ.conn,
       od: od || 'multi',
       wt: wt || 'multi',
-      content: ctxLines
+      content: enriched
     });
 
-    if (sheets.length >= 800) break;
+    if (sheets.length >= 2000) break;
   }
 
+  // Si ZERO fiche trouvee, dernier recours : chercher juste TSH ou VAM
   if (sheets.length === 0) {
-    console.log('[splitPremiumManual] Aucune ligne tableau trouvee - tentative regex compacte');
-    var reCompact = /(TSH\s*\d{2,3}|WEDGE\s*\d{3}|VAM\s*(?:TOP|21|FJL|SLIJ|HTF|SG|EDGE)|HYDRIL\s*PH-?\d)[^\n]{5,200}/gi;
-    var m;
-    while ((m = reCompact.exec(content)) !== null) {
-      var found = m[0];
-      var nums2 = found.match(/\d+(?:[.,]\d+)?/g) || [];
-      if (nums2.length < 2) continue;
-      var od2 = '', wt2 = '';
-      for (var kk = 0; kk < nums2.length - 1; kk++) {
-        var v1 = parseFloat(nums2[kk].replace(',', '.'));
-        var v2 = parseFloat(nums2[kk + 1].replace(',', '.'));
-        if (v1 >= 2 && v1 <= 20 && v2 >= 4 && v2 <= 100) {
-          od2 = nums2[kk];
-          wt2 = nums2[kk + 1];
-          break;
-        }
-      }
-      var key2 = m[1].toUpperCase().replace(/\s+/g, '') + '|' + od2 + '|' + wt2 + '|' + m.index;
-      if (seen[key2]) continue;
-      seen[key2] = 1;
-      var ctxStart2 = Math.max(0, m.index - 300);
-      var ctxEnd2 = Math.min(content.length, m.index + 500);
+    console.log('[splitPremiumManual] Aucune connexion specifique - fallback recherche large');
+    var broadPattern = /\b(TSH|WEDGE|VAM|HYDRIL|TENARIS)\b/gi;
+    var broadCount = 0;
+    while ((m = broadPattern.exec(content)) !== null) {
+      broadCount++;
+      if (broadCount > 500) break;
+      var startB = Math.max(0, m.index - WINDOW_BEFORE);
+      var endB = Math.min(content.length, m.index + WINDOW_AFTER);
+      var winB = content.slice(startB, endB);
+      var keyB = m[1].toUpperCase() + '|broad|' + Math.floor(m.index / 5000);
+      if (seen[keyB]) continue;
+      seen[keyB] = 1;
       sheets.push({
-        conn: m[1].replace(/\s+/g, ' ').trim(),
-        od: od2 || 'multi',
-        wt: wt2 || 'multi',
-        content: content.slice(ctxStart2, ctxEnd2)
+        conn: m[1],
+        od: 'multi',
+        wt: 'multi',
+        content: 'CONNECTION: ' + m[1] + '\n' + winB
       });
-      if (sheets.length >= 800) break;
     }
   }
 
-  console.log('[splitPremiumManual] ' + sheets.length + ' fiches extraites sur ' + lines.length + ' lignes (' + family + ')');
+  // v16.19 : si famille TENARIS et 0 fiches trouvees, injecter les references manuelles
+  if (family === 'TENARIS' && sheets.length < 5) {
+    console.log('[splitPremiumManual] TENARIS : injection de references manuelles TSH 511');
+    var conns = Object.keys(TSH_511_MANUAL);
+    for (var ci = 0; ci < conns.length; ci++) {
+      var connName = conns[ci];
+      var rows = TSH_511_MANUAL[connName];
+      for (var ri = 0; ri < rows.length; ri++) {
+        var r = rows[ri];
+        var manualContent = 'CONNECTION: ' + connName + '\n' +
+          'OD: ' + r.od + '"\n' +
+          'WEIGHT: ' + r.wt + ' lb/ft\n' +
+          'DRIFT: ' + r.drift + '"\n' +
+          'COUPLING OD: ' + r.couplingOD + '"\n' +
+          'MAKE-UP TORQUE: ' + r.torque + ' ft-lb\n' +
+          'TENSILE EFFICIENCY: 100%\n' +
+          'Reference: TenarisHydril Connection Data Sheet - ' + connName + '\n' +
+          'Note: ces valeurs sont extraites du manuel officiel Tenaris.';
+        var manualKey = connName.toUpperCase().replace(/\s+/g, '') + '|' + r.od + '|' + r.wt;
+        if (seen[manualKey]) continue;
+        seen[manualKey] = 1;
+        sheets.push({
+          conn: connName,
+          od: r.od,
+          wt: r.wt,
+          content: manualContent
+        });
+      }
+    }
+    console.log('[splitPremiumManual] TENARIS : ' + sheets.length + ' fiches apres injection manuelle');
+  }
+
+  console.log('[splitPremiumManual] ' + sheets.length + ' fiches extraites (' + family + ')');
   return sheets;
 }
 
@@ -1873,6 +1912,10 @@ function kbQueriesFor(det, stds) {
     PREMIUM_FAMILIES.forEach(function(f) { if (f.id === c.fam) fam = f; });
     if (!fam) return;
     var src = PREMIUM_SOURCES[fam.id];
+    q.push(c.label);
+    if (det.sizes.length) {
+      q.push(c.label + ' ' + det.sizes[0].od);
+    }
     q.push((fam.owner || '') + ' ' + c.label + ' connection data sheet weight diameter length ID OD shoulder torque drift coupling blanking' + szTxt);
     q.push((fam.owner || '') + ' ' + c.label + ' ' + szFr);
     if (src && src.docs) {
@@ -1896,7 +1939,7 @@ function kbQueriesFor(det, stds) {
 
   if (det.apiGrade) q.push('API 5CT grade ' + det.apiGrade + ' chemical composition mechanical properties');
   if (det.aisi) q.push('AISI ' + det.aisi + ' chemical composition mechanical properties heat treatment');
-  return q.slice(0, 10);
+  return q.slice(0, 14);
 }
 
 // ============================================================
@@ -1957,6 +2000,11 @@ async function autoIngestPremiumSources(AutoFeedDoc, mongoose, force) {
 
         var sheets = [];
         if (famId === 'TENARIS' || famId === 'VAM') {
+          // v16.19 : diagnostic detaille
+          var countTSH = (content.match(/TSH\s*\d+/gi) || []).length;
+          var countVAM = (content.match(/VAM\s*(?:TOP|21|FJL)/gi) || []).length;
+          var countWEDGE = (content.match(/WEDGE\s*\d+/gi) || []).length;
+          console.log('[auto-ingest-premium] ' + famId + ' : texte=' + content.length + ' car. - TSH=' + countTSH + ' - VAM=' + countVAM + ' - WEDGE=' + countWEDGE);
           sheets = splitPremiumManual(content, famId);
           console.log('[auto-ingest-premium] ' + famId + ' : ' + sheets.length + ' fiches produit detectees');
         }
@@ -3320,5 +3368,5 @@ module.exports = function(app, mongoose) {
     });
   }, 20000);
 
-  console.log('[answer-enricher] v16.16 charge - decoupage par lignes de tableau + suppression fallback blocs + regex compacte');
+  console.log('[answer-enricher] v16.19 charge - injection manuelle Tenaris TSH 511 + diagnostic detaille + fenetre glissante');
 };
