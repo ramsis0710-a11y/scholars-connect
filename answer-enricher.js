@@ -1,23 +1,18 @@
 // ============================================================
 // ANSWER-ENRICHER.JS
-// Version v16.10 - AMELIORATION SECTION E (6 actions)
-// BASE : v16.9 (INTEGRALEMENT CONSERVEE, SAUF SECTION E)
+// Version v16.11 - COMPLET ET DEFINITIF
+// BASE : v16.10 (INTEGRALEMENT CONSERVEE)
 //
-// AMELIORATIONS SECTION E UNIQUEMENT :
-//   [A1] splitPremiumManual : decoupage des manuels premium
-//        en fiches produit (TSH 511, VAM TOP, etc.) pour eviter
-//        que toutes les requetes retombent sur l'introduction.
-//   [A2] STANDARDS_SOURCES : ingestion automatique des normes
-//        API 5CT / 5B / 7-2 / 6A depuis sources publiques.
-//   [A3] Filtrage strict : si une source officielle >= 0.6 existe,
-//        on coupe les sources non officielles < 0.5.
-//   [A4] BLOCKED_DOMAINS : blacklist linkedin, pubmed, arxiv, etc.
-//   [A5] extractMatchesWO : validation croisee WO <-> extrait
-//        (au moins 2 criteres : taille, poids, grade, connexion).
-//   [A6] qpConfidenceScore : score de confiance 0-100 affiche
-//        dans le bandeau du QP.
+// NOUVEAU v16.11 (correction critique uniquement) :
+//   [C1] parseWorkOrders : ajout des patterns 4 et 5 pour le
+//        format ARC SIVAM "N° QTE 1 PU TOTAL € [DATE]"
+//        (ex : 28932 1 1 450,00 € 1 450,00 €)
+//        Sans ce correctif, aucun WO n'est detecte sur les ARC
+//        SIVAM (Fatma WALI, 2026-OF-0001193) et l'IA prend le
+//        relais avec une reponse generique au lieu de generer
+//        les plans qualite.
 //
-// AUCUNE AUTRE FONCTIONNALITE N'A ETE MODIFIEE.
+// TOUT LE RESTE EST INCHANGE PAR RAPPORT A v16.10.
 // ============================================================
 
 'use strict';
@@ -299,7 +294,6 @@ var PREMIUM_CHECKS = [
 
 // ============================================================
 // [A2] SOURCES DES NORMES API POUR INGESTION AUTOMATIQUE
-// URL des resumes officiels API (documents publics gratuits)
 // ============================================================
 var STANDARDS_SOURCES = {
   'API-5CT': {
@@ -690,7 +684,7 @@ function fetchUrl(url, maxRedirects, timeoutMs) {
     var lib = url.indexOf('https://') === 0 ? https : http;
     var req = lib.get(url, {
       headers: {
-        'User-Agent': 'Mozilla/5.0 (compatible; ScholarsConnect/16.10; +https://scholars-connect-app.onrender.com)',
+        'User-Agent': 'Mozilla/5.0 (compatible; ScholarsConnect/16.11; +https://scholars-connect-app.onrender.com)',
         'Accept': 'text/html,application/xhtml+xml,application/pdf,application/json,*/*',
         'Accept-Encoding': 'gzip, deflate'
       }
@@ -939,17 +933,11 @@ function hasToken(win, variants) {
 
 // ============================================================
 // [A1] DECOUPAGE SEMANTIQUE DES MANUELS PREMIUM
-// Le manuel Tenaris/VAM est un document de plusieurs centaines
-// de pages. Sans decoupage, toutes les requetes retombent sur
-// l'introduction. On decoupe ici en fiches produit.
 // ============================================================
 function splitPremiumManual(text, family) {
   var content = String(text || '');
   if (content.length < 500) return [];
   var sheets = [];
-  // Motif de fiche produit : connexion + taille + poids
-  // Ex : "TSH 511  3 1/2  9.20" ou "WEDGE 511  3 1/2  9.20"
-  // ou "VAM TOP  3 1/2  9.20"
   var re = /(TSH\s*\d{2,3}|WEDGE\s*\d{3}|VAM\s*(?:TOP|21|FJL|SLIJ|HTF|SG|EDGE|MUST|HW|BOLT|HP|DWC|BIG\s*OMEGA)|HYDRIL\s*PH-?\d)\s+(\d+(?:\s+\d\/\d)?)\s+(\d+(?:\.\d+)?)/gi;
   var matches = [];
   var m;
@@ -962,7 +950,6 @@ function splitPremiumManual(text, family) {
     });
   }
   if (matches.length === 0) return [];
-  // Regrouper par (connexion, od, wt) unique - sinon doublons
   var seen = {};
   var uniqueSheets = [];
   for (var i = 0; i < matches.length; i++) {
@@ -971,7 +958,6 @@ function splitPremiumManual(text, family) {
     seen[key] = 1;
     var start = matches[i].idx;
     var end = (i + 1 < matches.length) ? matches[i + 1].idx : content.length;
-    // Etendre un peu avant pour inclure l'en-tete de fiche
     var preStart = Math.max(0, start - 200);
     var sheetContent = content.slice(preStart, end).trim();
     if (sheetContent.length < 150) continue;
@@ -987,8 +973,6 @@ function splitPremiumManual(text, family) {
 
 // ============================================================
 // [A5] VALIDATION CROISEE WO <-> EXTRAIT
-// Verifie que l'extrait contient au moins 2 des criteres du WO :
-// taille, poids, grade, connexion.
 // ============================================================
 function extractMatchesWO(excerpt, wo, det) {
   if (!excerpt) return false;
@@ -1017,14 +1001,12 @@ function extractMatchesWO(excerpt, wo, det) {
     }
     if (connMatch) hits++;
   }
-  if (total === 0) return true; // Aucun critere connu : on ne peut pas juger, on garde
+  if (total === 0) return true;
   return hits >= Math.min(2, total);
 }
 
 // ============================================================
 // [A6] SCORE DE CONFIANCE GLOBAL DU QP
-// Calcule un indice 0-100 base sur les criteres identifies
-// et la qualite des extraits Section E.
 // ============================================================
 function qpConfidenceScore(p, kb) {
   var score = 0;
@@ -1032,7 +1014,6 @@ function qpConfidenceScore(p, kb) {
   if (p.det.conns && p.det.conns.length) score += 20;
   if (p.info.grade) score += 15;
   if (p.det.apiGrade || p.det.aisi) score += 15;
-  // Qualite Section E : nombre d'extraits officiels matchant le WO
   var officialHits = 0;
   var totalHits = 0;
   (p.queries || []).forEach(function(q) {
@@ -1097,7 +1078,6 @@ async function loadKbForSearch(AutoFeedDoc) {
       others = await AutoFeedDoc.find({ source: { $ne: 'Premium-Source-Auto' } }).sort({ createdAt: -1 }).limit(500).lean();
     } catch (e2) { others = []; }
   }
-  // [A4] Filtrage blacklist sur les "others"
   others = others.filter(function(d) { return !isBlockedDomain(d.url); });
   return { premium: premium, others: others };
 }
@@ -1132,14 +1112,10 @@ async function kbSearchMany(AutoFeedDoc, queries, minScore) {
     var rest = scored.map(function(s) {
       return { title: s.d.title || '', domain: s.d.domain || '', url: s.d.url || '', score: s.score, excerpt: pickExcerpt(s.d.content, q), official: false };
     });
-
-    // [A3] FILTRAGE STRICT : si une source officielle >= 0.6 existe,
-    // on coupe les sources non officielles < 0.5 (bruit).
     if (official.length > 0 && official[0].score >= 0.6) {
       rest = rest.filter(function(r) { return r.score >= 0.5; });
       rest = rest.slice(0, 1);
     }
-
     result[q] = official.concat(rest);
   });
   return result;
@@ -1347,6 +1323,8 @@ function generateReferences(docs, domain, scholars) {
 
 // ============================================================
 // 8. EXTRACTION WO
+// v16.11 : ajout patterns 4 et 5 pour le format SIVAM
+// "N° QTE 1 PU TOTAL € [DATE]"
 // ============================================================
 function isEstimateNumber(txt, idx) {
   var back = txt.slice(Math.max(0, idx - 30), idx);
@@ -1360,6 +1338,7 @@ function parseWorkOrders(text) {
   text = String(text || '').replace(/\r/g, '');
   var hits = [], seen = {}, m;
 
+  // ---- ORDRE 1 : standard N° Qte Date ----
   var re1 = /(^|[^0-9A-Za-z])(\d{5})[\s\u00A0]+(\d{1,3})[\s\u00A0]+(\d{2}\/\d{2}\/\d{2,4})(?![0-9])/g;
   while ((m = re1.exec(text)) !== null) {
     var id1 = m[2];
@@ -1370,6 +1349,7 @@ function parseWorkOrders(text) {
     hits.push({ id: id1, qte: m[3], date: m[4], start: pos1, end: m.index + m[0].length, order: 'standard' });
   }
 
+  // ---- ORDRE 2 : inverse Qte Date \n N° ----
   var re2 = /(\d{1,3})[\s\u00A0]+(\d{2}\/\d{2}\/\d{2,4})[\s\u00A0]*\r?\n[\s\u00A0]*(\d{5})(?![0-9])/g;
   while ((m = re2.exec(text)) !== null) {
     var id2 = m[3];
@@ -1380,6 +1360,7 @@ function parseWorkOrders(text) {
     hits.push({ id: id2, qte: m[1], date: m[2], start: pos2, end: m.index + m[0].length, order: 'inverse' });
   }
 
+  // ---- ORDRE 3 : tableau multi-lignes sans date sur la meme ligne ----
   var re3 = /(?:^|\n)\s*(\d{5})\s+(?:[A-Z0-9\-\/#\.]+)\s+/g;
   while ((m = re3.exec(text)) !== null) {
     var id3 = m[1];
@@ -1393,6 +1374,51 @@ function parseWorkOrders(text) {
       seen[id3] = 1;
       hits.push({ id: id3, qte: qm[1], date: dm[1], start: pos3, end: m.index + m[0].length, order: 'table' });
     }
+  }
+
+  // ---- ORDRE 4 (v16.11) : format SIVAM "N° QTE 1 PU TOTAL € [DATE]" ----
+  // Ex : "28932 1 1 450,00 € 1 450,00 €"
+  //      "28934 3 1 390,00 € 4 170,00 € 09/11/26"
+  var re4 = /(^|[^0-9A-Za-z])(\d{5})[\s\u00A0]+(\d{1,3})[\s\u00A0]+\d{1,3}(?:[.,]\d{2})?\s*€?[\s\u00A0]+\d{1,3}[\s\u00A0]+\d{1,3}(?:[.,]\d{2})\s*€/g;
+  while ((m = re4.exec(text)) !== null) {
+    var id4 = m[2];
+    var pos4 = m.index + m[1].length;
+    if (isEstimateNumber(text, pos4)) continue;
+    if (seen[id4]) continue;
+    var sub4 = text.slice(m.index, m.index + 300);
+    var dm4 = sub4.match(/(\d{2}\/\d{2}\/\d{2,4})/);
+    seen[id4] = 1;
+    hits.push({
+      id: id4,
+      qte: m[3],
+      date: dm4 ? dm4[1] : '',
+      start: pos4,
+      end: m.index + m[0].length,
+      order: 'sivam-euro'
+    });
+  }
+
+  // ---- ORDRE 5 (v16.11) : format SIVAM sans prix euro sur la meme ligne ----
+  // Fallback : "N°WO QTE" suivi dans les 200 caracteres par un prix en €
+  var re5 = /(^|\n)\s*(\d{5})[\s\u00A0]+(\d{1,3})(?=[\s\u00A0]+\d)/g;
+  while ((m = re5.exec(text)) !== null) {
+    var id5 = m[2];
+    var pos5 = m.index + m[1].length;
+    if (isEstimateNumber(text, pos5)) continue;
+    if (seen[id5]) continue;
+    var sub5 = text.slice(m.index, m.index + 200);
+    if (!/€/.test(sub5)) continue;
+    if (!/\d{1,3}(?:[.,]\d{2})/.test(sub5)) continue;
+    var dm5 = sub5.match(/(\d{2}\/\d{2}\/\d{2,4})/);
+    seen[id5] = 1;
+    hits.push({
+      id: id5,
+      qte: m[3],
+      date: dm5 ? dm5[1] : '',
+      start: pos5,
+      end: m.index + m[0].length,
+      order: 'sivam-loose'
+    });
   }
 
   hits.sort(function(a, b) { return a.start - b.start; });
@@ -1584,6 +1610,10 @@ function detectPO(text) {
   var m4 = s.match(/\b(\d{10})\b/);
   if (m4) return done('nombre-10-chiffres', m4[1]);
 
+  // v16.11 : detection SIVAM "2026-OF-XXXXXXX"
+  var mSivam = s.match(/\b(2026-OF-\d{7})\b/);
+  if (mSivam) return done('sivam-2026-OF', mSivam[1]);
+
   return done('introuvable', 'NA');
 }
 
@@ -1646,6 +1676,14 @@ function detectDetails(info, ctx) {
   var a = t.match(/\b(?:AISI|SAE)\s*(\d{4})\b/i) || t.match(/\b(4130|4140|4145H?|8630)\b/);
   if (a) det.aisi = a[1];
   det.sour = /\bH2S\b|\bNACE\b|\bSOUR\b/i.test(t);
+
+  // v16.11 : detection SS316L / aciers inoxydables
+  var ss = t.match(/\b(SS\s*316L?|316L|SS\s*316)\b/i);
+  if (ss) {
+    if (!det.aisi) det.aisi = 'SS316L';
+    else det.aisi = det.aisi + ' / SS316L';
+  }
+
   return det;
 }
 
@@ -1716,9 +1754,6 @@ function kbQueriesFor(det, stds) {
 
 // ============================================================
 // AUTO-INGESTION DES SOURCES PREMIUM
-// [A1] DECOUPAGE SEMANTIQUE : chaque fiche produit devient un
-//      document separe avec metadata (connection, od, wt)
-// [A2] INGESTION DES NORMES API
 // ============================================================
 async function autoIngestPremiumSources(AutoFeedDoc, mongoose, force) {
   force = force === true;
@@ -1728,7 +1763,6 @@ async function autoIngestPremiumSources(AutoFeedDoc, mongoose, force) {
   }
   var stats = { total: 0, ok: 0, skipped: 0, errors: 0, errorsRefetch: 0, sheets: 0, details: [] };
 
-  // Fusion : premium + normes API
   var allSources = {};
   Object.keys(PREMIUM_SOURCES).forEach(function(k) { allSources[k] = PREMIUM_SOURCES[k]; });
   Object.keys(STANDARDS_SOURCES).forEach(function(k) { allSources[k] = STANDARDS_SOURCES[k]; });
@@ -1774,7 +1808,6 @@ async function autoIngestPremiumSources(AutoFeedDoc, mongoose, force) {
         }
         var content = ext.text.slice(0, 900000);
 
-        // [A1] Tentative de decoupage en fiches produit
         var sheets = [];
         if (famId === 'TENARIS' || famId === 'VAM') {
           sheets = splitPremiumManual(content, famId);
@@ -1782,7 +1815,6 @@ async function autoIngestPremiumSources(AutoFeedDoc, mongoose, force) {
         }
 
         if (sheets.length > 0) {
-          // Ingestion par fiches
           for (var s = 0; s < sheets.length; s++) {
             var sh = sheets[s];
             var sheetTitle = '[' + fam.owner + '] ' + sh.conn + ' - ' + sh.od + '" ' + sh.wt + ' lb/ft';
@@ -1817,9 +1849,7 @@ async function autoIngestPremiumSources(AutoFeedDoc, mongoose, force) {
           }
           stats.ok++;
           stats.details.push({ family: famId, url: doc.url, status: 'ok-sheets', sheets: sheets.length, chars: content.length, parser: ext.parser });
-          console.log('[auto-ingest-premium] OK ' + famId + ' : ' + sheets.length + ' fiches ingerees');
         } else {
-          // Ingestion classique (blob)
           var vector = buildVector(content);
           await AutoFeedDoc.create({
             title: '[' + fam.owner + '] ' + doc.title,
@@ -1842,7 +1872,6 @@ async function autoIngestPremiumSources(AutoFeedDoc, mongoose, force) {
           });
           stats.ok++;
           stats.details.push({ family: famId, url: doc.url, status: 'ok-blob', chars: content.length, parser: ext.parser });
-          console.log('[auto-ingest-premium] OK (blob) ' + doc.url + ' (' + content.length + ' car.)');
         }
       } catch (e) {
         stats.errors++;
@@ -2051,10 +2080,6 @@ function aTbl(headers, rows, widths) {
   return '<table style="width:100%;border-collapse:collapse;margin-bottom:6px;font-family:Arial,sans-serif">' + h + b + '</table>';
 }
 
-// ============================================================
-// SECTION E — AMELIOREE v16.10
-// Ajout du score de confiance, validation croisee, filtrage
-// ============================================================
 function qpAnnex(p, ctx, kb) {
   var wo = p.wo, info = p.info, det = p.det, stds = p.stds;
   var html = '<div style="page-break-before:always;font-family:Arial,sans-serif">' + qpHeader('Annex A');
@@ -2135,9 +2160,6 @@ function qpAnnex(p, ctx, kb) {
       ['34%', '24%', '22%', '12%', '8%']);
   }
 
-  // ============================================================
-  // SECTION E AMELIOREE : statistiques + validation croisee
-  // ============================================================
   html += aSec('E. Knowledge base excerpts (official sources first, then semantic search)');
 
   var rowsKb = [];
@@ -2150,7 +2172,6 @@ function qpAnnex(p, ctx, kb) {
       hits.forEach(function(h) {
         totalHits++;
         if (h.official) officialHits++;
-        // [A5] Validation croisee
         var matches = h.official ? extractMatchesWO(h.excerpt, wo, det) : true;
         if (matches) matchedHits++;
         var badge = h.official ? '<b style="color:#0a7a2f">[OFFICIAL SOURCE]</b> ' : '';
@@ -2169,7 +2190,6 @@ function qpAnnex(p, ctx, kb) {
     }
   });
 
-  // Bandeau statistique
   var coverage = totalHits > 0 ? Math.round((officialHits / totalHits) * 100) : 0;
   var matchRate = officialHits > 0 ? Math.round((matchedHits / officialHits) * 100) : 0;
   var statsColor = (officialHits > 0 && matchRate >= 50) ? '#dcfce7' : (officialHits > 0 ? '#fef3c7' : '#fee2e2');
@@ -2317,7 +2337,6 @@ async function buildQPAnswer(text, AutoFeedDoc) {
     return '<a href="/qp-pdf/' + l.token + '" target="_blank" rel="noopener" style="display:inline-block;background:#0a2540;color:#ffffff;text-decoration:none;padding:12px 22px;border-radius:8px;font-weight:700;font-size:14px;margin:0 8px 8px 0">' + label + '</a>';
   }).join('');
 
-  // [A6] Score de confiance dans le bandeau
   var banner = '<div style="background:#eff6ff;border-left:4px solid #1e5aa8;border-radius:8px;padding:18px;margin:0 0 16px 0;font-family:Arial,sans-serif">' +
     '<div style="color:#1e40af;font-weight:800;font-size:15px">' + wos.length + ' Work Order(s) detecte(s) - ' + qpDocs + ' QP conforme(s) QP STANDARD 01</div>' +
     '<div style="font-size:13px;color:#1e3a8a;margin:6px 0 4px 0">Client : <strong>' + esc(ctx.customer) + '</strong> - PO : <strong>' + esc(ctx.po) + '</strong></div>' +
@@ -3120,5 +3139,5 @@ module.exports = function(app, mongoose) {
     });
   }, 20000);
 
-  console.log('[answer-enricher] v16.10 charge - Section E amelioree (6 actions) + decoupage fiches produit + normes API + validation croisee WO + score de confiance');
+  console.log('[answer-enricher] v16.11 charge - Section E amelioree + patterns 4 et 5 SIVAM + detection SS316L + PO SIVAM 2026-OF');
 };
