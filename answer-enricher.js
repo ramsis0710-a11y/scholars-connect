@@ -1,18 +1,16 @@
 // ============================================================
 // ANSWER-ENRICHER.JS
-// Version v16.11 - COMPLET ET DEFINITIF
-// BASE : v16.10 (INTEGRALEMENT CONSERVEE)
+// Version v16.12 - COMPLET ET DEFINITIF
+// BASE : v16.11 (INTEGRALEMENT CONSERVEE)
 //
-// NOUVEAU v16.11 (correction critique uniquement) :
-//   [C1] parseWorkOrders : ajout des patterns 4 et 5 pour le
-//        format ARC SIVAM "N° QTE 1 PU TOTAL € [DATE]"
-//        (ex : 28932 1 1 450,00 € 1 450,00 €)
-//        Sans ce correctif, aucun WO n'est detecte sur les ARC
-//        SIVAM (Fatma WALI, 2026-OF-0001193) et l'IA prend le
-//        relais avec une reponse generique au lieu de generer
-//        les plans qualite.
+// CORRECTIF v16.11 -> v16.12 (UNIQUEMENT) :
+//   [C5] STANDARDS_SOURCES : URLs PDF api.org remplacees par
+//        des pages HTML publiques STABLES (les anciennes URLs
+//        api.org/-/media/files/... retournaient 404).
+//        Ajout de 2 sources publiques de secours :
+//        ASTM-PUBLIC et NACE-PUBLIC.
 //
-// TOUT LE RESTE EST INCHANGE PAR RAPPORT A v16.10.
+// TOUT LE RESTE EST INCHANGE PAR RAPPORT A v16.11.
 // ============================================================
 
 'use strict';
@@ -135,7 +133,7 @@ var STANDARDS = {
       'Gauge calibration against master gauges (traceability)',
       'Thread compound and thread protectors before storage'
     ],
-    url: 'https://www.api.org/products-and-services/api-monogram-and-apiqr/advisories-updates'
+    url: 'https://www.api.org/products-and-services/standards/important-standards-announcements/spec5b'
   },
   'API-7-1': {
     name: 'API Spec 7-1 / ISO 10424-1 - Rotary Drill Stem Elements',
@@ -151,7 +149,7 @@ var STANDARDS = {
       'NDE of threads and critical surfaces per 7-1 or customer specification',
       'Marking and documentation per 7-1'
     ],
-    url: 'https://www.api.org/products-and-services/api-monogram-and-apiqr/advisories-updates'
+    url: 'https://www.api.org/products-and-services/standards/important-standards-announcements/spec7-1'
   },
   'API-7-2': {
     name: 'API Spec 7-2 / ISO 10424-2 - Threading and Gauging of Rotary Shouldered Thread Connections',
@@ -166,7 +164,7 @@ var STANDARDS = {
       'Gauge traceability to reference and master gauges',
       'Thread compound and thread protectors'
     ],
-    url: 'https://www.api.org/products-and-services/api-monogram-and-apiqr/advisories-updates'
+    url: 'https://www.api.org/products-and-services/standards/important-standards-announcements/spec7-2'
   },
   'API-5C5': {
     name: 'API RP 5C5 / ISO 13679 - Procedures for Testing Casing and Tubing Connections',
@@ -187,7 +185,7 @@ var STANDARDS = {
     verified: false,
     role: 'Wellhead equipment (when referenced by the order)',
     checks: ['Material, dimensional, NDE and test requirements per the applicable PSL and material class'],
-    url: 'https://www.api.org'
+    url: 'https://www.api.org/products-and-services/standards/important-standards-announcements/spec6a'
   },
   'ISO-13678': {
     name: 'API RP 5A3 / ISO 13678 - Thread compounds for casing, tubing and line pipe',
@@ -294,6 +292,9 @@ var PREMIUM_CHECKS = [
 
 // ============================================================
 // [A2] SOURCES DES NORMES API POUR INGESTION AUTOMATIQUE
+// v16.12 : URLs remplacees par des pages HTML publiques STABLES
+// (les anciennes URLs api.org/-/media/files/... -> 404)
+// + 2 sources publiques de secours : ASTM-PUBLIC et NACE-PUBLIC
 // ============================================================
 var STANDARDS_SOURCES = {
   'API-5CT': {
@@ -301,9 +302,9 @@ var STANDARDS_SOURCES = {
     owner: 'API (American Petroleum Institute)',
     docs: [
       {
-        title: 'API Spec 5CT - Grade and PSL reference tables (public summary)',
-        url: 'https://www.api.org/-/media/files/publications/whats%20new/5ct%20e11%20pa.pdf',
-        type: 'pdf',
+        title: 'API Spec 5CT - Public specification page (grades, PSL, editions)',
+        url: 'https://www.api.org/products-and-services/standards/important-standards-announcements/spec5ct',
+        type: 'html',
         autoIngest: true,
         priority: 1,
         contains: ['grade', 'PSL', 'chemistry', 'yield', 'tensile', 'hardness', 'impact', 'marking', 'hydrostatic']
@@ -315,9 +316,9 @@ var STANDARDS_SOURCES = {
     owner: 'API (American Petroleum Institute)',
     docs: [
       {
-        title: 'API Spec 5B - Threading and Gauging dimensions (public summary)',
-        url: 'https://www.api.org/-/media/files/publications/whats%20new/5b16e1.pdf',
-        type: 'pdf',
+        title: 'API Spec 5B - Public specification page (threading and gauging)',
+        url: 'https://www.api.org/products-and-services/standards/important-standards-announcements/spec5b',
+        type: 'html',
         autoIngest: true,
         priority: 1,
         contains: ['thread', 'gauge', 'taper', 'lead', 'stand-off', 'coupling', 'diameter']
@@ -329,9 +330,9 @@ var STANDARDS_SOURCES = {
     owner: 'API (American Petroleum Institute)',
     docs: [
       {
-        title: 'API Spec 7-2 - Rotary shouldered connection data (public summary)',
-        url: 'https://www.api.org/-/media/files/publications/whats%20new/7-2r2.pdf',
-        type: 'pdf',
+        title: 'API Spec 7-2 - Public specification page (rotary shouldered connections)',
+        url: 'https://www.api.org/products-and-services/standards/important-standards-announcements/spec7-2',
+        type: 'html',
         autoIngest: true,
         priority: 1,
         contains: ['NC', 'REG', 'FH', 'bevel', 'shoulder', 'thread form', 'gauge', 'stand-off']
@@ -343,12 +344,40 @@ var STANDARDS_SOURCES = {
     owner: 'API (American Petroleum Institute)',
     docs: [
       {
-        title: 'API Spec 6A - Wellhead equipment PSL reference (public summary)',
-        url: 'https://www.api.org/-/media/files/publications/whats%20new/6a21e.pdf',
-        type: 'pdf',
+        title: 'API Spec 6A - Public specification page (wellhead and tree equipment)',
+        url: 'https://www.api.org/products-and-services/standards/important-standards-announcements/spec6a',
+        type: 'html',
         autoIngest: true,
         priority: 1,
         contains: ['PSL', 'material class', 'temperature class', 'hydrostatic', 'NDE', 'wellhead', 'flange']
+      }
+    ]
+  },
+  'ASTM-PUBLIC': {
+    family: 'ASTM-PUBLIC',
+    owner: 'ASTM International (public reference)',
+    docs: [
+      {
+        title: 'ASTM E709 / E18 / E10 - Public reference page',
+        url: 'https://www.astm.org/standards/e709',
+        type: 'html',
+        autoIngest: true,
+        priority: 2,
+        contains: ['magnetic particle', 'hardness', 'rockwell', 'brinell', 'inspection']
+      }
+    ]
+  },
+  'NACE-PUBLIC': {
+    family: 'NACE-PUBLIC',
+    owner: 'NACE / AMPP (public reference)',
+    docs: [
+      {
+        title: 'NACE MR0175 / ISO 15156 - Public reference page',
+        url: 'https://www.ampp.org/technical-research/impact/corrosion-basics/mr0175-iso-15156',
+        type: 'html',
+        autoIngest: true,
+        priority: 2,
+        contains: ['H2S', 'sour service', 'hardness', 'material']
       }
     ]
   }
@@ -684,7 +713,7 @@ function fetchUrl(url, maxRedirects, timeoutMs) {
     var lib = url.indexOf('https://') === 0 ? https : http;
     var req = lib.get(url, {
       headers: {
-        'User-Agent': 'Mozilla/5.0 (compatible; ScholarsConnect/16.11; +https://scholars-connect-app.onrender.com)',
+        'User-Agent': 'Mozilla/5.0 (compatible; ScholarsConnect/16.12; +https://scholars-connect-app.onrender.com)',
         'Accept': 'text/html,application/xhtml+xml,application/pdf,application/json,*/*',
         'Accept-Encoding': 'gzip, deflate'
       }
@@ -1323,8 +1352,7 @@ function generateReferences(docs, domain, scholars) {
 
 // ============================================================
 // 8. EXTRACTION WO
-// v16.11 : ajout patterns 4 et 5 pour le format SIVAM
-// "N° QTE 1 PU TOTAL € [DATE]"
+// v16.11 : patterns 4 et 5 pour le format SIVAM
 // ============================================================
 function isEstimateNumber(txt, idx) {
   var back = txt.slice(Math.max(0, idx - 30), idx);
@@ -1376,9 +1404,7 @@ function parseWorkOrders(text) {
     }
   }
 
-  // ---- ORDRE 4 (v16.11) : format SIVAM "N° QTE 1 PU TOTAL € [DATE]" ----
-  // Ex : "28932 1 1 450,00 € 1 450,00 €"
-  //      "28934 3 1 390,00 € 4 170,00 € 09/11/26"
+  // ---- ORDRE 4 : format SIVAM "N° QTE 1 PU TOTAL € [DATE]" ----
   var re4 = /(^|[^0-9A-Za-z])(\d{5})[\s\u00A0]+(\d{1,3})[\s\u00A0]+\d{1,3}(?:[.,]\d{2})?\s*€?[\s\u00A0]+\d{1,3}[\s\u00A0]+\d{1,3}(?:[.,]\d{2})\s*€/g;
   while ((m = re4.exec(text)) !== null) {
     var id4 = m[2];
@@ -1398,8 +1424,7 @@ function parseWorkOrders(text) {
     });
   }
 
-  // ---- ORDRE 5 (v16.11) : format SIVAM sans prix euro sur la meme ligne ----
-  // Fallback : "N°WO QTE" suivi dans les 200 caracteres par un prix en €
+  // ---- ORDRE 5 : format SIVAM fallback ----
   var re5 = /(^|\n)\s*(\d{5})[\s\u00A0]+(\d{1,3})(?=[\s\u00A0]+\d)/g;
   while ((m = re5.exec(text)) !== null) {
     var id5 = m[2];
@@ -1610,7 +1635,6 @@ function detectPO(text) {
   var m4 = s.match(/\b(\d{10})\b/);
   if (m4) return done('nombre-10-chiffres', m4[1]);
 
-  // v16.11 : detection SIVAM "2026-OF-XXXXXXX"
   var mSivam = s.match(/\b(2026-OF-\d{7})\b/);
   if (mSivam) return done('sivam-2026-OF', mSivam[1]);
 
@@ -1677,7 +1701,6 @@ function detectDetails(info, ctx) {
   if (a) det.aisi = a[1];
   det.sour = /\bH2S\b|\bNACE\b|\bSOUR\b/i.test(t);
 
-  // v16.11 : detection SS316L / aciers inoxydables
   var ss = t.match(/\b(SS\s*316L?|316L|SS\s*316)\b/i);
   if (ss) {
     if (!det.aisi) det.aisi = 'SS316L';
@@ -3139,5 +3162,5 @@ module.exports = function(app, mongoose) {
     });
   }, 20000);
 
-  console.log('[answer-enricher] v16.11 charge - Section E amelioree + patterns 4 et 5 SIVAM + detection SS316L + PO SIVAM 2026-OF');
+  console.log('[answer-enricher] v16.12 charge - URLs API stables + sources publiques ASTM/NACE + Section E amelioree + patterns SIVAM');
 };
