@@ -1,19 +1,14 @@
 // ============================================================
 // ANSWER-ENRICHER.JS
-// Version v16.19 - COMPLET ET DEFINITIF
-// BASE : v16.18 (INTEGRALEMENT CONSERVEE)
+// Version v16.20 - COMPLET ET DEFINITIF
+// BASE : v16.19 (INTEGRALEMENT CONSERVEE)
 //
-// CORRECTIF v16.18 -> v16.19 (UNIQUEMENT) :
-//   [C16] Auto-ingestion : diagnostic detaille du texte extrait
-//         pour TENARIS (count TSH / VAM / WEDGE).
-//   [C17] splitPremiumManual : injection manuelle des references
-//         TSH 511 (le PDF Tenaris contient les tableaux sous
-//         forme d'images, non extractibles par pdf-parse).
-//         Ajout de la constante TSH_511_MANUAL + bloc d'injection
-//         dans splitPremiumManual si family === 'TENARIS' et
-//         sheets.length < 5.
+// CORRECTIF v16.19 -> v16.20 (UNIQUEMENT) :
+//   [C18] kbSearchMany : ajout de logs debug pour identifier
+//         precisement pourquoi les fiches TENARIS ne sont pas
+//         trouvees (checked/matched/scored par requete).
 //
-// TOUT LE RESTE EST INCHANGE PAR RAPPORT A v16.18.
+// TOUT LE RESTE EST INCHANGE PAR RAPPORT A v16.19.
 // ============================================================
 
 'use strict';
@@ -735,7 +730,7 @@ function fetchUrl(url, maxRedirects, timeoutMs) {
     var lib = url.indexOf('https://') === 0 ? https : http;
     var req = lib.get(url, {
       headers: {
-        'User-Agent': 'Mozilla/5.0 (compatible; ScholarsConnect/16.19; +https://scholars-connect-app.onrender.com)',
+        'User-Agent': 'Mozilla/5.0 (compatible; ScholarsConnect/16.20; +https://scholars-connect-app.onrender.com)',
         'Accept': 'text/html,application/xhtml+xml,application/pdf,application/json,*/*',
         'Accept-Encoding': 'gzip, deflate'
       }
@@ -1278,26 +1273,56 @@ async function loadKbForSearch(AutoFeedDoc) {
   return { premium: premium, others: others };
 }
 
+// ============================================================
+// kbSearchMany v16.20 : ajout log debug pour diagnostiquer
+// pourquoi les fiches TENARIS ne sont pas trouvees
+// ============================================================
 async function kbSearchMany(AutoFeedDoc, queries, minScore) {
   var result = {};
   if (!AutoFeedDoc || !queries || queries.length === 0) return result;
   var kbd = await loadKbForSearch(AutoFeedDoc);
+
+  console.log('[kbSearchMany] Premium docs disponibles : ' + kbd.premium.length);
+  var sheetsByFamily = {};
+  kbd.premium.forEach(function(d) {
+    var fam = (d.metadata && d.metadata.family) || 'unknown';
+    var isSheet = (d.metadata && d.metadata.isSheet) || false;
+    if (isSheet) sheetsByFamily[fam] = (sheetsByFamily[fam] || 0) + 1;
+  });
+  console.log('[kbSearchMany] Fiches par famille : ' + JSON.stringify(sheetsByFamily));
+
   queries.forEach(function(q) {
     var isPrem = PREMIUM_Q_RE.test(q);
     var isStd = /API\s*(?:5CT|5B|7-1|7-2|6A|RP\s*5C5|RP\s*5A3)/i.test(q);
     var official = [];
+
+    if (isPrem && q.indexOf('TSH') !== -1) {
+      console.log('[kbSearchMany] TRACE requete TSH : "' + q.substring(0, 80) + '..."');
+    }
+
     if (isPrem || isStd) {
+      var checked = 0, matched = 0, scored = 0;
       kbd.premium.forEach(function(d) {
+        checked++;
         if (!famMatchDoc(d, q)) return;
+        matched++;
         var h = premiumChunkSearch(d, q);
-        if (h) official.push({ title: d.title || '', domain: d.domain || '', url: d.url || '', score: h.score, excerpt: h.excerpt, official: true });
+        if (h) {
+          scored++;
+          official.push({ title: d.title || '', domain: d.domain || '', url: d.url || '', score: h.score, excerpt: h.excerpt, official: true });
+        }
       });
+
+      if (isPrem && q.indexOf('TSH') !== -1) {
+        console.log('[kbSearchMany] TRACE TSH -> checked=' + checked + ' matched=' + matched + ' scored=' + scored);
+      }
+
       official.sort(function(a, b) { return b.score - a.score; });
       official = official.slice(0, 2);
     }
     var qTokens = tokenize(q);
     var qVector = buildVector(q);
-    var scored = kbd.others.map(function(d) {
+    var scored2 = kbd.others.map(function(d) {
       var hasVector = d.vector && Object.keys(d.vector).length > 0;
       var cos = hasVector ? cosineSimilarity(qVector, d.vector) : 0;
       var kw = keywordOverlapScore(qTokens, (d.title || '') + ' ' + String(d.content || '').slice(0, 8000));
@@ -1305,7 +1330,7 @@ async function kbSearchMany(AutoFeedDoc, queries, minScore) {
     }).filter(function(s) { return s.score >= minScore; })
       .sort(function(a, b) { return b.score - a.score; })
       .slice(0, isPrem ? 1 : 2);
-    var rest = scored.map(function(s) {
+    var rest = scored2.map(function(s) {
       return { title: s.d.title || '', domain: s.d.domain || '', url: s.d.url || '', score: s.score, excerpt: pickExcerpt(s.d.content, q), official: false };
     });
     if (official.length > 0 && official[0].score >= 0.6) {
@@ -2000,7 +2025,6 @@ async function autoIngestPremiumSources(AutoFeedDoc, mongoose, force) {
 
         var sheets = [];
         if (famId === 'TENARIS' || famId === 'VAM') {
-          // v16.19 : diagnostic detaille
           var countTSH = (content.match(/TSH\s*\d+/gi) || []).length;
           var countVAM = (content.match(/VAM\s*(?:TOP|21|FJL)/gi) || []).length;
           var countWEDGE = (content.match(/WEDGE\s*\d+/gi) || []).length;
@@ -3368,5 +3392,5 @@ module.exports = function(app, mongoose) {
     });
   }, 20000);
 
-  console.log('[answer-enricher] v16.19 charge - injection manuelle Tenaris TSH 511 + diagnostic detaille + fenetre glissante');
+  console.log('[answer-enricher] v16.20 charge - logging debug kbSearchMany + injection manuelle Tenaris TSH 511');
 };
