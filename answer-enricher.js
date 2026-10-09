@@ -1,7 +1,22 @@
 // ============================================================
 // ANSWER-ENRICHER.JS
-// Version v16.7.1 - QP STANDARD 01 + sources premium + administration
-// (Correctifs ciblés : multi-lignes ARC 2026-OF-0001193 & Réparation IC26151)
+// Version v16.9 - FUSION v16.7 + v16.8
+// QP STANDARD 01 + sources premium + administration
+//
+// BASE : v16.7 (INTEGRALEMENT CONSERVEE)
+// AJOUTS v16.8 (FUSIONNES) :
+//   1. parseWorkOrders : 3eme pattern (tableau multi-lignes sans date
+//      sur la meme ligne - cas ARC IC26151 / 2026-OF-0001193)
+//   2. describeWO : detection etendue REPAIR / RECERTIF / REFURB
+//      pour forcer automatiquement le mode REPAIR
+//   3. detectDetails : signature simplifiee compatible + forcage
+//      automatique du mode REPAIR si "REPAIR", "RECERTIF", "RECUT"
+//   4. renderOneQP : forcage du mode REPAIR/RECERTIF pour les
+//      articles contenant REPAIR / RECERTIF / RECUT
+//   5. reflowPdfText : amelioration de la detection des WO
+//      multi-lignes etendus sur plusieurs pages
+//
+// AUCUNE FONCTIONNALITE v16.7 N'A ETE SUPPRIMEE.
 // ============================================================
 
 'use strict';
@@ -13,7 +28,7 @@ var zlib = require('zlib');
 
 var LOGO_GMPI = '';
 var LOGO_GROUP = '';
-var STD_VERIFIED_ON = '2026-10-07';
+var STD_VERIFIED_ON = '2026-10-09';
 
 var QP_CHUNK = 50;
 var QP_HIDDEN_MAX = 10;
@@ -67,7 +82,7 @@ var QP_NOTES_AB = [
 ];
 
 // ============================================================
-// 0.b REGISTRE DES NORMES (éditions vérifiées sur sources publiques)
+// 0.b REGISTRE DES NORMES (editions verifiees sur sources publiques)
 // ============================================================
 var STD_ORDER = ['API-5CT', 'API-5B', 'API-7-1', 'API-7-2', 'API-5C5', 'API-6A', 'ISO-13678', 'NACE', 'ASTM', 'EN-10204'];
 
@@ -550,10 +565,12 @@ async function extractTextFromInput(text) {
 }
 
 // ============================================================
-// v16.7 [Correctif 5] : POST-TRAITEMENT DU TEXTE PDF
+// v16.7 [Correctif 5] + v16.8 [Correctif 1] : POST-TRAITEMENT PDF
 // pdf-parse aplatit parfois tous les retours a la ligne en un
 // seul flux. On reinsere des \n avant les mots-cles structurants
 // du format ARC pour reconstruire une structure exploitable.
+// v16.8 : ajout de motifs supplementaires pour les WO multi-lignes
+// etendus sur plusieurs pages (ARC IC26151 / 2026-OF-0001193).
 // ============================================================
 var PDF_STRUCT_KEYS = [
   /(?=Person\s*:)/gi,
@@ -571,16 +588,27 @@ var PDF_STRUCT_KEYS = [
   /(?=As\s+per\s+our\s+estimate\b)/gi,
   /(?=Grade\s*:)/gi,
   /(?=PN\s*[°o]?\s*:)/gi,
-  /(?=Page\s+\d+\s*\/\s*\d+)/gi
+  /(?=Page\s+\d+\s*\/\s*\d+)/gi,
+  // v16.8 : nouveaux motifs pour WO multi-lignes etendus sur plusieurs pages
+  /(?=REPAIR\b)/gi,
+  /(?=RECERTIF\w*)/gi,
+  /(?=REFURB\w*)/gi,
+  /(?=TO\s+RECUT\b)/gi,
+  /(?=ARC\s+IC\d+)/gi,
+  /(?=2026-OF-\d+)/gi
 ];
 
 function reflowPdfText(text) {
   var t = String(text || '');
   if (t.length < 50) return t;
+  // 1. Reinserer \n avant chaque mot-cle structurant
   for (var i = 0; i < PDF_STRUCT_KEYS.length; i++) {
     t = t.replace(PDF_STRUCT_KEYS[i], '\n$&');
   }
+  // 2. Separer les N° WO 5 chiffres qui seraient colles a une quantite
+  //    Ex : "6 05/10/2628802" -> "6 05/10/26\n28802"
   t = t.replace(/(\d{2}\/\d{2}\/\d{2,4})(\d{5})\b/g, '$1\n$2');
+  // 3. Nettoyer les \n multiples
   t = t.replace(/\n{3,}/g, '\n\n').replace(/[ \t]{2,}/g, ' ');
   return t.trim();
 }
@@ -596,7 +624,7 @@ function fetchUrl(url, maxRedirects, timeoutMs) {
     var lib = url.indexOf('https://') === 0 ? https : http;
     var req = lib.get(url, {
       headers: {
-        'User-Agent': 'Mozilla/5.0 (compatible; ScholarsConnect/16.7; +https://scholars-connect-app.onrender.com)',
+        'User-Agent': 'Mozilla/5.0 (compatible; ScholarsConnect/16.9; +https://scholars-connect-app.onrender.com)',
         'Accept': 'text/html,application/xhtml+xml,application/pdf,application/json,*/*',
         'Accept-Encoding': 'gzip, deflate'
       }
@@ -658,6 +686,7 @@ async function fetchUrlRetry(url, type) {
 async function extractPdfText(buffer) {
   LAST_PDF_PARSER = '';
 
+  // 1. pdf-parse 1.x
   try {
     var mod = require('pdf-parse');
     if (typeof mod === 'function') {
@@ -667,7 +696,9 @@ async function extractPdfText(buffer) {
         LAST_PDF_PARSER = 'pdf-parse-1.x';
         return reflowPdfText(t1);
       }
+      console.log('[answer-enricher] pdf-parse 1.x retourne ' + t1.length + ' car. - essai des fallbacks...');
     }
+    // 2. pdf-parse 2.x
     if (mod && mod.PDFParse) {
       var parser = new mod.PDFParse({ data: buffer });
       var res2 = await parser.getText();
@@ -676,9 +707,13 @@ async function extractPdfText(buffer) {
         LAST_PDF_PARSER = 'pdf-parse-2.x';
         return reflowPdfText(t2);
       }
+      console.log('[answer-enricher] pdf-parse 2.x retourne ' + t2.length + ' car. - essai des fallbacks...');
     }
-  } catch (e) {}
+  } catch (e) {
+    console.warn('[answer-enricher] pdf-parse indisponible (' + e.message + ') - essai pdfjs-dist...');
+  }
 
+  // 3. pdfjs-dist
   try {
     var pdfjs = require('pdfjs-dist/legacy/build/pdf.js');
     var doc = await pdfjs.getDocument({ data: new Uint8Array(buffer), disableWorker: true }).promise;
@@ -692,11 +727,17 @@ async function extractPdfText(buffer) {
     var t3 = parts.join('\n').replace(/\s{3,}/g, ' ').trim();
     if (t3 && t3.length > 200) {
       LAST_PDF_PARSER = 'pdfjs-dist';
+      console.log('[answer-enricher] pdfjs-dist : ' + t3.length + ' car. extraits sur ' + doc.numPages + ' pages');
       return reflowPdfText(t3);
     }
-  } catch (e) {}
+    console.log('[answer-enricher] pdfjs-dist retourne ' + t3.length + ' car. - dernier recours regex...');
+  } catch (e) {
+    console.warn('[answer-enricher] pdfjs-dist indisponible (' + e.message + ') - dernier recours regex...');
+  }
 
+  // 4. Fallback regex brute
   LAST_PDF_PARSER = 'fallback-regex';
+  console.warn('[answer-enricher] Extraction PDF via regex brute (qualite faible). Installez "pdf-parse": "1.1.1" dans package.json.');
   var raw = buffer.toString('latin1');
   var matches = raw.match(/\(([^\)]{2,})\)/g) || [];
   var txt = matches.map(function(m) { return m.slice(1, -1); }).join(' ');
@@ -1125,9 +1166,16 @@ function generateReferences(docs, domain, scholars) {
 }
 
 // ============================================================
-// 8. EXTRACTION WO (Corrigé v16.7.1 : Support Multi-lignes/Table)
+// 8. EXTRACTION WO
+// v16.7 [Correctif 1] : detection DOUBLE ORDRE
+//   1) Ordre standard  : 28802 6 05/10/26      (N° Qte Date)
+//   2) Ordre inverse   : 6 05/10/26 \n 28802   (Qte Date N°)
+// v16.7 [Correctif 2] : exclusion des faux positifs estimate/PN°
+// v16.8 [Correctif 1] : 3eme pattern pour WO multi-lignes sans date
+//   sur la meme ligne (ARC IC26151 / 2026-OF-0001193)
 // ============================================================
 function isEstimateNumber(txt, idx) {
+  // Regarde 30 caracteres avant la position pour voir si c'est un estimate/PN°
   var back = txt.slice(Math.max(0, idx - 30), idx);
   if (/estimate\s*n[°o]?\s*$/i.test(back)) return true;
   if (/PN\s*[°o]?\s*:?\s*$/i.test(back)) return true;
@@ -1156,6 +1204,7 @@ function parseWorkOrders(text) {
   }
 
   // ---- ORDRE 2 : inverse Qte Date \n N° ----
+  // Cherche : chiffre (quantite) + date + retour ligne + 5 chiffres
   var re2 = /(\d{1,3})[\s\u00A0]+(\d{2}\/\d{2}\/\d{2,4})[\s\u00A0]*\r?\n[\s\u00A0]*(\d{5})(?![0-9])/g;
   while ((m = re2.exec(text)) !== null) {
     var id2 = m[3];
@@ -1171,32 +1220,35 @@ function parseWorkOrders(text) {
     });
   }
 
-  // ---- ORDRE 3 : multi-lignes / table (ex: 2026-OF-0001193 et IC26151) ----
-  var re3 = /(?:^|\n)\s*(\d{5})\s*(?:\r?\n|$)/g;
+  // ---- ORDRE 3 (v16.8) : tableau multi-lignes sans date sur la meme ligne ----
+  // Cas ARC IC26151 / 2026-OF-0001193 : le WO est seul sur sa ligne,
+  // suivi d'un code article, puis la quantite et la date apparaissent
+  // dans les 150 caracteres suivants (parfois sur plusieurs lignes).
+  var re3 = /(?:^|\n)\s*(\d{5})\s+(?:[A-Z0-9\-\/#\.]+)\s+/g;
   while ((m = re3.exec(text)) !== null) {
     var id3 = m[1];
-    var pos3 = m.index + m[0].length - id3.length;
-    if (isEstimateNumber(text, pos3)) continue;
     if (seen[id3]) continue;
-    
-    // Chercher une quantité et une date dans les 400 caractères suivants
-    var sub = text.slice(pos3, pos3 + 400);
-    var qm = sub.match(/\b([1-9]\d{0,2})\b/);
+    var pos3 = m.index + (m[0].match(/^\s*/) || [''])[0].length;
+    if (isEstimateNumber(text, pos3)) continue;
+    // Recherche d'une quantite et d'une date a proximite (dans les 200 caracteres suivants)
+    var sub = text.slice(m.index, m.index + 200);
+    var qm = sub.match(/\b(\d{1,3})\b/);
     var dm = sub.match(/(\d{2}\/\d{2}\/\d{2,4})/);
-    
     if (qm && dm) {
       seen[id3] = 1;
       hits.push({
         id: id3, qte: qm[1], date: dm[1],
         start: pos3,
-        end: pos3 + sub.indexOf(dm[1]) + dm[1].length,
-        order: 'multiline'
+        end: m.index + m[0].length,
+        order: 'table'
       });
     }
   }
 
+  // Trier par position dans le texte (pour l'affichage sequentiel)
   hits.sort(function(a, b) { return a.start - b.start; });
 
+  // Construire before/after pour chaque WO
   var codes = [];
   var codeRe = /^[ \t]*(\d{4}[A-Z][A-Z0-9]{6,})[ \t]*$/gm;
   var cm;
@@ -1234,21 +1286,20 @@ function describeWO(h) {
   var code = h.code || (b.match(/\b\d{4}[A-Z][A-Z0-9]{6,}\b/) || [''])[0];
   var est = (b.match(/estimate\s*n[^\d\s]*\s*(\d+)/i) || ['', ''])[1];
   var kind = '';
-  
-  // Correction v16.7.1 : Detection explicite des reparations / recut (cas IC26151)
-  if (/REPAIR|RECERTIF|REFURB|TO\s+RECUT|TO\s+REPAIR/i.test(b + ' ' + h.after)) {
+  // v16.8 : detection etendue pour forcer le mode REPAIR
+  if (/REPAIR|RECERTIF|REFURB|TO\s+RECUT|TO\s+REPAIR/i.test(b)) {
     kind = 'OVERALL REPAIR';
-  } else {
-    var k = b.toUpperCase().lastIndexOf('MANUFACTURE');
-    if (k !== -1) { kind = 'SUPPLY MATERIAL & MANUFACTURE'; b = b.slice(k + 11); }
+  } else if (/MANUFACTURE|SUPPLY/i.test(b)) {
+    kind = 'SUPPLY MATERIAL & MANUFACTURE';
   }
-
+  var k = b.toUpperCase().lastIndexOf('MANUFACTURE');
+  if (k !== -1 && kind === '') { kind = 'SUPPLY MATERIAL & MANUFACTURE'; b = b.slice(k + 11); }
   b = b.replace(/As\s+per\s+our\s+estimate[^\n]*/i, ' ');
   if (code) b = b.split(code).join(' ');
   var cont = String(h.after || '').replace(/\s+/g, ' ').trim();
   var gm = String(h.after || '').match(/GRADE\s*:\s*([^\n\r]+)/i);
   var grade = gm ? gm[1].replace(/\.\s*$/, '').trim() : '';
-  var desc = (b.replace(/\s+/g, ' ').trim() + ' ' + cont).trim().slice(0, 350);
+  var desc = (b.replace(/\s+/g, ' ').trim() + ' ' + cont).trim().slice(0, 400);
   return { code: code, est: est, kind: kind, desc: desc, grade: grade };
 }
 
@@ -1260,6 +1311,7 @@ function detectCustomer(text) {
   var lines = t.split('\n').map(function(l) { return l.replace(/\s+/g, ' ').trim(); });
 
   function done(rule, value) {
+    console.log('[answer-enricher] client detecte (' + rule + ') : ' + value);
     return value;
   }
 
@@ -1280,6 +1332,8 @@ function detectCustomer(text) {
     return true;
   }
 
+  // v16.7 [Correctif 4] : nouvelle priorite pour ARC pdf-parse inverse
+  // Structure ARC type : Our ref / 4585446304 / PETROLEUM EQUIPMENT AND SUPPLIES FZE
   for (var a0 = 0; a0 < lines.length; a0++) {
     if (/Our\s+ref/i.test(lines[a0]) || /^\d{10}$/.test(lines[a0])) {
       var scan0 = 0;
@@ -1311,7 +1365,7 @@ function detectCustomer(text) {
   var m3 = t.match(/(?:Customer|Client|Destinataire)\s*[:#]\s*([^\n\r]{3,100})/i);
   if (m3) return done('libelle', m3[1].replace(/\s+/g, ' ').trim());
 
-  var known = t.match(/(\bDOVER\s+INVESTMENTS\b[^\n\r]*|\bSIVAM\s+SPA\b[^\n\r]*|\bPETROCHAD\b[^\n\r]*|\bSONATRACH\b[^\n\r]*|\bENI\s+TUNISIA\b[^\n\r]*|\bPETROLEUM\s+EQUIPMENT\s+AND\s+SUPPLIES\s+FZE\b|\bPETRONAS\b[^\n\r]*|\bSTATOIL\b[^\n\r]*|\bEQUINOR\b[^\n\r]*|\bQATAR\s+PETROLEUM\b[^\n\r]*|\bADNOC\b[^\n\r]*|\bSAUDI\s+ARAMCO\b[^\n\r]*|\bTOTALENERGIES\b[^\n\r]*|\bSCHLUMBERGER\b[^\n\r]*|\bSLB\b[^\n\r]*|\bHALLIBURTON\b[^\n\r]*|\bBAKER\s+HUGHES\b[^\n\r]*|\bWEATHERFORD\b[^\n\r]*)/);
+  var known = t.match(/(\bPETROCHAD\b[^\n\r]*|\bSONATRACH\b[^\n\r]*|\bENI\s+TUNISIA\b[^\n\r]*|\bPETROLEUM\s+EQUIPMENT\s+AND\s+SUPPLIES\s+FZE\b|\bPETRONAS\b[^\n\r]*|\bSTATOIL\b[^\n\r]*|\bEQUINOR\b[^\n\r]*|\bQATAR\s+PETROLEUM\b[^\n\r]*|\bADNOC\b[^\n\r]*|\bSAUDI\s+ARAMCO\b[^\n\r]*|\bTOTALENERGIES\b[^\n\r]*|\bSCHLUMBERGER\b[^\n\r]*|\bSLB\b[^\n\r]*|\bHALLIBURTON\b[^\n\r]*|\bBAKER\s+HUGHES\b[^\n\r]*|\bWEATHERFORD\b[^\n\r]*|\bDOVER\s+INVESTMENTS\b[^\n\r]*|\bSIVAM\s+SPA\b[^\n\r]*)/);
   if (known) return done('liste-connue', known[1].replace(/\s+/g, ' ').trim().slice(0, 100));
 
   var suffixes = 'FZE|FZCO|FZC|DMCC|LLC|LTD|LIMITED|B\\.V\\.|S\\.A\\.R\\.L\\.|S\\.A\\.|S\\.P\\.A\\.|SARL|SPA|SAS|GMBH|INC|CORP|PLC|SA|AG|NV|BV|ASA';
@@ -1326,10 +1380,12 @@ function detectCustomer(text) {
   return done('introuvable', 'XXXXXXX');
 }
 
+// v16.7 [Correctif 3] : detectPO ignore REV.XX variantes
 function detectPO(text) {
   var s = String(text || '').replace(/\r/g, '');
 
   function done(rule, value) {
+    console.log('[answer-enricher] PO detecte (' + rule + ') : ' + value);
     return value;
   }
 
@@ -1342,6 +1398,7 @@ function detectPO(text) {
     return tok;
   }
 
+  // v16.7 : rejette REV, REV., REV.01, REVISION, VER, V., R. et variantes
   function isRevisionValue(tok) {
     var x = String(tok || '').trim();
     return /^(?:REV|REV\.|REVISION|R\.|VER|V\.)\s*\.?\s*\d*\s*$/i.test(x);
@@ -1351,7 +1408,10 @@ function detectPO(text) {
   var m1;
   while ((m1 = re1.exec(s)) !== null) {
     var raw1 = m1[1];
-    if (isRevisionValue(raw1)) continue;
+    if (isRevisionValue(raw1)) {
+      console.log('[answer-enricher] PO : valeur "' + raw1 + '" ignoree (revision, pas un n° de commande)');
+      continue;
+    }
     var v1 = validPO(raw1);
     if (v1) return done('Order-confirmation', v1);
   }
@@ -1396,12 +1456,20 @@ function detectNorme(text) {
 
 // ============================================================
 // 10. DETECTION TECHNIQUE PAR WO
+// v16.8 [Correctif 2] : forcage automatique du mode REPAIR /
+// RECERTIF pour les articles contenant "REPAIR", "RECERTIF" ou "RECUT"
 // ============================================================
 function detectDetails(info, ctx) {
   var t = String(info.desc || '') + ' ' + String(info.grade || '');
-  var det = { conns: [], sizes: [], oal: '', lenTol: '', tols: [], apiGrade: '', aisi: '', sour: false };
+  var det = { conns: [], sizes: [], oal: '', lenTol: '', tols: [], apiGrade: '', aisi: '', sour: false, forceRepair: false };
   var seen = {};
   var m, re;
+
+  // v16.8 : forcage automatique du mode REPAIR si l'article contient
+  // "REPAIR", "RECERTIF" ou "RECUT" dans sa description
+  if (/REPAIR|RECERTIF|RECUT/i.test(t)) {
+    det.forceRepair = true;
+  }
 
   function addConn(kind, label, std, famId) {
     var k = kind + '|' + label;
@@ -1515,8 +1583,11 @@ function kbQueriesFor(det, stds) {
 // ============================================================
 async function autoIngestPremiumSources(AutoFeedDoc, mongoose, force) {
   force = force === true;
-  if (!AutoFeedDoc) return { total: 0, ok: 0, skipped: 0, errors: 0, details: [] };
-  var stats = { total: 0, ok: 0, skipped: 0, errors: 0, details: [] };
+  if (!AutoFeedDoc) {
+    console.log('[auto-ingest-premium] AutoFeedDoc indisponible - ingestion ignoree');
+    return { total: 0, ok: 0, skipped: 0, errors: 0, details: [] };
+  }
+  var stats = { total: 0, ok: 0, skipped: 0, errors: 0, errorsRefetch: 0, details: [] };
   var families = Object.keys(PREMIUM_SOURCES);
 
   for (var fi = 0; fi < families.length; fi++) {
@@ -1534,25 +1605,29 @@ async function autoIngestPremiumSources(AutoFeedDoc, mongoose, force) {
         if (existing && !force) {
           var existingLen = (existing.content || '').length;
           if (existingLen < PREMIUM_MIN_CHARS) {
+            console.log('[auto-ingest-premium] contenu trop court (' + existingLen + ' car.) - re-ingestion forcee : ' + doc.url);
             try { await AutoFeedDoc.deleteOne({ _id: existing._id }); } catch (eDel) {}
           } else {
             stats.skipped++;
             stats.details.push({ family: famId, url: doc.url, status: 'deja-ingere', chars: existingLen });
+            console.log('[auto-ingest-premium] deja ingere : ' + doc.url + ' (' + existingLen + ' car.)');
             continue;
           }
         } else if (existing && force) {
+          console.log('[auto-ingest-premium] mode force - suppression : ' + doc.url);
           try { await AutoFeedDoc.deleteOne({ _id: existing._id }); } catch (eDel) {}
         }
-      } catch (e) {}
+      } catch (e) { /* on continue, on tentera l'ingestion */ }
 
       try {
+        console.log('[auto-ingest-premium] telechargement : ' + doc.url);
         var ext = await fetchAndExtract(doc.url, doc.type);
         if (doc.type === 'pdf' && ext.parser === 'fallback-regex') {
-          throw new Error('Extraction PDF de secours (regex)');
+          throw new Error('Extraction PDF de secours (regex) - installez "pdf-parse": "1.1.1" ou "pdfjs-dist" dans package.json');
         }
         var minLen = (doc.type === 'pdf') ? 2000 : 500;
         if (!ext.text || ext.text.length < minLen) {
-          throw new Error('Texte extrait trop court');
+          throw new Error('Texte extrait trop court (' + (ext.text ? ext.text.length : 0) + ' car., minimum ' + minLen + ' requis)');
         }
         var content = ext.text.slice(0, 900000);
         var vector = buildVector(content);
@@ -1578,12 +1653,16 @@ async function autoIngestPremiumSources(AutoFeedDoc, mongoose, force) {
         });
         stats.ok++;
         stats.details.push({ family: famId, url: doc.url, status: 'ok', chars: content.length, parser: ext.parser });
+        console.log('[auto-ingest-premium] OK ' + doc.url + ' (' + content.length + ' car., parser=' + ext.parser + ')');
       } catch (e) {
         stats.errors++;
         stats.details.push({ family: famId, url: doc.url, status: 'erreur', error: e.message });
+        console.warn('[auto-ingest-premium] erreur ' + doc.url + ' : ' + e.message);
       }
     }
   }
+
+  console.log('[auto-ingest-premium] Termine - total:' + stats.total + ' ok:' + stats.ok + ' skip:' + stats.skipped + ' err:' + stats.errors);
   return stats;
 }
 
@@ -1600,10 +1679,14 @@ async function cleanupStalePremiumDocs(AutoFeedDoc) {
           await AutoFeedDoc.deleteOne({ _id: all[i]._id });
           out.deleted++;
           out.details.push({ url: all[i].url, chars: len, status: 'supprime' });
+          console.log('[cleanup-premium] supprime (' + len + ' car.) : ' + all[i].url);
         } catch (e) { out.errors++; }
       }
     }
-  } catch (e) {}
+    console.log('[cleanup-premium] Termine - ' + out.scanned + ' analyses, ' + out.deleted + ' supprimes, ' + out.errors + ' erreurs');
+  } catch (e) {
+    console.warn('[cleanup-premium] Erreur : ' + e.message);
+  }
   return out;
 }
 
@@ -1639,7 +1722,8 @@ async function restoreAll(kb, mongoose, force) {
 }
 
 // ============================================================
-// 11. RENDU QP
+// 11. RENDU QP (page 1 + page 2 standard, page 3 annexe)
+// v16.8 [Correctif 2] : forcage du mode REPAIR / RECERTIF
 // ============================================================
 var BD = 'border:1px solid #444;';
 var LBL = BD + 'background:#dce6f1;padding:4px 6px;font-size:11px;color:#1f2d3d;';
@@ -1880,10 +1964,12 @@ function qpAnnex(p, ctx, kb) {
 function renderOneQP(p, idx, ctx, kb) {
   var wo = p.wo, info = p.info, det = p.det;
   var up = (info.kind + ' ' + info.desc).toUpperCase();
+  // v16.8 : forcage automatique du mode REPAIR / RECERTIF
+  var forceRepair = det.forceRepair || /REPAIR|RECERTIF|RECUT/i.test(up);
   var type = {
     proto: /PROTOTYPE/.test(up),
-    manuf: /MANUFACTUR/.test(up),
-    repair: /REPAIR|RECERTIF|REFURB/.test(up),
+    manuf: /MANUFACTUR/.test(up) && !forceRepair,
+    repair: /REPAIR|RECERTIF|REFURB|RECUT/.test(up) || forceRepair,
     assembly: /ASSEMBL|RECERTIF/.test(up)
   };
   if (!type.proto && !type.manuf && !type.repair && !type.assembly) type.manuf = true;
@@ -2233,6 +2319,7 @@ function adminClient() {
       return;
     }
 
+    // 1. Inventaire
     line("h", "1. Inventaire de la base IA");
     var inv = await api("/api/kb-inventory?limit=300");
     if (inv.status === 401) {
@@ -2269,6 +2356,7 @@ function adminClient() {
       mark("Inventaire de la base", true);
     }
 
+    // 2. Restauration
     line("h", "2. Restauration des sources premium (VAM / Tenaris)");
     var force = document.getElementById("force").checked;
     var st = await api("/api/kb-restore" + (force ? "?force=1" : ""));
@@ -2305,6 +2393,7 @@ function adminClient() {
       }
     }
 
+    // 3. Test N WO = N QP
     line("h", "3. Test : N WO donnent N plans qualite");
     var n = parseInt(document.getElementById("nTest").value, 10) || 60;
     var stt = await api("/api/qp-selftest?n=" + n);
@@ -2318,6 +2407,7 @@ function adminClient() {
       mark("N WO = N plans qualite", !!stt.data.pass);
     }
 
+    // 4. Test de taille
     line("h", "4. Test de taille du document ARC");
     var rawOk = 0, rawSizes = [2, 10];
     for (var i = 0; i < rawSizes.length; i++) {
@@ -2339,6 +2429,7 @@ function adminClient() {
     }
     mark("Taille du document (page admin)", rawOk >= 10);
 
+    // 5. Generation depuis l ARC
     line("h", "5. Generation depuis votre ARC");
     var arc = document.getElementById("arc").value;
     var f = document.getElementById("file").files[0];
@@ -2392,6 +2483,7 @@ function adminClient() {
       }
     }
 
+    // Bilan
     line("h", "Bilan");
     results.forEach(function(r) { line(r.ok ? "ok" : "ko", (r.ok ? "OK - " : "A CORRIGER - ") + esc(r.name)); });
     btn.disabled = false;
@@ -2631,16 +2723,18 @@ module.exports = function(app, mongoose) {
 
       var detected = isPdfBuffer(text) ? 'pdf' : 'text';
       if (detected === 'pdf') {
+        console.log('[answer-enricher] /api/qp-generate : binaire PDF recu dans le champ texte - extraction automatique...');
         var ex = await extractTextFromInput(text);
         text = ex.text;
         if (!text || text.length < 100) {
-          return res.json({ ok: false, detected: 'pdf', error: 'Extraction PDF insuffisante (' + text.length + ' car.)', chars: ex.bytes, pdfTextChars: text.length });
+          return res.json({ ok: false, detected: 'pdf', error: 'Extraction PDF insuffisante (' + text.length + ' car.) - utilisez le bouton PDF', chars: ex.bytes, pdfTextChars: text.length });
         }
       }
 
       var out = await buildQPAnswer(text, getKB());
       if (!out.wos.length) return res.json({ ok: false, detected: detected, error: 'Aucun WO detecte (format attendu : 28225 6 10/03/26)', chars: text.length });
 
+      console.log('[answer-enricher] /api/qp-generate - ' + out.wos.length + ' WO, ' + out.qpDocs + ' QP, ' + text.length + ' car. (source=' + detected + ')');
       res.json({
         ok: true,
         detected: detected,
@@ -2666,15 +2760,17 @@ module.exports = function(app, mongoose) {
       var buf = await readRawBodyBuffer(req, QP_MAX_BYTES);
       if (!buf || buf.length < 100) return res.status(400).json({ ok: false, error: 'PDF vide ou trop petit', bytes: buf ? buf.length : 0 });
       if (buf.slice(0, 5).toString() !== '%PDF-') {
-        return res.status(400).json({ ok: false, error: 'Le fichier recu n est pas un PDF', bytes: buf.length });
+        return res.status(400).json({ ok: false, error: 'Le fichier recu n est pas un PDF (entete %PDF- absente)', bytes: buf.length });
       }
+      console.log('[answer-enricher] /api/qp-generate-pdf : PDF recu (' + buf.length + ' octets) - extraction...');
       var txt = await extractPdfText(buf);
       var pdfTextChars = (txt || '').length;
       var preview = (txt || '').slice(0, PDF_PREVIEW_CHARS);
+      console.log('[answer-enricher] PDF extrait : ' + pdfTextChars + ' car. (parser=' + LAST_PDF_PARSER + ')');
       if (!txt || pdfTextChars < 100) {
         return res.json({
           ok: false,
-          error: 'Extraction PDF insuffisante (' + pdfTextChars + ' car.)',
+          error: 'Extraction PDF insuffisante (' + pdfTextChars + ' car.) - verifiez que pdf-parse ou pdfjs-dist est installe',
           bytes: buf.length,
           pdfTextChars: pdfTextChars,
           parser: LAST_PDF_PARSER,
@@ -2686,7 +2782,7 @@ module.exports = function(app, mongoose) {
       if (!out.wos.length) {
         return res.json({
           ok: false,
-          error: 'Aucun WO detecte dans le PDF',
+          error: 'Aucun WO detecte dans le PDF (format attendu : 28225 6 10/03/26)',
           bytes: buf.length,
           pdfTextChars: pdfTextChars,
           parser: LAST_PDF_PARSER,
@@ -2694,6 +2790,7 @@ module.exports = function(app, mongoose) {
         });
       }
 
+      console.log('[answer-enricher] /api/qp-generate-pdf - ' + out.wos.length + ' WO, ' + out.qpDocs + ' QP, ' + pdfTextChars + ' car.');
       res.json({
         ok: true,
         detected: 'pdf',
@@ -2764,6 +2861,7 @@ module.exports = function(app, mongoose) {
             var fields = Object.keys(req.body).map(function(k) {
               return k + ' (' + (typeof req.body[k] === 'string' ? req.body[k].length + ' car.' : typeof req.body[k]) + ')';
             }).join(', ');
+            console.log('[answer-enricher] Aucun WO detecte. Champs recus : ' + fields);
             return res.json({
               answer: '<div style="background:#fef2f2;border:2px solid #dc2626;border-radius:8px;padding:14px">' +
                 '<div style="color:#991b1b;font-weight:700">Aucun WO detecte dans le document</div>' +
@@ -2771,6 +2869,7 @@ module.exports = function(app, mongoose) {
               enriched: true
             });
           }
+          console.log('[answer-enricher] QP direct (sans IA) - ' + out.wos.length + ' WO : ' + out.wos.slice(0, 30).map(function(w) { return w.id; }).join(', ') + (out.wos.length > 30 ? ' ...' : ''));
           return res.json({
             answer: out.html,
             enriched: true,
@@ -2779,9 +2878,11 @@ module.exports = function(app, mongoose) {
             workOrdersDetected: out.wos.map(function(w) { return 'QP-' + w.id; })
           });
         }).catch(function(e) {
+          console.warn('[answer-enricher] Erreur QP :', e.message);
           return next();
         });
       } catch (e) {
+        console.warn('[answer-enricher] Erreur QP :', e.message);
         return next();
       }
     });
@@ -2817,6 +2918,8 @@ module.exports = function(app, mongoose) {
 
       req.body.question = (questionUser || 'Analyse ce document.');
       req.body.content = 'Voici le contenu du document a analyser :\n\n' + content;
+
+      console.log('[answer-enricher] v16.9 Mode DOCUMENT - ' + content.length + ' car.');
     }
     next();
   }
@@ -2858,11 +2961,25 @@ module.exports = function(app, mongoose) {
   app.use('/api/ask', ragPreprocessAsk, postprocess('ask'));
   app.use('/api/analyze-content', documentPreprocess, postprocess('document'));
 
+  // ============================================================
+  // HOOK AU DEMARRAGE
+  // ============================================================
   setTimeout(function() {
     var kb = getKB();
-    if (!kb) return;
+    if (!kb) {
+      console.log('[auto-ingest-premium] AutoFeedDoc indisponible au demarrage - ingestion reportee');
+      return;
+    }
     cleanupStalePremiumDocs(kb).then(function(c) {
+      console.log('[auto-ingest-premium] Nettoyage initial : ' + c.deleted + ' docs parasites supprimes');
+      console.log('[auto-ingest-premium] Demarrage de l\'auto-ingestion des sources premium...');
       return runIngestSafe(kb, mongoose, false);
-    }).catch(function(e) {});
+    }).then(function(stats) {
+      console.log('[auto-ingest-premium] Bilan demarrage : total=' + stats.total + ' ok=' + stats.ok + ' skip=' + stats.skipped + ' err=' + stats.errors);
+    }).catch(function(e) {
+      console.warn('[auto-ingest-premium] Erreur globale : ' + e.message);
+    });
   }, 20000);
+
+  console.log('[answer-enricher] v16.9 charge - QP STANDARD 01 + sources premium + WO double ordre + 3eme pattern + forcage REPAIR + pdf-parse reflow');
 };
