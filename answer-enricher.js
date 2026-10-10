@@ -1,9 +1,4 @@
-// ============================================================
-// ANSWER-ENRICHER.JS
-// Version v16.20 - COMPLET ET DEFINITIF
-// BASE : v16.19 (INTEGRALEMENT CONSERVEE)
-//
-// CORRECTIF v16.19 -> v16.20 (UNIQUEMENT) :
+ATIF v16.19 -> v16.20 (UNIQUEMENT) :
 //   [C18] kbSearchMany : ajout de logs debug pour identifier
 //         precisement pourquoi les fiches TENARIS ne sont pas
 //         trouvees (checked/matched/scored par requete).
@@ -1281,6 +1276,7 @@ async function kbSearchMany(AutoFeedDoc, queries, minScore) {
   var result = {};
   if (!AutoFeedDoc || !queries || queries.length === 0) return result;
   var kbd = await loadKbForSearch(AutoFeedDoc);
+
   console.log('[kbSearchMany] Premium docs disponibles : ' + kbd.premium.length);
   var sheetsByFamily = {};
   kbd.premium.forEach(function(d) {
@@ -1289,17 +1285,33 @@ async function kbSearchMany(AutoFeedDoc, queries, minScore) {
     if (isSheet) sheetsByFamily[fam] = (sheetsByFamily[fam] || 0) + 1;
   });
   console.log('[kbSearchMany] Fiches par famille : ' + JSON.stringify(sheetsByFamily));
-  for (var qi = 0; qi < queries.length; qi++) {
-    var q = queries[qi];
+
+  queries.forEach(function(q) {
     var isPrem = PREMIUM_Q_RE.test(q);
     var isStd = /API\s*(?:5CT|5B|7-1|7-2|6A|RP\s*5C5|RP\s*5A3)/i.test(q);
     var official = [];
+
+    if (isPrem && q.indexOf('TSH') !== -1) {
+      console.log('[kbSearchMany] TRACE requete TSH : "' + q.substring(0, 80) + '..."');
+    }
+
     if (isPrem || isStd) {
+      var checked = 0, matched = 0, scored = 0;
       kbd.premium.forEach(function(d) {
+        checked++;
         if (!famMatchDoc(d, q)) return;
-        var h = premiumChunkSearchImproved(d, q, null);
-        if (h) official.push({ title: d.title || '', domain: d.domain || '', url: d.url || '', score: h.score, excerpt: h.excerpt, official: true });
+        matched++;
+        var h = premiumChunkSearch(d, q);
+        if (h) {
+          scored++;
+          official.push({ title: d.title || '', domain: d.domain || '', url: d.url || '', score: h.score, excerpt: h.excerpt, official: true });
+        }
       });
+
+      if (isPrem && q.indexOf('TSH') !== -1) {
+        console.log('[kbSearchMany] TRACE TSH -> checked=' + checked + ' matched=' + matched + ' scored=' + scored);
+      }
+
       official.sort(function(a, b) { return b.score - a.score; });
       official = official.slice(0, 2);
     }
@@ -1316,35 +1328,14 @@ async function kbSearchMany(AutoFeedDoc, queries, minScore) {
     var rest = scored2.map(function(s) {
       return { title: s.d.title || '', domain: s.d.domain || '', url: s.d.url || '', score: s.score, excerpt: pickExcerpt(s.d.content, q), official: false };
     });
-    result[q] = official.concat(rest);
-    if (result[q].length === 0 && !isPrem) {
-      try {
-        var allDocs = kbd.others.concat(kbd.premium);
-        var qTokens2 = tokenize(q);
-        var fallbackHits = [];
-        for (var di = 0; di < allDocs.length && fallbackHits.length < 3; di++) {
-          var docContent = String(allDocs[di].content || '').toLowerCase();
-          var hitCount = 0;
-          for (var ti = 0; ti < qTokens2.length; ti++) {
-            if (docContent.indexOf(qTokens2[ti]) !== -1) hitCount++;
-          }
-          if (hitCount >= 2) {
-            fallbackHits.push({
-              title: allDocs[di].title || 'Document KB',
-              url: allDocs[di].url || EXTERNAL_QP_SOURCE,
-              score: Math.min(1, hitCount / qTokens2.length),
-              excerpt: String(allDocs[di].content || '').slice(0, 400).replace(/\s+/g, ' ').trim(),
-              official: allDocs[di].source === 'Premium-Source-Auto'
-            });
-          }
-        }
-        if (fallbackHits.length > 0) result[q] = fallbackHits;
-      } catch (eGen) {}
+    if (official.length > 0 && official[0].score >= 0.6) {
+      rest = rest.filter(function(r) { return r.score >= 0.5; });
+      rest = rest.slice(0, 1);
     }
-  }
+    result[q] = official.concat(rest);
+  });
   return result;
 }
-
 
 // ============================================================
 // 5. DETECTION DOMAINE
@@ -1669,233 +1660,7 @@ function parseWorkOrders(text) {
   }
   return hits;
 }
-// ============================================================
-// [C19+C20+C21+C22+C23] v16.21 - AJOUTS CIBLES
-// Bloc unique : detection WO colonne Job + Section E amelioree
-// + sources externes mba-consult-qp-generator
-// Aucune ligne de la V16.20 n'est supprimee.
-// ============================================================
 
-// ------------------------------------------------------------
-// [C19] Detection WO multi-lignes depuis colonne "Job"
-// Chaque WO = 5 chiffres, parfois isole, parfois suivi du code
-// article, parfois avec qte+prix, parfois avec qte+date.
-// TENDE ENERGY : 28792 -> 28801 (10 WO distincts)
-// ------------------------------------------------------------
-function parseWorkOrdersFromJobColumn(text) {
-  var t = String(text || '').replace(/\r/g, '');
-  var hits = [], seen = {};
-  var m;
-
-  // Pattern 1 : ligne = 5 chiffres seuls (colonne Job), suivi code article
-  var re1 = /(?:^|\n)[ \t]*(\d{5})[ \t]*\n[ \t]*(\d{4}[A-Z][A-Z0-9]{6,})[ \t]*/g;
-  while ((m = re1.exec(t)) !== null) {
-    var id1 = m[1];
-    if (seen[id1]) continue;
-    if (isEstimateNumber(t, m.index)) continue;
-    seen[id1] = 1;
-    hits.push({ id: id1, qte: '', date: '', code: m[2], start: m.index, end: m.index + m[0].length, order: 'job-column-isolated' });
-  }
-
-  // Pattern 2 : ligne = 5 chiffres + code article (meme ligne)
-  var re2 = /(?:^|\n)[ \t]*(\d{5})[ \t]+(\d{4}[A-Z][A-Z0-9]{6,})[ \t]*/g;
-  while ((m = re2.exec(t)) !== null) {
-    var id2 = m[1];
-    if (seen[id2]) continue;
-    if (isEstimateNumber(t, m.index)) continue;
-    seen[id2] = 1;
-    hits.push({ id: id2, qte: '', date: '', code: m[2], start: m.index, end: m.index + m[0].length, order: 'job-column-inline' });
-  }
-
-  // Pattern 3 : ligne = 5 chiffres + qte + prix euros + total euros + [date]
-  var re3 = /(?:^|\n)[ \t]*(\d{5})[ \t]+(\d{1,3})[ \t]+[\d\s,\.]+€[ \t]+[\d\s,\.]+€[ \t]*(\d{2}\/\d{2}\/\d{2,4})?/g;
-  while ((m = re3.exec(t)) !== null) {
-    var id3 = m[1];
-    if (seen[id3]) continue;
-    if (isEstimateNumber(t, m.index)) continue;
-    seen[id3] = 1;
-    hits.push({ id: id3, qte: m[2], date: m[3] || '', code: '', start: m.index, end: m.index + m[0].length, order: 'job-column-priced' });
-  }
-
-  // Pattern 4 : ligne = 5 chiffres + qte + date (ARC simple TENDE/SIVAM)
-  var re4 = /(?:^|\n)[ \t]*(\d{5})[ \t]+(\d{1,3})[ \t]+(\d{2}\/\d{2}\/\d{2,4})[ \t]*/g;
-  while ((m = re4.exec(t)) !== null) {
-    var id4 = m[1];
-    if (seen[id4]) continue;
-    if (isEstimateNumber(t, m.index)) continue;
-    seen[id4] = 1;
-    hits.push({ id: id4, qte: m[2], date: m[3], code: '', start: m.index, end: m.index + m[0].length, order: 'job-column-quantity' });
-  }
-
-  // Pattern 5 (fallback) : tout nombre 5 chiffres isole sur ligne
-  if (hits.length === 0) {
-    var re5 = /(?:^|\n)[ \t]*(\d{5})[ \t]*(?:\n|$)/g;
-    while ((m = re5.exec(t)) !== null) {
-      var id5 = m[1];
-      if (seen[id5]) continue;
-      if (isEstimateNumber(t, m.index)) continue;
-      if (/^(19|20)\d{2}$/.test(id5)) continue;
-      seen[id5] = 1;
-      hits.push({ id: id5, qte: '', date: '', code: '', start: m.index, end: m.index + m[0].length, order: 'job-column-fallback' });
-    }
-  }
-
-  hits.sort(function(a, b) { return a.start - b.start; });
-  for (var i = 0; i < hits.length; i++) {
-    var h = hits[i];
-    var blockStart = (i > 0) ? hits[i - 1].end : 0;
-    var blockEnd = (i + 1 < hits.length) ? hits[i + 1].start : t.length;
-    h.before = t.slice(blockStart, h.start);
-    h.after = t.slice(h.end, blockEnd);
-    if (!h.code) {
-      var cm = h.after.match(/\b(\d{4}[A-Z][A-Z0-9]{6,})\b/);
-      if (cm) h.code = cm[1];
-    }
-  }
-  console.log('[parseWorkOrdersFromJobColumn] ' + hits.length + ' WO detectes depuis colonne Job');
-  return hits;
-}
-
-// [C20] Fusion parseWorkOrders (V16.20) + parseWorkOrdersFromJobColumn
-function parseWorkOrdersCombined(text) {
-  var classic = parseWorkOrders(text);
-  var jobCol = parseWorkOrdersFromJobColumn(text);
-  var merged = {}, out = [];
-  classic.forEach(function(h) { merged[h.id] = h; });
-  jobCol.forEach(function(h) {
-    if (merged[h.id]) {
-      if (!merged[h.id].qte && h.qte) merged[h.id].qte = h.qte;
-      if (!merged[h.id].date && h.date) merged[h.id].date = h.date;
-      if (!merged[h.id].code && h.code) merged[h.id].code = h.code;
-    } else {
-      merged[h.id] = h;
-    }
-  });
-  Object.keys(merged).forEach(function(k) { out.push(merged[k]); });
-  out.sort(function(a, b) { return a.start - b.start; });
-  console.log('[parseWorkOrdersCombined] classic=' + classic.length + ' jobColumn=' + jobCol.length + ' merged=' + out.length);
-  return out;
-}
-
-// ------------------------------------------------------------
-// [C21] Extraction tokens techniques + scoring semantique
-// ------------------------------------------------------------
-function extractTechnicalTokens(text) {
-  var t = String(text || '').toUpperCase();
-  var tokens = { connections: [], sizes: [], weights: [], grades: [], materials: [] };
-  var m;
-  var connRe = /\b(VAM\s*\w+|TSH\s*\d+|WEDGE\s*\d+|EUE|NUE|BTC|LTC|STC|NC\d{2}|REG|FH|SEAL-?LOCK|TEC-?LOCK|HYDRIL\s*\w+|PH-?6|JFE\s*\w+|FOX|BIG\s*OMEGA|DINO\s*VAM)\b/gi;
-  while ((m = connRe.exec(t)) !== null) tokens.connections.push(m[1].replace(/\s+/g, ' ').trim());
-  var sizeRe = /\b(\d{1,2}(?:[\s\-]\d\/\d)?(?:[\s\-]\d{1,2}\/\d{1,2})?)\s*"/g;
-  while ((m = sizeRe.exec(t)) !== null) tokens.sizes.push(m[1].trim());
-  var wtRe = /\b(\d+(?:[.,]\d+)?)\s*(?:#|LB\/FT|LBS\/FT)\b/gi;
-  while ((m = wtRe.exec(t)) !== null) tokens.weights.push(m[1].replace(',', '.'));
-  var gradeRe = /\b(H-?40|J-?55|K-?55|N-?80|L-?80|C-?90|T-?95|C-?95|P-?110|Q-?125|R-?95|M-?65|SS\s*316L?|316L|4140|4130|4145H?|8630|DD-?NL|FF-?NL|EE-?NL)\b/gi;
-  while ((m = gradeRe.exec(t)) !== null) tokens.grades.push(m[1].replace(/\s+/g, '').toUpperCase());
-  var matRe = /\b(4140|4130|4145|8630|316L|SS316|INCONEL|MONEL|DUPLEX|SUPER\s*DUPLEX)\b/gi;
-  while ((m = matRe.exec(t)) !== null) tokens.materials.push(m[1].replace(/\s+/g, '').toUpperCase());
-  Object.keys(tokens).forEach(function(k) {
-    tokens[k] = tokens[k].filter(function(v, i, a) { return a.indexOf(v) === i; });
-  });
-  return tokens;
-}
-
-function semanticScoreImproved(doc, query, det) {
-  var docText = String(doc.title || '') + ' ' + String(doc.content || '');
-  var docTokens = extractTechnicalTokens(docText);
-  var qTokens = extractTechnicalTokens(query);
-  var score = 0;
-  var connHits = 0;
-  qTokens.connections.forEach(function(qc) {
-    var qcUp = qc.toUpperCase();
-    docTokens.connections.forEach(function(dc) {
-      if (dc.toUpperCase().indexOf(qcUp) !== -1 || qcUp.indexOf(dc.toUpperCase()) !== -1) connHits++;
-    });
-  });
-  if (qTokens.connections.length > 0 && connHits > 0) score += Math.min(30, (connHits / qTokens.connections.length) * 30);
-  var sizeHits = 0;
-  qTokens.sizes.forEach(function(qs) {
-    var qsNorm = qs.replace(/\s+/g, '').replace(/-/g, '');
-    docTokens.sizes.forEach(function(ds) {
-      var dsNorm = ds.replace(/\s+/g, '').replace(/-/g, '');
-      if (dsNorm === qsNorm) sizeHits++;
-    });
-    if (docText.indexOf(qs) !== -1) sizeHits += 0.5;
-  });
-  if (qTokens.sizes.length > 0 && sizeHits > 0) score += Math.min(25, (sizeHits / qTokens.sizes.length) * 25);
-  var wtHits = 0;
-  qTokens.weights.forEach(function(qw) {
-    docTokens.weights.forEach(function(dw) { if (dw === qw) wtHits++; });
-    if (docText.indexOf(qw) !== -1) wtHits += 0.5;
-  });
-  if (qTokens.weights.length > 0 && wtHits > 0) score += Math.min(15, (wtHits / qTokens.weights.length) * 15);
-  var gradeHits = 0;
-  qTokens.grades.forEach(function(qg) { if (docText.toUpperCase().indexOf(qg) !== -1) gradeHits++; });
-  if (qTokens.grades.length > 0 && gradeHits > 0) score += Math.min(15, (gradeHits / qTokens.grades.length) * 15);
-  var prodHits = 0;
-  for (var k = 0; k < PROD_KW_LONG.length; k++) { if (docText.toLowerCase().indexOf(PROD_KW_LONG[k]) !== -1) prodHits++; }
-  if (prodHits > 0) score += Math.min(15, (prodHits / PROD_KW_LONG.length) * 15 * 3);
-  return Math.min(1, score / 100);
-}
-
-function premiumChunkSearchImproved(d, q, det) {
-  var base = premiumChunkSearch(d, q);
-  var semantic = semanticScoreImproved(d, q, det);
-  if (semantic < 0.15) return base;
-  if (!base) {
-    return { score: semantic, excerpt: String(d.content || '').slice(0, 600).replace(/\s+/g, ' ').trim() };
-  }
-  var combined = Math.max(base.score, semantic * 0.95);
-  return { score: combined, excerpt: base.excerpt };
-}
-
-// ------------------------------------------------------------
-// [C22] Extraction d'extraits Section E depuis sources externes
-// Recherche par tokens dans n'importe quel document KB (premium
-// ou non) pour eviter "0 extraits" sur TENDE/SIVAM.
-// ------------------------------------------------------------
-var EXTERNAL_QP_SOURCE = 'https://mba-consult-qp-generator.streamlit.app/';
-
-function findGenericExcerpts(AutoFeedDoc, queries, det) {
-  return new Promise(function(resolve) {
-    if (!AutoFeedDoc) return resolve([]);
-    var qTokens = [];
-    queries.forEach(function(q) {
-      tokenize(q).forEach(function(tk) { if (tk.length >= 4 && qTokens.indexOf(tk) === -1) qTokens.push(tk); });
-    });
-    if (det) {
-      (det.conns || []).forEach(function(c) { qTokens.push(String(c.label).toLowerCase()); });
-      (det.sizes || []).forEach(function(s) { qTokens.push(String(s.od).toLowerCase()); if (s.wt) qTokens.push(String(s.wt)); });
-      if (det.aisi) qTokens.push(String(det.aisi).toLowerCase());
-    }
-    if (qTokens.length === 0) return resolve([]);
-    AutoFeedDoc.find({}).limit(300).lean().then(function(docs) {
-      var results = [];
-      docs.forEach(function(d) {
-        var content = String(d.content || '');
-        var title = String(d.title || '');
-        var lower = (title + ' ' + content).toLowerCase();
-        var score = 0;
-        for (var i = 0; i < qTokens.length; i++) {
-          if (lower.indexOf(qTokens[i]) !== -1) score += 1;
-        }
-        if (score >= 2) {
-          results.push({
-            title: title || 'Document KB',
-            url: d.url || EXTERNAL_QP_SOURCE,
-            score: Math.min(1, score / qTokens.length),
-            excerpt: content.slice(0, 400).replace(/\s+/g, ' ').trim(),
-            official: d.source === 'Premium-Source-Auto'
-          });
-        }
-      });
-      results.sort(function(a, b) { return b.score - a.score; });
-      resolve(results.slice(0, 5));
-    }).catch(function() { resolve([]); });
-  });
-}
-
-console.log('[answer-enricher] v16.21 : ajouts C19-C23 charges - detection WO colonne Job + Section E amelioree + source externe mba-consult-qp-generator');
 function describeWO(h) {
   var b = h.before;
   var code = h.code || (b.match(/\b\d{4}[A-Z][A-Z0-9]{6,}\b/) || [''])[0];
@@ -2723,7 +2488,7 @@ function printPage(qpsHtml) {
 var QP_PRINT_JS = "window.addEventListener('load',function(){var b=document.getElementById('pb');if(b){b.addEventListener('click',function(){window.print();});}setTimeout(function(){window.print();},700);});";
 
 function prepareQPs(text) {
-  var wos = parseWorkOrdersCombined(text);
+  var wos = parseWorkOrders(text);
   if (wos.length === 0) return null;
   var norme = detectNorme(text);
   var normeAcc = norme.replace(/\s*Latest\s+Edition\s*$/i, '').split(/\s*[,&]\s*/).filter(function(x) { return x.trim() !== ''; }).join('|');
