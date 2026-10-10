@@ -1281,7 +1281,6 @@ async function kbSearchMany(AutoFeedDoc, queries, minScore) {
   var result = {};
   if (!AutoFeedDoc || !queries || queries.length === 0) return result;
   var kbd = await loadKbForSearch(AutoFeedDoc);
-
   console.log('[kbSearchMany] Premium docs disponibles : ' + kbd.premium.length);
   var sheetsByFamily = {};
   kbd.premium.forEach(function(d) {
@@ -1290,34 +1289,17 @@ async function kbSearchMany(AutoFeedDoc, queries, minScore) {
     if (isSheet) sheetsByFamily[fam] = (sheetsByFamily[fam] || 0) + 1;
   });
   console.log('[kbSearchMany] Fiches par famille : ' + JSON.stringify(sheetsByFamily));
-
   for (var qi = 0; qi < queries.length; qi++) {
     var q = queries[qi];
     var isPrem = PREMIUM_Q_RE.test(q);
     var isStd = /API\s*(?:5CT|5B|7-1|7-2|6A|RP\s*5C5|RP\s*5A3)/i.test(q);
     var official = [];
-
-    if (isPrem && q.indexOf('TSH') !== -1) {
-      console.log('[kbSearchMany] TRACE requete TSH : "' + q.substring(0, 80) + '..."');
-    }
-
     if (isPrem || isStd) {
-      var checked = 0, matched = 0, scored = 0;
       kbd.premium.forEach(function(d) {
-        checked++;
         if (!famMatchDoc(d, q)) return;
-        matched++;
         var h = premiumChunkSearchImproved(d, q, null);
-        if (h) {
-          scored++;
-          official.push({ title: d.title || '', domain: d.domain || '', url: d.url || '', score: h.score, excerpt: h.excerpt, official: true });
-        }
+        if (h) official.push({ title: d.title || '', domain: d.domain || '', url: d.url || '', score: h.score, excerpt: h.excerpt, official: true });
       });
-
-      if (isPrem && q.indexOf('TSH') !== -1) {
-        console.log('[kbSearchMany] TRACE TSH -> checked=' + checked + ' matched=' + matched + ' scored=' + scored);
-      }
-
       official.sort(function(a, b) { return b.score - a.score; });
       official = official.slice(0, 2);
     }
@@ -1334,81 +1316,35 @@ async function kbSearchMany(AutoFeedDoc, queries, minScore) {
     var rest = scored2.map(function(s) {
       return { title: s.d.title || '', domain: s.d.domain || '', url: s.d.url || '', score: s.score, excerpt: pickExcerpt(s.d.content, q), official: false };
     });
-    if (official.length > 0 && official[0].score >= 0.6) {
-      rest = rest.filter(function(r) { return r.score >= 0.5; });
-      rest = rest.slice(0, 1);
-    }
     result[q] = official.concat(rest);
     if (result[q].length === 0 && !isPrem) {
-      // [C22] Fallback : si aucun resultat, chercher dans TOUT le KB
       try {
-        var genericHits = await findGenericExcerpts(AutoFeedDoc, [q], null);
-        if (genericHits.length > 0) result[q] = genericHits;
+        var allDocs = kbd.others.concat(kbd.premium);
+        var qTokens2 = tokenize(q);
+        var fallbackHits = [];
+        for (var di = 0; di < allDocs.length && fallbackHits.length < 3; di++) {
+          var docContent = String(allDocs[di].content || '').toLowerCase();
+          var hitCount = 0;
+          for (var ti = 0; ti < qTokens2.length; ti++) {
+            if (docContent.indexOf(qTokens2[ti]) !== -1) hitCount++;
+          }
+          if (hitCount >= 2) {
+            fallbackHits.push({
+              title: allDocs[di].title || 'Document KB',
+              url: allDocs[di].url || EXTERNAL_QP_SOURCE,
+              score: Math.min(1, hitCount / qTokens2.length),
+              excerpt: String(allDocs[di].content || '').slice(0, 400).replace(/\s+/g, ' ').trim(),
+              official: allDocs[di].source === 'Premium-Source-Auto'
+            });
+          }
+        }
+        if (fallbackHits.length > 0) result[q] = fallbackHits;
       } catch (eGen) {}
     }
   }
   return result;
 }
-  console.log('[kbSearchMany] Fiches par famille : ' + JSON.stringify(sheetsByFamily));
 
-  for (var qi = 0; qi < queries.length; qi++) {     var q = queries[qi];
-    var isPrem = PREMIUM_Q_RE.test(q);
-    var isStd = /API\s*(?:5CT|5B|7-1|7-2|6A|RP\s*5C5|RP\s*5A3)/i.test(q);
-    var official = [];
-
-    if (isPrem && q.indexOf('TSH') !== -1) {
-      console.log('[kbSearchMany] TRACE requete TSH : "' + q.substring(0, 80) + '..."');
-    }
-
-    if (isPrem || isStd) {
-      var checked = 0, matched = 0, scored = 0;
-      kbd.premium.forEach(function(d) {
-        checked++;
-        if (!famMatchDoc(d, q)) return;
-        matched++;
-        var h = premiumChunkSearchImproved(d, q, null);
-        if (h) {
-          scored++;
-          official.push({ title: d.title || '', domain: d.domain || '', url: d.url || '', score: h.score, excerpt: h.excerpt, official: true });
-        }
-      });
-
-      if (isPrem && q.indexOf('TSH') !== -1) {
-        console.log('[kbSearchMany] TRACE TSH -> checked=' + checked + ' matched=' + matched + ' scored=' + scored);
-      }
-
-      official.sort(function(a, b) { return b.score - a.score; });
-      official = official.slice(0, 2);
-    }
-    var qTokens = tokenize(q);
-    var qVector = buildVector(q);
-    var scored2 = kbd.others.map(function(d) {
-      var hasVector = d.vector && Object.keys(d.vector).length > 0;
-      var cos = hasVector ? cosineSimilarity(qVector, d.vector) : 0;
-      var kw = keywordOverlapScore(qTokens, (d.title || '') + ' ' + String(d.content || '').slice(0, 8000));
-      return { d: d, score: Math.max(cos, kw) };
-    }).filter(function(s) { return s.score >= minScore; })
-      .sort(function(a, b) { return b.score - a.score; })
-      .slice(0, isPrem ? 1 : 2);
-    var rest = scored2.map(function(s) {
-      return { title: s.d.title || '', domain: s.d.domain || '', url: s.d.url || '', score: s.score, excerpt: pickExcerpt(s.d.content, q), official: false };
-    });
-    if (official.length > 0 && official[0].score >= 0.6) {
-      rest = rest.filter(function(r) { return r.score >= 0.5; });
-      rest = rest.slice(0, 1);
-    }
-    result[q] = official.concat(rest);
-        if (result[q].length === 0 && !isPrem) {
-      // [C22] Fallback : si aucun resultat officiel, chercher dans TOUT le KB
-      // Evite Section E vide sur TENDE/SIVAM sans connexion premium
-      try {
-        var genericHits = await findGenericExcerpts(AutoFeedDoc, [q], null);
-        if (genericHits.length > 0) result[q] = genericHits;
-      } catch (eGen) {}
-    }
-  });
-  return result;
-}
 
 // ============================================================
 // 5. DETECTION DOMAINE
