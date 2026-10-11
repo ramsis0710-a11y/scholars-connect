@@ -1933,23 +1933,6 @@ function kbQueriesFor(det, stds) {
   return q.slice(0, 14);
 }
 
-  // 2. AJOUT : Prise en compte explicite des filetages API standards (EUE, BTC, etc.)
-  det.conns.forEach(function(c) {
-    if (c.kind !== 'api') return;
-    q.push('API 5B ' + c.label + ' thread form tolerances gauging dimensions' + szTxt);
-    q.push('API 5CT ' + c.label + ' coupling thread specification dimensions');
-  });
-
-  if (det.apiGrade) q.push('API 5CT grade ' + det.apiGrade + ' chemical composition mechanical properties' + szTxt);
-  if (det.aisi) q.push('AISI ' + det.aisi + ' chemical composition mechanical properties heat treatment');
-  return q.slice(0, 14);
-}
-
-  if (det.apiGrade) q.push('API 5CT grade ' + det.apiGrade + ' chemical composition mechanical properties');
-  if (det.aisi) q.push('AISI ' + det.aisi + ' chemical composition mechanical properties heat treatment');
-  return q.slice(0, 14);
-}
-
 // ============================================================
 // AUTO-INGESTION DES SOURCES PREMIUM
 // ============================================================
