@@ -1119,6 +1119,30 @@ function extractMatchesWO(excerpt, wo, det) {
   var total = 0;
   var connMatch = false;
 
+  // 1. Validation de la connexion (Critère absolu pour le pétrole & gaz)
+  if (det.conns && det.conns.length) {
+    total++;
+    for (var i = 0; i < det.conns.length; i++) {
+      var label = det.conns[i].label.toLowerCase();
+      // Nettoyage des libellés pour correspondre aux fiches techniques constructeurs
+      var cleanLabel = label.replace(/\s+/g, '');
+      if (txt.indexOf(label) !== -1 || txt.indexOf(cleanLabel) !== -1) { 
+        connMatch = true; 
+        break; 
+      }
+    }
+    if (connMatch) hits += 2; // Poids fort pour la connexion premium/API
+  }
+
+  // 2. Validation du grade matière (L80, P110, etc.)
+  if (det.apiGrade) {
+    total++;
+    if (txt.indexOf(det.apiGrade.toLowerCase()) !== -1) {
+      hits++;
+    }
+  }
+
+  // 3. Validation des dimensions (OD / WT) si présentes
   if (det.sizes && det.sizes.length) {
     if (det.sizes[0].od) {
       total++;
@@ -1129,25 +1153,14 @@ function extractMatchesWO(excerpt, wo, det) {
       if (txt.indexOf(String(det.sizes[0].wt).toLowerCase()) !== -1) hits++;
     }
   }
-  if (det.apiGrade) {
-    total++;
-    if (txt.indexOf(det.apiGrade.toLowerCase()) !== -1) hits++;
-  }
-  if (det.aisi) {
-    total++;
-    if (txt.indexOf(det.aisi.toLowerCase()) !== -1) hits++;
-  }
-  if (det.conns && det.conns.length) {
-    total++;
-    for (var i = 0; i < det.conns.length; i++) {
-      if (txt.indexOf(det.conns[i].label.toLowerCase()) !== -1) { connMatch = true; break; }
-    }
-    if (connMatch) hits++;
-  }
 
   if (total === 0) return true;
-  if (connMatch || hits >= 1) return true;
-  return hits >= Math.min(2, total);
+  
+  // Règle de validation stricte mais tolérante sur les tableaux multi-produits constructeurs :
+  // Si la connexion critique correspond, l'extrait est validé d'office pour le QCP.
+  if (connMatch) return true;
+  
+  return hits >= 1;
 }
 // ============================================================
 // [A6] SCORE DE CONFIANCE GLOBAL DU QP
