@@ -1162,35 +1162,6 @@ function extractMatchesWO(excerpt, wo, det) {
   
   return hits >= 1;
 }
-
-  // 2. Validation du grade matière (L80, P110, etc.)
-  if (det.apiGrade) {
-    total++;
-    if (txt.indexOf(det.apiGrade.toLowerCase()) !== -1) {
-      hits++;
-    }
-  }
-
-  // 3. Validation des dimensions (OD / WT) si présentes
-  if (det.sizes && det.sizes.length) {
-    if (det.sizes[0].od) {
-      total++;
-      if (txt.indexOf(String(det.sizes[0].od).toLowerCase()) !== -1) hits++;
-    }
-    if (det.sizes[0].wt) {
-      total++;
-      if (txt.indexOf(String(det.sizes[0].wt).toLowerCase()) !== -1) hits++;
-    }
-  }
-
-  if (total === 0) return true;
-  
-  // Règle de validation stricte mais tolérante sur les tableaux multi-produits constructeurs :
-  // Si la connexion critique correspond, l'extrait est validé d'office pour le QCP.
-  if (connMatch) return true;
-  
-  return hits >= 1;
-}
 // ============================================================
 // [A6] SCORE DE CONFIANCE GLOBAL DU QP
 // ============================================================
