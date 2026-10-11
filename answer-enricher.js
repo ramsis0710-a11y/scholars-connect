@@ -1918,6 +1918,7 @@ function kbQueriesFor(det, stds) {
       }
     } else if (c.kind === 'api') {
       q.push('API 5B ' + c.label + ' thread form tolerances gauging dimensions' + szTxt);
+      q.push('API 5CT ' + c.label + ' coupling thread specification dimensions');
     }
   });
 
