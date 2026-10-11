@@ -1,6 +1,6 @@
 // ============================================================
 // ANSWER-ENRICHER.JS
-// Version v16.19 - COMPLET ET DEFINITIF
+// Version v16.20 - OPTIMISATION SECTION E API & TENARIS
 // BASE : v16.18 (INTEGRALEMENT CONSERVEE)
 //
 // CORRECTIF v16.18 -> v16.19 (UNIQUEMENT) :
@@ -1120,10 +1120,14 @@ function extractMatchesWO(excerpt, wo, det) {
   var connMatch = false;
 
   if (det.sizes && det.sizes.length) {
-    total++;
-    if (txt.indexOf(det.sizes[0].od.toLowerCase()) !== -1) hits++;
-    total++;
-    if (txt.indexOf(det.sizes[0].wt.toLowerCase()) !== -1) hits++;
+    if (det.sizes[0].od) {
+      total++;
+      if (txt.indexOf(String(det.sizes[0].od).toLowerCase()) !== -1) hits++;
+    }
+    if (det.sizes[0].wt) {
+      total++;
+      if (txt.indexOf(String(det.sizes[0].wt).toLowerCase()) !== -1) hits++;
+    }
   }
   if (det.apiGrade) {
     total++;
@@ -1142,10 +1146,9 @@ function extractMatchesWO(excerpt, wo, det) {
   }
 
   if (total === 0) return true;
-  if (connMatch && hits >= 1) return true;
+  if (connMatch || hits >= 1) return true;
   return hits >= Math.min(2, total);
 }
-
 // ============================================================
 // [A6] SCORE DE CONFIANCE GLOBAL DU QP
 // ============================================================
@@ -1904,24 +1907,17 @@ function threadSpecList(det) {
 function kbQueriesFor(det, stds) {
   var q = [];
   var szTxt = det.sizes.length ? ' size ' + det.sizes[0].od + ' ' + det.sizes[0].wt + ' lb/ft' : '';
-  var szFr = det.sizes.length ? ' poids ' + det.sizes[0].wt + ' diametre ' + det.sizes[0].od + ' longueur filetage' : ' poids diametre longueur filetage';
-
+  
   det.conns.forEach(function(c) {
-    if (c.kind !== 'premium') return;
-    var fam = null;
-    PREMIUM_FAMILIES.forEach(function(f) { if (f.id === c.fam) fam = f; });
-    if (!fam) return;
-    var src = PREMIUM_SOURCES[fam.id];
-    q.push(c.label);
-    if (det.sizes.length) {
-      q.push(c.label + ' ' + det.sizes[0].od);
-    }
-    q.push((fam.owner || '') + ' ' + c.label + ' connection data sheet weight diameter length ID OD shoulder torque drift coupling blanking' + szTxt);
-    q.push((fam.owner || '') + ' ' + c.label + ' ' + szFr);
-    if (src && src.docs) {
-      src.docs.forEach(function(d) {
-        q.push(fam.owner + ' ' + c.label + ' ' + d.title + ' connection data sheet weight diameter length ID OD shoulder' + szTxt);
-      });
+    if (c.kind === 'premium') {
+      var fam = null;
+      PREMIUM_FAMILIES.forEach(function(f) { if (f.id === c.fam) fam = f; });
+      q.push(c.label + (det.sizes.length ? ' ' + det.sizes[0].od : ''));
+      if (fam) {
+        q.push(fam.owner + ' ' + c.label + ' connection data sheet weight diameter length ID OD shoulder torque' + szTxt);
+      }
+    } else if (c.kind === 'api') {
+      q.push('API 5B ' + c.label + ' thread form tolerances gauging dimensions' + szTxt);
     }
   });
 
@@ -1930,12 +1926,23 @@ function kbQueriesFor(det, stds) {
     q.push(STANDARDS[id].short + ' ' + STANDARDS[id].role + ' tolerance dimensions edition');
   });
 
+  if (det.apiGrade) q.push('API 5CT grade ' + det.apiGrade + ' chemical composition mechanical properties' + szTxt);
+  if (det.aisi) q.push('AISI ' + det.aisi + ' chemical composition mechanical properties heat treatment');
+  
+  return q.slice(0, 14);
+}
+
+  // 2. AJOUT : Prise en compte explicite des filetages API standards (EUE, BTC, etc.)
   det.conns.forEach(function(c) {
-    if (c.kind !== 'premium') return;
-    var fam = null;
-    PREMIUM_FAMILIES.forEach(function(f) { if (f.id === c.fam) fam = f; });
-    q.push((fam ? fam.owner + ' ' : '') + c.label + ' connection data sheet tolerance make-up torque' + szTxt);
+    if (c.kind !== 'api') return;
+    q.push('API 5B ' + c.label + ' thread form tolerances gauging dimensions' + szTxt);
+    q.push('API 5CT ' + c.label + ' coupling thread specification dimensions');
   });
+
+  if (det.apiGrade) q.push('API 5CT grade ' + det.apiGrade + ' chemical composition mechanical properties' + szTxt);
+  if (det.aisi) q.push('AISI ' + det.aisi + ' chemical composition mechanical properties heat treatment');
+  return q.slice(0, 14);
+}
 
   if (det.apiGrade) q.push('API 5CT grade ' + det.apiGrade + ' chemical composition mechanical properties');
   if (det.aisi) q.push('AISI ' + det.aisi + ' chemical composition mechanical properties heat treatment');
