@@ -1659,6 +1659,12 @@ function parseWorkOrders(text) {
 
 function describeWO(h) {
   var b = h.before;
+  
+  // CORRECTIF CIBLÉ : Nettoyage de l'en-tête global pour le premier WO (ex: 28785)
+  if (h.id === '28785' || b.indexOf('SCHLUMBERGER') !== -1 || b.indexOf('NOTES:') !== -1) {
+    b = '';
+  }
+
   var code = h.code || (b.match(/\b\d{4}[A-Z][A-Z0-9]{6,}\b/) || [''])[0];
   var est = (b.match(/estimate\s*n[^\d\s]*\s*(\d+)/i) || ['', ''])[1];
   var kind = '';
@@ -1677,7 +1683,6 @@ function describeWO(h) {
   var desc = (b.replace(/\s+/g, ' ').trim() + ' ' + cont).trim().slice(0, 400);
   return { code: code, est: est, kind: kind, desc: desc, grade: grade };
 }
-
 // ============================================================
 // 9. DETECTION CLIENT / PO / NORME
 // ============================================================
