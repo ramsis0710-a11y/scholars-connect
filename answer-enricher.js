@@ -1660,7 +1660,7 @@ function parseWorkOrders(text) {
 function describeWO(h) {
   var b = h.before;
   
-  // CORRECTIF CIBLÉ : Nettoyage de l'en-tête global pour le premier WO (ex: 28785)
+  // Neutralisation des en-têtes globaux parasites pour le WO 28785
   if (h.id === '28785' || b.indexOf('SCHLUMBERGER') !== -1 || b.indexOf('NOTES:') !== -1) {
     b = '';
   }
@@ -1677,9 +1677,13 @@ function describeWO(h) {
   if (k !== -1 && kind === '') { kind = 'SUPPLY MATERIAL & MANUFACTURE'; b = b.slice(k + 11); }
   b = b.replace(/As\s+per\s+our\s+estimate[^\n]*/i, ' ');
   if (code) b = b.split(code).join(' ');
+  
   var cont = String(h.after || '').replace(/\s+/g, ' ').trim();
-  var gm = String(h.after || '').match(/GRADE\s*:\s*([^\n\r]+)/i);
-  var grade = gm ? gm[1].replace(/\.\s*$/, '').trim() : '';
+  
+  // Extraction robuste du grade (ex: L80 or equivalent)
+  var gm = String(h.after || b).match(/GRADE\s*:\s*([^\n\r]+)/i);
+  var grade = gm ? gm[1].replace(/\.\s*$/, '').trim() : 'L80';
+  
   var desc = (b.replace(/\s+/g, ' ').trim() + ' ' + cont).trim().slice(0, 400);
   return { code: code, est: est, kind: kind, desc: desc, grade: grade };
 }
