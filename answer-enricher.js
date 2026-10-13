@@ -1544,7 +1544,96 @@ function isEstimateNumber(txt, idx) {
   return false;
 }
 
-function parseWorkOrders(text)
+// ============================================================
+// 8. EXTRACTION WO (CORRIGÉE MULTI-LIGNES)
+// ============================================================
+function isEstimateNumber(txt, idx) {
+  var back = txt.slice(Math.max(0, idx - 30), idx);
+  if (/estimate\s*n[°o]?\s*$/i.test(back)) return true;
+  if (/PN\s*[°o]?\s*:?\s*$/i.test(back)) return true;
+  if (/n[°o]\s*$/i.test(back)) return true;
+  return false;
+}
+
+function parseWorkOrders(text) {
+  text = String(text || '').replace(/\r/g, '');
+  var hits = [];
+  var lines = text.split('\n');
+  var currentJob = null;
+  var currentDescLines = [];
+  var currentCode = '';
+  var currentQte = '1';
+  var currentDate = '';
+
+  for (var i = 0; i < lines.length; i++) {
+    var line = lines[i].trim();
+    
+    // Détection d'un numéro de WO (ex: 28673, 28674)
+    if (/^\d{5}$/.test(line)) {
+      if (currentJob) {
+        hits.push({
+          id: currentJob,
+          qte: currentQte,
+          date: currentDate,
+          code: currentCode,
+          before: '',
+          after: currentDescLines.join(' ')
+        });
+      }
+      currentJob = line;
+      currentDescLines = [];
+      currentCode = '';
+      currentQte = '1';
+      currentDate = '';
+      continue;
+    }
+    
+    if (currentJob) {
+      if (/^\d{4}[A-Z][A-Z0-9]{6,}/.test(line)) {
+        currentCode = line;
+      }
+      if (/\d{2}\/\d{2}\/\d{2,4}/.test(line)) {
+        var dm = line.match(/(\d{2}\/\d{2}\/\d{2,4})/);
+        if (dm) currentDate = dm[1];
+      }
+      if (/^\d{1,3}$/.test(line) && parseInt(line, 10) < 100 && currentQte === '1') {
+        currentQte = line;
+      }
+      if (line.length > 0) {
+        currentDescLines.push(line);
+      }
+    }
+  }
+  
+  if (currentJob) {
+    hits.push({
+      id: currentJob,
+      qte: currentQte,
+      date: currentDate,
+      code: currentCode,
+      before: '',
+      after: currentDescLines.join(' ')
+    });
+  }
+
+  if (hits.length === 0) {
+    return parseWorkOrdersLegacy(text);
+  }
+
+  return hits;
+}
+
+function parseWorkOrdersLegacy(text) {
+  var hits = [], seen = {}, m;
+  var re1 = /(^|[^0-9A-Za-z])(\d{5})[\s\u00A0]+(\d{1,3})[\s\u00A0]+(\d{2}\/\d{2}\/\d{2,4})(?![0-9])/g;
+  while ((m = re1.exec(text)) !== null) {
+    var id1 = m[2];
+    if (seen[id1]) continue;
+    seen[id1] = 1;
+    hits.push({ id: id1, qte: m[3], date: m[4], start: m.index, end: m.index + m[0].length, order: 'standard', before: '', after: '' });
+  }
+  return hits;
+}
 // ============================================================
 // 9. DETECTION CLIENT / PO / NORME
 // ============================================================
