@@ -1534,17 +1534,6 @@ function generateReferences(docs, domain, scholars) {
 }
 
 // ============================================================
-// 8. EXTRACTION WO
-// ============================================================
-function isEstimateNumber(txt, idx) {
-  var back = txt.slice(Math.max(0, idx - 30), idx);
-  if (/estimate\s*n[°o]?\s*$/i.test(back)) return true;
-  if (/PN\s*[°o]?\s*:?\s*$/i.test(back)) return true;
-  if (/n[°o]\s*$/i.test(back)) return true;
-  return false;
-}
-
-// ============================================================
 // 8. EXTRACTION WO (CORRIGÉE MULTI-LIGNES)
 // ============================================================
 function isEstimateNumber(txt, idx) {
