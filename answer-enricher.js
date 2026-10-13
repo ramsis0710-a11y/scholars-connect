@@ -1677,21 +1677,86 @@ function describeWO(h) {
   }
   if (!kind) kind = 'SUPPLY MATERIAL & MANUFACTURE';
 
-  // Utilisation exclusive et complète des N lignes de la colonne Article / Description (h.after) pour le descriptif du WO
-  var cleanAfter = afterText
-    .replace(/^[ \t]*\d{4}[A-Z][A-Z0-9]{6,}[ \t]*/gm, '')
-    .replace(/As\s+per\s+our\s+estimate[^\n]*/gi, '')
-    .replace(/\s+/g, ' ')
-    .trim();
+  // ============================================================
+  // CORRECTION : reconstruction de la description SUR N LIGNES
+  // On découpe afterText en lignes, on nettoie chaque ligne et on
+  // conserve TOUTES les lignes utiles (description produit, dimensions,
+  // grade, destination, etc.) sans les fusionner en une seule ligne.
+  // ============================================================
+  
+  // 1. On récupère le bloc "after" brut (avant nettoyage) et on le découpe en lignes
+  var rawLines = afterText.split(/\r?\n/);
+  var usefulLines = [];
+  
+  for (var i = 0; i < rawLines.length; i++) {
+    var ln = rawLines[i].replace(/\s+/g, ' ').trim();
+    if (ln === '') continue;
+    
+    // Exclusion : ligne de code article (ex: 0113BN412BTCL80)
+    if (/^\d{4}[A-Z][A-Z0-9]{6,}$/.test(ln)) continue;
+    // Exclusion : ligne "SUPPLY MATERIAL & MANUFACTURE" ou "OVERALL REPAIR" (déjà traitée par kind)
+    if (/^(SUPPLY\s+MATERIAL\s*&\s*MANUFACTURE|OVERALL\s+REPAIR|RECERTIF|REFURB|TO\s+RECUT|TO\s+REPAIR)$/i.test(ln)) continue;
+    // Exclusion : ligne "As per our estimate n°..."
+    if (/^As\s+per\s+our\s+estimate\s*n[°o]?\s*\d+/i.test(ln)) continue;
+    // Exclusion : entête de page ou pied de page
+    if (/^Page\s+\d+\s*\/\s*\d+/i.test(ln)) continue;
+    // Exclusion : ligne "Your order Date Our ref." ou "Order confirmation"
+    if (/^(Your\s+order|Order\s+confirmation|Job\s+Qty\.|Article\s*\/\s*Description|Net\s+UP|Delivery\s+time|Final\s+Destination)/i.test(ln)) {
+      // Cas particulier : "Final Destination" est une info utile, on la garde
+      if (/^Final\s+Destination/i.test(ln)) {
+        usefulLines.push(ln);
+      }
+      continue;
+    }
+    // Exclusion : lignes de prix / quantités / dates (ex: "28814 5 29/09/26")
+    if (/^\d{5}\s+\d+\s+\d{2}\/\d{2}\/\d{2,4}$/.test(ln)) continue;
+    if (/^\d{1,3}\s+\d{2}\/\d{2}\/\d{2,4}$/.test(ln)) continue;
+    // Exclusion : lignes purement numériques ou dates seules
+    if (/^[\d\/.\-:\s]+$/.test(ln)) continue;
+    
+    usefulLines.push(ln);
+  }
+  
+  // 2. Si afterText ne contient rien d'utile (cas rare), on retombe sur le comportement précédent
+  if (usefulLines.length === 0) {
+    var cleanAfter = afterText
+      .replace(/^[ \t]*\d{4}[A-Z][A-Z0-9]{6,}[ \t]*/gm, '')
+      .replace(/As\s+per\s+our\s+estimate[^\n]*/gi, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+    if (cleanAfter.length > 10) usefulLines.push(cleanAfter);
+  }
+  
+  // 3. Reconstruction : on joint les lignes utiles avec <br> pour l'affichage HTML
+  //    et on stocke aussi une version texte (join '\n') pour l'extraction du grade.
+  var descLines = usefulLines.slice(0, 30); // sécurité : max 30 lignes
+  var desc = descLines.join('<br>');
+  var descPlain = descLines.join('\n');
+  
+  // Sécurité : on limite la taille totale
+  if (desc.length > 1200) desc = desc.slice(0, 1200);
+  if (descPlain.length > 1200) descPlain = descPlain.slice(0, 1200);
 
-  var desc = cleanAfter.length > 10 ? cleanAfter : (b.replace(/\s+/g, ' ').trim() + ' ' + cleanAfter).trim();
-  if (desc.length > 800) desc = desc.slice(0, 800);
-
-  // Extraction robuste du grade
-  var gm = desc.match(/GRADE\s*:\s*([^\n\r]+)/i) || b.match(/GRADE\s*:\s*([^\n\r]+)/i);
+  // 4. Extraction robuste du grade (sur la version texte multi-lignes)
+  var gm = descPlain.match(/GRADE\s*:\s*([^\n\r]+)/i) || b.match(/GRADE\s*:\s*([^\n\r]+)/i);
   var grade = gm ? gm[1].replace(/\.\s*$/, '').trim() : 'L80';
 
-  return { code: code, est: est, kind: kind, desc: desc, grade: grade };
+  // 5. Extraction robuste des dimensions (Length, OD, ID) depuis les lignes
+  var lengthMatch = descPlain.match(/Length\s*:\s*([^\n\r]+)/i);
+  var odMatch = descPlain.match(/OD\s*:\s*([^\n\r]+)/i);
+  var idMatch = descPlain.match(/ID\s*:\s*([^\n\r]+)/i);
+
+  return {
+    code: code,
+    est: est,
+    kind: kind,
+    desc: desc,          // version HTML multi-lignes (utilisée dans "In Brief Job")
+    descPlain: descPlain, // version texte multi-lignes (pour extraction)
+    grade: grade,
+    length: lengthMatch ? lengthMatch[1].trim() : '',
+    od: odMatch ? odMatch[1].trim() : '',
+    id: idMatch ? idMatch[1].trim() : ''
+  };
 }
 // ============================================================
 // 9. DETECTION CLIENT / PO / NORME
