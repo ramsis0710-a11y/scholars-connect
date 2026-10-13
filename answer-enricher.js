@@ -1658,66 +1658,107 @@ function parseWorkOrders(text) {
 }
 
 function describeWO(h) {
-  var b = h.before || '';
+  var b = String(h.before || '');
   var afterText = String(h.after || '');
-  
-  // Extraction du code article spécifique au WO présent dans la colonne Article / Description
+
+  // ============================================================
+  // CORRECTION : la description du WO est construite à partir de
+  // h.before ET h.after (les deux côtés du numéro de WO), car dans
+  // le fichier ARC les lignes de description produit se trouvent
+  // AVANT le numéro de WO (ex: "XO 3 1/2" 9.2# VAM TOP BOX X"),
+  // tandis que les dimensions (Length, OD, Grade) se trouvent APRÈS.
+  // ============================================================
+
+  // 1. Extraction du code article (dans before ou after)
   var codeMatch = afterText.match(/^[\s\u00A0]*([A-Z0-9\-\/\.]{6,})/);
-  var code = h.code || (codeMatch ? codeMatch[1] : '') || (b.match(/\b\d{4}[A-Z][A-Z0-9]{6,}\b/) || [''])[0];
-  
-  // Estimation spécifique au WO
-  var estMatch = afterText.match(/estimate\s*n[°o]?\s*([A-Z0-9]+)/i) || b.match(/estimate\s*n[°o]?\s*(\d+)/i);
+  var code = h.code
+    || (b.match(/\b\d{4}[A-Z][A-Z0-9]{6,}\b/) || [''])[0]
+    || (codeMatch ? codeMatch[1] : '');
+
+  // 2. Extraction de l'estimation (dans before ou after)
+  var estMatch = b.match(/estimate\s*n[°o]?\s*([A-Z0-9]+)/i)
+    || afterText.match(/estimate\s*n[°o]?\s*([A-Z0-9]+)/i);
   var est = estMatch ? estMatch[1] : '';
 
+  // 3. Détermination du type de job
   var kind = '';
-  if (/REPAIR|RECERTIF|REFURB|TO\s+RECUT|TO\s+REPAIR/i.test(afterText) || /REPAIR|RECERTIF|REFURB|TO\s+RECUT|TO\s+REPAIR/i.test(b)) {
+  if (/REPAIR|RECERTIF|REFURB|TO\s+RECUT|TO\s+REPAIR/i.test(b) || /REPAIR|RECERTIF|REFURB|TO\s+RECUT|TO\s+REPAIR/i.test(afterText)) {
     kind = 'OVERALL REPAIR';
-  } else if (/MANUFACTURE|SUPPLY/i.test(afterText) || /MANUFACTURE|SUPPLY/i.test(b)) {
+  } else if (/MANUFACTURE|SUPPLY/i.test(b) || /MANUFACTURE|SUPPLY/i.test(afterText)) {
     kind = 'SUPPLY MATERIAL & MANUFACTURE';
   }
   if (!kind) kind = 'SUPPLY MATERIAL & MANUFACTURE';
 
   // ============================================================
-  // CORRECTION : reconstruction de la description SUR N LIGNES
-  // On découpe afterText en lignes, on nettoie chaque ligne et on
-  // conserve TOUTES les lignes utiles (description produit, dimensions,
-  // grade, destination, etc.) sans les fusionner en une seule ligne.
+  // 4. Fusion : on traite les lignes de BEFORE puis de AFTER dans
+  //    l'ordre où elles apparaissent dans le document (before d'abord
+  //    car il précède le WO, puis after qui le suit).
   // ============================================================
-  
-  // 1. On récupère le bloc "after" brut (avant nettoyage) et on le découpe en lignes
-  var rawLines = afterText.split(/\r?\n/);
+  var allLines = [];
+
+  // 4a. Lignes de BEFORE (description produit, dimensions éventuelles)
+  var beforeLines = b.split(/\r?\n/);
+  for (var i = 0; i < beforeLines.length; i++) {
+    allLines.push(beforeLines[i]);
+  }
+
+  // 4b. Lignes de AFTER (dimensions, grade, destination)
+  var afterLines = afterText.split(/\r?\n/);
+  for (var j = 0; j < afterLines.length; j++) {
+    allLines.push(afterLines[j]);
+  }
+
+  // ============================================================
+  // 5. Nettoyage ligne par ligne : on conserve les lignes utiles
+  // ============================================================
   var usefulLines = [];
-  
-  for (var i = 0; i < rawLines.length; i++) {
-    var ln = rawLines[i].replace(/\s+/g, ' ').trim();
+  var seenNorm = {};
+  for (var k = 0; k < allLines.length; k++) {
+    var ln = allLines[k].replace(/\s+/g, ' ').trim();
     if (ln === '') continue;
-    
-    // Exclusion : ligne de code article (ex: 0113BN412BTCL80)
+
+    // Exclusion : code article (ex: 0113XO312VTB02312IL80)
     if (/^\d{4}[A-Z][A-Z0-9]{6,}$/.test(ln)) continue;
-    // Exclusion : ligne "SUPPLY MATERIAL & MANUFACTURE" ou "OVERALL REPAIR" (déjà traitée par kind)
-    if (/^(SUPPLY\s+MATERIAL\s*&\s*MANUFACTURE|OVERALL\s+REPAIR|RECERTIF|REFURB|TO\s+RECUT|TO\s+REPAIR)$/i.test(ln)) continue;
-    // Exclusion : ligne "As per our estimate n°..."
+
+    // Exclusion : ligne "SUPPLY MATERIAL & MANUFACTURE" (déjà captée par kind)
+    if (/^SUPPLY\s+MATERIAL\s*&\s*MANUFACTURE$/i.test(ln)) continue;
+    if (/^OVERALL\s+REPAIR$/i.test(ln)) continue;
+    if (/^(RECERTIF|REFURB|TO\s+RECUT|TO\s+REPAIR)$/i.test(ln)) continue;
+
+    // Exclusion : ligne "As per our estimate n°..." (captée à part)
     if (/^As\s+per\s+our\s+estimate\s*n[°o]?\s*\d+/i.test(ln)) continue;
-    // Exclusion : entête de page ou pied de page
+
+    // Exclusion : entête de page, pied de page
     if (/^Page\s+\d+\s*\/\s*\d+/i.test(ln)) continue;
-    // Exclusion : ligne "Your order Date Our ref." ou "Order confirmation"
-    if (/^(Your\s+order|Order\s+confirmation|Job\s+Qty\.|Article\s*\/\s*Description|Net\s+UP|Delivery\s+time|Final\s+Destination)/i.test(ln)) {
-      // Cas particulier : "Final Destination" est une info utile, on la garde
-      if (/^Final\s+Destination/i.test(ln)) {
-        usefulLines.push(ln);
-      }
-      continue;
-    }
-    // Exclusion : lignes de prix / quantités / dates (ex: "28814 5 29/09/26")
-    if (/^\d{5}\s+\d+\s+\d{2}\/\d{2}\/\d{2,4}$/.test(ln)) continue;
+    if (/^GMPI\b/i.test(ln)) continue;
+    if (/^GLOBAL\s+GROUP$/i.test(ln)) continue;
+    if (/^Quality\s+control\s+plan$/i.test(ln)) continue;
+
+    // Exclusion : entêtes de tableau ARC
+    if (/^(Your\s+order\s+Date\s+Our\s+ref|Job\s+Qty\.|Article\s*\/\s*Description|Net\s+UP|Delivery\s+time|Job\s+Article\s*\/\s*Description)/i.test(ln)) continue;
+    if (/^Order\s+confirmation\b/i.test(ln)) continue;
+    if (/^Payment\s+Tax\s+code$/i.test(ln)) continue;
+    if (/^WIRE\s+TRANSFER/i.test(ln)) continue;
+    if (/^Static\b/i.test(ln)) continue;
+
+    // Exclusion : ligne "WO qte date" (ex: "28814 5 29/09/26")
+    if (/^\d{5}\s+\d{1,3}\s+\d{2}\/\d{2}\/\d{2,4}$/.test(ln)) continue;
     if (/^\d{1,3}\s+\d{2}\/\d{2}\/\d{2,4}$/.test(ln)) continue;
-    // Exclusion : lignes purement numériques ou dates seules
+
+    // Exclusion : dates seules, lignes purement numériques
+    if (/^\d{2}\/\d{2}\/\d{2,4}$/.test(ln)) continue;
+    if (/^\d{2}\/\d{2}\/\d{4}$/.test(ln)) continue;
     if (/^[\d\/.\-:\s]+$/.test(ln)) continue;
-    
+
+    // Exclusion : doublons consécutifs
+    var norm = ln.toUpperCase();
+    if (seenNorm[norm]) continue;
+    seenNorm[norm] = 1;
+
     usefulLines.push(ln);
   }
-  
-  // 2. Si afterText ne contient rien d'utile (cas rare), on retombe sur le comportement précédent
+
+  // 6. Si rien d'utile trouvé (cas rare), fallback minimal
   if (usefulLines.length === 0) {
     var cleanAfter = afterText
       .replace(/^[ \t]*\d{4}[A-Z][A-Z0-9]{6,}[ \t]*/gm, '')
@@ -1726,22 +1767,23 @@ function describeWO(h) {
       .trim();
     if (cleanAfter.length > 10) usefulLines.push(cleanAfter);
   }
-  
-  // 3. Reconstruction : on joint les lignes utiles avec <br> pour l'affichage HTML
-  //    et on stocke aussi une version texte (join '\n') pour l'extraction du grade.
+
+  // ============================================================
+  // 7. Reconstruction : description sur N lignes, jointe par <br>
+  // ============================================================
   var descLines = usefulLines.slice(0, 30); // sécurité : max 30 lignes
   var desc = descLines.join('<br>');
   var descPlain = descLines.join('\n');
-  
-  // Sécurité : on limite la taille totale
-  if (desc.length > 1200) desc = desc.slice(0, 1200);
-  if (descPlain.length > 1200) descPlain = descPlain.slice(0, 1200);
 
-  // 4. Extraction robuste du grade (sur la version texte multi-lignes)
-  var gm = descPlain.match(/GRADE\s*:\s*([^\n\r]+)/i) || b.match(/GRADE\s*:\s*([^\n\r]+)/i);
+  if (desc.length > 1500) desc = desc.slice(0, 1500);
+  if (descPlain.length > 1500) descPlain = descPlain.slice(0, 1500);
+
+  // 8. Extraction robuste du grade (sur before + after fusionnés)
+  var combinedPlain = b + '\n' + afterText;
+  var gm = combinedPlain.match(/GRADE\s*:\s*([^\n\r]+)/i);
   var grade = gm ? gm[1].replace(/\.\s*$/, '').trim() : 'L80';
 
-  // 5. Extraction robuste des dimensions (Length, OD, ID) depuis les lignes
+  // 9. Extraction robuste des dimensions (Length, OD, ID)
   var lengthMatch = descPlain.match(/Length\s*:\s*([^\n\r]+)/i);
   var odMatch = descPlain.match(/OD\s*:\s*([^\n\r]+)/i);
   var idMatch = descPlain.match(/ID\s*:\s*([^\n\r]+)/i);
@@ -1750,8 +1792,8 @@ function describeWO(h) {
     code: code,
     est: est,
     kind: kind,
-    desc: desc,          // version HTML multi-lignes (utilisée dans "In Brief Job")
-    descPlain: descPlain, // version texte multi-lignes (pour extraction)
+    desc: desc,           // version HTML multi-lignes (In Brief Job)
+    descPlain: descPlain, // version texte multi-lignes
     grade: grade,
     length: lengthMatch ? lengthMatch[1].trim() : '',
     od: odMatch ? odMatch[1].trim() : '',
