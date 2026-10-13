@@ -1658,33 +1658,39 @@ function parseWorkOrders(text) {
 }
 
 function describeWO(h) {
-  var b = h.before;
+  var b = h.before || '';
+  var afterText = String(h.after || '');
   
-  // Neutralisation des en-têtes globaux parasites pour le WO 28785
-  if (h.id === '28785' || b.indexOf('SCHLUMBERGER') !== -1 || b.indexOf('NOTES:') !== -1) {
-    b = '';
-  }
+  // Extraction du code article spécifique au WO présent dans la colonne Article / Description
+  var codeMatch = afterText.match(/^[\s\u00A0]*([A-Z0-9\-\/\.]{6,})/);
+  var code = h.code || (codeMatch ? codeMatch[1] : '') || (b.match(/\b\d{4}[A-Z][A-Z0-9]{6,}\b/) || [''])[0];
+  
+  // Estimation spécifique au WO
+  var estMatch = afterText.match(/estimate\s*n[°o]?\s*([A-Z0-9]+)/i) || b.match(/estimate\s*n[°o]?\s*(\d+)/i);
+  var est = estMatch ? estMatch[1] : '';
 
-  var code = h.code || (b.match(/\b\d{4}[A-Z][A-Z0-9]{6,}\b/) || [''])[0];
-  var est = (b.match(/estimate\s*n[^\d\s]*\s*(\d+)/i) || ['', ''])[1];
   var kind = '';
-  if (/REPAIR|RECERTIF|REFURB|TO\s+RECUT|TO\s+REPAIR/i.test(b)) {
+  if (/REPAIR|RECERTIF|REFURB|TO\s+RECUT|TO\s+REPAIR/i.test(afterText) || /REPAIR|RECERTIF|REFURB|TO\s+RECUT|TO\s+REPAIR/i.test(b)) {
     kind = 'OVERALL REPAIR';
-  } else if (/MANUFACTURE|SUPPLY/i.test(b)) {
+  } else if (/MANUFACTURE|SUPPLY/i.test(afterText) || /MANUFACTURE|SUPPLY/i.test(b)) {
     kind = 'SUPPLY MATERIAL & MANUFACTURE';
   }
-  var k = b.toUpperCase().lastIndexOf('MANUFACTURE');
-  if (k !== -1 && kind === '') { kind = 'SUPPLY MATERIAL & MANUFACTURE'; b = b.slice(k + 11); }
-  b = b.replace(/As\s+per\s+our\s+estimate[^\n]*/i, ' ');
-  if (code) b = b.split(code).join(' ');
-  
-  var cont = String(h.after || '').replace(/\s+/g, ' ').trim();
-  
-  // Extraction robuste du grade (ex: L80 or equivalent)
-  var gm = String(h.after || b).match(/GRADE\s*:\s*([^\n\r]+)/i);
+  if (!kind) kind = 'SUPPLY MATERIAL & MANUFACTURE';
+
+  // Utilisation exclusive des lignes de la colonne Article / Description (h.after) pour le descriptif du WO
+  var cleanAfter = afterText
+    .replace(/^[ \t]*\d{4}[A-Z][A-Z0-9]{6,}[ \t]*/gm, '')
+    .replace(/As\s+per\s+our\s+estimate[^\n]*/gi, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  var desc = cleanAfter.length > 10 ? cleanAfter : (b.replace(/\s+/g, ' ').trim() + ' ' + cleanAfter).trim();
+  if (desc.length > 400) desc = desc.slice(0, 400);
+
+  // Extraction robuste du grade
+  var gm = desc.match(/GRADE\s*:\s*([^\n\r]+)/i) || b.match(/GRADE\s*:\s*([^\n\r]+)/i);
   var grade = gm ? gm[1].replace(/\.\s*$/, '').trim() : 'L80';
-  
-  var desc = (b.replace(/\s+/g, ' ').trim() + ' ' + cont).trim().slice(0, 400);
+
   return { code: code, est: est, kind: kind, desc: desc, grade: grade };
 }
 // ============================================================
