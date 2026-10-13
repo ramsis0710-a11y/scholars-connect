@@ -1856,8 +1856,13 @@ function detectDetails(info, ctx) {
 
   re = /\bNC\s?-?\s?(\d{2})\b/gi;
   while ((m = re.exec(t)) !== null) addConn('rotary', 'NC' + m[1], 'API-7-2');
-  re = /\bAPI\s+(REG|FH|IF)\b/gi;
-  while ((m = re.exec(t)) !== null) addConn('rotary', 'API ' + m[1].toUpperCase(), 'API-7-2');
+
+  // Détection élargie de REG, FH, IF (avec ou sans "API", ou précédés d'une taille / terme technique)
+  re = /(?:\bAPI\s+|\b\d+(?:\s*\d\/\d)?(?:\.\d+)?["\s]*|\b(?:PIN|BOX|TOOL\s*JOINT)\b[^\n]{0,15})(REG|FH|IF)\b/gi;
+  while ((m = re.exec(t)) !== null) {
+    addConn('rotary', 'API ' + m[1].toUpperCase(), 'API-7-2');
+  }
+
   re = /\b(BTC|LTC|STC|EUE|NUE)\b/g;
   while ((m = re.exec(t)) !== null) addConn('api', m[1], 'API-5B');
   re = /"\s*(LC|SC|BC|NU|EU|IJ|XC)\b/g;
