@@ -1661,11 +1661,11 @@ function describeWO(h) {
   var b = h.before || '';
   var afterText = String(h.after || '');
   
-  // Extraction du code article spécifique au WO présent dans la colonne Article / Description
+  // Extraction précise du code article correspondant au WO courant
   var codeMatch = afterText.match(/^[\s\u00A0]*([A-Z0-9\-\/\.]{6,})/);
   var code = h.code || (codeMatch ? codeMatch[1] : '') || (b.match(/\b\d{4}[A-Z][A-Z0-9]{6,}\b/) || [''])[0];
   
-  // Estimation spécifique au WO
+  // Référence d'estimation spécifique au WO
   var estMatch = afterText.match(/estimate\s*n[°o]?\s*([A-Z0-9]+)/i) || b.match(/estimate\s*n[°o]?\s*(\d+)/i);
   var est = estMatch ? estMatch[1] : '';
 
@@ -1677,7 +1677,7 @@ function describeWO(h) {
   }
   if (!kind) kind = 'SUPPLY MATERIAL & MANUFACTURE';
 
-  // Utilisation exclusive des lignes de la colonne Article / Description (h.after) pour le descriptif du WO
+  // Nettoyage strict basé uniquement sur la colonne Article / Description pour ce WO précis
   var cleanAfter = afterText
     .replace(/^[ \t]*\d{4}[A-Z][A-Z0-9]{6,}[ \t]*/gm, '')
     .replace(/As\s+per\s+our\s+estimate[^\n]*/gi, '')
