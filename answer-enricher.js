@@ -1534,7 +1534,7 @@ function generateReferences(docs, domain, scholars) {
 }
 
 // ============================================================
-// 8. EXTRACTION WO (CORRIGÉE MULTI-LIGNES)
+// 8. EXTRACTION WO
 // ============================================================
 function isEstimateNumber(txt, idx) {
   var back = txt.slice(Math.max(0, idx - 30), idx);
@@ -1546,82 +1546,152 @@ function isEstimateNumber(txt, idx) {
 
 function parseWorkOrders(text) {
   text = String(text || '').replace(/\r/g, '');
-  var hits = [];
-  var lines = text.split('\n');
-  var currentJob = null;
-  var currentDescLines = [];
-  var currentCode = '';
-  var currentQte = '1';
-  var currentDate = '';
-
-  for (var i = 0; i < lines.length; i++) {
-    var line = lines[i].trim();
-    
-    // Détection d'un numéro de WO (ex: 28673, 28674)
-    if (/^\d{5}$/.test(line)) {
-      if (currentJob) {
-        hits.push({
-          id: currentJob,
-          qte: currentQte,
-          date: currentDate,
-          code: currentCode,
-          before: '',
-          after: currentDescLines.join(' ')
-        });
-      }
-      currentJob = line;
-      currentDescLines = [];
-      currentCode = '';
-      currentQte = '1';
-      currentDate = '';
-      continue;
-    }
-    
-    if (currentJob) {
-      if (/^\d{4}[A-Z][A-Z0-9]{6,}/.test(line)) {
-        currentCode = line;
-      }
-      if (/\d{2}\/\d{2}\/\d{2,4}/.test(line)) {
-        var dm = line.match(/(\d{2}\/\d{2}\/\d{2,4})/);
-        if (dm) currentDate = dm[1];
-      }
-      if (/^\d{1,3}$/.test(line) && parseInt(line, 10) < 100 && currentQte === '1') {
-        currentQte = line;
-      }
-      if (line.length > 0) {
-        currentDescLines.push(line);
-      }
-    }
-  }
-  
-  if (currentJob) {
-    hits.push({
-      id: currentJob,
-      qte: currentQte,
-      date: currentDate,
-      code: currentCode,
-      before: '',
-      after: currentDescLines.join(' ')
-    });
-  }
-
-  if (hits.length === 0) {
-    return parseWorkOrdersLegacy(text);
-  }
-
-  return hits;
-}
-
-function parseWorkOrdersLegacy(text) {
   var hits = [], seen = {}, m;
+
   var re1 = /(^|[^0-9A-Za-z])(\d{5})[\s\u00A0]+(\d{1,3})[\s\u00A0]+(\d{2}\/\d{2}\/\d{2,4})(?![0-9])/g;
   while ((m = re1.exec(text)) !== null) {
     var id1 = m[2];
+    var pos1 = m.index + m[1].length;
+    if (isEstimateNumber(text, pos1)) continue;
     if (seen[id1]) continue;
     seen[id1] = 1;
-    hits.push({ id: id1, qte: m[3], date: m[4], start: m.index, end: m.index + m[0].length, order: 'standard', before: '', after: '' });
+    hits.push({ id: id1, qte: m[3], date: m[4], start: pos1, end: m.index + m[0].length, order: 'standard' });
+  }
+
+  var re2 = /(\d{1,3})[\s\u00A0]+(\d{2}\/\d{2}\/\d{2,4})[\s\u00A0]*\r?\n[\s\u00A0]*(\d{5})(?![0-9])/g;
+  while ((m = re2.exec(text)) !== null) {
+    var id2 = m[3];
+    var pos2 = m.index + m[0].length - m[3].length;
+    if (isEstimateNumber(text, pos2)) continue;
+    if (seen[id2]) continue;
+    seen[id2] = 1;
+    hits.push({ id: id2, qte: m[1], date: m[2], start: pos2, end: m.index + m[0].length, order: 'inverse' });
+  }
+
+  var re3 = /(?:^|\n)\s*(\d{5})\s+(?:[A-Z0-9\-\/#\.]+)\s+/g;
+  while ((m = re3.exec(text)) !== null) {
+    var id3 = m[1];
+    if (seen[id3]) continue;
+    var pos3 = m.index + (m[0].match(/^\s*/) || [''])[0].length;
+    if (isEstimateNumber(text, pos3)) continue;
+    var sub = text.slice(m.index, m.index + 200);
+    var qm = sub.match(/\b(\d{1,3})\b/);
+    var dm = sub.match(/(\d{2}\/\d{2}\/\d{2,4})/);
+    if (qm && dm) {
+      seen[id3] = 1;
+      hits.push({ id: id3, qte: qm[1], date: dm[1], start: pos3, end: m.index + m[0].length, order: 'table' });
+    }
+  }
+
+  var re4 = /(^|[^0-9A-Za-z])(\d{5})[\s\u00A0]+(\d{1,3})[\s\u00A0]+\d{1,3}(?:[.,]\d{2})?\s*€?[\s\u00A0]+\d{1,3}[\s\u00A0]+\d{1,3}(?:[.,]\d{2})\s*€/g;
+  while ((m = re4.exec(text)) !== null) {
+    var id4 = m[2];
+    var pos4 = m.index + m[1].length;
+    if (isEstimateNumber(text, pos4)) continue;
+    if (seen[id4]) continue;
+    var sub4 = text.slice(m.index, m.index + 300);
+    var dm4 = sub4.match(/(\d{2}\/\d{2}\/\d{2,4})/);
+    seen[id4] = 1;
+    hits.push({
+      id: id4,
+      qte: m[3],
+      date: dm4 ? dm4[1] : '',
+      start: pos4,
+      end: m.index + m[0].length,
+      order: 'sivam-euro'
+    });
+  }
+
+  var re5 = /(^|\n)\s*(\d{5})[\s\u00A0]+(\d{1,3})(?=[\s\u00A0]+\d)/g;
+  while ((m = re5.exec(text)) !== null) {
+    var id5 = m[2];
+    var pos5 = m.index + m[1].length;
+    if (isEstimateNumber(text, pos5)) continue;
+    if (seen[id5]) continue;
+    var sub5 = text.slice(m.index, m.index + 200);
+    if (!/€/.test(sub5)) continue;
+    if (!/\d{1,3}(?:[.,]\d{2})/.test(sub5)) continue;
+    var dm5 = sub5.match(/(\d{2}\/\d{2}\/\d{2,4})/);
+    seen[id5] = 1;
+    hits.push({
+      id: id5,
+      qte: m[3],
+      date: dm5 ? dm5[1] : '',
+      start: pos5,
+      end: m.index + m[0].length,
+      order: 'sivam-loose'
+    });
+  }
+
+  hits.sort(function(a, b) { return a.start - b.start; });
+
+  var codes = [];
+  var codeRe = /^[ \t]*(\d{4}[A-Z][A-Z0-9]{6,})[ \t]*$/gm;
+  var cm;
+  while ((cm = codeRe.exec(text)) !== null) codes.push({ code: cm[1], idx: cm.index });
+
+  var pages = [];
+  var pageRe = /^[ \t]*Page\s+\d+\s*\/\s*\d+/gmi;
+  var pm;
+  while ((pm = pageRe.exec(text)) !== null) pages.push(pm.index);
+
+  for (var i = 0; i < hits.length; i++) {
+    var h = hits[i];
+    var c = null;
+    for (var j = 0; j < codes.length; j++) { if (codes[j].idx < h.start) c = codes[j]; }
+    var blockStart = c ? c.idx : (i > 0 ? hits[i - 1].end : 0);
+
+    var blockEnd = text.length;
+    for (var j2 = 0; j2 < codes.length; j2++) {
+      if (codes[j2].idx > h.end) { blockEnd = Math.min(blockEnd, codes[j2].idx); break; }
+    }
+    for (var p = 0; p < pages.length; p++) {
+      if (pages[p] > h.end) { blockEnd = Math.min(blockEnd, pages[p]); break; }
+    }
+    if (i + 1 < hits.length && !codes.length) blockEnd = Math.min(blockEnd, hits[i + 1].start);
+
+    h.code = c ? c.code : '';
+    h.before = text.slice(blockStart, h.start);
+    h.after = text.slice(h.end, blockEnd);
   }
   return hits;
+}
+
+function describeWO(h) {
+  var b = h.before || '';
+  var afterText = String(h.after || '');
+  
+  // Extraction du code article spécifique au WO présent dans la colonne Article / Description
+  var codeMatch = afterText.match(/^[\s\u00A0]*([A-Z0-9\-\/\.]{6,})/);
+  var code = h.code || (codeMatch ? codeMatch[1] : '') || (b.match(/\b\d{4}[A-Z][A-Z0-9]{6,}\b/) || [''])[0];
+  
+  // Estimation spécifique au WO
+  var estMatch = afterText.match(/estimate\s*n[°o]?\s*([A-Z0-9]+)/i) || b.match(/estimate\s*n[°o]?\s*(\d+)/i);
+  var est = estMatch ? estMatch[1] : '';
+
+  var kind = '';
+  if (/REPAIR|RECERTIF|REFURB|TO\s+RECUT|TO\s+REPAIR/i.test(afterText) || /REPAIR|RECERTIF|REFURB|TO\s+RECUT|TO\s+REPAIR/i.test(b)) {
+    kind = 'OVERALL REPAIR';
+  } else if (/MANUFACTURE|SUPPLY/i.test(afterText) || /MANUFACTURE|SUPPLY/i.test(b)) {
+    kind = 'SUPPLY MATERIAL & MANUFACTURE';
+  }
+  if (!kind) kind = 'SUPPLY MATERIAL & MANUFACTURE';
+
+  // Utilisation exclusive et complète des N lignes de la colonne Article / Description (h.after) pour le descriptif du WO
+  var cleanAfter = afterText
+    .replace(/^[ \t]*\d{4}[A-Z][A-Z0-9]{6,}[ \t]*/gm, '')
+    .replace(/As\s+per\s+our\s+estimate[^\n]*/gi, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  var desc = cleanAfter.length > 10 ? cleanAfter : (b.replace(/\s+/g, ' ').trim() + ' ' + cleanAfter).trim();
+  if (desc.length > 800) desc = desc.slice(0, 800);
+
+  // Extraction robuste du grade
+  var gm = desc.match(/GRADE\s*:\s*([^\n\r]+)/i) || b.match(/GRADE\s*:\s*([^\n\r]+)/i);
+  var grade = gm ? gm[1].replace(/\.\s*$/, '').trim() : 'L80';
+
+  return { code: code, est: est, kind: kind, desc: desc, grade: grade };
 }
 // ============================================================
 // 9. DETECTION CLIENT / PO / NORME
@@ -1792,13 +1862,8 @@ function detectDetails(info, ctx) {
 
   re = /\bNC\s?-?\s?(\d{2})\b/gi;
   while ((m = re.exec(t)) !== null) addConn('rotary', 'NC' + m[1], 'API-7-2');
-
-  // Détection élargie de REG, FH, IF (avec ou sans "API", ou précédés d'une taille / terme technique)
-  re = /(?:\bAPI\s+|\b\d+(?:\s*\d\/\d)?(?:\.\d+)?["\s]*|\b(?:PIN|BOX|TOOL\s*JOINT)\b[^\n]{0,15})(REG|FH|IF)\b/gi;
-  while ((m = re.exec(t)) !== null) {
-    addConn('rotary', 'API ' + m[1].toUpperCase(), 'API-7-2');
-  }
-
+  re = /\bAPI\s+(REG|FH|IF)\b/gi;
+  while ((m = re.exec(t)) !== null) addConn('rotary', 'API ' + m[1].toUpperCase(), 'API-7-2');
   re = /\b(BTC|LTC|STC|EUE|NUE)\b/g;
   while ((m = re.exec(t)) !== null) addConn('api', m[1], 'API-5B');
   re = /"\s*(LC|SC|BC|NU|EU|IJ|XC)\b/g;
