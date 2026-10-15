@@ -39,7 +39,7 @@ textarea:focus{border-color:#1e5aa8}
 .dialog-overlay.active{display:flex}
 .dialog-box{background:white;border-radius:16px;padding:30px;max-width:650px;width:90%;max-height:85vh;overflow-y:auto}
 .dialog-box h3{color:#0a2540;margin-bottom:20px}
-.dialog-tabs{display:flex;gap:8px;margin-bottom:20px;border-bottom:2px solid #e5e7eb}
+.dialog-tabs{display:flex;gap:8px;margin-bottom:20px;border-bottom:2px solid #e5e7eb;flex-wrap:wrap}
 .dialog-tab{padding:10px 18px;cursor:pointer;font-weight:600;font-size:.9rem;color:#6b7280;border-bottom:3px solid transparent;margin-bottom:-2px}
 .dialog-tab.active{color:#1e5aa8;border-bottom-color:#1e5aa8}
 .dialog-panel{display:none}
@@ -123,6 +123,7 @@ textarea:focus{border-color:#1e5aa8}
       <div class="dialog-tab active" data-tab="text" onclick="window.switchDialogTab && window.switchDialogTab('text', this)">Coller du texte</div>
       <div class="dialog-tab" data-tab="url" onclick="window.switchDialogTab && window.switchDialogTab('url', this)">Coller une URL</div>
       <div class="dialog-tab" data-tab="pdf" onclick="window.switchDialogTab && window.switchDialogTab('pdf', this)">Extrait PDF / DOCX</div>
+      <div class="dialog-tab" data-tab="excel" onclick="window.switchDialogTab && window.switchDialogTab('excel', this)" style="color:#16a34a">Tableau Excel</div>
     </div>
     <div class="dialog-panel active" id="panel-text">
       <p style="color:#6b7280;font-size:.85rem;margin-bottom:10px">Colle le contenu a analyser (max 20 000 caracteres) :</p>
@@ -136,11 +137,19 @@ textarea:focus{border-color:#1e5aa8}
       <p style="color:#6b7280;font-size:.85rem;margin-bottom:10px">Ouvre ton PDF/DOCX, Ctrl+A, Ctrl+C, colle ici :</p>
       <textarea id="content-pdf" placeholder="Colle ici l'extrait..."></textarea>
     </div>
+    <div class="dialog-panel" id="panel-excel">
+      <p style="color:#16a34a;font-size:.85rem;margin-bottom:5px;font-weight:600">Generation en bloc des Plans Qualite depuis un tableau Excel</p>
+      <p style="color:#6b7280;font-size:.8rem;margin-bottom:10px">Selectionnez vos lignes dans Excel (colonnes PO, WO, Client, Description, Date, Qte), faites Ctrl+C, puis collez ici. Le separateur et les colonnes sont detectes automatiquement.</p>
+      <textarea id="content-excel" placeholder="Collez ici le tableau Excel (Ctrl+C depuis Excel)..." style="min-height:180px"></textarea>
+      <p style="color:#6b7280;font-size:.8rem;margin-top:10px">Ou chargez un fichier tableau (.tsv, .csv, .txt) :</p>
+      <input type="file" id="content-excel-file" accept=".tsv,.csv,.txt,.md,.tab" style="margin-top:5px;width:100%;padding:8px;border:2px solid #16a34a;border-radius:8px">
+    </div>
     <p style="color:#6b7280;font-size:.85rem;margin-top:15px">Question specifique (optionnel)</p>
     <input type="text" id="content-question" placeholder="Ex : Resume en 5 points" style="margin-top:5px">
     <div class="dialog-btns">
       <button class="btn-cancel" onclick="window.closeAnalyzeDialog && window.closeAnalyzeDialog()">Annuler</button>
-      <button class="btn-ok" onclick="window.analyzeContent && window.analyzeContent()">Analyser avec l'IA</button>
+      <button class="btn-ok" id="btn-excel-go" onclick="window.generateFromExcel && window.generateFromExcel()" style="background:linear-gradient(135deg,#16a34a,#15803d);display:none">Generer les QP depuis Excel</button>
+      <button class="btn-ok" id="btn-analyze" onclick="window.analyzeContent && window.analyzeContent()">Analyser avec l'IA</button>
     </div>
   </div>
 </div>
@@ -248,17 +257,46 @@ window.apiCall = apiCall;
 // ============================================================
 window.openAnalyzeDialog = function() {
   document.getElementById('analyze-dialog').classList.add('active');
+  // Reinitialiser l'affichage des boutons selon l'onglet actif
+  var activeTab = document.querySelector('.dialog-tab.active');
+  var currentTab = activeTab ? activeTab.getAttribute('data-tab') : 'text';
+  var btnExcel = document.getElementById('btn-excel-go');
+  var btnAnalyze = document.getElementById('btn-analyze');
+  if (currentTab === 'excel') {
+    if (btnExcel) btnExcel.style.display = 'inline-block';
+    if (btnAnalyze) btnAnalyze.style.display = 'none';
+  } else {
+    if (btnExcel) btnExcel.style.display = 'none';
+    if (btnAnalyze) btnAnalyze.style.display = 'inline-block';
+  }
 };
 window.closeAnalyzeDialog = function() {
   document.getElementById('analyze-dialog').classList.remove('active');
 };
+
+// ============================================================
+// SWITCH ONGLET (avec bascule bouton Excel / Analyser)
+// ============================================================
 window.switchDialogTab = function(tab, el) {
   document.querySelectorAll('.dialog-tab').forEach(function(t){ t.classList.remove('active'); });
   document.querySelectorAll('.dialog-panel').forEach(function(p){ p.classList.remove('active'); });
   el.classList.add('active');
   document.getElementById('panel-' + tab).classList.add('active');
+  // Basculer l'affichage des boutons selon l'onglet
+  var btnExcel = document.getElementById('btn-excel-go');
+  var btnAnalyze = document.getElementById('btn-analyze');
+  if (tab === 'excel') {
+    if (btnExcel) btnExcel.style.display = 'inline-block';
+    if (btnAnalyze) btnAnalyze.style.display = 'none';
+  } else {
+    if (btnExcel) btnExcel.style.display = 'none';
+    if (btnAnalyze) btnAnalyze.style.display = 'inline-block';
+  }
 };
 
+// ============================================================
+// ANALYSE CLASSIQUE (texte / URL / PDF)
+// ============================================================
 window.analyzeContent = async function() {
   console.log('[analyzeContent] Demarrage...');
 
@@ -313,6 +351,107 @@ window.analyzeContent = async function() {
   } catch (e) {
     console.error('[analyzeContent] Erreur:', e);
     if (loading) loading.textContent = 'Erreur : ' + e.message;
+  }
+};
+
+// ============================================================
+// [EXCEL-UI] GENERATION EN BLOC DES PLANS QUALITE DEPUIS EXCEL
+// Appelle la route /api/qp-generate-excel (presente dans
+// answer-enricher.js) et affiche les liens PDF + diagnostic.
+// ============================================================
+window.generateFromExcel = async function() {
+  console.log('[generateFromExcel] Demarrage...');
+
+  var textarea = document.getElementById('content-excel');
+  var fileInput = document.getElementById('content-excel-file');
+  var text = textarea ? textarea.value.trim() : '';
+  var file = fileInput && fileInput.files ? fileInput.files[0] : null;
+
+  // Si un fichier est charge et que la zone texte est vide, lire le fichier
+  if (!text && file) {
+    try { text = await file.text(); } catch (e) { text = ''; }
+  }
+
+  if (!text) {
+    alert('Collez un tableau Excel dans la zone dediee, ou chargez un fichier .tsv / .csv / .txt.');
+    return;
+  }
+
+  var token = localStorage.getItem('token') || '';
+  if (!token) { alert('Session expiree. Reconnectez-vous.'); return; }
+
+  window.closeAnalyzeDialog();
+  addMsg('[Excel] Generation en bloc des Plans Qualite', 'user');
+  var loadingMsg = addMsg('Analyse du tableau Excel (' + text.length + ' caracteres)...', 'bot');
+
+  try {
+    var r = await fetch('/api/qp-generate-excel', {
+      method: 'POST',
+      headers: {
+        'Authorization': 'Bearer ' + token,
+        'Content-Type': 'text/plain'
+      },
+      body: text
+    });
+    var data = await r.json();
+
+    if (loadingMsg) loadingMsg.remove();
+
+    if (!data.ok) {
+      var errMsg = data.error || 'Erreur inconnue';
+      var diagInfo = '';
+      if (data.excelDiag) {
+        diagInfo = '<br><small>Diagnostic : ' + (data.excelDiag.validWOs || 0) + ' WO valides / ' + (data.excelDiag.dataRows || 0) + ' lignes, separateur=' + (data.excelDiag.detectedSeparator || '?') + '</small>';
+      }
+      addBotMsg('<div style="background:#fef2f2;border:2px solid #dc2626;border-radius:8px;padding:14px"><div style="color:#991b1b;font-weight:700">Erreur Excel : ' + errMsg + '</div>' + diagInfo + '</div>', null, true);
+      return;
+    }
+
+    // Succes : afficher le bandeau + liens
+    var html = '<div style="background:#eff6ff;border-left:4px solid #1e5aa8;border-radius:8px;padding:16px">';
+    html += '<div style="color:#1e40af;font-weight:800;font-size:15px">' + data.wo + ' Work Order(s) detecte(s) - ' + data.qpDocs + ' QP conforme(s)</div>';
+    html += '<div style="font-size:13px;color:#1e3a8a;margin:6px 0">Client : <b>' + (data.customer || '?') + '</b> - PO : <b>' + (data.po || '?') + '</b></div>';
+    html += '<div style="background:#dcfce7;color:#14532d;padding:6px 12px;border-radius:6px;font-size:13px;font-weight:700;display:inline-block;margin:6px 0">Confiance QP moyenne : ' + (data.avgConfidence || 0) + '%</div>';
+
+    if (data.excelDiag) {
+      var d = data.excelDiag;
+      html += '<div style="background:#f9fafb;border:1px dashed #cbd5e1;border-radius:6px;padding:8px 12px;margin:8px 0;font-size:11px;color:#374151;font-family:monospace">';
+      html += '<b>Diagnostic Excel :</b><br>';
+      html += '&bull; Separateur : ' + (d.detectedSeparator || '?') + '<br>';
+      html += '&bull; Entete : ' + (d.headerDetected ? 'detectee' : 'AUCUNE') + '<br>';
+      html += '&bull; Lignes de donnees : ' + (d.dataRows || 0) + '<br>';
+      html += '&bull; WO valides : <b>' + (d.validWOs || 0) + '</b>';
+      if (d.skippedRows && d.skippedRows.length > 0) {
+        html += '<br>&bull; <span style="color:#92400e">Lignes ignorees : ' + d.skippedRows.length + '</span>';
+      }
+      html += '</div>';
+    }
+
+    if (data.links && data.links.length) {
+      html += '<div style="margin-top:12px"><b>Ouvrir les PDF :</b><br>';
+      data.links.forEach(function(l) {
+        html += '<a href="' + l.url + '" target="_blank" rel="noopener" style="display:inline-block;background:#0a2540;color:#fff;text-decoration:none;padding:10px 18px;border-radius:8px;font-weight:700;font-size:13px;margin:4px 6px 4px 0">PDF QP ' + l.from + ' a ' + l.to + '</a>';
+      });
+      html += '</div>';
+    }
+
+    if (data.ids && data.ids.length) {
+      html += '<div style="margin-top:12px;font-size:11px"><b>' + data.ids.length + ' WO :</b> ';
+      html += data.ids.slice(0, 80).map(function(id) {
+        return '<span style="display:inline-block;background:#e0f2fe;color:#0c4a6e;padding:1px 6px;border-radius:4px;margin:1px;font-family:monospace">QP-' + id + '</span>';
+      }).join(' ');
+      if (data.ids.length > 80) html += ' ... et ' + (data.ids.length - 80) + ' autres';
+      html += '</div>';
+    }
+
+    html += '<div style="font-size:11px;color:#1e3a8a;margin-top:10px">Dans la fenetre ouverte, choisissez Imprimer puis Enregistrer au format PDF.</div>';
+    html += '</div>';
+
+    addBotMsg(html, null, true);
+
+  } catch (e) {
+    if (loadingMsg) loadingMsg.remove();
+    addBotMsg('<div style="background:#fef2f2;border:2px solid #dc2626;border-radius:8px;padding:14px"><div style="color:#991b1b;font-weight:700">Erreur reseau : ' + e.message + '</div></div>', null, true);
   }
 };
 
