@@ -3473,6 +3473,584 @@ module.exports = function(app, mongoose) {
 
   app.use('/api/ask', ragPreprocessAsk, postprocess('ask'));
   app.use('/api/analyze-content', documentPreprocess, postprocess('document'));
+    // ============================================================
+  // [EXCEL-01] SUPPORT EXCEL UNIVERSEL : GENERATION EN BLOC DES QP
+  // Version : v16.20-excel
+  //
+  // Fonctionnalites :
+  //   - Detection automatique du separateur (TSV / CSV / Markdown)
+  //   - Detection automatique de la position des colonnes
+  //     (PO, WO, Client, Description, Date, Qte) par analyse de l'entete
+  //   - Fallback sur positions par defaut si entete absente
+  //   - Diagnostic complet : logs detailles du comptage WO
+  //   - Rapport de diagnostic retourne dans la reponse JSON
+  //
+  // Compatible avec toute liste Excel contenant au minimum :
+  //   - Une colonne Work Order (5 chiffres)
+  //   - Une colonne Customer Name
+  //   - Une ou plusieurs colonnes de description
+  //
+  // Ne modifie AUCUNE fonction existante.
+  // ============================================================
+
+  /**
+   * Detection automatique du separateur et parsing du tableau.
+   * Retourne { rows, separator, headerRow, headerIndex }
+   */
+  function parseExcelTableUniversal(text) {
+    var raw = String(text || '').replace(/\r/g, '');
+    var lines = raw.split('\n').filter(function(l) { return l.trim() !== ''; });
+    if (lines.length === 0) return { rows: [], separator: null, headerRow: null };
+
+    // 1. Detection du separateur principal par analyse statistique
+    var sepCount = { '\t': 0, '|': 0, ';': 0, ',': 0 };
+    var sampleLines = lines.slice(0, Math.min(20, lines.length));
+    for (var i = 0; i < sampleLines.length; i++) {
+      var ln = sampleLines[i];
+      // Exclure les lignes de separation Markdown
+      if (/^\s*\|?[\s\-:|]+\|/.test(ln)) continue;
+      var tabs = (ln.match(/\t/g) || []).length;
+      var pipes = (ln.match(/\|/g) || []).length;
+      var semis = (ln.match(/;/g) || []).length;
+      var commas = (ln.match(/,/g) || []).length;
+      // Privilegier les separateurs avec le plus d'occurrences regulieres
+      if (tabs >= 2) sepCount['\t'] += tabs;
+      if (pipes >= 2) sepCount['|'] += pipes;
+      if (semis >= 2) sepCount[';'] += semis;
+      if (commas >= 2) sepCount[','] += commas;
+    }
+    // Choix du separateur dominant
+    var separator = '\t';
+    var max = 0;
+    for (var s in sepCount) {
+      if (sepCount[s] > max) { max = sepCount[s]; separator = s; }
+    }
+    if (max === 0) separator = '\t'; // fallback
+
+    // 2. Parsing des lignes
+    var rows = [];
+    var headerRow = null;
+    var headerIndex = -1;
+
+    for (var j = 0; j < lines.length; j++) {
+      var ln2 = lines[j];
+
+      // Ignorer les lignes de separation Markdown
+      if (/^\s*\|?[\s\-:|]+\|[\s\-:|]+\|?\s*$/.test(ln2) && ln2.indexOf('|') !== -1) continue;
+
+      var cells;
+      if (separator === '\t') cells = ln2.split('\t');
+      else if (separator === '|') {
+        cells = ln2.split('|');
+        if (cells.length > 0 && cells[0].trim() === '') cells.shift();
+        if (cells.length > 0 && cells[cells.length - 1].trim() === '') cells.pop();
+      } else if (separator === ';') cells = ln2.split(';');
+      else cells = ln2.split(',');
+
+      cells = cells.map(function(c) { return String(c).trim(); });
+
+      // Detection de l'entete : si la ligne contient des mots-cles connus
+      if (headerRow === null) {
+        var joined = cells.join(' ').toLowerCase();
+        var headKeywords = /\b(po|wo|work\s*order|purchase\s*order|customer|nom\s*client|client|article|description|start\s*date|delv|delivery|qty|qte|quantity)\b/;
+        var hasWOColumn = cells.some(function(c) { return /^wo$/i.test(c) || /work\s*order/i.test(c); });
+        var hasNotNumbered = !cells.some(function(c) { return /^\d{5}$/.test(c); });
+        if (headKeywords.test(joined) && (hasWOColumn || hasNotNumbered)) {
+          headerRow = cells;
+          headerIndex = rows.length;
+          continue; // on ne pousse pas l'entete dans rows
+        }
+      }
+      rows.push(cells);
+    }
+
+    return {
+      rows: rows,
+      separator: separator,
+      headerRow: headerRow,
+      headerIndex: headerIndex
+    };
+  }
+
+  /**
+   * Detection automatique de la position des colonnes cles
+   * a partir de la ligne d'entete.
+   * Retourne un objet { po, wo, customer, desc, dated, qte, norme }
+   * avec -1 si non trouve (fallback sur positions par defaut).
+   */
+  function detectColumnMapping(headerRow) {
+    var mapping = { po: -1, wo: -1, customer: -1, desc: [], dated: -1, qte: -1, norme: -1 };
+    if (!headerRow || headerRow.length === 0) return mapping;
+
+    for (var i = 0; i < headerRow.length; i++) {
+      var h = String(headerRow[i] || '').toLowerCase().trim();
+      if (h === '') continue;
+
+      // PO (Purchase Order)
+      if (mapping.po === -1 && /^po$|purchase\s*order|^po\s*n/.test(h)) {
+        mapping.po = i;
+        continue;
+      }
+      // WO (Work Order)
+      if (mapping.wo === -1 && /^wo$|work\s*order|^wo\s*n/.test(h)) {
+        mapping.wo = i;
+        continue;
+      }
+      // Customer
+      if (mapping.customer === -1 && /customer|nom\s*client|^client$|^customer\s*name/.test(h)) {
+        mapping.customer = i;
+        continue;
+      }
+      // Description (peut etre sur plusieurs colonnes)
+      if (/article|description|job\s*article/.test(h)) {
+        mapping.desc.push(i);
+        continue;
+      }
+      // Date (Start Date ou Dated)
+      if (mapping.dated === -1 && /^dated$|start\s*date|^date$/.test(h)) {
+        mapping.dated = i;
+        continue;
+      }
+      // Qte
+      if (mapping.qte === -1 && /^qty$|^qte$|^qté$|quantity|^qte\b/.test(h)) {
+        mapping.qte = i;
+        continue;
+      }
+      // Norme speciale (Aut. VAM, Spec)
+      if (mapping.norme === -1 && /aut\.?\s*vam|^spec$|^norme$|standard/i.test(h)) {
+        mapping.norme = i;
+        continue;
+      }
+    }
+
+    // Fallback : si WO non trouve, chercher une colonne contenant des valeurs 5 chiffres
+    if (mapping.wo === -1) {
+      // Heuristique : la 2e colonne contient souvent le WO
+      mapping.wo = 1;
+    }
+    if (mapping.customer === -1) {
+      mapping.customer = 2;
+    }
+    if (mapping.po === -1) {
+      mapping.po = 0;
+    }
+    if (mapping.desc.length === 0) {
+      // Par defaut : colonnes 3, 4, 5
+      mapping.desc = [3, 4, 5];
+    }
+    if (mapping.dated === -1) {
+      mapping.dated = 6;
+    }
+    if (mapping.qte === -1) {
+      mapping.qte = 7;
+    }
+
+    return mapping;
+  }
+
+  /**
+   * Convertit une ligne Excel en objet structure pour le QP
+   * en utilisant le mapping de colonnes detecte.
+   */
+  function excelRowToWOUniversal(row, mapping) {
+    if (!row || row.length < 2) return null;
+
+    // WO : doit etre un nombre a 5 chiffres
+    var woId = String(row[mapping.wo] || '').trim();
+    if (!/^\d{5}$/.test(woId)) return null;
+
+    var po = String(row[mapping.po] || '').trim();
+    var customer = String(row[mapping.customer] || '').trim();
+
+    // Description : concatener toutes les colonnes detectees comme desc
+    var descParts = [];
+    for (var c = 0; c < mapping.desc.length; c++) {
+      var v = String(row[mapping.desc[c]] || '').trim();
+      if (v !== '') descParts.push(v);
+    }
+    var desc = descParts.join(' ').replace(/\s+/g, ' ').trim();
+    if (!desc) desc = 'SUPPLY MATERIAL & MANUFACTURE';
+
+    // Date
+    var dateRaw = String(row[mapping.dated] || '').trim();
+    var dated = '';
+    if (dateRaw) {
+      var dm = dateRaw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+      if (dm) dated = dm[3] + '/' + dm[2] + '/' + dm[1];
+      else {
+        var dm2 = dateRaw.match(/^(\d{2})\/(\d{2})\/(\d{4})/);
+        if (dm2) dated = dm2[0];
+        else dated = dateRaw;
+      }
+    }
+    if (!dated) dated = todayFR();
+
+    // Quantite
+    var qte = String(row[mapping.qte] || '').trim();
+    if (!/^\d+$/.test(qte)) qte = '';
+
+    // Norme speciale
+    var normeSpeciale = mapping.norme >= 0 ? String(row[mapping.norme] || '').trim() : '';
+
+    return {
+      po: po,
+      woId: woId,
+      customer: customer,
+      desc: desc,
+      dated: dated,
+      qte: qte,
+      normeSpeciale: normeSpeciale
+    };
+  }
+
+  /**
+   * Genere en bloc tous les QP a partir d'un tableau Excel universel.
+   * Retourne un objet structure + un rapport de diagnostic complet.
+   */
+  async function buildQPAnswerFromExcelUniversal(excelText, AutoFeedDoc) {
+    var diag = {
+      rawLines: 0,
+      detectedSeparator: '',
+      headerDetected: false,
+      headerRow: null,
+      columnMapping: null,
+      dataRows: 0,
+      validWOs: 0,
+      skippedRows: [],
+      skippedReasons: {},
+      woList: []
+    };
+
+    var parsed = parseExcelTableUniversal(excelText);
+    diag.rawLines = (String(excelText || '').match(/\n/g) || []).length + 1;
+    diag.detectedSeparator = parsed.separator === '\t' ? 'TAB' : parsed.separator;
+    diag.headerDetected = !!parsed.headerRow;
+    diag.headerRow = parsed.headerRow;
+    diag.dataRows = parsed.rows.length;
+
+    // Log serveur
+    console.log('[EXCEL] Separateur detecte : ' + diag.detectedSeparator);
+    console.log('[EXCEL] Entete detectee : ' + (parsed.headerRow ? JSON.stringify(parsed.headerRow) : 'AUCUNE'));
+    console.log('[EXCEL] Lignes de donnees : ' + parsed.rows.length);
+
+    // Detection du mapping des colonnes
+    var mapping = detectColumnMapping(parsed.headerRow);
+    diag.columnMapping = mapping;
+
+    console.log('[EXCEL] Mapping colonnes : PO=' + mapping.po
+      + ' WO=' + mapping.wo
+      + ' Client=' + mapping.customer
+      + ' Desc=[' + mapping.desc.join(',') + ']'
+      + ' Date=' + mapping.dated
+      + ' Qte=' + mapping.qte
+      + ' Norme=' + mapping.norme);
+
+    var rows = parsed.rows;
+    if (rows.length === 0) {
+      return { wos: [], html: '', links: [], qpDocs: 0, ctx: null, error: 'Aucune ligne detectee', diag: diag };
+    }
+
+    // Conversion des lignes
+    var excelWOs = [];
+    for (var i = 0; i < rows.length; i++) {
+      var w = excelRowToWOUniversal(rows[i], mapping);
+      if (w) {
+        excelWOs.push(w);
+        diag.woList.push(w.woId);
+      } else {
+        var reason = 'WO non valide (colonne ' + mapping.wo + ' = "' + (rows[i][mapping.wo] || '') + '")';
+        diag.skippedRows.push({ line: i + 1, reason: reason, row: rows[i] });
+        diag.skippedReasons[reason] = (diag.skippedReasons[reason] || 0) + 1;
+        console.log('[EXCEL] Ligne ' + (i + 1) + ' ignoree : ' + reason);
+      }
+    }
+    diag.validWOs = excelWOs.length;
+
+    console.log('[EXCEL] WO valides : ' + excelWOs.length + ' / ' + rows.length);
+
+    if (excelWOs.length === 0) {
+      return {
+        wos: [], html: '', links: [], qpDocs: 0, ctx: null,
+        error: 'Aucun WO valide detecte. Verifiez que la colonne WO contient bien des nombres a 5 chiffres.',
+        diag: diag
+      };
+    }
+
+    // Contexte global
+    var ctx = {
+      customer: excelWOs[0].customer || 'XXXXXXX',
+      po: excelWOs[0].po || 'NA',
+      norme: '',
+      normeAcc: '',
+      hasDocs: false
+    };
+
+    // Normes speciales
+    var normesSpeciales = {};
+    for (var k = 0; k < excelWOs.length; k++) {
+      if (excelWOs[k].normeSpeciale) {
+        var nm = excelWOs[k].normeSpeciale.match(/API\s*\d+[A-Z]?/i);
+        if (nm) normesSpeciales[nm[0].toUpperCase()] = 1;
+      }
+    }
+    var normesList = Object.keys(normesSpeciales);
+    if (normesList.length > 0) {
+      ctx.norme = normesList.join(' & ');
+      ctx.normeAcc = normesList.join('|');
+    }
+    var allDesc = excelWOs.map(function(w) { return w.desc; }).join(' ');
+    ctx.hasDocs = /\bCOC\b/i.test(allDesc) && /\bMTC\b/i.test(allDesc);
+
+    // Construction des objets "prepared"
+    var prepared = excelWOs.map(function(ex) {
+      var wo = {
+        id: ex.woId,
+        qte: ex.qte,
+        date: ex.dated,
+        start: 0, end: 0,
+        order: 'excel',
+        code: '', before: '', after: ''
+      };
+      var info = {
+        code: '',
+        est: '',
+        kind: /REPAIR|RECERTIF/i.test(ex.desc) ? 'OVERALL REPAIR' : 'SUPPLY MATERIAL & MANUFACTURE',
+        desc: ex.desc,
+        descPlain: ex.desc,
+        grade: '', length: '', od: '', id: ''
+      };
+      // Grade
+      var gm = ex.desc.match(/\b(L-?80|P-?110|N-?80|J-?55|K-?55|C-?90|T-?95|C-?95|Q-?125|M-?65)\b/i);
+      if (gm) info.grade = gm[1].toUpperCase();
+      else if (/80KSI/i.test(ex.desc)) info.grade = 'L80';
+      else info.grade = 'L80';
+
+      var det = detectDetails(info, ctx);
+      var stds = pickStandards(det, ctx, info.desc);
+
+      // Norme speciale API 16A / 16C
+      if (ex.normeSpeciale) {
+        var nm2 = ex.normeSpeciale.match(/API\s*(6A|16A|16C)/i);
+        if (nm2) {
+          var stdKey = 'API-' + nm2[1].toUpperCase();
+          if (STANDARDS[stdKey] && stds.indexOf(stdKey) === -1) {
+            stds.push(stdKey);
+          } else if (nm2[1].toUpperCase() === '16C' || nm2[1].toUpperCase() === '16A') {
+            det.conns.push({
+              kind: 'api-special',
+              label: 'API ' + nm2[1].toUpperCase(),
+              std: stdKey,
+              fam: ''
+            });
+          }
+        }
+      }
+
+      return {
+        wo: wo, info: info, det: det, stds: stds,
+        queries: kbQueriesFor(det, stds),
+        excelDated: ex.dated
+      };
+    });
+
+    // Recherche KB
+    var uniq = {};
+    prepared.forEach(function(p) { p.queries.forEach(function(q) { uniq[q] = 1; }); });
+    var kb = await kbSearchMany(AutoFeedDoc, Object.keys(uniq), 0.25);
+
+    // Generation par paquets
+    var links = [];
+    var qpDocs = 0;
+    var smallHtml = '';
+    var confidenceSum = 0;
+    var confidenceCount = 0;
+    var aggDetail = { size: 0, conn: 0, grade: 0, api: 0, officialMax: 0, coverage: 0, totalHits: 0, totalOfficial: 0, totalMatched: 0 };
+
+    for (var s = 0; s < prepared.length; s += QP_CHUNK) {
+      var part = prepared.slice(s, s + QP_CHUNK);
+      var html = part.map(function(p, i) {
+        var rendered = renderOneQP(p, i, ctx, kb);
+        // Substitution de la date Excel si differente
+        if (p.excelDated) {
+          var today = todayFR();
+          if (today !== p.excelDated) {
+            rendered = rendered.replace(
+              /(<td[^>]*>Dated<\/td>\s*<td[^>]*>)(\d{2}\/\d{2}\/\d{4})(<\/td>)/,
+              '$1' + p.excelDated + '$3'
+            );
+          }
+        }
+        return rendered;
+      }).join('');
+
+      qpDocs += (html.match(/class="qp-document"/g) || []).length;
+      part.forEach(function(p) {
+        var det = qpConfidenceDetail(p, kb);
+        confidenceSum += det.total;
+        confidenceCount++;
+        aggDetail.size += det.size;
+        aggDetail.conn += det.conn;
+        aggDetail.grade += det.grade;
+        aggDetail.api += det.api;
+        aggDetail.officialMax += det.officialMax;
+        aggDetail.coverage += det.coverage;
+        aggDetail.totalHits += det.totalHits;
+        aggDetail.totalOfficial += det.totalOfficial;
+        aggDetail.totalMatched += det.totalMatched;
+      });
+      links.push({ token: storeQP(html), from: s + 1, to: s + part.length });
+      if (prepared.length <= QP_HIDDEN_MAX) smallHtml = html;
+    }
+
+    var avgConfidence = confidenceCount > 0 ? Math.round(confidenceSum / confidenceCount) : 0;
+    var confColor = avgConfidence >= 80 ? '#dcfce7' : (avgConfidence >= 50 ? '#fef3c7' : '#fee2e2');
+    var confTextColor = avgConfidence >= 80 ? '#14532d' : (avgConfidence >= 50 ? '#78350f' : '#7f1d1d');
+
+    // Chips WO
+    var chips = excelWOs.slice(0, 60).map(function(w) {
+      return '<span style="display:inline-block;background:#ffffff;border:1px solid #1e5aa8;color:#1e5aa8;padding:4px 12px;border-radius:14px;margin:3px 5px 3px 0;font-weight:700">QP-' + esc(w.woId) + '</span>';
+    }).join('') + (excelWOs.length > 60 ? '<span style="font-size:12px;color:#1e3a8a"> ... et ' + (excelWOs.length - 60) + ' autres</span>' : '');
+
+    // Normes
+    var stdChips = {};
+    prepared.forEach(function(p) { p.stds.forEach(function(id) { stdChips[id] = 1; }); });
+    var stdLine = STD_ORDER.filter(function(id) { return stdChips[id]; }).map(function(id) { return esc(STANDARDS[id].short); }).join(' - ');
+    if (normesList.length > 0) stdLine = stdLine + (stdLine ? ' - ' : '') + normesList.join(' - ');
+
+    // Premium
+    var premLine = [];
+    prepared.forEach(function(p) { p.det.conns.forEach(function(c) { if (c.kind === 'premium' && premLine.indexOf(c.label) === -1) premLine.push(c.label); }); });
+
+    // Liens PDF
+    var linkHtml = links.map(function(l, idx) {
+      var label = links.length === 1 ? 'Ouvrir le PDF des ' + excelWOs.length + ' QP' : 'PDF ' + (idx + 1) + ' - QP ' + l.from + ' a ' + l.to;
+      return '<a href="/qp-pdf/' + l.token + '" target="_blank" rel="noopener" style="display:inline-block;background:#0a2540;color:#ffffff;text-decoration:none;padding:12px 22px;border-radius:8px;font-weight:700;font-size:14px;margin:0 8px 8px 0">' + label + '</a>';
+    }).join('');
+
+    // Ligne de diagnostic dans le bandeau
+    var diagLine = '<div style="background:#f9fafb;border:1px dashed #cbd5e1;border-radius:6px;padding:8px 12px;margin:8px 0;font-size:11px;color:#374151;font-family:monospace">'
+      + '<b>Diagnostic Excel :</b><br>'
+      + '  • Separateur : ' + esc(diag.detectedSeparator) + '<br>'
+      + '  • Entete : ' + (diag.headerDetected ? 'detectee' : 'AUCUNE (positions par defaut)') + '<br>'
+      + '  • Lignes brutes : ' + diag.rawLines + '<br>'
+      + '  • Lignes de donnees : ' + diag.dataRows + '<br>'
+      + '  • WO valides : <b>' + diag.validWOs + '</b><br>'
+      + (diag.skippedRows.length > 0
+        ? '  • <span style="color:#92400e">Lignes ignorees : ' + diag.skippedRows.length + ' (voir logs serveur)</span><br>'
+        : '  • Aucune ligne ignoree<br>')
+      + '</div>';
+
+    var banner = '<div style="background:#eff6ff;border-left:4px solid #1e5aa8;border-radius:8px;padding:18px;margin:0 0 16px 0;font-family:Arial,sans-serif">'
+      + '<div style="color:#1e40af;font-weight:800;font-size:15px">' + excelWOs.length + ' Work Order(s) detecte(s) depuis Excel - ' + qpDocs + ' QP conforme(s) QP STANDARD 01</div>'
+      + '<div style="font-size:13px;color:#1e3a8a;margin:6px 0 4px 0">Client : <strong>' + esc(ctx.customer) + '</strong> - PO : <strong>' + esc(ctx.po) + '</strong></div>'
+      + '<div style="background:' + confColor + ';color:' + confTextColor + ';padding:6px 12px;border-radius:6px;font-size:13px;font-weight:700;margin:8px 0;display:inline-block">Confiance QP moyenne : ' + avgConfidence + '%</div>'
+      + diagLine
+      + '<div style="font-size:12px;color:#1e3a8a;margin:0 0 4px 0">Chaque QP : 2 pages au format standard + 1 annexe technique (normes, controles, sources officielles premium).</div>'
+      + '<div style="font-size:12px;color:#1e3a8a;margin:0 0 8px 0">Normes : ' + (stdLine || '-') + (premLine.length ? ' - Premium : ' + esc(premLine.join(', ')) : '') + '</div>'
+      + '<div style="margin-bottom:12px">' + chips + '</div>'
+      + linkHtml
+      + '<div style="font-size:12px;color:#1e3a8a;margin-top:4px">Dans la fenetre ouverte, choisissez Imprimer puis Enregistrer au format PDF. Sources premium officielles (VAM / Tenaris) prioritaires.'
+      + (links.length > 1 ? ' Les PDF sont decoupes par paquets de ' + QP_CHUNK + ' QP.' : '') + '</div>'
+      + '</div>';
+    var hidden = smallHtml ? '<div class="qp-print-container" style="display:none">' + smallHtml + '</div>' : '';
+    return {
+      wos: excelWOs.map(function(w) { return { id: w.woId, qte: w.qte }; }),
+      html: banner + hidden,
+      links: links,
+      qpDocs: qpDocs,
+      ctx: ctx,
+      avgConfidence: avgConfidence,
+      diag: aggDetail,
+      excelDiag: diag
+    };
+  }
+
+  /**
+   * Route : POST /api/qp-generate-excel
+   */
+  app.post('/api/qp-generate-excel', async function(req, res) {
+    if (!needAuth(req, res)) return;
+    try {
+      var t0 = Date.now();
+      var text = '';
+      if (typeof req.body === 'string') text = req.body;
+      else if (req.body && typeof req.body === 'object' && req.body.excel) text = String(req.body.excel);
+      else if (req.body && typeof req.body === 'object' && req.body.content) text = String(req.body.content);
+      else text = await readRawBody(req, QP_MAX_BYTES);
+
+      if (!text || !text.trim()) {
+        return res.status(400).json({ ok: false, error: 'Contenu Excel vide', chars: 0 });
+      }
+
+      var out = await buildQPAnswerFromExcelUniversal(text, getKB());
+      if (out.error) {
+        return res.json({ ok: false, error: out.error, chars: text.length, excelDiag: out.excelDiag });
+      }
+
+      res.json({
+        ok: true,
+        detected: 'excel',
+        chars: text.length,
+        wo: out.wos.length,
+        qpDocs: out.qpDocs,
+        match: out.wos.length === out.qpDocs,
+        avgConfidence: out.avgConfidence,
+        diag: out.diag,
+        excelDiag: out.excelDiag,
+        ids: out.wos.slice(0, 200).map(function(w) { return w.id; }),
+        customer: out.ctx.customer,
+        po: out.ctx.po,
+        links: out.links.map(function(l) { return { url: '/qp-pdf/' + l.token, from: l.from, to: l.to }; }),
+        ms: Date.now() - t0
+      });
+    } catch (e) {
+      res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+
+  /**
+   * Route : POST /api/qp-generate-excel-html
+   */
+  app.post('/api/qp-generate-excel-html', async function(req, res) {
+    if (!needAuth(req, res)) return;
+    try {
+      var t0 = Date.now();
+      var text = '';
+      if (typeof req.body === 'string') text = req.body;
+      else if (req.body && typeof req.body === 'object' && req.body.excel) text = String(req.body.excel);
+      else if (req.body && typeof req.body === 'object' && req.body.content) text = String(req.body.content);
+      else text = await readRawBody(req, QP_MAX_BYTES);
+
+      if (!text || !text.trim()) {
+        return res.status(400).json({ ok: false, error: 'Contenu Excel vide', chars: 0 });
+      }
+
+      var out = await buildQPAnswerFromExcelUniversal(text, getKB());
+      if (out.error) {
+        return res.json({ ok: false, error: out.error, chars: text.length, excelDiag: out.excelDiag });
+      }
+
+      res.json({
+        ok: true,
+        detected: 'excel',
+        chars: text.length,
+        wo: out.wos.length,
+        qpDocs: out.qpDocs,
+        match: out.wos.length === out.qpDocs,
+        avgConfidence: out.avgConfidence,
+        diag: out.diag,
+        excelDiag: out.excelDiag,
+        customer: out.ctx.customer,
+        po: out.ctx.po,
+        html: out.html,
+        links: out.links.map(function(l) { return { url: '/qp-pdf/' + l.token, from: l.from, to: l.to }; }),
+        ms: Date.now() - t0
+      });
+    } catch (e) {
+      res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+
 
   // ============================================================
   // HOOK AU DEMARRAGE
