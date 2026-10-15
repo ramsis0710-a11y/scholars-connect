@@ -229,6 +229,23 @@ function logout() {
 window.logout = logout;
 
 // ============================================================
+// [FIX-LANG] Recuperation de la langue selectionnee
+// Cette fonction garantit qu'une langue valide est toujours
+// transmise au serveur, evitant les reponses en arabe par
+// defaut lorsque le LLM ne recoit aucune consigne de langue.
+// ============================================================
+function getSelectedLanguage() {
+  try {
+    var el = document.getElementById('lang');
+    var v = el && el.value ? String(el.value).trim() : '';
+    if (v && v.length >= 2) return v;
+  } catch (e) {}
+  // Fallback francais si l'element lang est absent
+  return 'fr';
+}
+window.getSelectedLanguage = getSelectedLanguage;
+
+// ============================================================
 // API CALL
 // ============================================================
 async function apiCall(path, options) {
@@ -296,6 +313,9 @@ window.switchDialogTab = function(tab, el) {
 
 // ============================================================
 // ANALYSE CLASSIQUE (texte / URL / PDF)
+// Correction : la langue est lue via getSelectedLanguage() et
+// transmise explicitement dans le payload. Ajout de langName
+// pour info au serveur/LLM.
 // ============================================================
 window.analyzeContent = async function() {
   console.log('[analyzeContent] Demarrage...');
@@ -321,7 +341,10 @@ window.analyzeContent = async function() {
   }
 
   var question = document.getElementById('content-question').value.trim();
-  var language = document.getElementById('lang').value;
+
+  // [FIX-LANG] Utilisation de getSelectedLanguage() avec fallback 'fr'
+  var language = getSelectedLanguage();
+  console.log('[analyzeContent] Langue transmise :', language);
 
   window.closeAnalyzeDialog();
 
@@ -336,6 +359,8 @@ window.analyzeContent = async function() {
         type: type,
         question: question,
         language: language,
+        // [FIX-LANG] Double transmission : language ET lang pour compatibilite serveur
+        lang: language,
         sourceName: type === 'url' ? 'URL' : 'Collage direct'
       })
     });
