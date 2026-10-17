@@ -24,6 +24,14 @@
 //   [D6] Message de demarrage aligne sur la version (APP_VERSION).
 //   [D7] Mode Excel : client et PO propres a chaque ligne (plus ceux de la
 //        premiere ligne pour tous les QP). Banniere : « N clients ».
+//   [D9] (v16.21.1, apres lecture d'un QP reel) :
+//        - ne plus dependre des metadonnees Mongo (champs inconnus du schema perdus) :
+//          fiche, connexion, taille et statut MANUEL deduits de l'URL, du titre et du contenu ;
+//        - correspondance de connexion par MOT entier (plus de « EUE » trouve dans « QUEUE ») ;
+//        - pages de norme (WO API / rotary) : niveau « RELEVANT SPEC », jamais « MATCHES WO » ;
+//        - extraits d'une autre connexion ou d'une autre taille ECARTES de la section E ;
+//        - requetes de normes API : uniquement les documents API (plus les fiches VAM / Tenaris) ;
+//        - XO a deux tailles : chaque taille du WO est testee.
 //   [D8] Ingestion idempotente : les fiches produit (url#sheet=...) comptent
 //        comme deja ingerees ; purge unique des doublons existants.
 //
@@ -50,7 +58,7 @@ var zlib = require('zlib');
 var LOGO_GMPI = '';
 var LOGO_GROUP = '';
 var STD_VERIFIED_ON = '2026-10-09';
-var APP_VERSION = 'v16.21';
+var APP_VERSION = 'v16.21.1';
 
 var QP_CHUNK = 50;
 var QP_HIDDEN_MAX = 10;
@@ -1202,6 +1210,36 @@ function splitPremiumManual(text, family) {
 // ============================================================
 // [A5] VALIDATION CROISEE WO <-> EXTRAIT
 // ============================================================
+function deriveSheetMeta(d) {
+  var url = String(d.url || ''), title = String(d.title || ''), content = String(d.content || '');
+  var out = { isSheet: false, connection: '', od: '', wt: '', manual: false };
+  var i = url.indexOf('#sheet=');
+  if (i !== -1) {
+    out.isSheet = true;
+    var raw = url.slice(i + 7);
+    try { raw = decodeURIComponent(raw); } catch (eDec) {}
+    var parts = raw.split('_');
+    if (parts.length >= 3) {
+      out.wt = parts[parts.length - 1];
+      out.od = parts[parts.length - 2];
+      out.connection = parts.slice(0, parts.length - 2).join('_');
+    }
+  }
+  out.manual = /\[MANUAL - UNVERIFIED\]/.test(title) || /MANUAL REFERENCE - UNVERIFIED/.test(content.slice(0, 3000));
+  return out;
+}
+
+function wordRe(label) {
+  var parts = String(label || '').trim().split(/\s+/).filter(Boolean).map(escapeRegex);
+  if (!parts.length) return null;
+  return new RegExp('(^|[^A-Za-z0-9])' + parts.join('\\s*') + '([^A-Za-z0-9]|$)', 'i');
+}
+
+function labelInText(label, text) {
+  var re = wordRe(label);
+  return !!(re && re.test(String(text || '')));
+}
+
 function odToNum(v) {
   var x = String(v || '').replace(/["\u201D]/g, '').trim();
   var m = x.match(/^(\d+)[\s\-]+(\d+)\/(\d+)$/);
@@ -1228,54 +1266,55 @@ function matchDetail(h, wo, det) {
   var res = { ok: false, level: 'none', note: '' };
   var excerpt = String(h.excerpt || '');
   if (!excerpt && !h.connection) return res;
-  var txt = excerpt.toLowerCase();
   det = det || {};
   var hasConns = !!(det.conns && det.conns.length);
   var hasPremium = false;
   if (hasConns) det.conns.forEach(function(c) { if (c.kind === 'premium') hasPremium = true; });
-  var sz = (det.sizes && det.sizes.length) ? det.sizes[0] : null;
-  var hasSize = !!(sz && sz.od && sz.wt);
+  var sizes = (det.sizes || []).filter(function(z) { return z && z.od && z.wt; });
+  var hasSize = sizes.length > 0;
   var isSheet = h.isSheet === true || /^CONNECTION:/.test(excerpt);
+  var known = String(h.connection || '');
+  if (known === 'multi') known = '';
 
+  // Connexion : metadonnee de la fiche si connue, sinon mot entier dans le texte
   var connMatch = false;
   if (hasConns) {
-    var hay = normConn(excerpt + ' ' + (h.connection || '') + ' ' + (h.title || ''));
-    for (var i = 0; i < det.conns.length; i++) {
-      var lab = normConn(det.conns[i].label);
-      if (lab && hay.indexOf(lab) !== -1) { connMatch = true; break; }
+    for (var i = 0; i < det.conns.length && !connMatch; i++) {
+      var lab = det.conns[i].label;
+      var nl = normConn(lab);
+      if (known) {
+        var nk = normConn(known);
+        if (nl && nk && (nl === nk || nl.indexOf(nk) === 0 || nk.indexOf(nl) === 0)) connMatch = true;
+      } else if (labelInText(lab, excerpt + ' ' + String(h.title || ''))) {
+        connMatch = true;
+      }
     }
   }
 
   var textBoth = false;
-  if (hasSize) {
-    textBoth = hasToken(excerpt, odVariants(sz.od)) && hasToken(excerpt, numVariants(sz.wt));
-  }
+  sizes.forEach(function(z) {
+    if (hasToken(excerpt, odVariants(z.od)) && hasToken(excerpt, numVariants(z.wt))) textBoth = true;
+  });
 
   if (isSheet) {
     if (hasConns && !connMatch) { res.note = 'connection differs'; return res; }
-    if (!hasSize) {
-      res.level = 'conn-only'; res.ok = true; res.note = 'no size in WO';
-      return res;
-    }
-    var wOd = odToNum(sz.od), wWt = parseFloat(String(sz.wt).replace(',', '.'));
+    if (!hasSize) { res.level = 'conn-only'; res.ok = true; res.note = 'no size in WO'; return res; }
     var sOd = odToNum(h.od), sWt = parseFloat(String(h.wt || '').replace(',', '.'));
-    var odEq = (sOd !== null && wOd !== null && Math.abs(sOd - wOd) < 0.002);
-    var wtOk = !isNaN(sWt) && !isNaN(wWt);
-    var wtEq = wtOk && Math.abs(sWt - wWt) < 0.005;
-    if ((odEq && wtEq) || textBoth) {
-      res.ok = true; res.level = 'exact';
-      return res;
-    }
-    if (odEq && wtOk) {
-      res.level = 'near';
-      res.note = 'sheet ' + h.wt + ' lb/ft vs WO ' + sz.wt + ' lb/ft';
-      return res;
-    }
-    if (sOd === null || !wtOk) {
-      res.level = 'conn-only'; res.note = 'size not verifiable on this sheet';
-      return res;
-    }
-    res.note = 'size differs (' + h.od + ' / ' + h.wt + ' vs ' + sz.od + ' / ' + sz.wt + ')';
+    var best = { rank: 0, level: 'none', note: 'size differs (' + (h.od || '?') + ' / ' + (h.wt || '?') + ')' };
+    function rankOf(l) { return l === 'exact' ? 4 : (l === 'near' ? 3 : (l === 'conn-only' ? 2 : 0)); }
+    sizes.forEach(function(z) {
+      var wOd = odToNum(z.od), wWt = parseFloat(String(z.wt).replace(',', '.'));
+      var odEq = (sOd !== null && wOd !== null && Math.abs(sOd - wOd) < 0.002);
+      var wtOk = !isNaN(sWt) && !isNaN(wWt);
+      var wtEq = wtOk && Math.abs(sWt - wWt) < 0.005;
+      var cand = null;
+      if (odEq && wtEq) cand = { level: 'exact', note: '' };
+      else if (odEq && wtOk) cand = { level: 'near', note: 'sheet ' + h.wt + ' lb/ft vs WO ' + z.wt + ' lb/ft' };
+      else if (sOd === null || !wtOk) cand = { level: 'conn-only', note: 'size not verifiable on this sheet' };
+      if (cand && rankOf(cand.level) > best.rank) best = { rank: rankOf(cand.level), level: cand.level, note: cand.note };
+    });
+    if (textBoth) best = { rank: 4, level: 'exact', note: '' };
+    res.level = best.level; res.note = best.note; res.ok = (best.level === 'exact');
     return res;
   }
 
@@ -1288,16 +1327,11 @@ function matchDetail(h, wo, det) {
     return res;
   }
 
-  // WO API / rotary : comportement v16.20 conserve (pages de norme non dependantes de la taille)
-  var hits = 0, total = 0;
-  if (hasConns) { total++; if (connMatch) hits += 2; }
-  if (det.apiGrade) { total++; if (txt.indexOf(String(det.apiGrade).toLowerCase()) !== -1) hits++; }
-  if (hasSize) {
-    total += 2;
-    if (txt.indexOf(String(sz.od).toLowerCase()) !== -1) hits++;
-    if (txt.indexOf(String(sz.wt).toLowerCase()) !== -1) hits++;
-  }
-  if (total === 0 || connMatch || hits >= 1) { res.ok = true; res.level = 'exact'; }
+  // WO API / rotary : page de norme, non specifique a une taille -> pertinence seulement
+  var gradeHit = !!(det.apiGrade && labelInText(det.apiGrade, excerpt));
+  if (!hasConns && !det.apiGrade) { res.ok = true; res.level = 'topic'; res.note = 'spec page'; return res; }
+  if (connMatch || gradeHit) { res.ok = true; res.level = 'topic'; res.note = 'spec page - not size-specific'; return res; }
+  res.note = 'connection / grade not found';
   return res;
 }
 
@@ -1415,7 +1449,7 @@ function famMatchDoc(d, q) {
   if (/JFE/i.test(q)) return /JFE/i.test(title + ' ' + connMeta + ' ' + contentSample);
   if (/Grant|\bNOV\b/i.test(q)) return /Grant|NOV/i.test(title + ' ' + connMeta + ' ' + contentSample);
   if (/Hunting/i.test(q)) return /Hunting/i.test(title + ' ' + connMeta + ' ' + contentSample);
-  if (/API-?5CT|API-?5B|API-?7|API-?6A/i.test(q)) return /API/i.test(title + ' ' + familyMeta + ' ' + contentSample);
+  if (/API-?5CT|API-?5B|API-?7|API-?6A/i.test(q)) return /American Petroleum|API Spec/i.test(title) || /^API/i.test(familyMeta);
   return true;
 }
 
@@ -1453,15 +1487,16 @@ async function kbSearchMany(AutoFeedDoc, queries, minScore) {
         var h = premiumChunkSearch(d, q);
         if (h) {
           var md = d.metadata || {};
-          var isManual = md.manual === true;
+          var dm = deriveSheetMeta(d);
+          var isManual = md.manual === true || dm.manual;
           var dwt = 0;
           if (qSize) {
-            var hw = parseFloat(String(md.wt || '').replace(',', '.'));
+            var hw = parseFloat(String(md.wt || dm.wt || '').replace(',', '.'));
             dwt = isNaN(hw) ? 50 : Math.abs(hw - parseFloat(qSize[2]));
           }
           official.push({ title: d.title || '', domain: d.domain || '', url: d.url || '', score: h.score, excerpt: h.excerpt,
-            official: !isManual, manual: isManual, isSheet: md.isSheet === true,
-            connection: md.connection || '', od: md.od || '', wt: md.wt || '', dwt: dwt });
+            official: !isManual, manual: isManual, isSheet: (md.isSheet === true) || dm.isSheet,
+            connection: md.connection || dm.connection || '', od: md.od || dm.od || '', wt: md.wt || dm.wt || '', dwt: dwt });
         }
       });
       official.sort(function(a, b) { return (b.score - a.score) || ((a.dwt || 0) - (b.dwt || 0)); });
@@ -2683,16 +2718,19 @@ function qpAnnex(p, ctx, kb) {
   html += aSec('E. Knowledge base excerpts (official sources first, then semantic search)');
 
   var rowsKb = [];
-  var totalHits = 0, officialHits = 0, matchedHits = 0;
+  var totalHits = 0, officialHits = 0, matchedHits = 0, hiddenHits = 0;
   p.queries.forEach(function(q) {
     var hits = kb[q] || [];
     if (!hits.length) {
       rowsKb.push([esc(q), 'No relevant document in the knowledge base - load the official / OEM document via auto-feed (see section D for URLs)', '', '']);
     } else {
+      var shown = 0;
       hits.forEach(function(h) {
+        var md = (h.official || h.manual) ? matchDetail(h, wo, det) : null;
+        if (md && md.level === 'none') { hiddenHits++; return; } // v16.21.1 [D9]
+        shown++;
         totalHits++;
         if (h.official) officialHits++;
-        var md = (h.official || h.manual) ? matchDetail(h, wo, det) : null;
         var matches = md ? md.ok : true;
         if (h.official && matches) matchedHits++;
         var badge = h.official
@@ -2702,6 +2740,8 @@ function qpAnnex(p, ctx, kb) {
         if (md) {
           if (md.level === 'exact') {
             crossBadge = ' <span style="background:#dcfce7;color:#14532d;padding:1px 5px;border-radius:4px;font-size:8px;font-weight:700">✓ MATCHES WO (connection + size)</span>';
+          } else if (md.level === 'topic') {
+            crossBadge = ' <span style="background:#e0f2fe;color:#0c4a6e;padding:1px 5px;border-radius:4px;font-size:8px;font-weight:700">✓ RELEVANT SPEC (' + esc(md.note) + ')</span>';
           } else if (md.level === 'near') {
             crossBadge = ' <span style="background:#fef3c7;color:#78350f;padding:1px 5px;border-radius:4px;font-size:8px;font-weight:700">⚠ NEAREST SIZE - ' + esc(md.note) + ' - confirm before use</span>';
           } else if (md.level === 'conn-only') {
@@ -2712,7 +2752,7 @@ function qpAnnex(p, ctx, kb) {
         }
         var status = 'To verify';
         if (h.manual) status = 'Manual - unverified';
-        else if (h.official) status = (md && md.level === 'exact') ? 'Official - verified' : ((md && md.level === 'near') ? 'Official - nearest size, to verify' : 'Official - to verify');
+        else if (h.official) status = (md && md.level === 'exact') ? 'Official - verified' : ((md && md.level === 'topic') ? 'Official - spec page' : (md && md.level === 'near') ? 'Official - nearest size, to verify' : 'Official - to verify');
         rowsKb.push([
           esc(q),
           badge + crossBadge + '<br>' + esc(h.excerpt) + '<br><i>' + esc(h.title) + (h.url ? ' - ' + esc(h.url) : '') + '</i>',
@@ -2720,6 +2760,9 @@ function qpAnnex(p, ctx, kb) {
           status
         ]);
       });
+      if (!shown) {
+        rowsKb.push([esc(q), 'No relevant document in the knowledge base for this WO (excerpts of other connections / sizes were set aside) - load the official / OEM document via auto-feed (see section D for URLs)', '', '']);
+      }
     }
   });
 
@@ -2729,7 +2772,7 @@ function qpAnnex(p, ctx, kb) {
   var statsTextColor = (officialHits > 0 && matchRate >= 50) ? '#14532d' : (officialHits > 0 ? '#78350f' : '#7f1d1d');
   html += '<div style="background:' + statsColor + ';color:' + statsTextColor + ';padding:6px 10px;border-radius:6px;font-size:10px;margin-bottom:6px;font-weight:700">' +
     'Section E stats : ' + totalHits + ' extraits - ' + officialHits + ' officiels (' + coverage + '%) - ' +
-    matchedHits + ' valides contre le WO (' + matchRate + '% des officiels)' +
+    matchedHits + ' valides contre le WO (' + matchRate + '% des officiels) - ' + hiddenHits + ' ecartes (autre connexion ou taille)' +
     '</div>';
 
   html += aTbl(['Query', 'Excerpt and source', 'Score', 'Status'], rowsKb, ['26%', '56%', '8%', '10%']);
