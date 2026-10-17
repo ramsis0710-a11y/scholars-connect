@@ -1,5 +1,3 @@
-
-Answer enricher v16.21 avec route excel · JS
 // ============================================================
 // ANSWER-ENRICHER.JS
 // Version v16.21 - FIABILISATION SECTION E + SECURITE ROUTES
@@ -4461,13 +4459,3 @@ module.exports = function(app, mongoose) {
 
   console.log('[answer-enricher] ' + APP_VERSION + ' charge - validation OD/WT stricte, TSH 511 manuel non verifie, routes premium authentifiees');
 };
-
-
-
-
-
-
-
-
-
-Claude a terminé sa réponse.
