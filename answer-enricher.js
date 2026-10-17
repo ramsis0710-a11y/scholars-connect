@@ -1,7 +1,33 @@
+
+Answer enricher v16.21 avec route excel · JS
 // ============================================================
 // ANSWER-ENRICHER.JS
-// Version v16.20 - OPTIMISATION SECTION E API & TENARIS
-// BASE : v16.18 (INTEGRALEMENT CONSERVEE)
+// Version v16.21 - FIABILISATION SECTION E + SECURITE ROUTES
+// BASE : v16.20 + route Excel du 17-10-2026 (SHA-256 397bde89...80f4), CONSERVEE hors points [D1] a [D8] ci-dessous
+//
+// CORRECTIFS v16.20 -> v16.21 (UNIQUEMENT) :
+//   [D1] Valeurs TSH 511 saisies a la main : plus presentees comme
+//        « extraites du manuel officiel » ni comme [OFFICIAL SOURCE].
+//        Elles sont marquees MANUEL / NON VERIFIE (badge orange,
+//        hors score de confiance). « Tensile efficiency 100% » retire.
+//        Les anciennes fiches manuelles en base sont purgees au demarrage.
+//   [D2] Validation croisee WO <-> extrait : pour une fiche produit,
+//        connexion ET taille (OD + WT) obligatoires. Plus de validation
+//        d'office sur le seul nom de connexion.
+//   [D3] Taille absente du manuel : la fiche de meme OD au poids le plus
+//        proche est proposee avec l'avertissement « NEAREST SIZE ».
+//        (Au passage : le score de confiance utilisait h.matchesWO, jamais
+//        renseigne ; il est maintenant calcule par matchDetail().)
+//   [D4] /api/premium-ingest, /api/premium-status et /api/qp-standards
+//        exigent maintenant une authentification.
+//   [D5] Authentification : jeton verifie (signature JWT si un secret est
+//        configure : QP_JWT_SECRET ou JWT_SECRET ; sinon structure + date
+//        d'expiration). Plus de simple presence de l'en-tete.
+//   [D6] Message de demarrage aligne sur la version (APP_VERSION).
+//   [D7] Mode Excel : client et PO propres a chaque ligne (plus ceux de la
+//        premiere ligne pour tous les QP). Banniere : « N clients ».
+//   [D8] Ingestion idempotente : les fiches produit (url#sheet=...) comptent
+//        comme deja ingerees ; purge unique des doublons existants.
 //
 // CORRECTIF v16.18 -> v16.19 (UNIQUEMENT) :
 //   [C16] Auto-ingestion : diagnostic detaille du texte extrait
@@ -26,6 +52,7 @@ var zlib = require('zlib');
 var LOGO_GMPI = '';
 var LOGO_GROUP = '';
 var STD_VERIFIED_ON = '2026-10-09';
+var APP_VERSION = 'v16.21';
 
 var QP_CHUNK = 50;
 var QP_HIDDEN_MAX = 10;
@@ -39,6 +66,65 @@ var PDF_PREVIEW_CHARS = 800;
 // ============================================================
 // [A4] BLACKLIST DE DOMAINES NON PERTINENTS POUR LA SECTION E
 // ============================================================
+// ============================================================
+// [D5] VERIFICATION DU JETON D'AUTHENTIFICATION (v16.21)
+//   - Secret JWT configure (QP_JWT_SECRET ou JWT_SECRET) + module
+//     "jsonwebtoken" installe : signature et expiration verifiees.
+//   - Sinon : jeton JWT -> structure + expiration controlees ;
+//     jeton opaque -> longueur minimale (la signature ne peut pas etre
+//     verifiee sans le secret de l'application hote).
+//   - QP_AUTH_VERIFY=0 desactive la verification de signature (secours).
+// ============================================================
+var AUTH_WARNED = false;
+
+function bearerToken(req) {
+  var h = String((req && req.headers && req.headers.authorization) || '').trim();
+  var m = h.match(/^Bearer\s+(.+)$/i);
+  return (m ? m[1] : h).trim();
+}
+
+function jwtPayloadOf(tok) {
+  try {
+    var parts = tok.split('.');
+    if (parts.length !== 3) return null;
+    var b64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    while (b64.length % 4) b64 += '=';
+    return JSON.parse(Buffer.from(b64, 'base64').toString('utf8'));
+  } catch (e) { return null; }
+}
+
+function authOk(req) {
+  var tok = bearerToken(req);
+  if (!tok || tok.length < 10 || tok === 'undefined' || tok === 'null') return false;
+
+  var secret = process.env.QP_JWT_SECRET || process.env.JWT_SECRET || '';
+  var verifyOff = process.env.QP_AUTH_VERIFY === '0';
+  if (secret && !verifyOff) {
+    var jwt = null;
+    try { jwt = require('jsonwebtoken'); } catch (eMod) { jwt = null; }
+    if (jwt) {
+      try { jwt.verify(tok, secret); return true; } catch (eVer) { return false; }
+    }
+  }
+
+  var parts = tok.split('.');
+  if (parts.length === 3) {
+    var pl = jwtPayloadOf(tok);
+    if (!pl) return false;
+    if (pl.exp && (pl.exp * 1000) < Date.now()) return false;
+    if (!AUTH_WARNED) {
+      AUTH_WARNED = true;
+      console.warn('[answer-enricher] AUTH : signature JWT non verifiee (definir JWT_SECRET et installer "jsonwebtoken" pour une verification complete)');
+    }
+    return true;
+  }
+  if (!AUTH_WARNED) {
+    AUTH_WARNED = true;
+    console.warn('[answer-enricher] AUTH : jeton opaque, verification limitee a sa presence/longueur');
+  }
+  return true;
+}
+
 var BLOCKED_DOMAINS = [
   'linkedin.com', 'pubmed.ncbi.nlm.nih.gov', 'arxiv.org',
   'youtube.com', 'facebook.com', 'twitter.com', 'x.com',
@@ -296,8 +382,14 @@ var PREMIUM_CHECKS = [
 // ============================================================
 // [C17] REFERENCE MANUELLE TENARIS TSH 511
 // Le PDF Tenaris contient les tableaux sous forme d'images (non
-// extractibles par pdf-parse). Ces valeurs sont extraites du
-// TenarisHydril Premium Connection Performance Datasheets Manual.
+// extractibles par pdf-parse).
+// v16.21 [D1] : ces valeurs sont une SAISIE MANUELLE dont la source n'est
+// pas tracable dans ce code : elles sont NON VERIFIEES. Elles servent
+// d'orientation uniquement et doivent etre confirmees sur la fiche Tenaris
+// en vigueur avant tout usage. TSH_511_VERIFIED est un indicateur
+// documentaire SANS EFFET sur le rendu : lever le badge « UNVERIFIED »
+// exige un developpement distinct, apres recoupement avec la fiche officielle.
+var TSH_511_VERIFIED = false;
 // ============================================================
 var TSH_511_MANUAL = {
   'TSH 511': [
@@ -1088,9 +1180,8 @@ function splitPremiumManual(text, family) {
           'DRIFT: ' + r.drift + '"\n' +
           'COUPLING OD: ' + r.couplingOD + '"\n' +
           'MAKE-UP TORQUE: ' + r.torque + ' ft-lb\n' +
-          'TENSILE EFFICIENCY: 100%\n' +
-          'Reference: TenarisHydril Connection Data Sheet - ' + connName + '\n' +
-          'Note: ces valeurs sont extraites du manuel officiel Tenaris.';
+          'Reference: manual entry - TenarisHydril Connection Data Sheet ' + connName + '\n' +
+          'Note: MANUAL REFERENCE - UNVERIFIED. Confirm every value on the current Tenaris data sheet before use.';
         var manualKey = connName.toUpperCase().replace(/\s+/g, '') + '|' + r.od + '|' + r.wt;
         if (seen[manualKey]) continue;
         seen[manualKey] = 1;
@@ -1098,7 +1189,8 @@ function splitPremiumManual(text, family) {
           conn: connName,
           od: r.od,
           wt: r.wt,
-          content: manualContent
+          content: manualContent,
+          manual: true
         });
       }
     }
@@ -1112,55 +1204,109 @@ function splitPremiumManual(text, family) {
 // ============================================================
 // [A5] VALIDATION CROISEE WO <-> EXTRAIT
 // ============================================================
-function extractMatchesWO(excerpt, wo, det) {
-  if (!excerpt) return false;
-  var txt = String(excerpt).toLowerCase();
-  var hits = 0;
-  var total = 0;
+function odToNum(v) {
+  var x = String(v || '').replace(/["\u201D]/g, '').trim();
+  var m = x.match(/^(\d+)[\s\-]+(\d+)\/(\d+)$/);
+  if (m) return parseInt(m[1], 10) + parseInt(m[2], 10) / parseInt(m[3], 10);
+  m = x.match(/^(\d+)\/(\d+)$/);
+  if (m) return parseInt(m[1], 10) / parseInt(m[2], 10);
+  var f = parseFloat(x.replace(',', '.'));
+  return isNaN(f) ? null : f;
+}
+
+function normConn(v) {
+  return String(v || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+}
+
+// v16.21 [D2][D3] : validation detaillee d'un extrait contre un WO.
+// h = { excerpt, title, connection, od, wt, isSheet }
+// Retourne { ok, level: exact | near | conn-only | none, note }
+//   exact     = connexion + OD + WT identiques  -> ok
+//   near      = connexion + meme OD, poids different (taille la plus proche) -> a confirmer
+//   conn-only = connexion seule, taille non verifiable -> a confirmer
+//   none      = connexion ou taille differente
+function matchDetail(h, wo, det) {
+  h = h || {};
+  var res = { ok: false, level: 'none', note: '' };
+  var excerpt = String(h.excerpt || '');
+  if (!excerpt && !h.connection) return res;
+  var txt = excerpt.toLowerCase();
+  det = det || {};
+  var hasConns = !!(det.conns && det.conns.length);
+  var hasPremium = false;
+  if (hasConns) det.conns.forEach(function(c) { if (c.kind === 'premium') hasPremium = true; });
+  var sz = (det.sizes && det.sizes.length) ? det.sizes[0] : null;
+  var hasSize = !!(sz && sz.od && sz.wt);
+  var isSheet = h.isSheet === true || /^CONNECTION:/.test(excerpt);
+
   var connMatch = false;
-
-  // 1. Validation de la connexion (Critère absolu pour le pétrole & gaz)
-  if (det.conns && det.conns.length) {
-    total++;
+  if (hasConns) {
+    var hay = normConn(excerpt + ' ' + (h.connection || '') + ' ' + (h.title || ''));
     for (var i = 0; i < det.conns.length; i++) {
-      var label = det.conns[i].label.toLowerCase();
-      // Nettoyage des libellés pour correspondre aux fiches techniques constructeurs
-      var cleanLabel = label.replace(/\s+/g, '');
-      if (txt.indexOf(label) !== -1 || txt.indexOf(cleanLabel) !== -1) { 
-        connMatch = true; 
-        break; 
-      }
-    }
-    if (connMatch) hits += 2; // Poids fort pour la connexion premium/API
-  }
-
-  // 2. Validation du grade matière (L80, P110, etc.)
-  if (det.apiGrade) {
-    total++;
-    if (txt.indexOf(det.apiGrade.toLowerCase()) !== -1) {
-      hits++;
+      var lab = normConn(det.conns[i].label);
+      if (lab && hay.indexOf(lab) !== -1) { connMatch = true; break; }
     }
   }
 
-  // 3. Validation des dimensions (OD / WT) si présentes
-  if (det.sizes && det.sizes.length) {
-    if (det.sizes[0].od) {
-      total++;
-      if (txt.indexOf(String(det.sizes[0].od).toLowerCase()) !== -1) hits++;
-    }
-    if (det.sizes[0].wt) {
-      total++;
-      if (txt.indexOf(String(det.sizes[0].wt).toLowerCase()) !== -1) hits++;
-    }
+  var textBoth = false;
+  if (hasSize) {
+    textBoth = hasToken(excerpt, odVariants(sz.od)) && hasToken(excerpt, numVariants(sz.wt));
   }
 
-  if (total === 0) return true;
-  
-  // Règle de validation stricte mais tolérante sur les tableaux multi-produits constructeurs :
-  // Si la connexion critique correspond, l'extrait est validé d'office pour le QCP.
-  if (connMatch) return true;
-  
-  return hits >= 1;
+  if (isSheet) {
+    if (hasConns && !connMatch) { res.note = 'connection differs'; return res; }
+    if (!hasSize) {
+      res.level = 'conn-only'; res.ok = true; res.note = 'no size in WO';
+      return res;
+    }
+    var wOd = odToNum(sz.od), wWt = parseFloat(String(sz.wt).replace(',', '.'));
+    var sOd = odToNum(h.od), sWt = parseFloat(String(h.wt || '').replace(',', '.'));
+    var odEq = (sOd !== null && wOd !== null && Math.abs(sOd - wOd) < 0.002);
+    var wtOk = !isNaN(sWt) && !isNaN(wWt);
+    var wtEq = wtOk && Math.abs(sWt - wWt) < 0.005;
+    if ((odEq && wtEq) || textBoth) {
+      res.ok = true; res.level = 'exact';
+      return res;
+    }
+    if (odEq && wtOk) {
+      res.level = 'near';
+      res.note = 'sheet ' + h.wt + ' lb/ft vs WO ' + sz.wt + ' lb/ft';
+      return res;
+    }
+    if (sOd === null || !wtOk) {
+      res.level = 'conn-only'; res.note = 'size not verifiable on this sheet';
+      return res;
+    }
+    res.note = 'size differs (' + h.od + ' / ' + h.wt + ' vs ' + sz.od + ' / ' + sz.wt + ')';
+    return res;
+  }
+
+  // Extrait non-fiche (page de norme, manuel complet)
+  if (hasPremium) {
+    if (!connMatch) { res.note = 'connection not found'; return res; }
+    if (!hasSize) { res.ok = true; res.level = 'conn-only'; res.note = 'no size in WO'; return res; }
+    if (textBoth) { res.ok = true; res.level = 'exact'; return res; }
+    res.level = 'conn-only'; res.note = 'size not found in excerpt';
+    return res;
+  }
+
+  // WO API / rotary : comportement v16.20 conserve (pages de norme non dependantes de la taille)
+  var hits = 0, total = 0;
+  if (hasConns) { total++; if (connMatch) hits += 2; }
+  if (det.apiGrade) { total++; if (txt.indexOf(String(det.apiGrade).toLowerCase()) !== -1) hits++; }
+  if (hasSize) {
+    total += 2;
+    if (txt.indexOf(String(sz.od).toLowerCase()) !== -1) hits++;
+    if (txt.indexOf(String(sz.wt).toLowerCase()) !== -1) hits++;
+  }
+  if (total === 0 || connMatch || hits >= 1) { res.ok = true; res.level = 'exact'; }
+  return res;
+}
+
+function extractMatchesWO(excerpt, wo, det, meta) {
+  var h = { excerpt: excerpt };
+  if (meta) { for (var k in meta) { h[k] = meta[k]; } h.excerpt = excerpt; }
+  return matchDetail(h, wo, det).ok;
 }
 // ============================================================
 // [A6] SCORE DE CONFIANCE GLOBAL DU QP
@@ -1187,7 +1333,7 @@ function qpConfidenceDetail(p, kb) {
       totalHits++;
       if (h.official) {
         totalOfficial++;
-        if (h.matchesWO) { officialHits++; totalMatched++; }
+        if (matchDetail(h, p.wo, p.det).ok) { officialHits++; totalMatched++; }
       }
     });
   });
@@ -1301,14 +1447,26 @@ async function kbSearchMany(AutoFeedDoc, queries, minScore) {
   queries.forEach(function(q) {
     var isPrem = PREMIUM_Q_RE.test(q);
     var isStd = /API\s*(?:5CT|5B|7-1|7-2|6A|RP\s*5C5|RP\s*5A3)/i.test(q);
+    var qSize = q.match(/size\s+(\d+(?: \d\/\d)?(?:\.\d+)?)\s+(\d+(?:\.\d+)?)\s+lb\/ft/);
     var official = [];
     if (isPrem || isStd) {
       kbd.premium.forEach(function(d) {
         if (!famMatchDoc(d, q)) return;
         var h = premiumChunkSearch(d, q);
-        if (h) official.push({ title: d.title || '', domain: d.domain || '', url: d.url || '', score: h.score, excerpt: h.excerpt, official: true });
+        if (h) {
+          var md = d.metadata || {};
+          var isManual = md.manual === true;
+          var dwt = 0;
+          if (qSize) {
+            var hw = parseFloat(String(md.wt || '').replace(',', '.'));
+            dwt = isNaN(hw) ? 50 : Math.abs(hw - parseFloat(qSize[2]));
+          }
+          official.push({ title: d.title || '', domain: d.domain || '', url: d.url || '', score: h.score, excerpt: h.excerpt,
+            official: !isManual, manual: isManual, isSheet: md.isSheet === true,
+            connection: md.connection || '', od: md.od || '', wt: md.wt || '', dwt: dwt });
+        }
       });
-      official.sort(function(a, b) { return b.score - a.score; });
+      official.sort(function(a, b) { return (b.score - a.score) || ((a.dwt || 0) - (b.dwt || 0)); });
       official = official.slice(0, 2);
     }
     var qTokens = tokenize(q);
@@ -1322,7 +1480,7 @@ async function kbSearchMany(AutoFeedDoc, queries, minScore) {
       .sort(function(a, b) { return b.score - a.score; })
       .slice(0, isPrem ? 1 : 2);
     var rest = scored.map(function(s) {
-      return { title: s.d.title || '', domain: s.d.domain || '', url: s.d.url || '', score: s.score, excerpt: pickExcerpt(s.d.content, q), official: false };
+      return { title: s.d.title || '', domain: s.d.domain || '', url: s.d.url || '', score: s.score, excerpt: pickExcerpt(s.d.content, q), official: false, manual: false };
     });
     if (official.length > 0 && official[0].score >= 0.6) {
       rest = rest.filter(function(r) { return r.score >= 0.5; });
@@ -2109,6 +2267,17 @@ async function autoIngestPremiumSources(AutoFeedDoc, mongoose, force) {
           }
         } else if (existing && force) {
           try { await AutoFeedDoc.deleteOne({ _id: existing._id }); } catch (eDel) {}
+        } else if (!existing) {
+          // v16.21 [D8] : les fiches produit sont enregistrees sous « url#sheet=... »
+          var kids = await AutoFeedDoc.findOne({ 'metadata.parentUrl': doc.url }).lean();
+          if (kids && !force) {
+            stats.skipped++;
+            stats.details.push({ family: famId, url: doc.url, status: 'deja-ingere-fiches' });
+            continue;
+          }
+          if (kids && force) {
+            try { await AutoFeedDoc.deleteMany({ 'metadata.parentUrl': doc.url }); } catch (eDelMany) {}
+          }
         }
       } catch (e) { /* on continue */ }
 
@@ -2138,7 +2307,7 @@ async function autoIngestPremiumSources(AutoFeedDoc, mongoose, force) {
         if (sheets.length > 0) {
           for (var s = 0; s < sheets.length; s++) {
             var sh = sheets[s];
-            var sheetTitle = '[' + fam.owner + '] ' + sh.conn + ' - ' + sh.od + '" ' + sh.wt + ' lb/ft';
+            var sheetTitle = '[' + fam.owner + '] ' + sh.conn + ' - ' + sh.od + '" ' + sh.wt + ' lb/ft' + (sh.manual ? ' [MANUAL - UNVERIFIED]' : '');
             var sheetVector = buildVector(sh.content);
             try {
               await AutoFeedDoc.create({
@@ -2149,7 +2318,7 @@ async function autoIngestPremiumSources(AutoFeedDoc, mongoose, force) {
                 content: sh.content,
                 vector: sheetVector,
                 createdAt: new Date(),
-                tags: ['premium', famId, 'sheet', sh.conn],
+                tags: sh.manual ? ['premium', famId, 'sheet', sh.conn, 'manual-unverified'] : ['premium', famId, 'sheet', sh.conn],
                 metadata: {
                   family: famId,
                   owner: fam.owner,
@@ -2160,6 +2329,7 @@ async function autoIngestPremiumSources(AutoFeedDoc, mongoose, force) {
                   od: sh.od,
                   wt: sh.wt,
                   isSheet: true,
+                  manual: !!sh.manual,
                   parentUrl: doc.url
                 }
               });
@@ -2210,9 +2380,40 @@ async function cleanupStalePremiumDocs(AutoFeedDoc) {
   if (!AutoFeedDoc) return { scanned: 0, deleted: 0, errors: 0 };
   var out = { scanned: 0, deleted: 0, errors: 0, details: [] };
   try {
-    var all = await AutoFeedDoc.find({ source: 'Premium-Source-Auto' }).select('_id url title content metadata').lean();
+    var all = await AutoFeedDoc.find({ source: 'Premium-Source-Auto' }).select('_id url title content metadata createdAt').lean();
     out.scanned = all.length;
+    // v16.21 [D8] : purge unique des doublons STRICTS (meme URL et meme contenu) - on garde le plus recent
+    var byUrl = {};
+    all.forEach(function(d) {
+      var dk = String(d.url) + '|' + crypto.createHash('md5').update(String(d.content || '')).digest('hex');
+      (byUrl[dk] = byUrl[dk] || []).push(d);
+    });
+    var dupGone = {};
+    Object.keys(byUrl).forEach(function(u) {
+      var arr = byUrl[u];
+      if (arr.length < 2) return;
+      arr.sort(function(a, b) { return new Date(a.createdAt || 0) - new Date(b.createdAt || 0); });
+      for (var di = 0; di < arr.length - 1; di++) dupGone[String(arr[di]._id)] = arr[di];
+    });
+    var dupIds = Object.keys(dupGone);
+    for (var dg = 0; dg < dupIds.length; dg++) {
+      try {
+        await AutoFeedDoc.deleteOne({ _id: dupGone[dupIds[dg]]._id });
+        out.deleted++;
+        out.details.push({ url: dupGone[dupIds[dg]].url, status: 'doublon-supprime' });
+      } catch (eDup) { out.errors++; }
+    }
+    all = all.filter(function(d) { return !dupGone[String(d._id)]; });
     for (var i = 0; i < all.length; i++) {
+      // v16.21 [D1] : purge des anciennes fiches manuelles presentees comme « officielles »
+      if (/extraites du manuel officiel Tenaris/i.test(String(all[i].content || ''))) {
+        try {
+          await AutoFeedDoc.deleteOne({ _id: all[i]._id });
+          out.deleted++;
+          out.details.push({ url: all[i].url, status: 'supprime-legacy-manuel' });
+        } catch (eLeg) { out.errors++; }
+        continue;
+      }
       var len = (all[i].content || '').length;
       var isSheet = all[i].metadata && all[i].metadata.isSheet;
       var minRequired = isSheet ? 150 : PREMIUM_MIN_CHARS;
@@ -2493,19 +2694,32 @@ function qpAnnex(p, ctx, kb) {
       hits.forEach(function(h) {
         totalHits++;
         if (h.official) officialHits++;
-        var matches = h.official ? extractMatchesWO(h.excerpt, wo, det) : true;
-        if (matches) matchedHits++;
-        var badge = h.official ? '<b style="color:#0a7a2f">[OFFICIAL SOURCE]</b> ' : '';
-        var crossBadge = h.official
-          ? (matches
-              ? ' <span style="background:#dcfce7;color:#14532d;padding:1px 5px;border-radius:4px;font-size:8px;font-weight:700">✓ MATCHES WO</span>'
-              : ' <span style="background:#fee2e2;color:#7f1d1d;padding:1px 5px;border-radius:4px;font-size:8px;font-weight:700">⚠ NO MATCH</span>')
-          : '';
+        var md = (h.official || h.manual) ? matchDetail(h, wo, det) : null;
+        var matches = md ? md.ok : true;
+        if (h.official && matches) matchedHits++;
+        var badge = h.official
+          ? '<b style="color:#0a7a2f">[OFFICIAL SOURCE]</b> '
+          : (h.manual ? '<b style="color:#b45309">[MANUAL REFERENCE - UNVERIFIED]</b> ' : '');
+        var crossBadge = '';
+        if (md) {
+          if (md.level === 'exact') {
+            crossBadge = ' <span style="background:#dcfce7;color:#14532d;padding:1px 5px;border-radius:4px;font-size:8px;font-weight:700">✓ MATCHES WO (connection + size)</span>';
+          } else if (md.level === 'near') {
+            crossBadge = ' <span style="background:#fef3c7;color:#78350f;padding:1px 5px;border-radius:4px;font-size:8px;font-weight:700">⚠ NEAREST SIZE - ' + esc(md.note) + ' - confirm before use</span>';
+          } else if (md.level === 'conn-only') {
+            crossBadge = ' <span style="background:#fef3c7;color:#78350f;padding:1px 5px;border-radius:4px;font-size:8px;font-weight:700">⚠ CONNECTION ONLY' + (md.note ? ' - ' + esc(md.note) : '') + '</span>';
+          } else {
+            crossBadge = ' <span style="background:#fee2e2;color:#7f1d1d;padding:1px 5px;border-radius:4px;font-size:8px;font-weight:700">⚠ NO MATCH' + (md.note ? ' - ' + esc(md.note) : '') + '</span>';
+          }
+        }
+        var status = 'To verify';
+        if (h.manual) status = 'Manual - unverified';
+        else if (h.official) status = (md && md.level === 'exact') ? 'Official - verified' : ((md && md.level === 'near') ? 'Official - nearest size, to verify' : 'Official - to verify');
         rowsKb.push([
           esc(q),
           badge + crossBadge + '<br>' + esc(h.excerpt) + '<br><i>' + esc(h.title) + (h.url ? ' - ' + esc(h.url) : '') + '</i>',
           Math.round(h.score * 100) + '%',
-          h.official ? (matches ? 'Official - verified' : 'Official - to verify') : 'To verify'
+          status
         ]);
       });
     }
@@ -2528,6 +2742,7 @@ function qpAnnex(p, ctx, kb) {
 }
 
 function renderOneQP(p, idx, ctx, kb) {
+  if (p.ctxOverride) { ctx = Object.assign({}, ctx, p.ctxOverride); } // v16.21 [D7]
   var wo = p.wo, info = p.info, det = p.det;
   var up = (info.kind + ' ' + info.desc).toUpperCase();
   var forceRepair = det.forceRepair || /REPAIR|RECERTIF|RECUT/i.test(up);
@@ -3238,7 +3453,7 @@ module.exports = function(app, mongoose) {
   }
 
   function needAuth(req, res) {
-    if (!req.headers.authorization) {
+    if (!authOk(req)) {
       res.status(401).json({ error: 'Authorization requise (connectez-vous)' });
       return false;
     }
@@ -3270,6 +3485,7 @@ module.exports = function(app, mongoose) {
   });
 
   app.get('/api/qp-standards', function(req, res) {
+    if (!needAuth(req, res)) return;
     res.json({
       verifiedOn: STD_VERIFIED_ON,
       standards: STANDARDS,
@@ -3284,6 +3500,8 @@ module.exports = function(app, mongoose) {
     });
   });
 
+  // v16.21 : la page /qp-admin est une coquille statique (aucune donnee) ; toutes
+  // les actions qu'elle declenche passent par des routes /api/* authentifiees.
   app.get('/qp-admin', function(req, res) {
     res.set('Content-Type', 'text/html; charset=utf-8');
     res.set('X-Robots-Tag', 'noindex');
@@ -3486,6 +3704,7 @@ module.exports = function(app, mongoose) {
   });
 
   app.get('/api/premium-status', async function(req, res) {
+    if (!needAuth(req, res)) return;
     try {
       var kb = getKB();
       if (!kb) return res.json({ error: 'AutoFeedDoc indisponible', docs: [] });
@@ -3513,6 +3732,7 @@ module.exports = function(app, mongoose) {
   });
 
   app.get('/api/premium-ingest', async function(req, res) {
+    if (!needAuth(req, res)) return;
     try {
       var force = req.query.force === '1';
       var stats = await runIngestSafe(getKB(), mongoose, force);
@@ -3526,7 +3746,7 @@ module.exports = function(app, mongoose) {
     app.use(route, function(req, res, next) {
       try {
         if (req.method !== 'POST' || !req.body) return next();
-        if (!req.headers.authorization) return next();
+        if (!authOk(req)) return next();
         var question = String(req.body.question || '');
         var wantsQP = QP_RE.test(question) || (!strict && !question.trim());
         if (!wantsQP) return next();
@@ -3935,9 +4155,17 @@ module.exports = function(app, mongoose) {
     }
 
     // Contexte global
+    // v16.21 [D7] : client et PO propres a chaque ligne
+    var exCustomers = [], exPOs = [];
+    excelWOs.forEach(function(w) {
+      if (w.customer && exCustomers.indexOf(w.customer) === -1) exCustomers.push(w.customer);
+      if (w.po && exPOs.indexOf(w.po) === -1) exPOs.push(w.po);
+    });
+    var defCustomer = exCustomers[0] || 'XXXXXXX';
+    var defPO = exPOs[0] || 'NA';
     var ctx = {
-      customer: excelWOs[0].customer || 'XXXXXXX',
-      po: excelWOs[0].po || 'NA',
+      customer: exCustomers.length > 1 ? exCustomers.length + ' clients (voir chaque QP)' : defCustomer,
+      po: exPOs.length > 1 ? exPOs.length + ' PO (voir chaque QP)' : defPO,
       norme: '',
       normeAcc: '',
       hasDocs: false
@@ -4007,7 +4235,8 @@ module.exports = function(app, mongoose) {
       return {
         wo: wo, info: info, det: det, stds: stds,
         queries: kbQueriesFor(det, stds),
-        excelDated: ex.dated
+        excelDated: ex.dated,
+        ctxOverride: { customer: ex.customer || defCustomer, po: ex.po || defPO }
       };
     });
 
@@ -4230,5 +4459,15 @@ module.exports = function(app, mongoose) {
     });
   }, 20000);
 
-  console.log('[answer-enricher] v16.19 charge - injection manuelle Tenaris TSH 511 + diagnostic detaille + fenetre glissante');
+  console.log('[answer-enricher] ' + APP_VERSION + ' charge - validation OD/WT stricte, TSH 511 manuel non verifie, routes premium authentifiees');
 };
+
+
+
+
+
+
+
+
+
+Claude a terminé sa réponse.
