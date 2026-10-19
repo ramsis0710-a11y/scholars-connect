@@ -4500,5 +4500,8 @@ module.exports = function(app, mongoose) {
     });
   }, 20000);
 
+  // LIGNE AJOUTÉE - Module autonome de scraping des tolérances premium publiques
+  require('./premium-public-tolerances')(app, mongoose);
+
   console.log('[answer-enricher] ' + APP_VERSION + ' charge - validation OD/WT stricte, TSH 511 manuel non verifie, routes premium authentifiees');
 };
