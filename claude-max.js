@@ -1,20 +1,3 @@
-Claude
-Nouvelle conversation
-Claude travaille directement avec votre base de code
-Claude travaille directement avec votre base de code Démarrer dans Claude Code.
-
-MODULE~1.JS
-MODULE~1.JS
-275 lignes
-JS
-
-
-
-MODULE~1.JS
-10,11 Ko •275 lignes
-•
-Le formatage peut être différent de la source
-
 // ============================================================
 // MODULE AUTONOME : CLAUDE OPUS / SONNET (via OpenRouter) + PDF
 // Version : v9.0 - Correction définitive des Slugs & Auto-Fallback
