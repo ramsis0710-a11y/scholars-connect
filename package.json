@@ -18,6 +18,7 @@
     "node-fetch": "^2.7.0",
     "pdf-parse": "^1.1.1",
     "@google/genai": "^1.52.0"
+    "pdfkit": "^0.15.0"
   },
   "engines": {
     "node": ">=20.0.0 <21.0.0"
