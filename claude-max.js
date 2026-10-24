@@ -1,6 +1,6 @@
 // ============================================================
 // MODULE AUTONOME : CLAUDE OPUS (via Alias dynamique) + PDF
-// Version : v8.0 - Correctif définitif du modèle 404
+// Version : v8.1 - Correctif définitif du modèle 404
 // NE MODIFIE AUCUNE LIGNE DE answer-enricher.js
 // ============================================================
 
