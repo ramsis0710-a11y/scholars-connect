@@ -4500,9 +4500,10 @@ module.exports = function(app, mongoose) {
     });
   }, 20000);
 
-  // LIGNE AJOUTÉE - Module autonome de scraping des tolérances premium publiques
+  // Module autonome de scraping des tolérances premium publiques
   require('./premium-public-tolerances')(app, mongoose);
-    // Module autonome de Fallback Gemini - n'affecte aucune ligne existante
+
+  // Module autonome de Fallback Gemini
   require('./gemini-fallback')(app, mongoose);
 
   console.log('[answer-enricher] ' + APP_VERSION + ' charge - validation OD/WT stricte, TSH 511 manuel non verifie, routes premium authentifiees');
