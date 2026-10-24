@@ -208,7 +208,7 @@ module.exports = function(app, mongoose) {
             },
             body: JSON.stringify({
               model: model,
-              // Le paramètre temperature est retiré car non supporté par Claude 5.x
+              // Le paramètre temperature est retiré car non supporté par Claude 4.7+ et 5.x
               messages: [
                 { role: "system", content: "Tu es un expert senior. Rédige un rapport technique exhaustif, très bien structuré avec des titres (#, ##, ###), des listes à puces et des tableaux. Sépare distinctement les chapitres." },
                 { role: "user", content: prompt }
