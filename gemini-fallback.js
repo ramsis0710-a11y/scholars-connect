@@ -1,13 +1,15 @@
 // ============================================================
-// MODULE AUTONOME : FALLBACK GEMINI (Version définitive v2.1)
-// Correction de l'erreur ERR_PACKAGE_PATH_NOT_EXPORTED
+// MODULE AUTONOME : AGENT PRIORITAIRE GEMINI (v3.0 - Expert API)
+// Ce module intercepte les questions techniques (API, normes, tolérances)
+// et force la réponse de Gemini pour garantir l'exactitude.
+// NE MODIFIE AUCUNE LIGNE DE answer-enricher.js
 // ============================================================
 
 'use strict';
 
 const { execSync } = require('child_process');
 
-// --- 1. Vérification et installation du SDK ---
+// --- 1. Vérification du SDK ---
 let GoogleGenAI = null;
 try {
   const genai = require('@google/genai');
@@ -30,106 +32,92 @@ module.exports = function(app, mongoose) {
   const apiKey = process.env.GEMINI_API_KEY;
   const modelName = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
 
-  // --- 3. Auto-test au démarrage (sans bloquer le serveur) ---
-  async function selfTest() {
-    console.log('================================================');
-    console.log('[gemini-fallback] AUTO-TEST DE DÉMARRAGE');
-    console.log(`[gemini-fallback] Clé API présente : ${!!apiKey}`);
-    console.log(`[gemini-fallback] Modèle configuré : ${modelName}`);
-    
-    if (!apiKey) {
-      console.error('[gemini-fallback] ÉCHEC : GEMINI_API_KEY est absente.');
-      return;
-    }
-
-    try {
-      const ai = new GoogleGenAI({ apiKey: apiKey });
-      const response = await ai.models.generateContent({
-        model: modelName,
-        contents: 'Réponds uniquement par "OK".',
-      });
-      
-      if (response && response.text) {
-        console.log(`[gemini-fallback] SUCCÈS : Connexion à Gemini établie. Réponse : "${response.text.trim()}"`);
-        console.log('[gemini-fallback] Le fallback est 100% OPÉRATIONNEL.');
-      } else {
-        console.warn('[gemini-fallback] AVERTISSEMENT : Connexion établie mais réponse vide.');
-      }
-    } catch (error) {
-      console.error('[gemini-fallback] ÉCHEC DE LA CONNEXION.');
-      console.error(`[gemini-fallback] Message : ${error.message}`);
-      if (error.message.includes('API key not valid')) {
-        console.error('[gemini-fallback] La clé API est invalide.');
-      } else if (error.message.includes('not found')) {
-        console.error(`[gemini-fallback] Le modèle "${modelName}" n'existe pas.`);
-      }
-    }
-    console.log('================================================');
+  if (!apiKey) {
+    console.warn('[gemini-fallback] GEMINI_API_KEY absente. Le module expert est désactivé.');
+    return;
   }
 
-  // Lancer l'auto-test
-  selfTest();
+  const ai = new GoogleGenAI({ apiKey: apiKey });
 
-  // --- 4. Route de diagnostic (corrigée, sans accès au package.json) ---
-  app.get('/api/gemini-fallback/status', function(req, res) {
-    res.json({
-      ok: true,
-      message: 'Module Gemini chargé et prêt',
-      model: modelName,
-      keyConfigured: !!apiKey,
-      note: 'Consultez les logs Render pour le rapport d\'auto-test.'
-    });
-  });
-
-  // --- 5. Intercepteur de secours ---
-  async function tryGeminiFallback(req, res, next) {
+  // --- 3. Intercepteur de réponses ---
+  async function geminiExpertInterceptor(req, res, next) {
     if (req.method !== 'POST' || !req.body) return next();
+
+    // Sauvegarde de la fonction d'envoi originale
     const originalJson = res.json.bind(res);
-    
+
+    // Surcharge de res.json
     res.json = async function(data) {
-      if (!data || !data.answer || data.enriched) return originalJson(data);
-      
-      const isRejected = data.judgeResult && data.judgeResult.reject === true;
-      const isTooShort = data.answer.length < 200;
-      
-      if (isRejected || isTooShort) {
-        console.log(`[gemini-fallback] Rejet local (reject=${isRejected}, len=${data.answer.length}). Appel de Gemini...`);
+      if (!data || !data.answer) return originalJson(data);
+
+      // Récupération de la question posée par l'utilisateur
+      const question = req.body.question || req.body.content || "";
+      const lowerQ = question.toLowerCase();
+
+      // Détection des questions techniques critiques (API, Normes, Plans Qualité)
+      const isTechnicalExpertQuery = 
+        /api|monogramme|tolérance|dimension|14l|5ct|6a|7-1|7-2|qualité|quality plan|qp|standard|petroleum/i.test(lowerQ) ||
+        data.judgeResult?.reject === true ||
+        data.answer.length < 200;
+
+      if (isTechnicalExpertQuery) {
+        console.log(`[gemini-fallback] Requête technique détectée. Gemini prend le relais pour une réponse d'expert...`);
+        
         try {
-          const ai = new GoogleGenAI({ apiKey: apiKey });
-          const prompt = (req.body.question || "Analyse ce document.") + 
-                         (req.body.content ? `\n\nDocument :\n${req.body.content}` : '');
-          
+          // Prompt système pour forcer Gemini à adopter le ton et la structure exacte demandée
+          const systemPrompt = `Tu es un expert senior en ingénierie pétrolière et en normes API. 
+Tu dois répondre de manière exhaustive, structurée et technique aux questions posées.
+Si on te pose une question sur une norme (ex: API 14L), structure ta réponse ainsi :
+1. Domaine d'application
+2. Dimensions et Interchangeabilité
+3. Tolérances et Critères d'acceptation
+4. Critères de Validation de Performance et Monogramme API
+5. Exigences de test de validation (Grades V1, V2, V3)
+6. Impact sur la rédaction de plans de qualité (ITP)
+7. Modèle de données (Code Python si pertinent)
+Sois extrêmement précis, ne fais pas d'hallucinations, utilise tes connaissances techniques les plus pointues.`;
+
           const response = await ai.models.generateContent({
             model: modelName,
-            contents: prompt,
+            contents: [
+              { role: 'user', parts: [{ text: systemPrompt + "\n\nQuestion : " + question }] }
+            ],
             config: {
               safetySettings: [
                 { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_NONE' },
                 { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_NONE' },
                 { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_NONE' },
                 { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_NONE' }
-              ]
+              ],
+              temperature: 0.2 // Très faible pour garantir la rigueur technique
             }
           });
-          
+
           if (response && response.text) {
-            data.answerRaw = data.answer;
+            console.log('[gemini-fallback] Réponse d\'expert générée par Gemini avec succès.');
+            
+            // Remplacement de la réponse locale (erronée) par celle de Gemini
+            data.answerRaw = data.answer; // On garde l'ancienne au cas où
             data.answer = response.text;
-            data.fallbackUsed = 'gemini';
+            data.fallbackUsed = 'gemini-expert';
             data.enriched = true;
-            console.log('[gemini-fallback] Réponse Gemini substituée.');
           }
         } catch (error) {
-          console.error('[gemini-fallback] Erreur appel secours :', error.message);
+          console.error('[gemini-fallback] Erreur appel Gemini :', error.message);
+          // En cas d'erreur, on renvoie la réponse locale d'origine
         }
       }
+
+      // On renvoie la réponse finale (Gemini ou locale)
       return originalJson(data);
     };
+
     next();
   }
 
-  app.use('/api/ask', tryGeminiFallback);
-  app.use('/api/analyze-content', tryGeminiFallback);
+  // On attache l'intercepteur sur les routes d'analyse
+  app.use('/api/ask', geminiExpertInterceptor);
+  app.use('/api/analyze-content', geminiExpertInterceptor);
 
-  console.log('[gemini-fallback] Module chargé. Auto-test lancé (voir logs).');
+  console.log('[gemini-fallback] Agent Expert Gemini activé (Priorité sur les questions API/Techniques).');
 };
