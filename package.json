@@ -1,11 +1,13 @@
 ﻿{
   "name": "scholars-connect",
-  "version": "2.0.0",
-  "private": true,
+  "version": "1.0.0",
+  "description": "",
   "main": "server.js",
-  "engines": { "node": ">=18" },
-  "scripts": { "start": "node server.js" },
-   "dependencies": {
+  "scripts": {
+    "start": "node server.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
@@ -16,4 +18,8 @@
     "node-fetch": "^2.7.0",
     "pdf-parse": "^1.1.1",
     "@google/genai": "^1.52.0"
+  },
+  "engines": {
+    "node": ">=20.0.0 <21.0.0"
   }
+}
