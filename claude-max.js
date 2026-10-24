@@ -1,6 +1,6 @@
 // ============================================================
-// MODULE AUTONOME : CLAUDE 3.5 SONNET (Expert) + GÉNÉRATION PDF
-// Version : v5.2 - Modèle corrigé et code entièrement déplié
+// MODULE AUTONOME : CLAUDE OPUS (via Alias dynamique) + PDF
+// Version : v7.0 - Correctif définitif du modèle 404
 // NE MODIFIE AUCUNE LIGNE DE answer-enricher.js
 // ============================================================
 
@@ -9,21 +9,25 @@
 const PDFDocument = require('pdfkit');
 const crypto = require('crypto');
 
-// Cache temporaire pour stocker les PDF en mémoire
 const PDF_CACHE = {};
 
 module.exports = function(app, mongoose) {
   const openRouterKey = process.env.OPENROUTER_API_KEY;
-  
-  // CORRECTION : Utilisation de Claude 3.5 Sonnet, le modèle actuel le plus intelligent sur OpenRouter
-  const modelName = process.env.CLAUDE_MODEL || 'anthropic/claude-3.5-sonnet'; 
 
   if (!openRouterKey) {
     console.warn('[claude-max] OPENROUTER_API_KEY absente. Module désactivé.');
     return;
   }
 
-  console.log(`[claude-max] Modèle configuré : ${modelName}`);
+  // CORRECTION : Utilisation de l'alias "latest" qui pointe toujours vers le modèle Opus actuel.
+  // La liste de secours garantit qu'un modèle valide sera trouvé même si l'alias change.
+  const MODEL_CANDIDATES = [
+    '~anthropic/claude-opus-latest', // Alias OpenRouter (toujours à jour)
+    'anthropic/claude-opus-4.8',      // Version stable la plus récente connue
+    'anthropic/claude-sonnet-4.6'     // Solution de repli
+  ];
+
+  console.log('[claude-max] Initialisé. Modèle préféré :', MODEL_CANDIDATES[0]);
 
   // ============================================================
   // FONCTION DE GÉNÉRATION DU PDF
@@ -37,7 +41,7 @@ module.exports = function(app, mongoose) {
         doc.on('data', chunk => chunks.push(chunk));
         doc.on('end', () => resolve(Buffer.concat(chunks)));
 
-        // --- EN-TÊTE DU RAPPORT ---
+        // --- EN-TÊTE ---
         doc.font('Helvetica-Bold').fontSize(22).fillColor('#0a2540').text('RAPPORT TECHNIQUE D\'EXPERTISE', { align: 'center' });
         doc.moveDown(0.5);
         
@@ -45,7 +49,6 @@ module.exports = function(app, mongoose) {
         doc.text(`Date : ${new Date().toLocaleString('fr-FR')}`, { align: 'right' });
         doc.moveDown(1);
 
-        // Ligne de séparation
         doc.moveTo(50, doc.y).lineTo(545, doc.y).strokeColor('#cccccc').stroke();
         doc.moveDown(1);
 
@@ -54,7 +57,7 @@ module.exports = function(app, mongoose) {
         doc.font('Helvetica-Oblique').fontSize(11).fillColor('#555555').text(question);
         doc.moveDown(1.5);
 
-        // --- CORPS DU RAPPORT (Parsing Markdown) ---
+        // --- CORPS ---
         const lines = markdown.split('\n');
         let inCodeBlock = false;
 
@@ -62,41 +65,17 @@ module.exports = function(app, mongoose) {
           line = line.trim();
           if (line === '') continue;
 
-          // Blocs de code
-          if (line.startsWith('```')) {
-            inCodeBlock = !inCodeBlock;
-            doc.moveDown(0.5);
-            continue;
-          }
-
-          if (inCodeBlock) {
-            doc.font('Courier').fontSize(9).fillColor('#0055aa').text(line, { lineGap: 2 });
-            continue;
-          }
-
-          // Titres
-          if (line.startsWith('### ')) {
-            doc.moveDown(1).font('Helvetica-Bold').fontSize(13).fillColor('#1e5aa8').text(line.replace('### ', ''));
-            doc.moveDown(0.3);
-          } else if (line.startsWith('## ')) {
-            doc.moveDown(1.2).font('Helvetica-Bold').fontSize(15).fillColor('#0a2540').text(line.replace('## ', ''));
-            doc.moveDown(0.5);
-          } else if (line.startsWith('# ')) {
-            doc.moveDown(1.5).font('Helvetica-Bold').fontSize(18).fillColor('#0a2540').text(line.replace('# ', ''));
-            doc.moveDown(0.5);
-          } 
-          // Listes à puces
-          else if (line.startsWith('- ') || line.startsWith('* ')) {
-            doc.font('Helvetica').fontSize(11).fillColor('#333333').text('• ' + line.substring(2), { indent: 15, lineGap: 3 });
-          } 
-          // Tableaux (simplifiés)
+          if (line.startsWith('```')) { inCodeBlock = !inCodeBlock; doc.moveDown(0.5); continue; }
+          if (inCodeBlock) { doc.font('Courier').fontSize(9).fillColor('#0055aa').text(line, { lineGap: 2 }); continue; }
+          if (line.startsWith('### ')) { doc.moveDown(1).font('Helvetica-Bold').fontSize(13).fillColor('#1e5aa8').text(line.replace('### ', '')); doc.moveDown(0.3); }
+          else if (line.startsWith('## ')) { doc.moveDown(1.2).font('Helvetica-Bold').fontSize(15).fillColor('#0a2540').text(line.replace('## ', '')); doc.moveDown(0.5); }
+          else if (line.startsWith('# ')) { doc.moveDown(1.5).font('Helvetica-Bold').fontSize(18).fillColor('#0a2540').text(line.replace('# ', '')); doc.moveDown(0.5); }
+          else if (line.startsWith('- ') || line.startsWith('* ')) { doc.font('Helvetica').fontSize(11).fillColor('#333333').text('• ' + line.substring(2), { indent: 15, lineGap: 3 }); }
           else if (line.startsWith('|')) {
-            if (line.includes('---')) continue; // Ignorer les séparateurs
+            if (line.includes('---')) continue;
             const cells = line.split('|').filter(c => c.trim() !== '').map(c => c.trim()).join('  |  ');
             doc.font('Courier').fontSize(9).fillColor('#333333').text(cells, { indent: 5 });
-          }
-          // Texte normal (nettoyage du gras)
-          else {
+          } else {
             let cleanLine = line.replace(/\*\*(.*?)\*\*/g, '$1');
             doc.font('Helvetica').fontSize(11).fillColor('#333333').text(cleanLine, { align: 'justify', lineGap: 4 });
           }
@@ -113,9 +92,7 @@ module.exports = function(app, mongoose) {
         }
 
         doc.end();
-      } catch (err) {
-        reject(err);
-      }
+      } catch (err) { reject(err); }
     });
   }
 
@@ -124,9 +101,7 @@ module.exports = function(app, mongoose) {
   // ============================================================
   app.get('/api/claude-pdf/:token', (req, res) => {
     const pdfData = PDF_CACHE[req.params.token];
-    if (!pdfData || pdfData.exp < Date.now()) {
-      return res.status(404).send('Document PDF expiré ou introuvable.');
-    }
+    if (!pdfData || pdfData.exp < Date.now()) return res.status(404).send('PDF expiré.');
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', 'inline; filename="rapport.pdf"');
     res.send(pdfData.buffer);
@@ -140,7 +115,6 @@ module.exports = function(app, mongoose) {
 
     const originalJson = res.json.bind(res);
     
-    // Extraction du nom depuis le token
     let userName = 'Utilisateur';
     try {
       const authHeader = req.headers.authorization || '';
@@ -159,68 +133,73 @@ module.exports = function(app, mongoose) {
 
       const question = req.body.question || "Analyse ce document.";
       const content = req.body.content ? `\n\nDocument :\n${req.body.content}` : '';
+      const prompt = question + content;
 
-      console.log(`[claude-max] Appel de ${modelName}...`);
+      let success = false;
+      let lastError = null;
 
-      try {
-        const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-          method: "POST",
-          headers: {
-            "Authorization": `Bearer ${openRouterKey}`,
-            "Content-Type": "application/json",
-            "HTTP-Referer": "https://scholars-connect-app.onrender.com"
-          },
-          body: JSON.stringify({
-            model: modelName,
-            temperature: 0.1,
-            messages: [
-              {
-                role: "system",
-                content: "Tu es un expert senior. Rédige un rapport technique exhaustif, très bien structuré avec des titres (#, ##, ###), des listes à puces et des tableaux. Sépare distinctement les chapitres."
-              },
-              { role: "user", content: question + content }
-            ]
-          })
-        });
+      // Boucle sur les modèles candidats pour trouver le premier qui fonctionne
+      for (const model of MODEL_CANDIDATES) {
+        if (success) break;
+        console.log(`[claude-max] Tentative avec le modèle : ${model}...`);
 
-        if (!response.ok) {
-          const errBody = await response.text();
-          throw new Error(`HTTP ${response.status} - ${errBody}`);
+        try {
+          const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+            method: "POST",
+            headers: {
+              "Authorization": `Bearer ${openRouterKey}`,
+              "Content-Type": "application/json",
+              "HTTP-Referer": "https://scholars-connect-app.onrender.com"
+            },
+            body: JSON.stringify({
+              model: model,
+              // Le paramètre temperature est retiré car non supporté par les modèles 5.x
+              messages: [
+                { role: "system", content: "Tu es un expert senior. Rédige un rapport technique exhaustif, très bien structuré avec des titres (#, ##, ###), des listes à puces et des tableaux. Sépare distinctement les chapitres." },
+                { role: "user", content: prompt }
+              ]
+            })
+          });
+
+          if (!response.ok) {
+            const errBody = await response.text();
+            throw new Error(`HTTP ${response.status} - ${errBody}`);
+          }
+
+          const resData = await response.json();
+          
+          if (resData.choices && resData.choices[0] && resData.choices[0].message) {
+            console.log(`[claude-max] Succès avec ${model}. Génération du PDF...`);
+            
+            const rawMarkdown = resData.choices[0].message.content;
+            const pdfBuffer = await generatePDF(rawMarkdown, userName, question);
+            
+            const token = crypto.randomBytes(16).toString('hex');
+            PDF_CACHE[token] = { buffer: pdfBuffer, exp: Date.now() + (2 * 60 * 60 * 1000) };
+
+            data.answerRaw = data.answer; 
+            data.answer = `
+              <div style="width: 100%; height: 800px; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.1); border: 1px solid #e5e7eb; margin-top: 15px; background: #525659;">
+                <iframe src="/api/claude-pdf/${token}" width="100%" height="100%" style="border: none;"></iframe>
+              </div>
+              <div style="text-align: center; margin-top: 10px;">
+                <a href="/api/claude-pdf/${token}" download="Rapport_${userName.replace(/\s+/g, '_')}.pdf" style="display: inline-block; background: #0a2540; color: white; padding: 10px 20px; border-radius: 6px; text-decoration: none; font-weight: bold; font-family: Arial, sans-serif;">
+                  ⬇ Télécharger le PDF
+                </a>
+              </div>
+            `;
+            data.claudeMaxUsed = true;
+            data.enriched = true;
+            success = true;
+          }
+        } catch (error) {
+          console.warn(`[claude-max] Échec avec ${model} : ${error.message}`);
+          lastError = error;
         }
+      }
 
-        const resData = await response.json();
-        
-        if (resData.choices && resData.choices[0] && resData.choices[0].message) {
-          console.log('[claude-max] Génération du PDF en cours...');
-          
-          const rawMarkdown = resData.choices[0].message.content;
-          
-          // Génération du buffer PDF
-          const pdfBuffer = await generatePDF(rawMarkdown, userName, question);
-          
-          // Création d'un jeton temporaire pour le PDF
-          const token = crypto.randomBytes(16).toString('hex');
-          PDF_CACHE[token] = { buffer: pdfBuffer, exp: Date.now() + (2 * 60 * 60 * 1000) }; // Expire dans 2h
-
-          // On remplace la réponse par un lecteur PDF intégré dans l'interface
-          data.answerRaw = data.answer; 
-          data.answer = `
-            <div style="width: 100%; height: 800px; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.1); border: 1px solid #e5e7eb; margin-top: 15px; background: #525659;">
-              <iframe src="/api/claude-pdf/${token}" width="100%" height="100%" style="border: none;"></iframe>
-            </div>
-            <div style="text-align: center; margin-top: 10px;">
-              <a href="/api/claude-pdf/${token}" download="Rapport_${userName.replace(/\s+/g, '_')}.pdf" style="display: inline-block; background: #0a2540; color: white; padding: 10px 20px; border-radius: 6px; text-decoration: none; font-weight: bold; font-family: Arial, sans-serif;">
-                ⬇ Télécharger le PDF
-              </a>
-            </div>
-          `;
-          data.claudeMaxUsed = true;
-          data.enriched = true;
-          console.log('[claude-max] PDF généré et affiché avec succès.');
-        }
-      } catch (error) {
-        console.error(`[claude-max] Erreur :`, error.message);
-        // En cas d'erreur (404, etc.), le module Gemini prend le relais automatiquement
+      if (!success) {
+        console.error(`[claude-max] Tous les modèles ont échoué. Dernière erreur : ${lastError?.message}. Le fallback Gemini prendra le relais.`);
       }
 
       return originalJson(data);
@@ -232,5 +211,5 @@ module.exports = function(app, mongoose) {
   app.use('/api/ask', claudeExpertInterceptor);
   app.use('/api/analyze-content', claudeExpertInterceptor);
 
-  console.log(`[claude-max] Agent Expert (${modelName}) + Générateur PDF natif activé.`);
+  console.log('[claude-max] Agent Expert Claude (alias dynamique) + Générateur PDF activé.');
 };
