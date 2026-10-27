@@ -21,6 +21,7 @@ app.use(cors({ origin: true, credentials: true }));
 app.use(express.json({ limit: "20mb" }));
 // Middleware language-fix (ajout separe)
 require('./language-fix')(app);
+require('./answer-enricher')(app, mongoose);
 
 app.use(express.static("public"));
 app.use("/uploads", express.static("uploads"));
