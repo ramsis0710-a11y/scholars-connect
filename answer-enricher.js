@@ -1,7 +1,14 @@
 'use strict';
 
 module.exports = function(app, mongoose) {
-  console.log('[answer-enricher] Chargement des modules experts...');
+  
+// ============================================================
+// AJOUT DES BASES DE CONNAISSANCES (KB)
+// ============================================================
+try { require('./api14l-kb')(app, mongoose); } catch (e) { console.warn('api14l', e.message); }
+try { require('./oem-chemical-injection-kb')(app, mongoose); } catch (e) { console.warn('oem', e.message); }
+try { require('./bct-kb')(app, mongoose); } catch (e) { console.warn('bct', e.message); }
+console.log('[answer-enricher] Chargement des modules experts...');
 
   // 1. Modules de base de connaissances (API 14L, OEM, BCT)
   try { require('./api14l-kb')(app, mongoose); } catch (e) { console.warn('api14l', e.message); }
@@ -35,6 +42,14 @@ module.exports = function(app, mongoose) {
     next();
   });
 
-  console.log('[answer-enricher] Tous les modules sont chargés, affichage corrigé.');
+  
+// ============================================================
+// AJOUT DES BASES DE CONNAISSANCES (KB)
+// ============================================================
+try { require('./api14l-kb')(app, mongoose); } catch (e) { console.warn('api14l', e.message); }
+try { require('./oem-chemical-injection-kb')(app, mongoose); } catch (e) { console.warn('oem', e.message); }
+try { require('./bct-kb')(app, mongoose); } catch (e) { console.warn('bct', e.message); }
+console.log('[answer-enricher] Tous les modules sont chargés, affichage corrigé.');
 };
+
 
