@@ -37,3 +37,4 @@ module.exports = function(app, mongoose) {
 
   console.log('[answer-enricher] Tous les modules sont chargés, affichage corrigé.');
 };
+
