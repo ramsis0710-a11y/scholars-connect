@@ -219,7 +219,7 @@ async function translateMessage(el) {
     div.style.paddingTop = '8px';
     div.style.borderTop = '1px dashed #e5e7eb';
     div.style.fontStyle = 'italic';
-    div.textContent = '[' + target + '] ' + r.translation;
+    div.innerHTML = '[' + target + '] ' + r.translation;
     el.parentElement.appendChild(div);
   } catch (e) { alert('Erreur traduction : ' + e.message); }
 }
@@ -252,7 +252,7 @@ async function analyzeContent(){
     if(document.getElementById('autoSpeak').checked){
       speak(r.answer,language==='ar'?'ar-SA':(language==='en'?'en-US':'fr-FR'));
     }
-  }catch(e){loading.textContent='Erreur : '+e.message;}
+  }catch(e){loading.innerHTML = 'Erreur : '+e.message;}
 }
 document.addEventListener('keydown',function(e){if(e.key==='Escape')closeAnalyzeDialog();});
 
@@ -342,3 +342,4 @@ document.getElementById('domain').addEventListener('input', function(e) {
 </div>
   <script src="/voice-fix.js"></script>
 </body></html>
+
