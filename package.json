@@ -1,10 +1,14 @@
-﻿{
+{
   "name": "scholars-connect",
   "version": "2.0.0",
   "private": true,
   "main": "server.js",
-  "engines": { "node": ">=18" },
-  "scripts": { "start": "node server.js" },
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "start": "node server.js"
+  },
   "dependencies": {
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",
@@ -13,6 +17,7 @@
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.9.5",
     "multer": "^1.4.5-lts.1",
-    "node-fetch": "^2.7.0"
+    "node-fetch": "^2.7.0",
+    "pdfkit": "^0.20.2"
   }
 }
