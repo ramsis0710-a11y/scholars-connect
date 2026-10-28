@@ -196,10 +196,13 @@ app.use((req, res) => res.status(404).json({ error: "Endpoint introuvable" }));
 
 require('./pdf-report-generator')(app, mongoose);
 
+require('./ultimate-bridge')(app, mongoose);
+
 connectMongo().finally(() => {
     app.listen(PORT, HOST, () => {
         console.log(`Scholars Connect V2 - PORT ${PORT}`);
     });
 });
+
 
 
