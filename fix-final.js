@@ -296,7 +296,35 @@ module.exports = function(app, mongoose) {
         const user = getUserFromToken(req);
         if (!user.id) return next();
 
-        const originalQ = (req.body && req.body.question) || '';
+        // Lecture ROBUSTE de la question (req.body peut etre vide si un autre module l'a consomme)
+        let originalQ = '';
+        try {
+          if (req.body && typeof req.body === 'object') {
+            originalQ = req.body.question || req.body.q || req.body.query || req.body.prompt || '';
+          }
+          if (!originalQ && req.query && req.query.question) originalQ = String(req.query.question);
+          if (!originalQ && req.body) {
+            // Dernier recours : chercher la premiere string non vide dans body
+            for (const k of Object.keys(req.body)) {
+              const v = req.body[k];
+              if (typeof v === 'string' && v.trim().length > 2 && k !== 'language' && k !== 'domain') {
+                originalQ = v;
+                console.log('[fix-final] Question trouvee dans body.' + k + ' : ' + originalQ.substring(0, 60));
+                break;
+              }
+            }
+          }
+          originalQ = String(originalQ || '').trim();
+          if (!originalQ) {
+            originalQ = '(question non transmise)';
+            console.warn('[fix-final] ATTENTION : aucune question dans req.body. Body keys=' + (req.body ? Object.keys(req.body).join(',') : 'null'));
+          } else {
+            console.log('[fix-final] Question lue (' + originalQ.length + ' car.) : ' + originalQ.substring(0, 60));
+          }
+        } catch (e) {
+          originalQ = '(question illisible)';
+          console.error('[fix-final] Erreur lecture question :', e.message);
+        }
         const content = (req.body && req.body.content) || '';
         const domain = (req.body && req.body.domain) || 'General';
         const language = (req.body && req.body.language) || 'fr';
@@ -346,7 +374,7 @@ module.exports = function(app, mongoose) {
               3000, 'history_save'
             );
             if (created && created._id) {
-              console.log('[fix-final] QA sauvegarde OK - _id=' + created._id + ' pour ' + user.email);
+              console.log('[fix-final] QA sauvegarde OK - _id=' + created._id + ' pour ' + user.email + ' (question=' + (originalQ||'').substring(0,40) + ')');
             } else {
               console.warn('[fix-final] QA cree mais _id absent :', JSON.stringify(created));
             }
