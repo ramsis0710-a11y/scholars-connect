@@ -5,7 +5,7 @@ const crypto = require('crypto');
 const mongoose = require('mongoose');
 const PDF_CACHE = {};
 
-const VERSION = 'V14';
+const VERSION = 'V15';
 
 const DOMAINES_18 = [
   'General','Religion','Education','Technique','Analyse',
@@ -216,8 +216,65 @@ module.exports = function(app, mongoose) {
     return '';
   }
 
+  // === HELPER : parser le body brut si pas encore parse par express.json ===
+  function ensureBodyParsed(req) {
+    return new Promise((resolve) => {
+      // Si express.json a deja parse, req.body est un objet avec les cles
+      if (req.body && typeof req.body === 'object' && Object.keys(req.body).length > 0) {
+        return resolve(req.body);
+      }
+      // Si le body est deja parse mais vide, ou pas parse : on lit le stream
+      if (req._bodyParsedByFix) {
+        return resolve(req.body || {});
+      }
+      req._bodyParsedByFix = true;
+
+      const chunks = [];
+      let finished = false;
+      const done = (data) => {
+        if (finished) return;
+        finished = true;
+        try {
+          req.body = data;
+        } catch (e) {}
+        resolve(data);
+      };
+
+      // Timeout 2s pour ne pas bloquer
+      const timer = setTimeout(() => {
+        done(req.body || {});
+      }, 2000);
+
+      try {
+        req.on('data', (chunk) => { chunks.push(chunk); });
+        req.on('end', () => {
+          clearTimeout(timer);
+          try {
+            const raw = Buffer.concat(chunks).toString('utf8');
+            if (!raw) return done({});
+            const parsed = JSON.parse(raw);
+            done(parsed || {});
+          } catch (e) {
+            done({});
+          }
+        });
+        req.on('error', () => { clearTimeout(timer); done({}); });
+      } catch (e) {
+        clearTimeout(timer);
+        done(req.body || {});
+      }
+    });
+  }
+
   const masterMiddleware = async function(req, res, next) {
-    // ============ CAPTURE ULTRA-IMMEDIATE (avant tout) ============
+    // ============ PARSE MANUEL SI BESOIN ============
+    try {
+      await ensureBodyParsed(req);
+    } catch (e) {
+      console.warn('[fix-final] ensureBodyParsed err:', e.message);
+    }
+
+    // ============ CAPTURE APRES PARSE ============
     let Q = '';
     try {
       if (req.body && typeof req.body === 'object') {
@@ -229,7 +286,7 @@ module.exports = function(app, mongoose) {
     if (!Q) {
       Q = '(question vide - body non parse)';
     }
-    req._Q_v14 = Q;
+    req._Q_v15 = Q;
     console.log('[fix-final] ' + VERSION + ' CAPTURE: "' + Q.substring(0,80) + '" (len=' + Q.length + ')');
 
     let path = '';
@@ -277,12 +334,12 @@ module.exports = function(app, mongoose) {
 
       if (method === 'POST' && (path === '/api/ask' || path === '/api/analyze-content')) {
         const user = getUserFromToken(req);
-        console.log('[fix-final] ' + VERSION + ' POST ' + path + ' user=' + (user.email || 'anon') + ' Q_v14="' + req._Q_v14.substring(0,60) + '"');
+        console.log('[fix-final] ' + VERSION + ' POST ' + path + ' user=' + (user.email || 'anon') + ' Q_v14="' + req._Q_v15.substring(0,60) + '"');
 
         if (!user.id) { return next(); }
 
         // UTILISER LA CAPTURE ULTRA-IMMEDIATE
-        const originalQ = String(req._Q_v14 || '').trim();
+        const originalQ = String(req._Q_v15 || '').trim();
         const domain = (req.body && req.body.domain) || 'General';
         const language = (req.body && req.body.language) || 'fr';
         const content = (req.body && req.body.content) || '';
