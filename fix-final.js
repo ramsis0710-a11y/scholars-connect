@@ -132,7 +132,7 @@ function sendJson(res, data, status) {
 }
 
 module.exports = function(app, mongoose) {
-  console.log('[fix-final] Chargement v3 (routes autonomes via res.end)...');
+  console.log('[fix-final] Chargement v4 (res.end + req.url safe)...');
   const router = app._router || app.router;
   if (!router || !router.stack) { console.error('[fix-final] Router non initialise'); return; }
 
@@ -147,10 +147,10 @@ module.exports = function(app, mongoose) {
     const { FD } = getModels();
     if (!FD) return '';
     try {
-      const tokens = question.toLowerCase().match(/\b\w{3,}\b/g) || [];
+      const tokens = String(question || '').toLowerCase().match(/\b\w{3,}\b/g) || [];
       const docs = await withTimeout(FD.find({}).limit(500).lean(), 3000, 'rag_timeout');
       let best = null, maxScore = 0;
-      const qLower = question.toLowerCase();
+      const qLower = String(question || '').toLowerCase();
       docs.forEach(d => {
         const title = (d.title || '').toLowerCase();
         const content = (d.content || '').toLowerCase();
@@ -159,8 +159,8 @@ module.exports = function(app, mongoose) {
           if (title.includes(t)) score += 10;
           if (content.includes(t)) score += 1;
         });
-        if (qLower.includes('14l') && title.includes('14l')) score += 20;
-        if (title.includes('vam') && !qLower.includes('vam')) score -= 15;
+        if (qLower.indexOf('14l') !== -1 && title.indexOf('14l') !== -1) score += 20;
+        if (title.indexOf('vam') !== -1 && qLower.indexOf('vam') === -1) score -= 15;
         if (score > maxScore) { maxScore = score; best = d; }
       });
       if (best && maxScore > 0) {
@@ -172,50 +172,57 @@ module.exports = function(app, mongoose) {
   }
 
   const masterMiddleware = async function(req, res, next) {
-    const path = req.path;
-    const method = req.method;
+    // CORRECTION CRITIQUE : normaliser path a partir de req.url (toujours defini)
+    let path = '';
+    try {
+      const rawUrl = req.url || req.originalUrl || '';
+      const cleanUrl = rawUrl.split('?')[0].split('#')[0];
+      path = cleanUrl || '/';
+    } catch (e) { path = '/'; }
 
-    // GET /api/domains
-    if (method === 'GET' && path === '/api/domains') {
-      return sendJson(res, { domains: DOMAINES_18 });
-    }
+    const method = (req.method || 'GET').toUpperCase();
 
-    // GET /api/history
-    if (method === 'GET' && path === '/api/history') {
-      const user = getUserFromToken(req);
-      if (!user.id) return sendJson(res, { items: [] }, 401);
-      const { QA } = getModels();
-      if (!QA) return sendJson(res, { items: [] });
-      try {
-        const items = await withTimeout(QA.find({ userId: user.id }).sort({ createdAt: -1 }).limit(200).lean(), 3000, 'history_timeout');
-        return sendJson(res, { items });
-      } catch (e) {
-        console.warn('[fix-final] history err:', e.message);
-        return sendJson(res, { items: [] });
+    try {
+      // GET /api/domains
+      if (method === 'GET' && path === '/api/domains') {
+        return sendJson(res, { domains: DOMAINES_18 });
       }
-    }
 
-    // GET /api/ultimate-pdf/:token
-    if (method === 'GET' && path.indexOf('/api/ultimate-pdf/') === 0) {
-      const token = path.replace('/api/ultimate-pdf/', '');
-      const d = PDF_CACHE[token];
-      if (!d || d.exp < Date.now()) {
-        res.statusCode = 404;
-        res.setHeader('Content-Type', 'text/plain');
-        return res.end('PDF expire.');
+      // GET /api/history
+      if (method === 'GET' && path === '/api/history') {
+        const user = getUserFromToken(req);
+        if (!user.id) return sendJson(res, { items: [] }, 401);
+        const { QA } = getModels();
+        if (!QA) return sendJson(res, { items: [] });
+        try {
+          const items = await withTimeout(QA.find({ userId: user.id }).sort({ createdAt: -1 }).limit(200).lean(), 3000, 'history_timeout');
+          return sendJson(res, { items });
+        } catch (e) {
+          console.warn('[fix-final] history err:', e.message);
+          return sendJson(res, { items: [] });
+        }
       }
-      res.setHeader('Content-Type', 'application/pdf');
-      res.setHeader('Content-Disposition', 'inline; filename="rapport_expertise.pdf"');
-      res.setHeader('Content-Length', d.buffer.length);
-      return res.end(d.buffer);
-    }
 
-    // POST /api/ask et POST /api/analyze-content
-    if (method === 'POST' && (path === '/api/ask' || path === '/api/analyze-content')) {
-      const user = getUserFromToken(req);
-      if (!user.id) return next();
+      // GET /api/ultimate-pdf/:token
+      if (method === 'GET' && path.indexOf('/api/ultimate-pdf/') === 0) {
+        const token = path.replace('/api/ultimate-pdf/', '');
+        const d = PDF_CACHE[token];
+        if (!d || d.exp < Date.now()) {
+          res.statusCode = 404;
+          res.setHeader('Content-Type', 'text/plain');
+          return res.end('PDF expire.');
+        }
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', 'inline; filename="rapport_expertise.pdf"');
+        res.setHeader('Content-Length', d.buffer.length);
+        return res.end(d.buffer);
+      }
 
-      try {
+      // POST /api/ask et POST /api/analyze-content
+      if (method === 'POST' && (path === '/api/ask' || path === '/api/analyze-content')) {
+        const user = getUserFromToken(req);
+        if (!user.id) return next();
+
         const originalQ = (req.body && req.body.question) || '';
         const content = (req.body && req.body.content) || '';
         const domain = (req.body && req.body.domain) || 'General';
@@ -275,10 +282,10 @@ module.exports = function(app, mongoose) {
           enriched: true,
           domain: domain
         });
-      } catch (e) {
-        console.error('[fix-final] route err:', e.message);
-        return sendJson(res, { ok: false, error: e.message }, 500);
       }
+    } catch (e) {
+      console.error('[fix-final] masterMiddleware err:', e.message);
+      // Ne pas crasher : laisser les autres routes essayer
     }
 
     return next();
@@ -295,5 +302,5 @@ module.exports = function(app, mongoose) {
     console.error('[fix-final] inject err:', e.message);
   }
 
-  console.log('[fix-final] Pret - interception totale des routes critiques');
+  console.log('[fix-final] Pret - interception totale, path normalise depuis req.url');
 };
