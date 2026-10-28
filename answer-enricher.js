@@ -1,62 +1,57 @@
 'use strict';
-
 module.exports = function(app, mongoose) {
-  console.log('[answer-enricher] Mode texte propre avec RAG.');
+  console.log('[answer-enricher] Mode RAG ameliore.');
 
-  // 1. Bases de connaissances
-  try { require('./api14l-kb')(app, mongoose); } catch (e) {}
-  try { require('./oem-chemical-injection-kb')(app, mongoose); } catch (e) {}
-  try { require('./bct-kb')(app, mongoose); } catch (e) {}
+  // 1. Charger les bases de connaissances
+  try { require('./api14l-kb')(app, mongoose); } catch (e) { console.warn('api14l', e.message); }
+  try { require('./oem-chemical-injection-kb')(app, mongoose); } catch (e) { console.warn('oem', e.message); }
+  try { require('./bct-kb')(app, mongoose); } catch (e) { console.warn('bct', e.message); }
 
-  // 2. Gemini en secours UNIQUEMENT (pas de PDF, pas de HTML)
-  try { require('./gemini-fallback')(app, mongoose); } catch (e) {}
-
-  // 3. Injection RAG : on cherche le document pertinent dans la base
+  // 2. RAG AMELIORE : Score basé sur le titre + filtrage strict
   app.use(['/api/ask', '/api/analyze-content'], async function(req, res, next) {
     if (!req.body || !req.body.question) return next();
     
     try {
       const AutoFeedDoc = mongoose.model('AutoFeedDocument');
-      const q = req.body.question;
-      const tokens = q.toLowerCase().match(/\b\w{3,}\b/g) || [];
+      const q = req.body.question.toLowerCase();
+      
+      // Mots-clés techniques de la question
+      const qKeywords = q.match(/\b\w{3,}\b/g) || [];
       
       const docs = await AutoFeedDoc.find({}).limit(500).lean();
-      let bestDoc = null, maxScore = 0;
+      let bestDoc = null;
+      let maxScore = 0;
       
       docs.forEach(d => {
-        const content = (d.title + ' ' + d.content).toLowerCase();
+        const title = (d.title || '').toLowerCase();
+        const content = (d.content || '').toLowerCase();
         let score = 0;
-        tokens.forEach(t => { if (content.includes(t)) score++; });
+        
+        // PRIORITE 1 : Si un mot-clé de la question est dans le TITRE (+10 points)
+        qKeywords.forEach(kw => { if (title.includes(kw)) score += 10; });
+        
+        // PRIORITE 2 : Si le titre contient "API 14L" spécifiquement (+20 points)
+        if (q.includes('14l') && title.includes('14l')) score += 20;
+        
+        // PRIORITE 3 : Contenu (max +2 par mot-clé)
+        qKeywords.forEach(kw => { if (content.includes(kw)) score += 1; });
+        
+        // PENALITE : Si le titre contient VAM TOP mais pas la question, on pénalise
+        if (title.includes('vam') && !q.includes('vam') && !q.includes('top')) score -= 15;
+        
         if (score > maxScore) { maxScore = score; bestDoc = d; }
       });
 
-      if (bestDoc && maxScore > 1) {
-        console.log('[RAG] Document trouve :', bestDoc.title);
-        req.body.question = `REPONDS UNIQUEMENT avec ces donnees techniques :\n\n${bestDoc.content}\n\nQuestion : ${q}`;
+      console.log('[RAG] Meilleur document : ' + (bestDoc ? bestDoc.title : 'aucun') + ' (score=' + maxScore + ')');
+      
+      // On injecte si le score est positif
+      if (bestDoc && maxScore > 0) {
+        // On force l'IA à utiliser ces données avec le format [EXTRAITS]
+        req.body.question = `Question originale : ${req.body.question}\n\n[EXTRAITS]\nTitre : ${bestDoc.title}\nContenu : ${bestDoc.content}\n[FIN EXTRAITS]`;
       }
     } catch (e) {
-      // Si le modele n'existe pas encore, on ignore
+      console.warn('[RAG] Erreur:', e.message);
     }
-    
-    next();
-  });
-
-  // 4. Nettoyage : si par erreur du HTML arrive, on le transforme en texte
-  app.use(['/api/ask', '/api/analyze-content'], function(req, res, next) {
-    const orig = res.json.bind(res);
-    res.json = function(data) {
-      if (!data || !data.answer) return orig(data);
-      // Si la réponse contient des balises HTML, on nettoie
-      if (/<[a-z][\s\S]*>/i.test(data.answer)) {
-        data.answer = data.answer
-          .replace(/<br\s*\/?>/gi, '\n')
-          .replace(/<\/p>/gi, '\n\n')
-          .replace(/<[^>]+>/g, '')
-          .replace(/&nbsp;/g, ' ')
-          .trim();
-      }
-      return orig(data);
-    };
     next();
   });
 };
