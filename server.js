@@ -20,6 +20,7 @@ app.use(cors({ origin: true, credentials: true }));
 app.use(express.json({ limit: "20mb" }));
 
 require('./language-fix')(app);
+require('./auto-feed')(app, mongoose);
 require('./answer-enricher')(app, mongoose);
 
 app.use(express.static("public"));
@@ -198,3 +199,4 @@ connectMongo().finally(() => {
         console.log(`Scholars Connect V2 - PORT ${PORT}`);
     });
 });
+
