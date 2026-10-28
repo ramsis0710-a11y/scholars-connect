@@ -143,7 +143,7 @@ function sendJson(res, data, status) {
 }
 
 module.exports = function(app, mongoose) {
-  console.log('[fix-final] ========== CHARGEMENT V12 (capture tardive a lecriture) ==========');
+  console.log('[fix-final] ========== CHARGEMENT V13 (utilise originalQ fiable) ==========');
   const router = app._router || app.router;
   if (!router || !router.stack) { console.error('[fix-final] Router non initialise'); return; }
 
@@ -246,7 +246,7 @@ module.exports = function(app, mongoose) {
           if (FixFD) counts.fixFD = await withTimeout(FixFD.countDocuments(), 2000, 'count_fd');
         } catch (e) { counts.error = e.message; }
         return sendJson(res, {
-          version: 'v12',
+          version: 'v13',
           readyState: state,
           readyStateName: stateNames[state] || 'unknown',
           models: { FixQA: !!FixQA, FixFD: !!FixFD },
@@ -344,16 +344,18 @@ module.exports = function(app, mongoose) {
             if (mongoose.connection.readyState !== 1) {
               await withTimeout(mongoose.connection.asPromise(), 3000, 'conn_wait');
             }
-            // === CAPTURE TARDIVE : relire req.body au moment d'ecrire ===
-            // (tous les parsers ont tourne maintenant)
-            let qToSave = originalQ;
-            try {
-              const freshQ = String((req.body && (req.body.question || req.body.q || req.body.query || req.body.prompt)) || '').trim();
-              if (freshQ && freshQ.length > 2 && freshQ !== '(question illisible)' && freshQ !== '(question non transmise)') {
-                qToSave = freshQ;
-                console.log('[fix-final] Question relue tardivement : ' + freshQ.substring(0, 60));
+            // === v13 : utiliser EXCLUSIVEMENT originalQ capture au debut ===
+            // (originalQ est fiable : il a servi a construire le prompt RAG)
+            let qToSave = String(originalQ || '').trim();
+            // Si originalQ est un placeholder, tenter une derniere fois avec req._capturedQuestion
+            if (!qToSave || qToSave === '(question illisible)' || qToSave === '(question non transmise)') {
+              const fallback = String(req._capturedQuestion || '').trim();
+              if (fallback && fallback !== '(question illisible)' && fallback !== '(question non transmise)') {
+                qToSave = fallback;
+                console.log('[fix-final] Fallback req._capturedQuestion : ' + fallback.substring(0, 60));
               }
-            } catch (e) {}
+            }
+            console.log('[fix-final] ECRITURE QA - question="' + qToSave.substring(0, 80) + '" (len=' + qToSave.length + ')');
 
             const created = await withTimeout(
               FixQA.create({
@@ -414,11 +416,11 @@ module.exports = function(app, mongoose) {
     mini.use(masterMiddleware);
     if (mini.stack && mini.stack[0]) {
       router.stack.unshift(mini.stack[0]);
-      console.log('[fix-final] Middleware MAITRE V12 injecte en position 0');
+      console.log('[fix-final] Middleware MAITRE V13 injecte en position 0');
     }
   } catch (e) {
     console.error('[fix-final] inject err:', e.message);
   }
 
-  console.log('[fix-final] ========== V10 PRET (V12) ==========');
+  console.log('[fix-final] ========== V10 PRET (V13) ==========');
 };
