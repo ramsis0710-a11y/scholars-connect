@@ -194,9 +194,12 @@ app.get("/", (req, res) => res.sendFile(path.join(__dirname, "public", "index.ht
 
 app.use((req, res) => res.status(404).json({ error: "Endpoint introuvable" }));
 
+require('./pdf-report-generator')(app, mongoose);
+
 connectMongo().finally(() => {
     app.listen(PORT, HOST, () => {
         console.log(`Scholars Connect V2 - PORT ${PORT}`);
     });
 });
+
 
