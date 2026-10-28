@@ -1,10 +1,5 @@
-// ============================================================
-// ULTIMATE-BRIDGE.JS - Module autonome unique
-//   [1] PDF avec lien cliquable (nom/email/date en en-tête)
-//   [2] Historique par utilisateur (MongoDB)
-//   [3] 18 domaines réintégrés au démarrage
-//   [4] Fallback Claude -> Gemini si la base locale est insuffisante
-// NE MODIFIE AUCUNE LIGNE existante. UNE seule ligne à ajouter dans server.js.
+ï»¿// ============================================================
+// ULTIMATE-BRIDGE.JS - Module autonome unique (Version corrigÃ©e)
 // ============================================================
 'use strict';
 const PDFDocument = require('pdfkit');
@@ -19,9 +14,8 @@ const DOMAINES_18 = [
 ];
 
 module.exports = function(app, mongoose) {
-  console.log('[ultimate-bridge] Module unique chargé.');
+  console.log('[ultimate-bridge] Module unique chargÃ©.');
 
-  // --- Modèles existants (récupérés, jamais recréés si présents) ---
   let User = null, QA = null, AutoFeedDoc = null, Domain = null;
   try { User = mongoose.model('User'); } catch(e) {}
   try { QA = mongoose.model('QA'); } catch(e) {
@@ -36,7 +30,7 @@ module.exports = function(app, mongoose) {
         createdAt: { type: Date, default: Date.now }
       });
       QA = mongoose.model('QA', s);
-    } catch(e2) { console.warn('[ultimate-bridge] QA indisponible:', e2.message); }
+    } catch(e2) {}
   }
   try { AutoFeedDoc = mongoose.model('AutoFeedDocument'); } catch(e) {}
   try { Domain = mongoose.model('Domain'); } catch(e) {
@@ -49,12 +43,9 @@ module.exports = function(app, mongoose) {
         createdAt: { type: Date, default: Date.now }
       });
       Domain = mongoose.model('Domain', s);
-    } catch(e2) { console.warn('[ultimate-bridge] Domain indisponible:', e2.message); }
+    } catch(e2) {}
   }
 
-  // ============================================================
-  // [3] 18 DOMAINES AU DEMARRAGE
-  // ============================================================
   async function ensure18Domains() {
     if (!Domain) return;
     try {
@@ -66,11 +57,10 @@ module.exports = function(app, mongoose) {
         );
       }
       const count = await Domain.countDocuments({ isDefault: true });
-      console.log(`[ultimate-bridge] ${count} domaines par defaut vérifiés.`);
+      console.log(`[ultimate-bridge] ${count} domaines par defaut vÃ©rifiÃ©s.`);
     } catch(e) { console.warn('[ultimate-bridge] domaines:', e.message); }
   }
 
-  // Route /api/domains si absente
   const hasDomainsRoute = () => {
     const stack = (app._router && app._router.stack) || [];
     return stack.some(l => l.route && l.route.path === '/api/domains');
@@ -85,9 +75,6 @@ module.exports = function(app, mongoose) {
     });
   }
 
-  // ============================================================
-  // [4] FALLBACK CLAUDE -> GEMINI
-  // ============================================================
   async function askClaude(question, content) {
     const key = process.env.OPENROUTER_API_KEY;
     if (!key) throw new Error('OPENROUTER_API_KEY absente');
@@ -102,7 +89,7 @@ module.exports = function(app, mongoose) {
             model,
             max_tokens: 4000,
             messages: [
-              { role: 'system', content: 'Tu es un expert senior multidisciplinaire (ingénierie pétrolière, sciences, droit, économie, religion, etc.). Réponds de façon détaillée, factuelle et structurée en français.' },
+              { role: 'system', content: 'Tu es un expert senior multidisciplinaire. RÃ©ponds de faÃ§on dÃ©taillÃ©e et structurÃ©e en franÃ§ais.' },
               { role: 'user', content: question + (content ? '\n\nDocument:\n' + content : '') }
             ]
           })
@@ -131,17 +118,15 @@ module.exports = function(app, mongoose) {
     return (r && r.text) || '';
   }
 
-  // ============================================================
-  // [1] GENERATION PDF
-  // ============================================================
   function cleanAnswer(answer) {
     if (!answer) return '';
     let t = String(answer);
     t = t.replace(/<br\s*\/?>/gi, '\n').replace(/<\/p>/gi, '\n\n').replace(/<\/div>/gi, '\n');
     t = t.replace(/<[^>]+>/g, '');
     t = t.replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>');
-    t = t.replace(/Le rapport technique a été généré avec succès\.[\s\S]*?---\s*/i, '');
-    t = t.replace(/?? Le rapport d.expertise a été généré[\s\S]*?_\)/i, '');
+    t = t.replace(/Le rapport technique a Ã©tÃ© gÃ©nÃ©rÃ© avec succÃ¨s\.[\s\S]*?---\s*/i, '');
+    // CORRECTION ICI : regex sÃ©curisÃ©e sans Ã©moji
+    t = t.replace(/Le rapport d.expertise a Ã©tÃ© gÃ©nÃ©rÃ©[\s\S]*?_\s*$/i, '');
     t = t.replace(/https:\/\/scholars-connect-app\.onrender\.com\/api\/(?:claude-pdf|pdf-report|ultimate-pdf)\/[a-f0-9]+/gi, '');
     return t.trim();
   }
@@ -167,7 +152,7 @@ module.exports = function(app, mongoose) {
         doc.moveTo(50, doc.y).lineTo(545, doc.y).strokeColor('#ccc').stroke();
         doc.moveDown(1);
         doc.font('Helvetica-Bold').fontSize(11).fillColor('#333').text('Sujet :');
-        doc.font('Helvetica-Oblique').fontSize(10).fillColor('#555').text(question || '(non spécifié)');
+        doc.font('Helvetica-Oblique').fontSize(10).fillColor('#555').text(question || '(non spÃ©cifiÃ©)');
         doc.moveDown(1);
         doc.moveTo(50, doc.y).lineTo(545, doc.y).strokeColor('#ccc').stroke();
         doc.moveDown(1);
@@ -178,7 +163,7 @@ module.exports = function(app, mongoose) {
           if (!line) { doc.moveDown(0.5); continue; }
           if (line.startsWith('## ')) doc.moveDown(0.5).font('Helvetica-Bold').fontSize(14).fillColor('#1e5aa8').text(line.replace('## ', ''));
           else if (line.startsWith('### ')) doc.moveDown(0.5).font('Helvetica-Bold').fontSize(12).fillColor('#0a2540').text(line.replace('### ', ''));
-          else if (line.startsWith('- ') || line.startsWith('* ')) doc.font('Helvetica').fontSize(10).fillColor('#333').text('• ' + line.substring(2), { indent: 15 });
+          else if (line.startsWith('- ') || line.startsWith('* ')) doc.font('Helvetica').fontSize(10).fillColor('#333').text('- ' + line.substring(2), { indent: 15 });
           else doc.font('Helvetica').fontSize(10).fillColor('#333').text(line, { align: 'justify' });
         }
         const pages = doc.bufferedPageRange();
@@ -193,26 +178,20 @@ module.exports = function(app, mongoose) {
     });
   }
 
-  // ============================================================
-  // EXTRACTION UTILISATEUR (JWT)
-  // ============================================================
   function getUserFromToken(req) {
     try {
       const h = req.headers.authorization || '';
       const token = h.replace('Bearer ', '').trim();
-      if (!token) return { name: 'Invité', email: 'inconnu@localhost', id: null };
+      if (!token) return { name: 'InvitÃ©', email: 'inconnu@localhost', id: null };
       const parts = token.split('.');
-      if (parts.length !== 3) return { name: 'Invité', email: 'inconnu@localhost', id: null };
+      if (parts.length !== 3) return { name: 'InvitÃ©', email: 'inconnu@localhost', id: null };
       const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString('utf8'));
       return { name: payload.name || 'Utilisateur', email: payload.email || 'inconnu@localhost', id: payload.id || null };
     } catch(e) {
-      return { name: 'Invité', email: 'inconnu@localhost', id: null };
+      return { name: 'InvitÃ©', email: 'inconnu@localhost', id: null };
     }
   }
 
-  // ============================================================
-  // MIDDLEWARE PRINCIPAL (placé EN TETE pour voir la réponse finale)
-  // ============================================================
   const bridgeMiddleware = async function(req, res, next) {
     if (req.method !== 'POST' || !req.body) return next();
     const origJson = res.json.bind(res);
@@ -225,19 +204,16 @@ module.exports = function(app, mongoose) {
       const answerRaw = (data && (data.answer || data.answerRaw)) || '';
       if (!answerRaw || typeof answerRaw !== 'string') return origJson(data);
 
-      const question = req.body.question || '(non spécifié)';
+      const question = req.body.question || '(non spÃ©cifiÃ©)';
       const content = req.body.content || '';
       const user = getUserFromToken(req);
 
-      // [4] Détection réponse insuffisante
       const cleanedText = cleanAnswer(answerRaw);
       const needsFallback = cleanedText.length < 150 ||
         /je ne (peux|sais|dispose)/i.test(cleanedText) ||
-        /désolé,? (je|nous)/i.test(cleanedText) ||
+        /dÃ©solÃ©,? (je|nous)/i.test(cleanedText) ||
         /information (non disponible|not available)/i.test(cleanedText) ||
-        /n.hésitez pas à (consulter|vérifier)/i.test(cleanedText) ||
-        /consultez? (les )?documents?/i.test(cleanedText) ||
-        /je vous encourage à consulter/i.test(cleanedText);
+        /consultez? (les )?documents?/i.test(cleanedText);
 
       let finalAnswer = answerRaw;
       let fallbackSource = null;
@@ -247,35 +223,26 @@ module.exports = function(app, mongoose) {
         try {
           finalAnswer = await askClaude(question, content);
           fallbackSource = 'claude';
-          console.log('[ultimate-bridge] Fallback CLAUDE ok (' + finalAnswer.length + ' car.)');
+          console.log('[ultimate-bridge] Fallback CLAUDE ok');
         } catch(e) {
-          console.warn('[ultimate-bridge] Claude échoué:', e.message);
+          console.warn('[ultimate-bridge] Claude Ã©chouÃ©:', e.message);
           try {
             finalAnswer = await askGemini(question, content);
             fallbackSource = 'gemini';
-            console.log('[ultimate-bridge] Fallback GEMINI ok (' + finalAnswer.length + ' car.)');
-          } catch(e2) {
-            console.warn('[ultimate-bridge] Gemini échoué:', e2.message);
-          }
+            console.log('[ultimate-bridge] Fallback GEMINI ok');
+          } catch(e2) {}
         }
       }
 
-      // [2] Historique par utilisateur
       try {
         if (QA && user.id) {
           await QA.create({
-            userId: user.id,
-            question,
-            answer: finalAnswer,
-            language: req.body.language || 'fr',
-            domain: req.body.domain || 'General',
-            sourceDoc: req.body.sourceDoc || null
+            userId: user.id, question, answer: finalAnswer,
+            language: req.body.language || 'fr', domain: req.body.domain || 'General'
           });
-          console.log('[ultimate-bridge] Historique sauvegardé pour', user.email);
         }
-      } catch(e) { console.warn('[ultimate-bridge] historique:', e.message); }
+      } catch(e) {}
 
-      // [1] PDF + lien cliquable
       try {
         processed = true;
         const pdfBuffer = await generatePDF(question, finalAnswer, user);
@@ -284,11 +251,10 @@ module.exports = function(app, mongoose) {
         const baseUrl = process.env.BASE_URL || 'https://scholars-connect-app.onrender.com';
         const link = `${baseUrl}/api/ultimate-pdf/${token}`;
         const dateStr = new Date().toLocaleString('fr-FR');
-        console.log('[ultimate-bridge] PDF généré (' + pdfBuffer.length + ' octets) pour', user.email);
-
+        
         return origJson({
           ok: true,
-          answer: `${cleanAnswer(finalAnswer)}\n\n---\n?? Rapport PDF pour ${user.name} (${user.email}) le ${dateStr}.\n?? Télécharger : ${link}`,
+          answer: `${cleanAnswer(finalAnswer)}\n\n---\nRapport PDF pour ${user.name} (${user.email}) le ${dateStr}.\nTelecharger : ${link}`,
           answerRaw: finalAnswer,
           pdfLink: link,
           pdfReport: true,
@@ -306,7 +272,6 @@ module.exports = function(app, mongoose) {
 
   app.use(['/api/ask', '/api/analyze-content'], bridgeMiddleware);
 
-  // Placer EN TETE de pile pour voir la réponse finale (après tous les autres wrappers)
   (function moveToTop() {
     const stack = app._router && app._router.stack;
     if (!stack) return;
@@ -314,22 +279,19 @@ module.exports = function(app, mongoose) {
       if (stack[i].handle === bridgeMiddleware) {
         const [layer] = stack.splice(i, 1);
         stack.unshift(layer);
-        console.log('[ultimate-bridge] Middleware placé en tête de pile.');
         return;
       }
     }
   })();
 
-  // Route PDF
   app.get('/api/ultimate-pdf/:token', function(req, res) {
     const d = PDF_CACHE[req.params.token];
-    if (!d || d.exp < Date.now()) return res.status(404).send('PDF expiré ou introuvable.');
+    if (!d || d.exp < Date.now()) return res.status(404).send('PDF expirÃ© ou introuvable.');
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', 'inline; filename="rapport_expertise.pdf"');
     res.send(d.buffer);
   });
 
-  // Route historique
   app.get('/api/history', async function(req, res) {
     try {
       const user = getUserFromToken(req);
@@ -339,8 +301,6 @@ module.exports = function(app, mongoose) {
     } catch(e) { res.status(500).json({ error: e.message }); }
   });
 
-  // Init 18 domaines
   ensure18Domains();
-
-  console.log('[ultimate-bridge] Prêt : PDF + historique + 18 domaines + fallback Claude/Gemini.');
+  console.log('[ultimate-bridge] Pret.');
 };
