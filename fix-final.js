@@ -143,7 +143,7 @@ function sendJson(res, data, status) {
 }
 
 module.exports = function(app, mongoose) {
-  console.log('[fix-final] ========== CHARGEMENT V10 (userId String + question robuste) ==========');
+  console.log('[fix-final] ========== CHARGEMENT V11 (capture immediate question) ==========');
   const router = app._router || app.router;
   if (!router || !router.stack) { console.error('[fix-final] Router non initialise'); return; }
 
@@ -218,6 +218,17 @@ module.exports = function(app, mongoose) {
   }
 
   const masterMiddleware = async function(req, res, next) {
+    // === CAPTURE IMMEDIATE de la question AVANT tout traitement async ===
+    // (car d'autres modules peuvent vider req.body entre-temps)
+    let capturedQ = '';
+    try {
+      if (req.body && typeof req.body === 'object') {
+        capturedQ = req.body.question || req.body.q || req.body.query || req.body.prompt || '';
+      }
+      capturedQ = String(capturedQ || '').trim();
+      req._capturedQuestion = capturedQ;
+    } catch (e) { req._capturedQuestion = ''; }
+
     let path = '';
     try {
       const rawUrl = req.url || req.originalUrl || '';
@@ -235,7 +246,7 @@ module.exports = function(app, mongoose) {
           if (FixFD) counts.fixFD = await withTimeout(FixFD.countDocuments(), 2000, 'count_fd');
         } catch (e) { counts.error = e.message; }
         return sendJson(res, {
-          version: 'v10',
+          version: 'v11',
           readyState: state,
           readyStateName: stateNames[state] || 'unknown',
           models: { FixQA: !!FixQA, FixFD: !!FixFD },
@@ -282,24 +293,17 @@ module.exports = function(app, mongoose) {
         console.log('[fix-final] POST ' + path + ' - user: ' + (user.email || 'anonyme') + ' (id=' + String(user.id||'').substring(0,8) + '...)');
         if (!user.id) { console.warn('[fix-final] userId manquant - pas de sauvegarde'); return next(); }
 
-        let originalQ = '';
+        // Priorite ABSOLUE : question capturee en tout debut
+        let originalQ = String(req._capturedQuestion || '').trim();
         try {
-          if (req.body && typeof req.body === 'object') {
-            originalQ = req.body.question || req.body.q || req.body.query || req.body.prompt || '';
+          // Fallback si capture vide
+          if (!originalQ && req.body && typeof req.body === 'object') {
+            originalQ = String(req.body.question || req.body.q || req.body.query || req.body.prompt || '').trim();
           }
-          if (!originalQ && req.query && req.query.question) originalQ = String(req.query.question);
-          if (!originalQ && req.body) {
-            for (const k of Object.keys(req.body)) {
-              const v = req.body[k];
-              if (typeof v === 'string' && v.trim().length > 2 && k !== 'language' && k !== 'domain') {
-                originalQ = v; break;
-              }
-            }
-          }
-          originalQ = String(originalQ || '').trim();
+          if (!originalQ && req.query && req.query.question) originalQ = String(req.query.question).trim();
           if (!originalQ) {
             originalQ = '(question non transmise)';
-            console.warn('[fix-final] Body=' + JSON.stringify(req.body).substring(0,200));
+            console.warn('[fix-final] Question vide - body=' + JSON.stringify(req.body).substring(0,200));
           } else {
             console.log('[fix-final] Question (' + originalQ.length + ' car.) : ' + originalQ.substring(0, 80));
           }
@@ -399,11 +403,11 @@ module.exports = function(app, mongoose) {
     mini.use(masterMiddleware);
     if (mini.stack && mini.stack[0]) {
       router.stack.unshift(mini.stack[0]);
-      console.log('[fix-final] Middleware MAITRE V10 injecte en position 0');
+      console.log('[fix-final] Middleware MAITRE V11 injecte en position 0');
     }
   } catch (e) {
     console.error('[fix-final] inject err:', e.message);
   }
 
-  console.log('[fix-final] ========== V10 PRET ==========');
+  console.log('[fix-final] ========== V10 PRET (V11) ==========');
 };
