@@ -143,7 +143,7 @@ function sendJson(res, data, status) {
 }
 
 module.exports = function(app, mongoose) {
-  console.log('[fix-final] ========== CHARGEMENT V11 (capture immediate question) ==========');
+  console.log('[fix-final] ========== CHARGEMENT V12 (capture tardive a lecriture) ==========');
   const router = app._router || app.router;
   if (!router || !router.stack) { console.error('[fix-final] Router non initialise'); return; }
 
@@ -246,7 +246,7 @@ module.exports = function(app, mongoose) {
           if (FixFD) counts.fixFD = await withTimeout(FixFD.countDocuments(), 2000, 'count_fd');
         } catch (e) { counts.error = e.message; }
         return sendJson(res, {
-          version: 'v11',
+          version: 'v12',
           readyState: state,
           readyStateName: stateNames[state] || 'unknown',
           models: { FixQA: !!FixQA, FixFD: !!FixFD },
@@ -344,10 +344,21 @@ module.exports = function(app, mongoose) {
             if (mongoose.connection.readyState !== 1) {
               await withTimeout(mongoose.connection.asPromise(), 3000, 'conn_wait');
             }
+            // === CAPTURE TARDIVE : relire req.body au moment d'ecrire ===
+            // (tous les parsers ont tourne maintenant)
+            let qToSave = originalQ;
+            try {
+              const freshQ = String((req.body && (req.body.question || req.body.q || req.body.query || req.body.prompt)) || '').trim();
+              if (freshQ && freshQ.length > 2 && freshQ !== '(question illisible)' && freshQ !== '(question non transmise)') {
+                qToSave = freshQ;
+                console.log('[fix-final] Question relue tardivement : ' + freshQ.substring(0, 60));
+              }
+            } catch (e) {}
+
             const created = await withTimeout(
               FixQA.create({
                 userId: String(user.id || ''),
-                question: originalQ,
+                question: qToSave,
                 answer: answer,
                 language: language,
                 domain: domain,
@@ -403,11 +414,11 @@ module.exports = function(app, mongoose) {
     mini.use(masterMiddleware);
     if (mini.stack && mini.stack[0]) {
       router.stack.unshift(mini.stack[0]);
-      console.log('[fix-final] Middleware MAITRE V11 injecte en position 0');
+      console.log('[fix-final] Middleware MAITRE V12 injecte en position 0');
     }
   } catch (e) {
     console.error('[fix-final] inject err:', e.message);
   }
 
-  console.log('[fix-final] ========== V10 PRET (V11) ==========');
+  console.log('[fix-final] ========== V10 PRET (V12) ==========');
 };
