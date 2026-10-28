@@ -167,6 +167,8 @@ app.get("/api/auth/me", requireAuth, async (req, res) => {
     } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+require('./ultimate-bridge')(app, mongoose);
+
 app.post("/api/ask", requireAuth, async (req, res) => {
     try {
         const { question, language, domain } = req.body || {};
@@ -196,13 +198,12 @@ app.use((req, res) => res.status(404).json({ error: "Endpoint introuvable" }));
 
 require('./pdf-report-generator')(app, mongoose);
 
-require('./ultimate-bridge')(app, mongoose);
-
 connectMongo().finally(() => {
     app.listen(PORT, HOST, () => {
         console.log(`Scholars Connect V2 - PORT ${PORT}`);
     });
 });
+
 
 
 
