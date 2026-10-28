@@ -290,18 +290,32 @@ module.exports = function(app, mongoose) {
           answer = 'Desole, la generation a echoue. Veuillez reessayer dans quelques instants.';
         }
 
-        // Historique ATTENDU (max 2s) pour que le test le voie immediatement
+        // Historique ATTENDU (max 4s) avec verification de connexion
         const { QA } = getModels();
         if (QA && user.id) {
           try {
-            await withTimeout(
+            // ETAPE 1 : S'assurer que la connexion MongoDB est prete
+            if (mongoose.connection.readyState !== 1) {
+              console.log('[fix-final] Connexion Mongo pas prete (readyState=' + mongoose.connection.readyState + '), attente...');
+              await withTimeout(mongoose.connection.asPromise(), 3000, 'conn_wait');
+              console.log('[fix-final] Connexion Mongo prete (readyState=' + mongoose.connection.readyState + ')');
+            }
+
+            // ETAPE 2 : Ecrire avec verification explicite
+            const created = await withTimeout(
               QA.create({ userId: user.id, question: originalQ, answer: answer, language: language, domain: domain }),
-              2000, 'history_save_timeout'
+              3000, 'history_save_timeout'
             );
-            console.log('[fix-final] Historique sauvegarde (sync): ' + user.email);
+            if (created && created._id) {
+              console.log('[fix-final] Historique OK - _id=' + created._id.toString() + ' pour ' + user.email);
+            } else {
+              console.warn('[fix-final] Historique cree mais _id absent :', JSON.stringify(created));
+            }
           } catch (e) {
-            console.warn('[fix-final] Historique err (non bloquant):', e.message);
+            console.error('[fix-final] Historique ERREUR :', e.message, '| stack:', (e.stack||'').split('\n')[0]);
           }
+        } else {
+          console.log('[fix-final] Historique ignore (QA=' + !!QA + ', userId=' + user.id + ')');
         }
 
         let pdfLink = null;
