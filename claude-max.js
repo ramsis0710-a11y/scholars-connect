@@ -16,22 +16,11 @@ module.exports = function(app, mongoose) {
         const chunks = [];
         doc.on('data', c => chunks.push(c));
         doc.on('end', () => resolve(Buffer.concat(chunks)));
-        
         doc.font('Helvetica-Bold').fontSize(20).fillColor('#0a2540').text('RAPPORT TECHNIQUE', { align: 'center' });
         doc.moveDown(1);
-        doc.font('Helvetica').fontSize(10).fillColor('#333').text('Demandeur : ' + user);
-        doc.text('Question : ' + q);
+        doc.font('Helvetica').fontSize(10).text('Question : ' + q);
         doc.moveDown(1);
-        doc.moveTo(50, doc.y).lineTo(545, doc.y).strokeColor('#ccc').stroke();
-        doc.moveDown(1);
-        
-        md.split('\n').forEach(line => {
-          line = line.trim();
-          if (!line) return;
-          if (line.startsWith('## ')) { doc.moveDown(0.5).font('Helvetica-Bold').fontSize(14).fillColor('#1e5aa8').text(line.replace('## ', '')); }
-          else if (line.startsWith('### ')) { doc.moveDown(0.5).font('Helvetica-Bold').fontSize(12).fillColor('#0a2540').text(line.replace('### ', '')); }
-          else { doc.font('Helvetica').fontSize(10).fillColor('#333').text(line, { align: 'justify' }); }
-        });
+        md.split('\n').forEach(line => { if(line.trim()) doc.text(line); });
         doc.end();
       } catch (e) { reject(e); }
     });
@@ -39,9 +28,8 @@ module.exports = function(app, mongoose) {
 
   app.get('/api/claude-pdf/:token', (req, res) => {
     const d = PDF_CACHE[req.params.token];
-    if (!d || d.exp < Date.now()) return res.status(404).send('Document PDF expiré ou introuvable.');
+    if (!d || d.exp < Date.now()) return res.status(404).send('Expiré');
     res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', 'inline; filename="rapport.pdf"');
     res.send(d.buffer);
   });
 
@@ -53,7 +41,7 @@ module.exports = function(app, mongoose) {
       if (!data || !data.answer || data.claudeMaxUsed) return origJson(data);
       
       const q = req.body.question || 'Analyse';
-      const prompt = q + (req.body.content ? '\n\nDocument :\n' + req.body.content : '');
+      const prompt = q + (req.body.content ? '\n' + req.body.content : '');
       
       for (const model of MODEL_CANDIDATES) {
         try {
@@ -70,17 +58,8 @@ module.exports = function(app, mongoose) {
             const token = crypto.randomBytes(16).toString('hex');
             PDF_CACHE[token] = { buffer: pdfBuf, exp: Date.now() + 7200000 };
             
-            // --- LE CODE HTML COMPLET AVEC LE BOUTON ET LE STYLE ---
-            data.answer = `
-              <div style="width: 100%; height: 800px; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.1); border: 1px solid #e5e7eb; margin-top: 15px; background: #525659;">
-                <iframe src="/api/claude-pdf/${token}" width="100%" height="100%" style="border: none;"></iframe>
-              </div>
-              <div style="text-align: center; margin-top: 10px;">
-                <a href="/api/claude-pdf/${token}" download="Rapport_Expertise.pdf" style="display: inline-block; background: #0a2540; color: white; padding: 10px 20px; border-radius: 6px; text-decoration: none; font-weight: bold; font-family: Arial, sans-serif;">
-                  ? Télécharger le Rapport PDF
-                </a>
-              </div>
-            `;
+            // LIEN TEXTE PROPRE POUR LE CHAT (evite le bug HTML)
+            data.answer = `Le rapport technique a été généré avec succès.\n\n?? Cliquez sur ce lien pour ouvrir le PDF :\nhttps://scholars-connect-app.onrender.com/api/claude-pdf/${token}\n\n---\n\n${md}`;
             data.claudeMaxUsed = true;
             data.enriched = true;
             return origJson(data);
@@ -96,5 +75,3 @@ module.exports = function(app, mongoose) {
   app.use('/api/analyze-content', interceptor);
   console.log('[claude-max] Agent chargé avec générateur PDF complet.');
 };
-
-
