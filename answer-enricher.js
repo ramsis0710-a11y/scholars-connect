@@ -19,18 +19,24 @@ module.exports = function(app, mongoose) {
 
   // ============================================================
   // 3. INTERCEPTION : INJECTION DES DONNEES DE LA BASE DANS LE PROMPT
-  //    (Ceci force l'IA à lire vos fichiers API 14L avant de répondre)
+  //    (avec vérification que le modèle existe bien)
   // ============================================================
   app.use(['/api/ask', '/api/analyze-content'], async function(req, res, next) {
     if (!req.body || !req.body.question) return next();
     
     try {
-      const AutoFeedDoc = mongoose.model('AutoFeedDocument');
+      // VERIFICATION CRUCIALE : On regarde si le modèle existe déjà
+      let AutoFeedDoc = null;
+      try {
+        AutoFeedDoc = mongoose.model('AutoFeedDocument');
+      } catch (e) {
+        // Le modèle n'est pas encore chargé. On laisse passer.
+        return next();
+      }
+      
       const q = req.body.question;
-      // On récupère les mots-clés de la question (ex: "tolérances", "seal bore", "api 14l")
       const tokens = q.toLowerCase().match(/\b\w{3,}\b/g) || [];
       
-      // On cherche le document le plus pertinent dans la base
       const docs = await AutoFeedDoc.find({}).limit(500).lean();
       let bestDoc = null;
       let maxScore = 0;
@@ -42,7 +48,6 @@ module.exports = function(app, mongoose) {
         if (score > maxScore) { maxScore = score; bestDoc = d; }
       });
 
-      // Si on a trouvé une correspondance, on l'ajoute à la question posée à l'IA
       if (bestDoc && maxScore > 1) {
         console.log('[RAG] Injection du document :', bestDoc.title);
         req.body.question = `INSTRUCTION : Tu dois répondre en utilisant OBLIGATOIREMENT les extraits techniques fournis ci-dessous. Si tu ne trouves pas l'information dedans, dis-le. Ne réponds pas avec des généralités.\n\n[EXTRAIT DE LA BASE DE CONNAISSANCES]\nTitre : ${bestDoc.title}\nContenu : ${bestDoc.content}\n[FIN DE L'EXTRAIT]\n\nQuestion de l'utilisateur : ${q}`;
