@@ -5,7 +5,7 @@ const crypto = require('crypto');
 const mongoose = require('mongoose');
 const PDF_CACHE = {};
 
-const VERSION = 'V15';
+const VERSION = 'V16';
 
 const DOMAINES_18 = [
   'General','Religion','Education','Technique','Analyse',
@@ -267,11 +267,25 @@ module.exports = function(app, mongoose) {
   }
 
   const masterMiddleware = async function(req, res, next) {
-    // ============ PARSE MANUEL SI BESOIN ============
-    try {
-      await ensureBodyParsed(req);
-    } catch (e) {
-      console.warn('[fix-final] ensureBodyParsed err:', e.message);
+    // ============ EARLY RETURN : ne pas toucher aux routes non-ask ============
+    let earlyPath = '';
+    try { earlyPath = (req.url || '').split('?')[0].split('#')[0] || '/'; } catch (e) { earlyPath = '/'; }
+    const earlyMethod = (req.method || 'GET').toUpperCase();
+    const isAskRoute = (earlyMethod === 'POST' && (earlyPath === '/api/ask' || earlyPath === '/api/analyze-content'));
+    const isDebugOrHistory = (earlyMethod === 'GET' && (earlyPath === '/api/domains' || earlyPath === '/api/history' || earlyPath.indexOf('/api/ultimate-pdf/') === 0 || earlyPath === '/api/debug/db'));
+
+    // Si ce n'est NI une route ask NI une route que fix-final gere : next() IMMEDIATEMENT
+    if (!isAskRoute && !isDebugOrHistory) {
+      return next();
+    }
+
+    // ============ PARSE MANUEL SI BESOIN (uniquement pour ask) ============
+    if (isAskRoute) {
+      try {
+        await ensureBodyParsed(req);
+      } catch (e) {
+        console.warn('[fix-final] ensureBodyParsed err:', e.message);
+      }
     }
 
     // ============ CAPTURE APRES PARSE ============
