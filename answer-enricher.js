@@ -1,61 +1,37 @@
 'use strict';
 
 module.exports = function(app, mongoose) {
-  console.log('[answer-enricher] Initialisation complète avec injection de base de données.');
+  console.log('[answer-enricher] Initialisation complète.');
 
-  // ============================================================
-  // 1. CHARGEMENT DES BASES DE CONNAISSANCES (API 14L, OEM, BCT)
-  // ============================================================
-  try { require('./api14l-kb')(app, mongoose); console.log('[api14l-kb] OK'); } catch (e) { console.warn('api14l', e.message); }
-  try { require('./oem-chemical-injection-kb')(app, mongoose); console.log('[oem-kb] OK'); } catch (e) { console.warn('oem', e.message); }
-  try { require('./bct-kb')(app, mongoose); console.log('[bct-kb] OK'); } catch (e) { console.warn('bct', e.message); }
+  // 1. Modules de base de connaissances
+  try { require('./api14l-kb')(app, mongoose); } catch (e) {}
+  try { require('./oem-chemical-injection-kb')(app, mongoose); } catch (e) {}
+  try { require('./bct-kb')(app, mongoose); } catch (e) {}
 
-  // ============================================================
-  // 2. REACTIVATION DES MODULES EXPERTS (PDF, Gemini, Guardian)
-  // ============================================================
-  try { require('./claude-max')(app, mongoose); } catch (e) { console.warn('claude-max', e.message); }
-  try { require('./gemini-fallback')(app, mongoose); } catch (e) { console.warn('gemini', e.message); }
-  try { require('./answer-guardian')(app, mongoose); } catch (e) { console.warn('guardian', e.message); }
+  // 2. Modules IA
+  try { require('./claude-max')(app, mongoose); } catch (e) {}
+  try { require('./gemini-fallback')(app, mongoose); } catch (e) {}
+  try { require('./answer-guardian')(app, mongoose); } catch (e) {}
 
-  // ============================================================
-  // 3. INTERCEPTION : INJECTION DES DONNEES DE LA BASE DANS LE PROMPT
-  //    (avec vérification que le modèle existe bien)
-  // ============================================================
-  app.use(['/api/ask', '/api/analyze-content'], async function(req, res, next) {
-    if (!req.body || !req.body.question) return next();
-    
-    try {
-      // VERIFICATION CRUCIALE : On regarde si le modèle existe déjà
-      let AutoFeedDoc = null;
-      try {
-        AutoFeedDoc = mongoose.model('AutoFeedDocument');
-      } catch (e) {
-        // Le modèle n'est pas encore chargé. On laisse passer.
-        return next();
+  // 3. INTERCEPTION : on transforme le HTML du PDF en lien direct cliquable
+  app.use(['/api/ask', '/api/analyze-content'], function(req, res, next) {
+    const originalJson = res.json.bind(res);
+    res.json = function(data) {
+      if (!data || !data.answer) return originalJson(data);
+
+      // Si la réponse contient l'iframe du PDF, on extrait le lien et on le remplace par un lien texte
+      if (data.answer.includes('<iframe') && data.answer.includes('/api/claude-pdf/')) {
+        const match = data.answer.match(/\/api\/claude-pdf\/([a-f0-9]+)/);
+        if (match && match[1]) {
+          const token = match[1];
+          const pdfUrl = `https://scholars-connect-app.onrender.com/api/claude-pdf/${token}`;
+          data.answer = `Le rapport technique est prêt.\n\n?? Cliquez ici pour ouvrir le PDF :\n${pdfUrl}\n\n---\n\n(Le PDF contient la réponse complète à votre question.)`;
+          data.enriched = true;
+        }
       }
-      
-      const q = req.body.question;
-      const tokens = q.toLowerCase().match(/\b\w{3,}\b/g) || [];
-      
-      const docs = await AutoFeedDoc.find({}).limit(500).lean();
-      let bestDoc = null;
-      let maxScore = 0;
-      
-      docs.forEach(d => {
-        const content = (d.title + ' ' + d.content).toLowerCase();
-        let score = 0;
-        tokens.forEach(t => { if (content.includes(t)) score++; });
-        if (score > maxScore) { maxScore = score; bestDoc = d; }
-      });
 
-      if (bestDoc && maxScore > 1) {
-        console.log('[RAG] Injection du document :', bestDoc.title);
-        req.body.question = `INSTRUCTION : Tu dois répondre en utilisant OBLIGATOIREMENT les extraits techniques fournis ci-dessous. Si tu ne trouves pas l'information dedans, dis-le. Ne réponds pas avec des généralités.\n\n[EXTRAIT DE LA BASE DE CONNAISSANCES]\nTitre : ${bestDoc.title}\nContenu : ${bestDoc.content}\n[FIN DE L'EXTRAIT]\n\nQuestion de l'utilisateur : ${q}`;
-      }
-    } catch (e) {
-      console.warn('[RAG] Erreur:', e.message);
-    }
-    
+      return originalJson(data);
+    };
     next();
   });
 };
