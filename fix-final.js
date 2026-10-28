@@ -1,10 +1,4 @@
-﻿// ============================================================
-// FIX-FINAL.JS - Correctif unique et autonome
-// Injecte les routes et le middleware EN TETE de pile Express
-// (avant tout autre layer, y compris le catch-all 404).
-// NE MODIFIE AUCUNE LIGNE existante.
-// ============================================================
-'use strict';
+﻿'use strict';
 const express = require('express');
 const PDFDocument = require('pdfkit');
 const crypto = require('crypto');
@@ -16,6 +10,14 @@ const DOMAINES_18 = [
   'Sciences', 'Litterature', 'Arts', 'Langues', 'Sport',
   'Industrie', 'Petrole & Gaz', 'Plan Qualite'
 ];
+
+// Gestionnaire global : empeche le crash sur promesse rejetee
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('[fix-final] UNHANDLED REJECTION interceptee (le serveur ne crashe pas) :', reason);
+});
+process.on('uncaughtException', (err) => {
+  console.error('[fix-final] UNCAUGHT EXCEPTION interceptee :', err.message);
+});
 
 function getUserFromToken(req) {
   try {
@@ -37,13 +39,15 @@ function getUserFromToken(req) {
 
 function cleanAnswer(answer) {
   if (!answer) return '';
-  let t = String(answer);
-  t = t.replace(/<br\s*\/?>/gi, '\n').replace(/<\/p>/gi, '\n\n').replace(/<\/div>/gi, '\n');
-  t = t.replace(/<[^>]+>/g, '');
-  t = t.replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>');
-  t = t.replace(/Le rapport technique a ete genere avec succes\.[\s\S]*?---\s*/i, '');
-  t = t.replace(/https:\/\/scholars-connect-app\.onrender\.com\/api\/(?:claude-pdf|pdf-report|ultimate-pdf)\/[a-f0-9]+/gi, '');
-  return t.trim();
+  try {
+    let t = String(answer);
+    t = t.replace(/<br\s*\/?>/gi, '\n').replace(/<\/p>/gi, '\n\n').replace(/<\/div>/gi, '\n');
+    t = t.replace(/<[^>]+>/g, '');
+    t = t.replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>');
+    t = t.replace(/Le rapport technique a ete genere avec succes\.[\s\S]*?---\s*/i, '');
+    t = t.replace(/https:\/\/scholars-connect-app\.onrender\.com\/api\/(?:claude-pdf|pdf-report|ultimate-pdf)\/[a-f0-9]+/gi, '');
+    return t.trim();
+  } catch (e) { return String(answer || '').slice(0, 5000); }
 }
 
 function generatePDF(question, answer, user) {
@@ -53,6 +57,7 @@ function generatePDF(question, answer, user) {
       const chunks = [];
       doc.on('data', c => chunks.push(c));
       doc.on('end', () => resolve(Buffer.concat(chunks)));
+      doc.on('error', (e) => reject(e));
       const dateStr = new Date().toLocaleString('fr-FR', {
         weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
         hour: '2-digit', minute: '2-digit', second: '2-digit'
@@ -145,7 +150,7 @@ async function askGemini(question, content) {
 }
 
 module.exports = function(app, mongoose) {
-  console.log('[fix-final] Chargement du correctif final...');
+  console.log('[fix-final] Chargement du correctif final (version blindee)...');
 
   const router = app._router || app.router;
   if (!router || !router.stack) {
@@ -199,20 +204,29 @@ module.exports = function(app, mongoose) {
     return false;
   }
 
+  // ========== ROUTES (chacune blindee par try/catch) ==========
   injectRoute('get', '/api/domains', async (req, res) => {
     try {
       if (!Domain) return res.json({ domains: DOMAINES_18 });
       const list = await Domain.find().sort({ usage: -1, name: 1 }).lean();
       res.json({ domains: list.map(d => d.name) });
-    } catch (e) { res.json({ domains: DOMAINES_18 }); }
+    } catch (e) {
+      console.warn('[fix-final] /api/domains erreur :', e.message);
+      res.json({ domains: DOMAINES_18 });
+    }
   });
 
   injectRoute('get', '/api/ultimate-pdf/:token', (req, res) => {
-    const d = PDF_CACHE[req.params.token];
-    if (!d || d.exp < Date.now()) return res.status(404).send('PDF expire ou introuvable.');
-    res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', 'inline; filename="rapport_expertise.pdf"');
-    res.send(d.buffer);
+    try {
+      const d = PDF_CACHE[req.params.token];
+      if (!d || d.exp < Date.now()) return res.status(404).send('PDF expire ou introuvable.');
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', 'inline; filename="rapport_expertise.pdf"');
+      res.send(d.buffer);
+    } catch (e) {
+      console.error('[fix-final] /api/ultimate-pdf erreur :', e.message);
+      res.status(500).send('Erreur PDF');
+    }
   });
 
   injectRoute('get', '/api/history', async (req, res) => {
@@ -221,9 +235,13 @@ module.exports = function(app, mongoose) {
       if (!QA || !user.id) return res.json({ items: [] });
       const items = await QA.find({ userId: user.id }).sort({ createdAt: -1 }).limit(200).lean();
       res.json({ items: items });
-    } catch (e) { res.status(500).json({ error: e.message }); }
+    } catch (e) {
+      console.warn('[fix-final] /api/history erreur :', e.message);
+      res.json({ items: [] });
+    }
   });
 
+  // ========== MIDDLEWARE (blinde avec try/catch global) ==========
   const pdfMiddleware = async function(req, res, next) {
     if (req.method !== 'POST' || !req.body) return next();
     const origJson = res.json.bind(res);
@@ -240,33 +258,37 @@ module.exports = function(app, mongoose) {
       const content = req.body.content || '';
       const user = getUserFromToken(req);
 
-      const cleanedText = cleanAnswer(answerRaw);
-      const needsFallback = cleanedText.length < 150 ||
-        /je ne (peux|sais|dispose)/i.test(cleanedText) ||
-        /desole,? (je|nous)/i.test(cleanedText) ||
-        /desole,?\s*(je|nous)/i.test(cleanedText) ||
-        /information (non disponible|not available)/i.test(cleanedText) ||
-        /consultez? (les )?documents?/i.test(cleanedText) ||
-        /je vous encourage a consulter/i.test(cleanedText) ||
-        /je vous encourage à consulter/i.test(cleanedText);
-
       let finalAnswer = answerRaw;
       let fallbackSource = null;
 
-      if (needsFallback) {
-        console.log('[fix-final] Reponse locale insuffisante -> fallback.');
-        try {
-          finalAnswer = await askClaude(question, content);
-          fallbackSource = 'claude';
-          console.log('[fix-final] Fallback CLAUDE OK (' + finalAnswer.length + ' car.)');
-        } catch (e) {
-          console.warn('[fix-final] Claude echoue :', e.message);
+      try {
+        const cleanedText = cleanAnswer(answerRaw);
+        const needsFallback = cleanedText.length < 150 ||
+          /je ne (peux|sais|dispose)/i.test(cleanedText) ||
+          /desole,? (je|nous)/i.test(cleanedText) ||
+          /desole,?\s*(je|nous)/i.test(cleanedText) ||
+          /information (non disponible|not available)/i.test(cleanedText) ||
+          /consultez? (les )?documents?/i.test(cleanedText) ||
+          /je vous encourage a consulter/i.test(cleanedText) ||
+          /je vous encourage à consulter/i.test(cleanedText);
+
+        if (needsFallback) {
+          console.log('[fix-final] Reponse locale insuffisante -> fallback.');
           try {
-            finalAnswer = await askGemini(question, content);
-            fallbackSource = 'gemini';
-            console.log('[fix-final] Fallback GEMINI OK (' + finalAnswer.length + ' car.)');
-          } catch (e2) { console.warn('[fix-final] Gemini echoue :', e2.message); }
+            finalAnswer = await askClaude(question, content);
+            fallbackSource = 'claude';
+            console.log('[fix-final] Fallback CLAUDE OK (' + finalAnswer.length + ' car.)');
+          } catch (e) {
+            console.warn('[fix-final] Claude echoue :', e.message);
+            try {
+              finalAnswer = await askGemini(question, content);
+              fallbackSource = 'gemini';
+              console.log('[fix-final] Fallback GEMINI OK (' + finalAnswer.length + ' car.)');
+            } catch (e2) { console.warn('[fix-final] Gemini echoue :', e2.message); }
+          }
         }
+      } catch (e) {
+        console.error('[fix-final] Erreur fallback (ignoree) :', e.message);
       }
 
       try {
@@ -280,7 +302,7 @@ module.exports = function(app, mongoose) {
           });
           console.log('[fix-final] Historique sauvegarde pour ' + user.email);
         }
-      } catch (e) { console.warn('[fix-final] Historique erreur :', e.message); }
+      } catch (e) { console.warn('[fix-final] Historique erreur (ignoree) :', e.message); }
 
       processed = true;
       try {
@@ -304,7 +326,7 @@ module.exports = function(app, mongoose) {
           domain: req.body.domain || 'General'
         });
       } catch (e) {
-        console.error('[fix-final] PDF erreur :', e.message);
+        console.error('[fix-final] PDF erreur (ignoree) :', e.message);
         return origJson(Object.assign({}, data || {}, {
           answer: finalAnswer,
           answerRaw: finalAnswer,

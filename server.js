@@ -201,10 +201,13 @@ require('./pdf-report-generator')(app, mongoose);
 require('./fix-final')(app, mongoose);
 
 connectMongo().finally(() => {
-    app.listen(PORT, HOST, () => {
+    const server = app.listen(PORT, HOST, () 
+server.keepAliveTimeout = 65000;
+server.headersTimeout = 66000;=> {
         console.log(`Scholars Connect V2 - PORT ${PORT}`);
     });
 });
+
 
 
 
