@@ -48,12 +48,12 @@ function generatePDF(question, answer, user) {
       doc.on('end', () => resolve(Buffer.concat(chunks)));
       doc.on('error', (e) => reject(e));
       const dateStr = new Date().toLocaleString('fr-FR', { weekday:'long',year:'numeric',month:'long',day:'numeric',hour:'2-digit',minute:'2-digit',second:'2-digit' });
-      doc.font('Helvetica-Bold').fontSize(20).fillColor('#0a2540').text('RAPPORT TECHNIQUE EXPERTISE',{align:'center'});
+      doc.font('Helvetica-Bold').fontSize(20).fillColor('#0a2540').text('RAPPORT TECHNIQUE EXPERTISE', { align:'center' });
       doc.moveDown(0.5);
       doc.font('Helvetica').fontSize(9).fillColor('#666')
-         .text('Demandeur : ' + user.name, {align:'right'})
-         .text('Email : ' + user.email, {align:'right'})
-         .text('Date de visite : ' + dateStr, {align:'right'});
+         .text('Demandeur : ' + user.name, { align:'right' })
+         .text('Email : ' + user.email, { align:'right' })
+         .text('Date de visite : ' + dateStr, { align:'right' });
       doc.moveDown(1);
       doc.moveTo(50, doc.y).lineTo(545, doc.y).strokeColor('#ccc').stroke();
       doc.moveDown(1);
@@ -122,184 +122,178 @@ async function askGemini(question, content) {
   return (r && r.text) || '';
 }
 
+function sendJson(res, data, status) {
+  if (res.headersSent) return;
+  const body = JSON.stringify(data);
+  res.statusCode = status || 200;
+  res.setHeader('Content-Type', 'application/json; charset=utf-8');
+  res.setHeader('Content-Length', Buffer.byteLength(body));
+  res.end(body);
+}
+
 module.exports = function(app, mongoose) {
-  console.log('[fix-final] Chargement version anti-timeout...');
+  console.log('[fix-final] Chargement v3 (routes autonomes via res.end)...');
   const router = app._router || app.router;
   if (!router || !router.stack) { console.error('[fix-final] Router non initialise'); return; }
 
-  let Domain = null, QA = null;
-  try { Domain = mongoose.model('Domain'); } catch (e) {}
-  try { QA = mongoose.model('QA'); } catch (e) {}
-  if (!Domain) {
-    try {
-      Domain = mongoose.model('Domain', new mongoose.Schema({
-        name:{type:String,required:true,unique:true,index:true},
-        isDefault:{type:Boolean,default:false},
-        usage:{type:Number,default:0},
-        createdAt:{type:Date,default:Date.now}
-      }));
-    } catch (e2) {}
+  function getModels() {
+    let QA = null, FD = null;
+    try { QA = mongoose.model('QA'); } catch (e) {}
+    try { FD = mongoose.model('AutoFeedDocument'); } catch (e) {}
+    return { QA, FD };
   }
 
-  function injectRoute(method, path, handler) {
+  async function buildRagContext(question) {
+    const { FD } = getModels();
+    if (!FD) return '';
     try {
-      const mini = express.Router();
-      mini[method](path, handler);
-      if (mini.stack && mini.stack[0]) { router.stack.unshift(mini.stack[0]); console.log('[fix-final] Route ' + method.toUpperCase() + ' ' + path); return true; }
-    } catch (e) { console.error('[fix-final] injectRoute err ' + path + ':', e.message); }
-    return false;
-  }
-  function injectMiddleware(paths, handler) {
-    try {
-      const mini = express.Router();
-      mini.use(paths, handler);
-      if (mini.stack && mini.stack[0]) { router.stack.unshift(mini.stack[0]); console.log('[fix-final] Middleware ' + JSON.stringify(paths)); return true; }
-    } catch (e) { console.error('[fix-final] injectMiddleware err:', e.message); }
-    return false;
+      const tokens = question.toLowerCase().match(/\b\w{3,}\b/g) || [];
+      const docs = await withTimeout(FD.find({}).limit(500).lean(), 3000, 'rag_timeout');
+      let best = null, maxScore = 0;
+      const qLower = question.toLowerCase();
+      docs.forEach(d => {
+        const title = (d.title || '').toLowerCase();
+        const content = (d.content || '').toLowerCase();
+        let score = 0;
+        tokens.forEach(t => {
+          if (title.includes(t)) score += 10;
+          if (content.includes(t)) score += 1;
+        });
+        if (qLower.includes('14l') && title.includes('14l')) score += 20;
+        if (title.includes('vam') && !qLower.includes('vam')) score -= 15;
+        if (score > maxScore) { maxScore = score; best = d; }
+      });
+      if (best && maxScore > 0) {
+        console.log('[fix-final] RAG: ' + best.title + ' (score=' + maxScore + ')');
+        return best.content || '';
+      }
+    } catch (e) { console.warn('[fix-final] RAG err:', e.message); }
+    return '';
   }
 
-  // /api/domains INSTANTANE (pas de DB, on renvoie la constante)
-  injectRoute('get', '/api/domains', (req, res) => {
-    res.json({ domains: DOMAINES_18 });
-  });
+  const masterMiddleware = async function(req, res, next) {
+    const path = req.path;
+    const method = req.method;
 
-  // /api/history avec Promise.race 3s
-  injectRoute('get', '/api/history', async (req, res) => {
-    try {
-      const user = getUserFromToken(req);
-      if (!QA || !user.id) return res.json({ items: [] });
-      const items = await withTimeout(
-        QA.find({ userId: user.id }).sort({ createdAt: -1 }).limit(200).lean(),
-        3000, 'history_timeout'
-      );
-      res.json({ items: items });
-    } catch (e) {
-      console.warn('[fix-final] /api/history timeout/err:', e.message);
-      res.json({ items: [] });
+    // GET /api/domains
+    if (method === 'GET' && path === '/api/domains') {
+      return sendJson(res, { domains: DOMAINES_18 });
     }
-  });
 
-  // PDF route
-  injectRoute('get', '/api/ultimate-pdf/:token', (req, res) => {
-    try {
-      const d = PDF_CACHE[req.params.token];
-      if (!d || d.exp < Date.now()) return res.status(404).send('PDF expire.');
-      res.setHeader('Content-Type','application/pdf');
-      res.setHeader('Content-Disposition','inline; filename="rapport_expertise.pdf"');
-      res.send(d.buffer);
-    } catch (e) { res.status(500).send('Erreur PDF'); }
-  });
-
-  // Middleware principal
-  const pdfMiddleware = function(req, res, next) {
-    if (req.method !== 'POST' || !req.body) return next();
-    const origJson = res.json.bind(res);
-    let responded = false;
-
-    // Timeout de securite : force une reponse si tout est bloque
-    const safety = setTimeout(() => {
-      if (responded) return;
-      responded = true;
-      console.log('[fix-final] TIMEOUT SECURITE 55s - force reponse');
-      try {
-        origJson({ ok: true, answer: 'Generation en cours, reessayez dans quelques secondes.', enriched: true });
-      } catch (e) {}
-    }, 55000);
-
-    res.json = async function(data) {
-      if (responded) return;
-      const answerRaw = (data && (data.answer || data.answerRaw)) || '';
-
-      // Deja traite par un autre module (pdfLink + pdfReport poses)
-      if (data && data.pdfLink && data.pdfReport) {
-        responded = true; clearTimeout(safety);
-        return origJson(data);
-      }
-      if (!answerRaw) {
-        responded = true; clearTimeout(safety);
-        return origJson(data);
-      }
-
-      const question = req.body.question || '(non specifie)';
-      const content = req.body.content || '';
+    // GET /api/history
+    if (method === 'GET' && path === '/api/history') {
       const user = getUserFromToken(req);
-
-      let finalAnswer = answerRaw;
-      let fallbackSource = (data && data.fallbackUsed) || null;
-
-      // Fallback rapide si besoin
+      if (!user.id) return sendJson(res, { items: [] }, 401);
+      const { QA } = getModels();
+      if (!QA) return sendJson(res, { items: [] });
       try {
-        const cleaned = cleanAnswer(answerRaw);
-        const needsFb = cleaned.length < 150 || /je ne (peux|sais|dispose)/i.test(cleaned) || /desole,? (je|nous)/i.test(cleaned) || /je vous encourage a consulter/i.test(cleaned) || /consultez? (les )?documents?/i.test(cleaned);
-        if (needsFb) {
-          try {
-            finalAnswer = await withTimeout(askClaude(question, content), 20000, 'claude_timeout');
-            fallbackSource = 'claude';
-            console.log('[fix-final] Fallback CLAUDE OK (' + finalAnswer.length + ' car.)');
-          } catch (e) {
-            console.warn('[fix-final] Claude KO:', e.message);
-            try {
-              finalAnswer = await withTimeout(askGemini(question, content), 20000, 'gemini_timeout');
-              fallbackSource = 'gemini';
-              console.log('[fix-final] Fallback GEMINI OK (' + finalAnswer.length + ' car.)');
-            } catch (e2) { console.warn('[fix-final] Gemini KO:', e2.message); }
-          }
-        }
-      } catch (e) { console.warn('[fix-final] Fallback err:', e.message); }
-
-      // Historique NON bloquant (fire and forget)
-      if (QA && user.id) {
-        withTimeout(
-          QA.create({ userId:user.id, question:question, answer:finalAnswer, language:req.body.language || 'fr', domain:req.body.domain || 'General' }),
-          2000, 'qa_create_timeout'
-        ).then(() => console.log('[fix-final] Historique OK pour ' + user.email))
-         .catch(e => console.warn('[fix-final] Historique non bloquant:', e.message));
+        const items = await withTimeout(QA.find({ userId: user.id }).sort({ createdAt: -1 }).limit(200).lean(), 3000, 'history_timeout');
+        return sendJson(res, { items });
+      } catch (e) {
+        console.warn('[fix-final] history err:', e.message);
+        return sendJson(res, { items: [] });
       }
+    }
 
-      // PDF
-      let pdfLink = (data && data.pdfLink) || null;
-      if (!pdfLink) {
+    // GET /api/ultimate-pdf/:token
+    if (method === 'GET' && path.indexOf('/api/ultimate-pdf/') === 0) {
+      const token = path.replace('/api/ultimate-pdf/', '');
+      const d = PDF_CACHE[token];
+      if (!d || d.exp < Date.now()) {
+        res.statusCode = 404;
+        res.setHeader('Content-Type', 'text/plain');
+        return res.end('PDF expire.');
+      }
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', 'inline; filename="rapport_expertise.pdf"');
+      res.setHeader('Content-Length', d.buffer.length);
+      return res.end(d.buffer);
+    }
+
+    // POST /api/ask et POST /api/analyze-content
+    if (method === 'POST' && (path === '/api/ask' || path === '/api/analyze-content')) {
+      const user = getUserFromToken(req);
+      if (!user.id) return next();
+
+      try {
+        const originalQ = (req.body && req.body.question) || '';
+        const content = (req.body && req.body.content) || '';
+        const domain = (req.body && req.body.domain) || 'General';
+        const language = (req.body && req.body.language) || 'fr';
+
+        const ragCtx = await buildRagContext(originalQ);
+        const question = ragCtx
+          ? 'Utilise ces donnees techniques officielles pour repondre :\n\n' + ragCtx + '\n\n---\n\nQuestion : ' + originalQ
+          : originalQ;
+
+        let answer = '';
+        let fallbackSource = null;
+
         try {
-          const pdfBuffer = await withTimeout(generatePDF(question, finalAnswer, user), 8000, 'pdf_timeout');
+          answer = await withTimeout(askClaude(question, content), 25000, 'claude');
+          if (answer && answer.trim().length > 0) fallbackSource = 'claude';
+        } catch (e) { console.warn('[fix-final] Claude KO:', e.message); }
+
+        if (!answer || !answer.trim()) {
+          try {
+            answer = await withTimeout(askGemini(question, content), 25000, 'gemini');
+            if (answer && answer.trim().length > 0) fallbackSource = 'gemini';
+          } catch (e) { console.warn('[fix-final] Gemini KO:', e.message); }
+        }
+
+        if (!answer || !answer.trim()) {
+          answer = 'Desole, la generation a echoue. Veuillez reessayer dans quelques instants.';
+        }
+
+        const { QA } = getModels();
+        if (QA && user.id) {
+          QA.create({ userId: user.id, question: originalQ, answer: answer, language: language, domain: domain })
+            .then(() => console.log('[fix-final] Historique OK: ' + user.email))
+            .catch(e => console.warn('[fix-final] Historique err:', e.message));
+        }
+
+        let pdfLink = null;
+        try {
+          const pdfBuffer = await withTimeout(generatePDF(originalQ, answer, user), 10000, 'pdf');
           const token = crypto.randomBytes(16).toString('hex');
-          PDF_CACHE[token] = { buffer: pdfBuffer, exp: Date.now() + 2*3600*1000 };
+          PDF_CACHE[token] = { buffer: pdfBuffer, exp: Date.now() + 2 * 3600 * 1000 };
           const baseUrl = process.env.BASE_URL || 'https://scholars-connect-app.onrender.com';
           pdfLink = baseUrl + '/api/ultimate-pdf/' + token;
-          console.log('[fix-final] PDF genere (' + pdfBuffer.length + ' octets)');
-        } catch (e) { console.warn('[fix-final] PDF non genere:', e.message); }
+          console.log('[fix-final] PDF OK (' + pdfBuffer.length + ' octets)');
+        } catch (e) { console.warn('[fix-final] PDF err:', e.message); }
+
+        const dateStr = new Date().toLocaleString('fr-FR');
+        const answerText = cleanAnswer(answer) + (pdfLink ? '\n\n---\nRapport PDF pour ' + user.name + ' (' + user.email + ') le ' + dateStr + '.\nTelecharger : ' + pdfLink : '');
+
+        return sendJson(res, {
+          ok: true,
+          answer: answerText,
+          answerRaw: answer,
+          pdfLink: pdfLink,
+          pdfReport: !!pdfLink,
+          fallbackUsed: fallbackSource,
+          enriched: true,
+          domain: domain
+        });
+      } catch (e) {
+        console.error('[fix-final] route err:', e.message);
+        return sendJson(res, { ok: false, error: e.message }, 500);
       }
+    }
 
-      responded = true; clearTimeout(safety);
-
-      const dateStr = new Date().toLocaleString('fr-FR');
-      const text = cleanAnswer(finalAnswer) + (pdfLink ? '\n\n---\nRapport PDF pour ' + user.name + ' (' + user.email + ') le ' + dateStr + '.\nTelecharger : ' + pdfLink : '');
-
-      return origJson({
-        ok: true,
-        answer: text,
-        answerRaw: finalAnswer,
-        pdfLink: pdfLink,
-        pdfReport: !!pdfLink,
-        fallbackUsed: fallbackSource,
-        enriched: true,
-        domain: req.body.domain || 'General'
-      });
-    };
-    next();
+    return next();
   };
 
-  injectMiddleware(['/api/ask','/api/analyze-content'], pdfMiddleware);
+  try {
+    const mini = express.Router();
+    mini.use(masterMiddleware);
+    if (mini.stack && mini.stack[0]) {
+      router.stack.unshift(mini.stack[0]);
+      console.log('[fix-final] Middleware maitre injecte en position 0');
+    }
+  } catch (e) {
+    console.error('[fix-final] inject err:', e.message);
+  }
 
-  // Init domaines en arriere-plan non bloquant
-  (async () => {
-    if (!Domain) return;
-    try {
-      for (const n of DOMAINES_18) {
-        try { await withTimeout(Domain.updateOne({name:n},{$setOnInsert:{name:n,isDefault:true}},{upsert:true}), 2000, 'upsert_timeout'); } catch (e) {}
-      }
-      console.log('[fix-final] 18 domaines initialises en DB (best effort).');
-    } catch (e) { console.warn('[fix-final] init domaines err:', e.message); }
-  })();
-
-  console.log('[fix-final] Position 0 : ' + (router.stack[0] ? 'OK' : 'ECHEC') + ' - mode anti-timeout actif');
+  console.log('[fix-final] Pret - interception totale des routes critiques');
 };
