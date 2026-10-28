@@ -155,7 +155,7 @@ module.exports = function(app, mongoose) {
   } catch (e) {
     try {
       FixQA = mongoose.model('FixQA', new mongoose.Schema({
-        userId: mongoose.Schema.Types.Mixed,
+        userId: { type: String, index: true },
         question: { type: String, required: true },
         answer: { type: String, required: true },
         language: { type: String, default: 'fr' },
@@ -269,7 +269,7 @@ module.exports = function(app, mongoose) {
         if (!user.id) return sendJson(res, { items: [] }, 401);
         if (!FixQA) return sendJson(res, { items: [] });
         try {
-          const items = await withTimeout(FixQA.find({ userId: user.id }).sort({ createdAt: -1 }).limit(200).lean(), 3000, 'history_timeout');
+          const items = await withTimeout(FixQA.find({ userId: String(user.id || '') }).sort({ createdAt: -1 }).limit(200).lean(), 3000, 'history_timeout');
           console.log('[fix-final] /api/history pour ' + user.email + ' : ' + items.length + ' element(s)');
           return sendJson(res, { items });
         } catch (e) {
@@ -336,7 +336,7 @@ module.exports = function(app, mongoose) {
             // Ecrire
             const created = await withTimeout(
               FixQA.create({
-                userId: user.id,
+                userId: String(user.id || ''),
                 question: originalQ,
                 answer: answer,
                 language: language,
