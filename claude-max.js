@@ -97,3 +97,4 @@ module.exports = function(app, mongoose) {
   console.log('[claude-max] Agent chargé avec générateur PDF complet.');
 };
 
+
