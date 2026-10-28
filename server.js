@@ -197,6 +197,7 @@ Bravo, tu as compris la methode. Continue comme ca !`;
         body: JSON.stringify({
             model: OPENROUTER_MODEL,
             temperature: 0.3,
+            max_tokens: 4000,
             messages: [
                 { role: "system", content: system },
                 { role: "user", content: prompt }
@@ -574,3 +575,4 @@ connectMongo().then(ensureDefaultDomains).finally(() => {
         console.log("================================================");
     });
 });
+
