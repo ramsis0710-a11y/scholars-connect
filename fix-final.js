@@ -2,6 +2,7 @@
 const express = require('express');
 const PDFDocument = require('pdfkit');
 const crypto = require('crypto');
+const mongoose = require('mongoose');
 const PDF_CACHE = {};
 
 const DOMAINES_18 = [
@@ -16,7 +17,7 @@ const API14L_SEED = {
   domain: 'Petrole & Gaz',
   source: 'API-14L-Manual',
   url: 'https://shop.standards.ie/',
-  content: 'API Spec 14L:2020(R2025) - Lock Mandrels and Landing Nipples. TOLERANCES SEAL BORE : Diameter tolerance +0.0020 in / -0.0000 in. Surface finish Ra 0.80 um max (32 micro-inches). Drift test : passage libre du calibreur sur toute la longueur. PRESSIONS EPREUVE : V3 = 1.0x rated pressure. V2 / V1 / V0 = 1.5x rated pressure. Fuite gaz max V0 : 20 sccm. VALIDATION GRADES lock mandrels : V3 (functional supplier), V2 (liquid at pressure), V1 (liquid at rated T and P), V0 (nitrogen gas at rated T and P), V1-H (liquid with temp cycling), V0-H (gas with temp cycling). NDT : ASTM E709. Marking : API Monogram.',
+  content: 'API Spec 14L:2020(R2025). TOLERANCES SEAL BORE : Diameter tolerance +0.0020 in / -0.0000 in. Surface finish Ra 0.80 um max (32 micro-inches). Drift test : passage libre du calibreur. PRESSIONS : V3 = 1.0x rated pressure. V2 / V1 / V0 = 1.5x rated pressure. Fuite gaz max V0 : 20 sccm. VALIDATION : V3 (functional), V2 (liquid at pressure), V1 (liquid at rated T and P), V0 (nitrogen gas at rated T and P), V1-H, V0-H (temp cycling). NDT : ASTM E709. Marking : API Monogram.',
   tags: ['API','14L','seal-bore','tolerance','petrole'],
   metadata: { standard: 'API-14L', isStandard: true }
 };
@@ -142,46 +143,63 @@ function sendJson(res, data, status) {
 }
 
 module.exports = function(app, mongoose) {
-  console.log('[fix-final] Chargement v5 (RAG ameliore + seed API14L + histo await)...');
+  console.log('[fix-final] Chargement v7 (modele QA dedie + debug ameliore)...');
   const router = app._router || app.router;
   if (!router || !router.stack) { console.error('[fix-final] Router non initialise'); return; }
 
-  function getModels() {
-    let QA = null, FD = null;
-    try { QA = mongoose.model('QA'); } catch (e) {}
-    try { FD = mongoose.model('AutoFeedDocument'); } catch (e) {}
-    return { QA, FD };
+  // === CREATION DE MODELES DEDIES sur les MEMES collections ===
+  // Permet d'ecrire dans la DB sans attendre que server.js enregistre ses modeles
+  let FixQA = null, FixFD = null;
+  try {
+    FixQA = mongoose.model('FixQA');
+  } catch (e) {
+    try {
+      FixQA = mongoose.model('FixQA', new mongoose.Schema({
+        userId: mongoose.Schema.Types.Mixed,
+        question: { type: String, required: true },
+        answer: { type: String, required: true },
+        language: { type: String, default: 'fr' },
+        domain: { type: String, default: 'General' },
+        sourceDoc: { type: String, default: null },
+        createdAt: { type: Date, default: Date.now }
+      }), 'qas');  // <-- MEME COLLECTION que server.js
+      console.log('[fix-final] Modele FixQA cree sur collection "qas"');
+    } catch (e2) { console.warn('[fix-final] FixQA err:', e2.message); }
+  }
+  try {
+    FixFD = mongoose.model('FixFD');
+  } catch (e) {
+    try {
+      FixFD = mongoose.model('FixFD', new mongoose.Schema({
+        title: String, content: String, domain: String, source: String,
+        url: String, vector: mongoose.Schema.Types.Mixed, tags: [String],
+        metadata: mongoose.Schema.Types.Mixed, createdAt: { type: Date, default: Date.now }
+      }), 'autofeeddocuments');  // <-- MEME COLLECTION que AutoFeedDocument
+      console.log('[fix-final] Modele FixFD cree sur collection "autofeeddocuments"');
+    } catch (e2) { console.warn('[fix-final] FixFD err:', e2.message); }
   }
 
-  // Seed automatique d'API 14L (upsert au demarrage)
+  // Seed API 14L
   (async () => {
-    const { FD } = getModels();
-    if (!FD) { console.warn('[fix-final] AutoFeedDocument absent - seed impossible'); return; }
+    if (!FixFD) return;
     try {
       await withTimeout(
-        FD.updateOne({ source: 'API-14L-Manual' }, { $set: API14L_SEED }, { upsert: true }),
+        FixFD.updateOne({ source: 'API-14L-Manual' }, { $set: API14L_SEED }, { upsert: true }),
         5000, 'seed_timeout'
       );
-      console.log('[fix-final] Seed API 14L : OK (upsert)');
+      console.log('[fix-final] Seed API 14L : OK');
     } catch (e) {
-      console.warn('[fix-final] Seed API 14L erreur :', e.message);
+      console.warn('[fix-final] Seed err:', e.message);
     }
   })();
 
   async function buildRagContext(question) {
-    const { FD } = getModels();
-    if (!FD) return '';
+    if (!FixFD) return '';
     try {
       const qLower = String(question || '').toLowerCase();
       const tokens = qLower.match(/[a-z0-9]{3,}/g) || [];
 
-      // Recherche ciblee par mots-cles techniques prioritaires
-      const patterns = [];
-      if (qLower.indexOf('14l') !== -1) patterns.push({ field: 'title', regex: '14l', bonus: 50 });
-      if (qLower.indexOf('seal') !== -1 || qLower.indexOf('bore') !== -1) patterns.push({ field: 'content', regex: 'seal.?bore', bonus: 30 });
-      if (qLower.indexOf('tolérance') !== -1 || qLower.indexOf('tolerance') !== -1) patterns.push({ field: 'content', regex: 'tolerance', bonus: 20 });
-
-      const docs = await withTimeout(FD.find({}).limit(500).lean(), 3000, 'rag_timeout');
+      const docs = await withTimeout(FixFD.find({}).limit(500).lean(), 3000, 'rag_timeout');
       let best = null, maxScore = 0;
 
       docs.forEach(d => {
@@ -194,22 +212,20 @@ module.exports = function(app, mongoose) {
           if (content.indexOf(t) !== -1) score += 1;
         });
 
-        patterns.forEach(p => {
-          const target = p.field === 'title' ? title : content;
-          if (target.indexOf(p.regex.replace('.?','').replace('.?','')) !== -1 || target.indexOf(p.regex) !== -1) score += p.bonus;
-        });
-
+        if (qLower.indexOf('14l') !== -1 && title.indexOf('14l') !== -1) score += 50;
+        if ((qLower.indexOf('seal') !== -1 || qLower.indexOf('bore') !== -1) && content.indexOf('seal bore') !== -1) score += 30;
+        if ((qLower.indexOf('tolérance') !== -1 || qLower.indexOf('tolerance') !== -1) && content.indexOf('tolerance') !== -1) score += 20;
         if (title.indexOf('api spec 14l') !== -1) score += 100;
         if (title.indexOf('vam') !== -1 && qLower.indexOf('vam') === -1) score -= 30;
 
         if (score > maxScore) { maxScore = score; best = d; }
       });
 
-      if (best && maxScore > 0) {
+      if (best && maxScore > 5) {
         console.log('[fix-final] RAG: ' + best.title + ' (score=' + maxScore + ')');
         return best.content || '';
       }
-      console.log('[fix-final] RAG: aucun doc pertinent (best=' + (best ? best.title : 'none') + ', score=' + maxScore + ')');
+      console.log('[fix-final] RAG aucun doc (best=' + (best ? best.title : 'none') + ', score=' + maxScore + ')');
     } catch (e) { console.warn('[fix-final] RAG err:', e.message); }
     return '';
   }
@@ -225,6 +241,25 @@ module.exports = function(app, mongoose) {
     const method = (req.method || 'GET').toUpperCase();
 
     try {
+      // === DIAGNOSTIC DB ===
+      if (method === 'GET' && path === '/api/debug/db') {
+        const state = mongoose.connection.readyState;
+        const stateNames = { 0: 'disconnected', 1: 'connected', 2: 'connecting', 3: 'disconnecting' };
+        let counts = {};
+        try {
+          if (FixQA) counts.fixQA = await withTimeout(FixQA.countDocuments(), 2000, 'count_qa');
+          if (FixFD) counts.fixFD = await withTimeout(FixFD.countDocuments(), 2000, 'count_fd');
+        } catch (e) { counts.error = e.message; }
+        return sendJson(res, {
+          readyState: state,
+          readyStateName: stateNames[state] || 'unknown',
+          models: { FixQA: !!FixQA, FixFD: !!FixFD },
+          counts: counts,
+          collections: mongoose.connection.db ? (await mongoose.connection.db.listCollections().toArray()).map(c => c.name) : [],
+          timestamp: new Date().toISOString()
+        });
+      }
+
       if (method === 'GET' && path === '/api/domains') {
         return sendJson(res, { domains: DOMAINES_18 });
       }
@@ -232,10 +267,10 @@ module.exports = function(app, mongoose) {
       if (method === 'GET' && path === '/api/history') {
         const user = getUserFromToken(req);
         if (!user.id) return sendJson(res, { items: [] }, 401);
-        const { QA } = getModels();
-        if (!QA) return sendJson(res, { items: [] });
+        if (!FixQA) return sendJson(res, { items: [] });
         try {
-          const items = await withTimeout(QA.find({ userId: user.id }).sort({ createdAt: -1 }).limit(200).lean(), 3000, 'history_timeout');
+          const items = await withTimeout(FixQA.find({ userId: user.id }).sort({ createdAt: -1 }).limit(200).lean(), 3000, 'history_timeout');
+          console.log('[fix-final] /api/history pour ' + user.email + ' : ' + items.length + ' element(s)');
           return sendJson(res, { items });
         } catch (e) {
           console.warn('[fix-final] history err:', e.message);
@@ -268,7 +303,7 @@ module.exports = function(app, mongoose) {
 
         const ragCtx = await buildRagContext(originalQ);
         const question = ragCtx
-          ? 'INSTRUCTION CRITIQUE : Utilise EXCLUSIVEMENT les donnees techniques ci-dessous pour repondre. Cite les valeurs exactes (+0.0020 in, 0.80 um). Si une donnee manque, ecris DONNEE MANQUANTE.\n\n[CONTEXTE TECHNIQUE OFFICIEL]\n' + ragCtx + '\n[FIN CONTEXTE]\n\nQuestion : ' + originalQ
+          ? 'INSTRUCTION : Utilise EXCLUSIVEMENT les donnees techniques ci-dessous. Cite les valeurs exactes.\n\n[CONTEXTE]\n' + ragCtx + '\n[FIN]\n\nQuestion : ' + originalQ
           : originalQ;
 
         let answer = '';
@@ -287,37 +322,42 @@ module.exports = function(app, mongoose) {
         }
 
         if (!answer || !answer.trim()) {
-          answer = 'Desole, la generation a echoue. Veuillez reessayer dans quelques instants.';
+          answer = 'Desole, la generation a echoue. Reessayez.';
         }
 
-        // Historique ATTENDU (max 4s) avec verification de connexion
-        const { QA } = getModels();
-        if (QA && user.id) {
+        // === ECRITURE QA avec FixQA (modele dedie) ===
+        if (FixQA && user.id) {
           try {
-            // ETAPE 1 : S'assurer que la connexion MongoDB est prete
+            // Attendre connexion Mongo
             if (mongoose.connection.readyState !== 1) {
-              console.log('[fix-final] Connexion Mongo pas prete (readyState=' + mongoose.connection.readyState + '), attente...');
+              console.log('[fix-final] Attente connexion Mongo (state=' + mongoose.connection.readyState + ')');
               await withTimeout(mongoose.connection.asPromise(), 3000, 'conn_wait');
-              console.log('[fix-final] Connexion Mongo prete (readyState=' + mongoose.connection.readyState + ')');
             }
-
-            // ETAPE 2 : Ecrire avec verification explicite
+            // Ecrire
             const created = await withTimeout(
-              QA.create({ userId: user.id, question: originalQ, answer: answer, language: language, domain: domain }),
-              3000, 'history_save_timeout'
+              FixQA.create({
+                userId: user.id,
+                question: originalQ,
+                answer: answer,
+                language: language,
+                domain: domain,
+                sourceDoc: null
+              }),
+              3000, 'history_save'
             );
             if (created && created._id) {
-              console.log('[fix-final] Historique OK - _id=' + created._id.toString() + ' pour ' + user.email);
+              console.log('[fix-final] QA sauvegarde OK - _id=' + created._id + ' pour ' + user.email);
             } else {
-              console.warn('[fix-final] Historique cree mais _id absent :', JSON.stringify(created));
+              console.warn('[fix-final] QA cree mais _id absent :', JSON.stringify(created));
             }
           } catch (e) {
-            console.error('[fix-final] Historique ERREUR :', e.message, '| stack:', (e.stack||'').split('\n')[0]);
+            console.error('[fix-final] QA ERREUR :', e.message);
           }
         } else {
-          console.log('[fix-final] Historique ignore (QA=' + !!QA + ', userId=' + user.id + ')');
+          console.log('[fix-final] QA skip (FixQA=' + !!FixQA + ', userId=' + user.id + ')');
         }
 
+        // PDF
         let pdfLink = null;
         try {
           const pdfBuffer = await withTimeout(generatePDF(originalQ, answer, user), 10000, 'pdf');
@@ -354,11 +394,11 @@ module.exports = function(app, mongoose) {
     mini.use(masterMiddleware);
     if (mini.stack && mini.stack[0]) {
       router.stack.unshift(mini.stack[0]);
-      console.log('[fix-final] Middleware maitre injecte en position 0');
+      console.log('[fix-final] Middleware maitre v7 injecte en position 0');
     }
   } catch (e) {
     console.error('[fix-final] inject err:', e.message);
   }
 
-  console.log('[fix-final] Pret - v5 avec seed API14L et RAG ameliore');
+  console.log('[fix-final] Pret - v7 FixQA sur collection "qas" + debug actif');
 };
