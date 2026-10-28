@@ -143,15 +143,14 @@ function sendJson(res, data, status) {
 }
 
 module.exports = function(app, mongoose) {
-  console.log('[fix-final] Chargement v7 (modele QA dedie + debug ameliore)...');
+  console.log('[fix-final] ========== CHARGEMENT V10 (userId String + question robuste) ==========');
   const router = app._router || app.router;
   if (!router || !router.stack) { console.error('[fix-final] Router non initialise'); return; }
 
-  // === CREATION DE MODELES DEDIES sur les MEMES collections ===
-  // Permet d'ecrire dans la DB sans attendre que server.js enregistre ses modeles
   let FixQA = null, FixFD = null;
   try {
     FixQA = mongoose.model('FixQA');
+    console.log('[fix-final] FixQA existant reutilise');
   } catch (e) {
     try {
       FixQA = mongoose.model('FixQA', new mongoose.Schema({
@@ -162,8 +161,8 @@ module.exports = function(app, mongoose) {
         domain: { type: String, default: 'General' },
         sourceDoc: { type: String, default: null },
         createdAt: { type: Date, default: Date.now }
-      }), 'qas');  // <-- MEME COLLECTION que server.js
-      console.log('[fix-final] Modele FixQA cree sur collection "qas"');
+      }), 'qas');
+      console.log('[fix-final] Modele FixQA CREE (collection qas, userId=String)');
     } catch (e2) { console.warn('[fix-final] FixQA err:', e2.message); }
   }
   try {
@@ -174,23 +173,17 @@ module.exports = function(app, mongoose) {
         title: String, content: String, domain: String, source: String,
         url: String, vector: mongoose.Schema.Types.Mixed, tags: [String],
         metadata: mongoose.Schema.Types.Mixed, createdAt: { type: Date, default: Date.now }
-      }), 'autofeeddocuments');  // <-- MEME COLLECTION que AutoFeedDocument
-      console.log('[fix-final] Modele FixFD cree sur collection "autofeeddocuments"');
+      }), 'autofeeddocuments');
+      console.log('[fix-final] Modele FixFD CREE (collection autofeeddocuments)');
     } catch (e2) { console.warn('[fix-final] FixFD err:', e2.message); }
   }
 
-  // Seed API 14L
   (async () => {
     if (!FixFD) return;
     try {
-      await withTimeout(
-        FixFD.updateOne({ source: 'API-14L-Manual' }, { $set: API14L_SEED }, { upsert: true }),
-        5000, 'seed_timeout'
-      );
+      await withTimeout(FixFD.updateOne({ source: 'API-14L-Manual' }, { $set: API14L_SEED }, { upsert: true }), 5000, 'seed_timeout');
       console.log('[fix-final] Seed API 14L : OK');
-    } catch (e) {
-      console.warn('[fix-final] Seed err:', e.message);
-    }
+    } catch (e) { console.warn('[fix-final] Seed err:', e.message); }
   })();
 
   async function buildRagContext(question) {
@@ -198,29 +191,23 @@ module.exports = function(app, mongoose) {
     try {
       const qLower = String(question || '').toLowerCase();
       const tokens = qLower.match(/[a-z0-9]{3,}/g) || [];
-
       const docs = await withTimeout(FixFD.find({}).limit(500).lean(), 3000, 'rag_timeout');
       let best = null, maxScore = 0;
-
       docs.forEach(d => {
         const title = String(d.title || '').toLowerCase();
         const content = String(d.content || '').toLowerCase();
         let score = 0;
-
         tokens.forEach(t => {
           if (title.indexOf(t) !== -1) score += 10;
           if (content.indexOf(t) !== -1) score += 1;
         });
-
         if (qLower.indexOf('14l') !== -1 && title.indexOf('14l') !== -1) score += 50;
         if ((qLower.indexOf('seal') !== -1 || qLower.indexOf('bore') !== -1) && content.indexOf('seal bore') !== -1) score += 30;
         if ((qLower.indexOf('tolérance') !== -1 || qLower.indexOf('tolerance') !== -1) && content.indexOf('tolerance') !== -1) score += 20;
         if (title.indexOf('api spec 14l') !== -1) score += 100;
         if (title.indexOf('vam') !== -1 && qLower.indexOf('vam') === -1) score -= 30;
-
         if (score > maxScore) { maxScore = score; best = d; }
       });
-
       if (best && maxScore > 5) {
         console.log('[fix-final] RAG: ' + best.title + ' (score=' + maxScore + ')');
         return best.content || '';
@@ -234,14 +221,11 @@ module.exports = function(app, mongoose) {
     let path = '';
     try {
       const rawUrl = req.url || req.originalUrl || '';
-      const cleanUrl = rawUrl.split('?')[0].split('#')[0];
-      path = cleanUrl || '/';
+      path = rawUrl.split('?')[0].split('#')[0] || '/';
     } catch (e) { path = '/'; }
-
     const method = (req.method || 'GET').toUpperCase();
 
     try {
-      // === DIAGNOSTIC DB ===
       if (method === 'GET' && path === '/api/debug/db') {
         const state = mongoose.connection.readyState;
         const stateNames = { 0: 'disconnected', 1: 'connected', 2: 'connecting', 3: 'disconnecting' };
@@ -251,6 +235,7 @@ module.exports = function(app, mongoose) {
           if (FixFD) counts.fixFD = await withTimeout(FixFD.countDocuments(), 2000, 'count_fd');
         } catch (e) { counts.error = e.message; }
         return sendJson(res, {
+          version: 'v10',
           readyState: state,
           readyStateName: stateNames[state] || 'unknown',
           models: { FixQA: !!FixQA, FixFD: !!FixFD },
@@ -270,7 +255,7 @@ module.exports = function(app, mongoose) {
         if (!FixQA) return sendJson(res, { items: [] });
         try {
           const items = await withTimeout(FixQA.find({ userId: String(user.id || '') }).sort({ createdAt: -1 }).limit(200).lean(), 3000, 'history_timeout');
-          console.log('[fix-final] /api/history pour ' + user.email + ' : ' + items.length + ' element(s)');
+          console.log('[fix-final] /api/history pour ' + user.email + ' (id=' + String(user.id||'').substring(0,8) + '...) : ' + items.length + ' element(s)');
           return sendJson(res, { items });
         } catch (e) {
           console.warn('[fix-final] history err:', e.message);
@@ -294,9 +279,9 @@ module.exports = function(app, mongoose) {
 
       if (method === 'POST' && (path === '/api/ask' || path === '/api/analyze-content')) {
         const user = getUserFromToken(req);
-        if (!user.id) return next();
+        console.log('[fix-final] POST ' + path + ' - user: ' + (user.email || 'anonyme') + ' (id=' + String(user.id||'').substring(0,8) + '...)');
+        if (!user.id) { console.warn('[fix-final] userId manquant - pas de sauvegarde'); return next(); }
 
-        // Lecture ROBUSTE de la question (req.body peut etre vide si un autre module l'a consomme)
         let originalQ = '';
         try {
           if (req.body && typeof req.body === 'object') {
@@ -304,27 +289,24 @@ module.exports = function(app, mongoose) {
           }
           if (!originalQ && req.query && req.query.question) originalQ = String(req.query.question);
           if (!originalQ && req.body) {
-            // Dernier recours : chercher la premiere string non vide dans body
             for (const k of Object.keys(req.body)) {
               const v = req.body[k];
               if (typeof v === 'string' && v.trim().length > 2 && k !== 'language' && k !== 'domain') {
-                originalQ = v;
-                console.log('[fix-final] Question trouvee dans body.' + k + ' : ' + originalQ.substring(0, 60));
-                break;
+                originalQ = v; break;
               }
             }
           }
           originalQ = String(originalQ || '').trim();
           if (!originalQ) {
             originalQ = '(question non transmise)';
-            console.warn('[fix-final] ATTENTION : aucune question dans req.body. Body keys=' + (req.body ? Object.keys(req.body).join(',') : 'null'));
+            console.warn('[fix-final] Body=' + JSON.stringify(req.body).substring(0,200));
           } else {
-            console.log('[fix-final] Question lue (' + originalQ.length + ' car.) : ' + originalQ.substring(0, 60));
+            console.log('[fix-final] Question (' + originalQ.length + ' car.) : ' + originalQ.substring(0, 80));
           }
         } catch (e) {
           originalQ = '(question illisible)';
-          console.error('[fix-final] Erreur lecture question :', e.message);
         }
+
         const content = (req.body && req.body.content) || '';
         const domain = (req.body && req.body.domain) || 'General';
         const language = (req.body && req.body.language) || 'fr';
@@ -353,15 +335,11 @@ module.exports = function(app, mongoose) {
           answer = 'Desole, la generation a echoue. Reessayez.';
         }
 
-        // === ECRITURE QA avec FixQA (modele dedie) ===
         if (FixQA && user.id) {
           try {
-            // Attendre connexion Mongo
             if (mongoose.connection.readyState !== 1) {
-              console.log('[fix-final] Attente connexion Mongo (state=' + mongoose.connection.readyState + ')');
               await withTimeout(mongoose.connection.asPromise(), 3000, 'conn_wait');
             }
-            // Ecrire
             const created = await withTimeout(
               FixQA.create({
                 userId: String(user.id || ''),
@@ -374,18 +352,17 @@ module.exports = function(app, mongoose) {
               3000, 'history_save'
             );
             if (created && created._id) {
-              console.log('[fix-final] QA sauvegarde OK - _id=' + created._id + ' pour ' + user.email + ' (question=' + (originalQ||'').substring(0,40) + ')');
+              console.log('[fix-final] QA SAUVEGARDE OK - _id=' + created._id + ' - question="' + originalQ.substring(0,40) + '" pour ' + user.email);
             } else {
-              console.warn('[fix-final] QA cree mais _id absent :', JSON.stringify(created));
+              console.warn('[fix-final] QA cree mais _id absent');
             }
           } catch (e) {
             console.error('[fix-final] QA ERREUR :', e.message);
           }
         } else {
-          console.log('[fix-final] QA skip (FixQA=' + !!FixQA + ', userId=' + user.id + ')');
+          console.log('[fix-final] QA skip (FixQA=' + !!FixQA + ', userId=' + (user.id || 'null') + ')');
         }
 
-        // PDF
         let pdfLink = null;
         try {
           const pdfBuffer = await withTimeout(generatePDF(originalQ, answer, user), 10000, 'pdf');
@@ -422,11 +399,11 @@ module.exports = function(app, mongoose) {
     mini.use(masterMiddleware);
     if (mini.stack && mini.stack[0]) {
       router.stack.unshift(mini.stack[0]);
-      console.log('[fix-final] Middleware maitre v7 injecte en position 0');
+      console.log('[fix-final] Middleware MAITRE V10 injecte en position 0');
     }
   } catch (e) {
     console.error('[fix-final] inject err:', e.message);
   }
 
-  console.log('[fix-final] Pret - v7 FixQA sur collection "qas" + debug actif');
+  console.log('[fix-final] ========== V10 PRET ==========');
 };
