@@ -1,36 +1,61 @@
 'use strict';
 
 module.exports = function(app, mongoose) {
-  console.log('[answer-enricher] Initialisation complète.');
+  console.log('[answer-enricher] Mode texte propre avec RAG.');
 
-  // 1. Modules de base de connaissances
+  // 1. Bases de connaissances
   try { require('./api14l-kb')(app, mongoose); } catch (e) {}
   try { require('./oem-chemical-injection-kb')(app, mongoose); } catch (e) {}
   try { require('./bct-kb')(app, mongoose); } catch (e) {}
 
-  // 2. Modules IA
-  try { require('./claude-max')(app, mongoose); } catch (e) {}
+  // 2. Gemini en secours UNIQUEMENT (pas de PDF, pas de HTML)
   try { require('./gemini-fallback')(app, mongoose); } catch (e) {}
-  try { require('./answer-guardian')(app, mongoose); } catch (e) {}
 
-  // 3. INTERCEPTION : on transforme le HTML du PDF en lien direct cliquable
-  app.use(['/api/ask', '/api/analyze-content'], function(req, res, next) {
-    const originalJson = res.json.bind(res);
-    res.json = function(data) {
-      if (!data || !data.answer) return originalJson(data);
+  // 3. Injection RAG : on cherche le document pertinent dans la base
+  app.use(['/api/ask', '/api/analyze-content'], async function(req, res, next) {
+    if (!req.body || !req.body.question) return next();
+    
+    try {
+      const AutoFeedDoc = mongoose.model('AutoFeedDocument');
+      const q = req.body.question;
+      const tokens = q.toLowerCase().match(/\b\w{3,}\b/g) || [];
+      
+      const docs = await AutoFeedDoc.find({}).limit(500).lean();
+      let bestDoc = null, maxScore = 0;
+      
+      docs.forEach(d => {
+        const content = (d.title + ' ' + d.content).toLowerCase();
+        let score = 0;
+        tokens.forEach(t => { if (content.includes(t)) score++; });
+        if (score > maxScore) { maxScore = score; bestDoc = d; }
+      });
 
-      // Si la réponse contient l'iframe du PDF, on extrait le lien et on le remplace par un lien texte
-      if (data.answer.includes('<iframe') && data.answer.includes('/api/claude-pdf/')) {
-        const match = data.answer.match(/\/api\/claude-pdf\/([a-f0-9]+)/);
-        if (match && match[1]) {
-          const token = match[1];
-          const pdfUrl = `https://scholars-connect-app.onrender.com/api/claude-pdf/${token}`;
-          data.answer = `Le rapport technique est prêt.\n\n?? Cliquez ici pour ouvrir le PDF :\n${pdfUrl}\n\n---\n\n(Le PDF contient la réponse complète à votre question.)`;
-          data.enriched = true;
-        }
+      if (bestDoc && maxScore > 1) {
+        console.log('[RAG] Document trouve :', bestDoc.title);
+        req.body.question = `REPONDS UNIQUEMENT avec ces donnees techniques :\n\n${bestDoc.content}\n\nQuestion : ${q}`;
       }
+    } catch (e) {
+      // Si le modele n'existe pas encore, on ignore
+    }
+    
+    next();
+  });
 
-      return originalJson(data);
+  // 4. Nettoyage : si par erreur du HTML arrive, on le transforme en texte
+  app.use(['/api/ask', '/api/analyze-content'], function(req, res, next) {
+    const orig = res.json.bind(res);
+    res.json = function(data) {
+      if (!data || !data.answer) return orig(data);
+      // Si la réponse contient des balises HTML, on nettoie
+      if (/<[a-z][\s\S]*>/i.test(data.answer)) {
+        data.answer = data.answer
+          .replace(/<br\s*\/?>/gi, '\n')
+          .replace(/<\/p>/gi, '\n\n')
+          .replace(/<[^>]+>/g, '')
+          .replace(/&nbsp;/g, ' ')
+          .trim();
+      }
+      return orig(data);
     };
     next();
   });
