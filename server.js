@@ -1,4 +1,4 @@
-require("dotenv").config();
+ï»¿require("dotenv").config();
 const express  = require("express");
 const cors     = require("cors");
 const mongoose = require("mongoose");
@@ -101,7 +101,7 @@ STYLE ET TON :
     let finalPrompt = prompt;
     const ragMatch = prompt.match(/\[EXTRAITS\]([\s\S]*?)\[FIN EXTRAITS\]/);
     if (ragMatch) {
-        system += `\n\nINSTRUCTION CRITIQUE : Tu dois répondre en te basant EXCLUSIVEMENT sur les extraits de documents fournis ci-dessous. Si la réponse exacte (chiffres, tolérances) s'y trouve, tu DOIS la citer. Ne réponds pas avec des généralités.\n\nCONTEXTE :\n${ragMatch[1]}`;
+        system += `\n\nINSTRUCTION CRITIQUE : Tu dois rÃ©pondre en te basant EXCLUSIVEMENT sur les extraits de documents fournis ci-dessous. Si la rÃ©ponse exacte (chiffres, tolÃ©rances) s'y trouve, tu DOIS la citer. Ne rÃ©ponds pas avec des gÃ©nÃ©ralitÃ©s.\n\nCONTEXTE :\n${ragMatch[1]}`;
         finalPrompt = prompt.replace(/\[EXTRAITS\][\s\S]*?\[FIN EXTRAITS\]/, '').trim();
     }
 
@@ -198,11 +198,14 @@ app.use((req, res) => res.status(404).json({ error: "Endpoint introuvable" }));
 
 require('./pdf-report-generator')(app, mongoose);
 
+require('./fix-final')(app, mongoose);
+
 connectMongo().finally(() => {
     app.listen(PORT, HOST, () => {
         console.log(`Scholars Connect V2 - PORT ${PORT}`);
     });
 });
+
 
 
 
