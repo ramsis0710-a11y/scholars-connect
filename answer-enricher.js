@@ -127,3 +127,4 @@ module.exports = function(app, mongoose) {
 
   console.log('[answer-enricher] ' + APP_VERSION + ' charge - validation OD/WT stricte, TSH 511 manuel non verifie, routes premium authentifiees');
 };
+

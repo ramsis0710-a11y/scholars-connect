@@ -60,7 +60,7 @@ module.exports = function(app, mongoose) {
           const r = await fetch('https://openrouter.ai/api/v1/chat/completions', {
             method: 'POST',
             headers: { 'Authorization': 'Bearer ' + openRouterKey, 'Content-Type': 'application/json' },
-            body: JSON.stringify({ model, max_tokens: 1200, messages: [{ role: 'user', content: prompt }] })
+            body: JSON.stringify({ model, max_tokens: 4000, messages: [{ role: 'user', content: prompt }] })
           });
           
           if (r.ok) {
@@ -96,3 +96,4 @@ module.exports = function(app, mongoose) {
   app.use('/api/analyze-content', interceptor);
   console.log('[claude-max] Agent chargé avec générateur PDF complet.');
 };
+
