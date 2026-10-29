@@ -206,8 +206,4 @@ connectMongo().finally(() => {
     });
 });
 
-
-
-
-
-
+app.get('/upload-qp', (req, res) => res.sendFile(require('path').join(__dirname, 'public', 'upload-qp.html')));
