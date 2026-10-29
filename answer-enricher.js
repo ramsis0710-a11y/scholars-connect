@@ -1377,19 +1377,21 @@ module.exports = function(app, mongoose) {
     res.json({ verifiedOn: STD_VERIFIED_ON, standards: STANDARDS, standardsSources: STANDARDS_SOURCES, premiumFamilies: PREMIUM_FAMILIES.map(function(f) { return { id: f.id, owner: f.owner, derivatives: f.derivatives, docs: f.docs, url: f.url }; }), premiumSources: PREMIUM_SOURCES, premiumTools: PREMIUM_TOOLS, blockedDomains: BLOCKED_DOMAINS, minPremiumChars: PREMIUM_MIN_CHARS });
   });
 
-  app.get('/qp-admin', function(req, res) {
+    app.get('/qp-admin', function(req, res) {
     res.set('Content-Type', 'text/html; charset=utf-8');
     res.set('X-Robots-Tag', 'noindex');
     res.set('Content-Security-Policy', "default-src 'none'; style-src 'unsafe-inline'; script-src 'self'; connect-src 'self'; img-src data: 'self'");
     var html = '<!doctype html><html lang="fr"><head><meta charset="utf-8">';
     html += '<meta name="viewport" content="width=device-width,initial-scale=1">';
-    html += '<title>Plans qualite - Controle et restauration</title>';
+    html += '<title>Plans qualite - Generation QP</title>';
     html += '<style>';
-    html += 'body{font-family:Arial,sans-serif;background:#f5f7fa;color:#17202a;margin:0}';
+    html += '*{box-sizing:border-box}';
+    html += 'body{font-family:Arial,sans-serif;background:#f5f7fa;color:#17202a;margin:0;padding:0}';
     html += '.wrap{max-width:980px;margin:0 auto;padding:24px}';
     html += 'h1{color:#0a2540;font-size:22px;margin:0 0 6px 0}';
     html += '.sub{color:#4b5563;font-size:13px;margin:0 0 18px 0}';
-    html += 'label{font-weight:700;font-size:13px;color:#0a2540}';
+    html += 'label{font-weight:700;font-size:13px;color:#0a2540;display:block;margin:12px 0 6px 0}';
+    html += 'input[type="email"],input[type="password"]{width:100%;padding:10px;border:1px solid #cbd5e1;border-radius:8px;font-size:14px;margin-bottom:8px}';
     html += 'textarea{width:100%;height:160px;box-sizing:border-box;border:1px solid #cbd5e1;border-radius:8px;padding:10px;font-family:monospace;font-size:12px;margin:6px 0 12px 0}';
     html += '.row{display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin-bottom:14px;font-size:13px}';
     html += '.big{background:#0a2540;color:#fff;border:0;border-radius:10px;padding:16px 34px;font-size:17px;font-weight:800;cursor:pointer}';
@@ -1407,45 +1409,100 @@ module.exports = function(app, mongoose) {
     html += 'a{color:#1e5aa8;font-weight:700}';
     html += 'table{border-collapse:collapse;width:100%;font-size:12px;margin-top:6px}';
     html += 'td,th{border:1px solid #cbd5e1;padding:4px 6px;text-align:left;vertical-align:top}';
-    html += '.pdf-zone{background:#fff;border:2px dashed #1e5aa8;border-radius:10px;padding:16px;margin:10px 0;font-size:13px}';
-    html += '.pdf-zone input{margin-top:8px}';
-    html += '.excel-zone{background:#fff;border:2px dashed #16a34a;border-radius:10px;padding:16px;margin:10px 0;font-size:13px}';
-    html += '.excel-zone input{margin-top:8px}';
+    html += '.zone{background:#fff;border:2px dashed #1e5aa8;border-radius:10px;padding:16px;margin:10px 0;font-size:13px}';
+    html += '.zone-green{border-color:#16a34a}';
+    html += '.zone input{margin-top:8px}';
     html += '.hint{font-size:11px;color:#6b7280;margin:-6px 0 8px 0;font-style:italic}';
+    html += '.auth-box{background:#fff;border:2px solid #1e5aa8;border-radius:10px;padding:16px;margin-bottom:18px}';
+    html += '.auth-box h2{color:#0a2540;font-size:15px;margin:0 0 12px 0}';
+    html += '.status-ok{color:#16a34a;font-weight:700;font-size:13px;margin-top:8px}';
+    html += '.status-ko{color:#dc2626;font-weight:700;font-size:13px;margin-top:8px}';
+    html += '.hidden{display:none !important}';
     html += '</style></head><body><div class="wrap">';
-    html += '<h1>Plans qualite - controle et restauration</h1>';
-    html += '<p class="sub">Un seul clic : inventaire, restauration des sources premium VAM / Tenaris, test N WO = N plans qualite, test de taille, generation depuis votre ARC (texte, PDF ou Excel).</p>';
-    html += '<label for="arc">Document ARC - collez le TEXTE ici</label>';
+    html += '<h1>Plans qualite - Generation QP</h1>';
+    html += '<p class="sub">GMPI QP STANDARD 01 (FO-24-PRO Rev 6) - Generation depuis ARC (texte, PDF ou Excel)</p>';
+
+    // BLOC LOGIN
+    html += '<div class="auth-box" id="authBox">';
+    html += '<h2>1. Connexion</h2>';
+    html += '<label for="authEmail">Email</label>';
+    html += '<input type="email" id="authEmail" placeholder="votre@email.com" value="demo_' + Date.now() + '@test.tn">';
+    html += '<label for="authPassword">Mot de passe</label>';
+    html += '<input type="password" id="authPassword" placeholder="Test123!" value="Test123!">';
+    html += '<button id="btnAuth" class="big" type="button" style="padding:12px 24px;font-size:14px">Se connecter</button>';
+    html += '<div id="authStatus" style="margin-top:8px"></div>';
+    html += '</div>';
+
+    html += '<div id="mainSection" class="hidden">';
+
+    // BLOC ARC
+    html += '<label for="arc">2. Document ARC - collez le TEXTE ici</label>';
     html += '<textarea id="arc" placeholder="Collez ici le TEXTE du document ARC..."></textarea>';
-    html += '<label for="excel" style="color:#16a34a">Tableau Excel - collez directement depuis Excel (Ctrl+C / Ctrl+V)</label>';
-    html += '<div class="hint">Selectionnez vos lignes dans Excel, faites Ctrl+C, puis collez ici. Le separateur (tabulation, point-virgule, pipe) est detecte automatiquement, ainsi que les colonnes PO / WO / Client / Description / Date / Qte.</div>';
-    html += '<textarea id="excel" placeholder="Collez ici le tableau Excel (colonnes PO, WO, Client, Description, Date, Qte, ...)"></textarea>';
-    html += '<div class="excel-zone"><b>Ou chargez un fichier tableau :</b><input type="file" id="excelFile" accept=".tsv,.csv,.txt,.md,.tab"></div>';
-    html += '<div class="pdf-zone"><b>Ou chargez directement un fichier PDF :</b><input type="file" id="pdfFile" accept=".pdf,application/pdf"></div>';
+
+    // BLOC EXCEL
+    html += '<label for="excel" style="color:#16a34a">3. Tableau Excel - collez directement depuis Excel (Ctrl+C / Ctrl+V)</label>';
+    html += '<div class="hint">Selectionnez vos lignes dans Excel, faites Ctrl+C, puis collez ici. Le separateur (tabulation, point-virgule, pipe) est detecte automatiquement.</div>';
+    html += '<textarea id="excel" placeholder="Collez ici le tableau Excel (colonnes PO, WO, Client, Description, Date, Qte)"></textarea>';
+
+    html += '<div class="zone zone-green"><b>Ou chargez un fichier tableau Excel / CSV / TSV :</b><input type="file" id="excelFile" accept=".tsv,.csv,.txt,.md,.tab"></div>';
+    html += '<div class="zone"><b>Ou chargez directement un fichier PDF :</b><input type="file" id="pdfFile" accept=".pdf,application/pdf"></div>';
+
     html += '<div class="row">';
     html += '<span>ou fichier texte : <input type="file" id="file" accept=".txt,.csv,.tsv,.log,text/plain"></span>';
     html += '<span>N pour le test : <input type="number" id="nTest" value="60" min="1" max="1000" style="width:80px"></span>';
-    html += '<span><input type="checkbox" id="force"> forcer le rechargement complet</span>';
     html += '</div>';
+
     html += '<button id="go" class="big" type="button">TOUT EXECUTER EN UN CLIC</button>';
     html += '<button id="excelGo" class="alt green" type="button">Generer depuis EXCEL uniquement</button>';
     html += '<button id="pdfGo" class="alt" type="button">Generer depuis le PDF uniquement</button>';
     html += '<div id="out"></div>';
+    html += '</div>';
     html += '</div><script src="/qp-admin.js"></script></body></html>';
     res.send(html);
   });
 
-  app.get('/qp-admin.js', function(req, res) {
+    app.get('/qp-admin.js', function(req, res) {
     res.set('Content-Type', 'application/javascript; charset=utf-8');
     var js = '';
     js += '(function(){';
-    js += 'var out=document.getElementById("out");var btn=document.getElementById("go");var pdfBtn=document.getElementById("pdfGo");var excelBtn=document.getElementById("excelGo");';
+    js += 'var out=document.getElementById("out");';
+    js += 'var btn=document.getElementById("go");';
+    js += 'var pdfBtn=document.getElementById("pdfGo");';
+    js += 'var excelBtn=document.getElementById("excelGo");';
+    js += 'var authBox=document.getElementById("authBox");';
+    js += 'var mainSection=document.getElementById("mainSection");';
     js += 'function esc(s){return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");}';
     js += 'function line(cls,html){var d=document.createElement("div");d.className="ln "+cls;d.innerHTML=html;out.appendChild(d);return d;}';
     js += 'function token(){try{return localStorage.getItem("token")||"";}catch(e){return "";}}';
     js += 'function headers(extra){var h={"Authorization":"Bearer "+token()};if(extra){for(var k in extra){h[k]=extra[k];}}return h;}';
-    js += 'async function sendPdf(file){var buf=await file.arrayBuffer();var r=await fetch("/api/qp-generate-pdf",{method:"POST",headers:headers({"Content-Type":"application/pdf"}),body:buf});var txt=await r.text();var data=null;try{data=JSON.parse(txt);}catch(e){}return{ok:r.ok,status:r.status,data:data,text:txt};}';
-    js += 'async function excelOnly(){out.innerHTML="";var text=document.getElementById("excel").value;var f=document.getElementById("excelFile").files[0];';
+    js += 'function setAuthStatus(msg,ok){var el=document.getElementById("authStatus");el.textContent=msg;el.className=ok===true?"status-ok":(ok===false?"status-ko":"");}';
+
+    // Login automatique au chargement
+    js += 'async function tryLogin(){';
+    js += 'var existing=token();';
+    js += 'if(existing){authBox.classList.add("hidden");mainSection.classList.remove("hidden");return;}';
+    js += 'var email=document.getElementById("authEmail").value.trim();';
+    js += 'var password=document.getElementById("authPassword").value;';
+    js += 'if(!email||!password){setAuthStatus("Email et mot de passe requis",false);return;}';
+    js += 'setAuthStatus("Connexion en cours...",null);';
+    js += 'try{';
+    js += 'var resp=await fetch("/api/auth/register",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email:email,password:password,name:email})});';
+    js += 'if(!resp.ok){resp=await fetch("/api/auth/login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email:email,password:password})});}';
+    js += 'if(!resp.ok)throw new Error("HTTP "+resp.status);';
+    js += 'var data=await resp.json();';
+    js += 'if(!data.token)throw new Error("Token manquant");';
+    js += 'localStorage.setItem("token",data.token);';
+    js += 'setAuthStatus("✓ Connecte : "+email,true);';
+    js += 'authBox.classList.add("hidden");';
+    js += 'mainSection.classList.remove("hidden");';
+    js += '}catch(e){setAuthStatus("✗ "+e.message,false);}';
+    js += '}';
+    js += 'document.getElementById("btnAuth").addEventListener("click",tryLogin);';
+
+    // Excel
+    js += 'async function excelOnly(){out.innerHTML="";';
+    js += 'var text=document.getElementById("excel").value;';
+    js += 'var f=document.getElementById("excelFile").files[0];';
     js += 'if(!text.trim()&&f){text=await f.text();}';
     js += 'if(!text.trim()){line("ko","Collez un tableau Excel dans la zone dediee, ou chargez un fichier .tsv / .csv / .txt avant de cliquer.");return;}';
     js += 'line("info","Analyse du tableau Excel ("+text.length+" caracteres)...");';
@@ -1455,25 +1512,49 @@ module.exports = function(app, mongoose) {
     js += 'if(!data.ok){line("ko",esc(data.error||"Erreur inconnue"));if(data.excelDiag){line("info","Diagnostic : "+(data.excelDiag.validWOs||0)+" WO valides sur "+(data.excelDiag.dataRows||0)+" lignes");}return;}';
     js += 'line("ok",data.wo+" WO detectes - "+data.qpDocs+" QP generes - confiance moy. "+(data.avgConfidence||"?")+"%");';
     js += 'line("info","Client : <b>"+esc(data.customer)+"</b> - PO : <b>"+esc(data.po)+"</b>");';
-    js += 'if(data.excelDiag){var d=data.excelDiag;var diagHtml="<b>Diagnostic Excel :</b><br>&bull; Separateur : "+esc(d.detectedSeparator)+"<br>&bull; Entete : "+(d.headerDetected?"detectee":"AUCUNE")+"<br>&bull; Lignes de donnees : "+d.dataRows+"<br>&bull; WO valides : <b>"+d.validWOs+"</b>";line("info",diagHtml);}';
+    js += 'if(data.excelDiag){var d=data.excelDiag;var dh="<b>Diagnostic Excel :</b><br>&bull; Separateur : "+esc(d.detectedSeparator)+"<br>&bull; Entete : "+(d.headerDetected?"detectee":"AUCUNE")+"<br>&bull; Lignes de donnees : "+d.dataRows+"<br>&bull; WO valides : <b>"+d.validWOs+"</b>";line("info",dh);}';
     js += 'var lk=data.links.map(function(l){return "<a href=\\""+esc(l.url)+"\\" target=\\"_blank\\">PDF QP "+l.from+" a "+l.to+"</a>";}).join(" &nbsp; ");';
     js += 'line("ok","Ouvrir : "+lk);';
     js += '}';
-    js += 'async function pdfOnly(){out.innerHTML="";var f=document.getElementById("pdfFile").files[0];if(!f){line("ko","Choisissez un fichier PDF avant de cliquer.");return;}line("info","Envoi du PDF ("+Math.round(f.size/1024)+" Ko)...");var r=await sendPdf(f);if(!r.ok||!r.data){line("ko","Erreur HTTP "+r.status+" : "+esc(r.text.slice(0,400)));return;}if(!r.data.ok){line("ko",esc(r.data.error||"Erreur inconnue"));return;}line("ok",r.data.wo+" WO detectes - "+r.data.qpDocs+" QP generes - confiance "+(r.data.avgConfidence||"?")+"%");var lk=r.data.links.map(function(l){return "<a href=\\""+esc(l.url)+"\\" target=\\"_blank\\">PDF QP "+l.from+" a "+l.to+"</a>";}).join(" &nbsp; ");line("ok","Ouvrir : "+lk);}';
+
+    // PDF
+    js += 'async function pdfOnly(){out.innerHTML="";';
+    js += 'var f=document.getElementById("pdfFile").files[0];';
+    js += 'if(!f){line("ko","Choisissez un fichier PDF avant de cliquer.");return;}';
+    js += 'line("info","Envoi du PDF ("+Math.round(f.size/1024)+" Ko)...");';
+    js += 'var buf=await f.arrayBuffer();';
+    js += 'var r=await fetch("/api/qp-generate-pdf",{method:"POST",headers:headers({"Content-Type":"application/pdf"}),body:buf});';
+    js += 'var txt=await r.text();var data=null;try{data=JSON.parse(txt);}catch(e){}';
+    js += 'if(!r.ok||!data){line("ko","Erreur HTTP "+r.status+" : "+esc(txt.slice(0,400)));return;}';
+    js += 'if(!data.ok){line("ko",esc(data.error||"Erreur"));return;}';
+    js += 'line("ok",data.wo+" WO detectes - "+data.qpDocs+" QP generes - confiance "+(data.avgConfidence||"?")+"%");';
+    js += 'var lk=data.links.map(function(l){return "<a href=\\""+esc(l.url)+"\\" target=\\"_blank\\">PDF QP "+l.from+" a "+l.to+"</a>";}).join(" &nbsp; ");';
+    js += 'line("ok","Ouvrir : "+lk);';
+    js += '}';
+
+    // Tout executer
     js += 'async function run(){out.innerHTML="";btn.disabled=true;pdfBtn.disabled=true;excelBtn.disabled=true;';
+    js += 'try{';
     js += 'var n=parseInt(document.getElementById("nTest").value,10)||60;';
-    js += 'var stt=await fetch("/api/qp-selftest?n="+n,{headers:headers()});var sttd=await stt.json();';
-    js += 'if(sttd.pass!==undefined){sttd.results.forEach(function(r){line(r.pass?"ok":"ko","N = "+r.n+" : WO "+r.wosFound+" - QP "+r.qpDocs);});}';
-    js += 'var excelText=document.getElementById("excel").value;var excelF=document.getElementById("excelFile").files[0];';
+    js += 'var excelText=document.getElementById("excel").value;';
+    js += 'var excelF=document.getElementById("excelFile").files[0];';
     js += 'if(!excelText.trim()&&excelF){excelText=await excelF.text();}';
-    js += 'if(excelText.trim()){var gx=await fetch("/api/qp-generate-excel",{method:"POST",headers:headers({"Content-Type":"text/plain"}),body:excelText});var gxd=await gx.json();if(gxd.ok){line("ok","EXCEL : "+gxd.wo+" WO, "+gxd.qpDocs+" QP, confiance "+(gxd.avgConfidence||"?")+"%");var lkx=gxd.links.map(function(l){return "<a href=\\""+esc(l.url)+"\\" target=\\"_blank\\">PDF QP "+l.from+" a "+l.to+"</a>";}).join(" &nbsp; ");line("ok","Ouvrir : "+lkx);}else{line("ko","EXCEL : "+esc(gxd.error||"echec"));}}';
+    js += 'if(excelText.trim()){await excelOnly();}';
     js += 'var pdfF=document.getElementById("pdfFile").files[0];';
-    js += 'if(pdfF){var g2=await sendPdf(pdfF);if(g2.ok&&g2.data&&g2.data.ok){line("ok","PDF : "+g2.data.wo+" WO, "+g2.data.qpDocs+" QP, confiance "+(g2.data.avgConfidence||"?")+"%");var lk2=g2.data.links.map(function(l){return "<a href=\\""+esc(l.url)+"\\" target=\\"_blank\\">PDF QP "+l.from+" a "+l.to+"</a>";}).join(" &nbsp; ");line("ok","Ouvrir : "+lk2);}else{line("ko",esc((g2.data&&g2.data.error)||"Echec PDF"));}}';
+    js += 'if(pdfF){await pdfOnly();}';
     js += 'var arc=document.getElementById("arc").value;';
-    js += 'if(arc.trim()){var g=await fetch("/api/qp-generate",{method:"POST",headers:headers({"Content-Type":"text/plain"}),body:arc});var gd=await g.json();if(gd.ok){line("ok",gd.wo+" WO, "+gd.qpDocs+" QP, confiance "+(gd.avgConfidence||"?")+"%");var lk=gd.links.map(function(l){return "<a href=\\""+esc(l.url)+"\\" target=\\"_blank\\">PDF QP "+l.from+" a "+l.to+"</a>";}).join(" &nbsp; ");line("ok","Ouvrir : "+lk);}else{line("ko",esc(gd.error||"echec"));}}';
+    js += 'if(arc.trim()){var g=await fetch("/api/qp-generate",{method:"POST",headers:headers({"Content-Type":"text/plain"}),body:arc});var gd=await g.json();if(gd.ok){line("ok","ARC : "+gd.wo+" WO, "+gd.qpDocs+" QP, confiance "+(gd.avgConfidence||"?")+"%");var lk=gd.links.map(function(l){return "<a href=\\""+esc(l.url)+"\\" target=\\"_blank\\">PDF QP "+l.from+" a "+l.to+"</a>";}).join(" &nbsp; ");line("ok","Ouvrir : "+lk);}else{line("ko","ARC : "+esc(gd.error||"echec"));}}';
+    js += '}catch(e){line("ko","Erreur : "+e.message);}';
     js += 'btn.disabled=false;pdfBtn.disabled=false;excelBtn.disabled=false;';
     js += '}';
-    js += 'btn.addEventListener("click",run);pdfBtn.addEventListener("click",pdfOnly);excelBtn.addEventListener("click",excelOnly);';
+
+    js += 'btn.addEventListener("click",run);';
+    js += 'pdfBtn.addEventListener("click",pdfOnly);';
+    js += 'excelBtn.addEventListener("click",excelOnly);';
+
+    // Auto-login si token deja present
+    js += 'if(token()){authBox.classList.add("hidden");mainSection.classList.remove("hidden");}';
+
     js += '})();';
     res.send(js);
   });
