@@ -153,6 +153,9 @@ button.primary:disabled { opacity: 0.5; cursor: not-allowed; }
 <!-- INTERFACE UNIFIEE : 4 ONGLETS (injection automatique)         -->
 <!-- N affiche que les onglets ; boutons micro/envoyer preserves    -->
 <!-- ============================================================ -->
+
+
+<!-- === INTERFACE UNIFIEE (injection unique) === -->
 <style>
 .gmpi-tabs-bar { display: flex; gap: 4px; margin-bottom: 10px; border-bottom: 2px solid #e5e7eb; flex-wrap: wrap; background: #fff; padding: 8px 12px; border-radius: 8px; }
 .gmpi-tab { padding: 8px 14px; background: none; border: none; font-size: 13px; font-weight: 600; color: #6b7280; cursor: pointer; border-bottom: 3px solid transparent; margin-bottom: -2px; }
@@ -181,22 +184,22 @@ button.primary:disabled { opacity: 0.5; cursor: not-allowed; }
 </style>
 
 <div class="gmpi-tabs-bar" id="gmpiTabsBar">
-  <button class="gmpi-tab active" data-gmpi-tab="chat">💬 Chat</button>
-  <button class="gmpi-tab" data-gmpi-tab="analyze">📄 Analyser un document</button>
-  <button class="gmpi-tab" data-gmpi-tab="excel">📊 Excel (liste de WO)</button>
-  <button class="gmpi-tab" data-gmpi-tab="qp">📋 Générer un Plan Qualité</button>
+  <button class="gmpi-tab active" data-gmpi-tab="chat" type="button">Chat</button>
+  <button class="gmpi-tab" data-gmpi-tab="analyze" type="button">Analyser un document</button>
+  <button class="gmpi-tab" data-gmpi-tab="excel" type="button">Excel (liste de WO)</button>
+  <button class="gmpi-tab" data-gmpi-tab="qp" type="button">Generer un Plan Qualite</button>
 </div>
 
 <div class="gmpi-panel" id="gmpi-panel-analyze">
   <div class="gmpi-card">
     <h3>Analyser un contenu</h3>
     <div class="gmpi-option-row">
-      <button class="gmpi-opt-btn active" data-gmpi-mode="text">📝 Coller du texte</button>
-      <button class="gmpi-opt-btn" data-gmpi-mode="url">🔗 Coller une URL</button>
-      <button class="gmpi-opt-btn" data-gmpi-mode="file">📎 PDF / DOCX</button>
+      <button class="gmpi-opt-btn active" data-gmpi-mode="text" type="button">Coller du texte</button>
+      <button class="gmpi-opt-btn" data-gmpi-mode="url" type="button">Coller une URL</button>
+      <button class="gmpi-opt-btn" data-gmpi-mode="file" type="button">PDF / DOCX</button>
     </div>
     <div id="gmpi-mode-text">
-      <label class="gmpi-label">Contenu à analyser (max 20 000 caractères) :</label>
+      <label class="gmpi-label">Contenu a analyser (max 20 000 caracteres) :</label>
       <textarea class="gmpi-textarea" id="gmpiAnalyzeText" placeholder="Colle ici le contenu..."></textarea>
     </div>
     <div id="gmpi-mode-url" style="display:none;">
@@ -206,13 +209,13 @@ button.primary:disabled { opacity: 0.5; cursor: not-allowed; }
     <div id="gmpi-mode-file" style="display:none;">
       <label class="gmpi-label">Fichier PDF / DOCX :</label>
       <div class="gmpi-zone" id="gmpiFileZone">
-        <div style="font-size:24px;">📎</div>
+        <div style="font-size:24px;">+</div>
         <div>Cliquez ou glissez un fichier ici</div>
         <input type="file" id="gmpiAnalyzeFile" accept=".pdf,.docx,.txt,.doc" style="display:none;">
       </div>
     </div>
-    <label class="gmpi-label">Question spécifique (optionnel) :</label>
-    <input type="text" class="gmpi-input" id="gmpiAnalyzeQuestion" placeholder="Ex: Tolérances du seal bore API 14L ?">
+    <label class="gmpi-label">Question specifique (optionnel) :</label>
+    <input type="text" class="gmpi-input" id="gmpiAnalyzeQuestion" placeholder="Ex: Tolerances du seal bore API 14L ?">
     <button class="gmpi-btn" id="gmpiBtnAnalyze" type="button">Analyser</button>
     <div class="gmpi-result" id="gmpiAnalyzeResult"></div>
   </div>
@@ -220,47 +223,48 @@ button.primary:disabled { opacity: 0.5; cursor: not-allowed; }
 
 <div class="gmpi-panel" id="gmpi-panel-excel">
   <div class="gmpi-card">
-    <h3>📊 Charger un fichier Excel (liste de Work Orders)</h3>
+    <h3>Charger un fichier Excel (liste de Work Orders)</h3>
     <p style="color:#6b7280;font-size:12px;">Colonnes attendues : PO, WO, Client, Description, Date, Qty.</p>
     <label class="gmpi-label">Fichier Excel / CSV / TSV :</label>
     <div class="gmpi-zone" id="gmpiExcelZone" style="padding:24px;">
-      <div style="font-size:32px;">📊</div>
+      <div style="font-size:32px;">XLS</div>
       <div style="margin-top:6px;">Cliquez ou glissez votre fichier Excel ici</div>
       <div style="margin-top:4px;font-size:11px;color:#6b7280;">.xlsx, .csv, .tsv, .tab</div>
       <input type="file" id="gmpiExcelFile" accept=".csv,.tsv,.txt,.tab,.xlsx,.xls" style="display:none;">
     </div>
     <label class="gmpi-label">Ou coller directement depuis Excel (Ctrl+C / Ctrl+V) :</label>
     <textarea class="gmpi-textarea" id="gmpiExcelText" placeholder="Collez ici votre tableau Excel..."></textarea>
-    <button class="gmpi-btn" id="gmpiBtnExcel" type="button">📋 Générer les QP depuis Excel</button>
+    <button class="gmpi-btn" id="gmpiBtnExcel" type="button">Generer les QP depuis Excel</button>
     <div class="gmpi-result" id="gmpiExcelResult"></div>
   </div>
 </div>
 
 <div class="gmpi-panel" id="gmpi-panel-qp">
   <div class="gmpi-card">
-    <h3>📋 Générer un Plan Qualité</h3>
+    <h3>Generer un Plan Qualite</h3>
     <label class="gmpi-label">Fichier Excel / CSV / TSV :</label>
     <div class="gmpi-zone" id="gmpiQpExcelZone">
-      <div style="font-size:24px;">📊</div>
+      <div style="font-size:24px;">XLS</div>
       <div>Cliquez ou glissez un fichier Excel</div>
       <input type="file" id="gmpiQpExcelFile" accept=".csv,.tsv,.txt,.tab" style="display:none;">
     </div>
     <label class="gmpi-label">Ou fichier PDF (ARC) :</label>
     <div class="gmpi-zone" id="gmpiQpPdfZone">
-      <div style="font-size:24px;">📄</div>
+      <div style="font-size:24px;">PDF</div>
       <div>Cliquez ou glissez un PDF</div>
       <input type="file" id="gmpiQpPdfFile" accept=".pdf" style="display:none;">
     </div>
-    <button class="gmpi-btn" id="gmpiBtnQP" type="button">Générer le QP</button>
+    <button class="gmpi-btn" id="gmpiBtnQP" type="button">Generer le QP</button>
     <div class="gmpi-result" id="gmpiQpResult"></div>
   </div>
 </div>
 
 <div class="gmpi-panel active" id="gmpi-panel-chat">
   <div style="text-align:center;color:#6b7280;padding:16px;font-size:13px;background:#fff;border-radius:8px;">
-    💬 Posez votre question via la barre de saisie en bas.
+    Posez votre question via la barre de saisie en bas.
   </div>
 </div>
+<!-- === FIN INTERFACE UNIFIEE === -->
 <div class="chat-messages" id="chatMessages">
           <div class="msg bot">Bonjour ! Posez-moi n'importe quelle question technique, scientifique ou generale.</div>
         </div>
@@ -532,6 +536,172 @@ button.primary:disabled { opacity: 0.5; cursor: not-allowed; }
     $('chatMessages').scrollTop = $('chatMessages').scrollHeight;
   }
 
+})();
+</script>
+
+<script>
+(function() {
+  var API = 'https://scholars-connect-app.onrender.com';
+  var $ = function(id) { return document.getElementById(id); };
+  var TOKEN = '';
+  try { TOKEN = localStorage.getItem('token') || ''; } catch(e) {}
+
+  document.querySelectorAll('.gmpi-tab').forEach(function(tab) {
+    tab.addEventListener('click', function() {
+      document.querySelectorAll('.gmpi-tab').forEach(function(t){ t.classList.remove('active'); });
+      document.querySelectorAll('.gmpi-panel').forEach(function(p){ p.classList.remove('active'); });
+      tab.classList.add('active');
+      var p = $('gmpi-panel-' + tab.dataset.gmpiTab);
+      if (p) p.classList.add('active');
+    });
+  });
+
+  document.querySelectorAll('.gmpi-opt-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      document.querySelectorAll('.gmpi-opt-btn').forEach(function(b){ b.classList.remove('active'); });
+      btn.classList.add('active');
+      ['text','url','file'].forEach(function(m){ $('gmpi-mode-'+m).style.display = 'none'; });
+      $('gmpi-mode-'+btn.dataset.gmpiMode).style.display = 'block';
+    });
+  });
+
+  if ($('gmpiFileZone')) {
+    $('gmpiFileZone').addEventListener('click', function(){ $('gmpiAnalyzeFile').click(); });
+    $('gmpiAnalyzeFile').addEventListener('change', function() {
+      var f = this.files[0];
+      if (f) { $('gmpiFileZone').classList.add('has-file'); $('gmpiFileZone').innerHTML = '<div style="font-size:24px;">OK</div><div style="color:#16a34a;font-weight:700;">'+f.name+'</div>'; }
+    });
+  }
+
+  if ($('gmpiBtnAnalyze')) {
+    $('gmpiBtnAnalyze').addEventListener('click', async function() {
+      $('gmpiBtnAnalyze').disabled = true;
+      var r = $('gmpiAnalyzeResult'); r.className = 'gmpi-result'; r.style.display = 'none';
+      try {
+        var mode = document.querySelector('.gmpi-opt-btn.active').dataset.gmpiMode;
+        var q = $('gmpiAnalyzeQuestion').value.trim();
+        var ep, body, ct;
+        if (mode === 'text') {
+          var t = $('gmpiAnalyzeText').value.trim();
+          if (!t) throw new Error('Collez du texte');
+          ep = '/api/analyze-content';
+          body = JSON.stringify({content:t, question: q||'Analyse', domain:'General', language:'fr'});
+          ct = 'application/json';
+        } else if (mode === 'url') {
+          var u = $('gmpiAnalyzeUrl').value.trim();
+          if (!u) throw new Error('Entrez une URL');
+          ep = '/api/analyze-content';
+          body = JSON.stringify({content:u, type:'url', question: q||'Analyse', domain:'General', language:'fr'});
+          ct = 'application/json';
+        } else {
+          var f = $('gmpiAnalyzeFile').files[0];
+          if (!f) throw new Error('Choisissez un fichier');
+          var buf = await f.arrayBuffer();
+          ep = '/api/qp-generate-pdf'; body = buf; ct = 'application/pdf';
+        }
+        var resp = await fetch(API + ep, {method:'POST', headers:{'Authorization':'Bearer '+TOKEN, 'Content-Type':ct}, body: body});
+        var data = await resp.json();
+        if (!resp.ok) throw new Error(data.error || ('HTTP '+resp.status));
+        var html = '';
+        if (data.answer) html = '<div style="font-weight:700;">Reponse :</div><div>'+data.answer.substring(0,5000)+'</div>';
+        else if (data.ok && data.wo !== undefined) html = '<div>'+data.wo+' WO -> '+data.qpDocs+' QP</div>';
+        else html = '<pre style="font-size:11px;">'+JSON.stringify(data,null,2).substring(0,2000)+'</pre>';
+        r.innerHTML = html; r.className = 'gmpi-result ok';
+      } catch(e) { r.innerHTML = '<strong>Erreur :</strong> ' + e.message; r.className = 'gmpi-result ko'; }
+      $('gmpiBtnAnalyze').disabled = false;
+    });
+  }
+
+  if ($('gmpiExcelZone')) {
+    $('gmpiExcelZone').addEventListener('click', function(){ $('gmpiExcelFile').click(); });
+    $('gmpiExcelFile').addEventListener('change', function() {
+      var f = this.files[0];
+      if (f) { $('gmpiExcelZone').classList.add('has-file'); $('gmpiExcelZone').innerHTML = '<div style="font-size:32px;">OK</div><div style="color:#16a34a;font-weight:700;">'+f.name+'</div>'; }
+    });
+    $('gmpiExcelZone').addEventListener('dragover', function(e){ e.preventDefault(); this.style.borderColor='#16a34a'; });
+    $('gmpiExcelZone').addEventListener('dragleave', function(e){ e.preventDefault(); this.style.borderColor=''; });
+    $('gmpiExcelZone').addEventListener('drop', function(e) {
+      e.preventDefault(); this.style.borderColor='';
+      var f = e.dataTransfer.files[0];
+      if (f) { $('gmpiExcelFile').files = e.dataTransfer.files; $('gmpiExcelZone').classList.add('has-file'); $('gmpiExcelZone').innerHTML = '<div style="font-size:32px;">OK</div><div style="color:#16a34a;font-weight:700;">'+f.name+'</div>'; }
+    });
+  }
+
+  if ($('gmpiBtnExcel')) {
+    $('gmpiBtnExcel').addEventListener('click', async function() {
+      $('gmpiBtnExcel').disabled = true;
+      var r = $('gmpiExcelResult'); r.className = 'gmpi-result'; r.innerHTML = 'Analyse...'; r.style.display = 'block';
+      try {
+        var f = $('gmpiExcelFile').files[0];
+        var t = $('gmpiExcelText').value.trim();
+        var c = '';
+        if (f) c = await f.text();
+        else if (t) c = t;
+        else throw new Error('Choisissez un fichier ou collez du texte');
+        var resp = await fetch(API + '/api/qp-generate-excel', {method:'POST', headers:{'Authorization':'Bearer '+TOKEN, 'Content-Type':'text/plain; charset=utf-8'}, body: c});
+        var data = await resp.json();
+        if (!data.ok) throw new Error(data.error || 'Erreur');
+        var html = '<div style="font-weight:800;font-size:14px;color:#0a2540;margin-bottom:10px;">'+data.wo+' WO -> '+data.qpDocs+' QP generes</div>';
+        if (data.customer) html += '<div><strong>Client :</strong> '+data.customer+'</div>';
+        if (data.po) html += '<div><strong>PO :</strong> '+data.po+'</div>';
+        if (data.avgConfidence !== undefined) html += '<div><strong>Confiance :</strong> '+data.avgConfidence+'%</div>';
+        if (data.excelDiag) {
+          var d = data.excelDiag;
+          html += '<div style="background:#f0f7ff;border-radius:6px;padding:8px;margin:8px 0;font-family:monospace;font-size:11px;">Separateur : <b>'+d.detectedSeparator+'</b> | Entete : <b>'+(d.headerDetected?'detectee':'non')+'</b> | Lignes : <b>'+d.dataRows+'</b> | WO valides : <b>'+d.validWOs+'</b></div>';
+        }
+        if (data.ids && data.ids.length) {
+          html += '<div style="margin:8px 0;"><strong>'+data.ids.length+' WO :</strong><br>';
+          data.ids.slice(0, 50).forEach(function(id){ html += '<span style="background:#fff;border:1px solid #1e5aa8;color:#1e5aa8;padding:2px 6px;border-radius:10px;font-size:11px;margin:2px;display:inline-block;">QP-'+id+'</span>'; });
+          html += '</div>';
+        }
+        if (data.links && data.links.length) {
+          html += '<div style="margin-top:10px;font-weight:700;">Telecharger :</div>';
+          data.links.forEach(function(l){ html += '<a href="'+API+l.url+'" target="_blank" rel="noopener">QP '+l.from+' a '+l.to+'</a>'; });
+        }
+        r.innerHTML = html; r.className = 'gmpi-result ok';
+      } catch(e) { r.innerHTML = '<strong>Erreur :</strong> ' + e.message; r.className = 'gmpi-result ko'; }
+      $('gmpiBtnExcel').disabled = false;
+    });
+  }
+
+  if ($('gmpiQpExcelZone')) {
+    $('gmpiQpExcelZone').addEventListener('click', function(){ $('gmpiQpExcelFile').click(); });
+    $('gmpiQpExcelFile').addEventListener('change', function() {
+      var f = this.files[0];
+      if (f) { $('gmpiQpExcelZone').classList.add('has-file'); $('gmpiQpExcelZone').innerHTML = '<div style="font-size:24px;">OK</div><div style="color:#16a34a;font-weight:700;">'+f.name+'</div>'; }
+    });
+  }
+  if ($('gmpiQpPdfZone')) {
+    $('gmpiQpPdfZone').addEventListener('click', function(){ $('gmpiQpPdfFile').click(); });
+    $('gmpiQpPdfFile').addEventListener('change', function() {
+      var f = this.files[0];
+      if (f) { $('gmpiQpPdfZone').classList.add('has-file'); $('gmpiQpPdfZone').innerHTML = '<div style="font-size:24px;">OK</div><div style="color:#16a34a;font-weight:700;">'+f.name+'</div>'; }
+    });
+  }
+
+  if ($('gmpiBtnQP')) {
+    $('gmpiBtnQP').addEventListener('click', async function() {
+      $('gmpiBtnQP').disabled = true;
+      var r = $('gmpiQpResult'); r.className = 'gmpi-result'; r.style.display = 'none';
+      try {
+        var ef = $('gmpiQpExcelFile').files[0];
+        var pf = $('gmpiQpPdfFile').files[0];
+        var ep, body, ct;
+        if (pf) { var buf = await pf.arrayBuffer(); ep = '/api/qp-generate-pdf'; body = buf; ct = 'application/pdf'; }
+        else if (ef) { var c = await ef.text(); ep = '/api/qp-generate-excel'; body = c; ct = 'text/plain; charset=utf-8'; }
+        else throw new Error('Choisissez un fichier');
+        var resp = await fetch(API + ep, {method:'POST', headers:{'Authorization':'Bearer '+TOKEN, 'Content-Type':ct}, body: body});
+        var data = await resp.json();
+        if (!data.ok) throw new Error(data.error || 'Erreur');
+        var html = '<div style="font-weight:700;">'+data.wo+' WO -> '+data.qpDocs+' QP</div>';
+        if (data.customer) html += '<div>Client : '+data.customer+'</div>';
+        if (data.po) html += '<div>PO : '+data.po+'</div>';
+        if (data.links) html += '<div style="margin-top:10px;">'+data.links.map(function(l){return '<a href="'+API+l.url+'" target="_blank">QP '+l.from+' a '+l.to+'</a>';}).join('')+'</div>';
+        r.innerHTML = html; r.className = 'gmpi-result ok';
+      } catch(e) { r.innerHTML = '<strong>Erreur :</strong> ' + e.message; r.className = 'gmpi-result ko'; }
+      $('gmpiBtnQP').disabled = false;
+    });
+  }
 })();
 </script>
 </body>
