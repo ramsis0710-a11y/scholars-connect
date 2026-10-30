@@ -1,213 +1,326 @@
 ﻿// ============================================================
-// VOICE-ENHANCER.JS - v3.0 (Fix Arabe + Continuité garantie)
+// VOICE-ENHANCER.JS - v4.0
+// Auto-detection AR/FR parallele + historique persistant
+// NE TOUCHE PAS au backend (answer-enricher.js intact)
 // ============================================================
 (function() {
-    console.log('[voice-enhancer] v3.0 chargé. Support natif multilingue + continuité.');
+    console.log('[voice-enhancer] v4.0 - Auto-detection parallele AR/FR + historique');
 
-    // 1. INJECTION DU SÉLECTEUR DE LANGUE DE DICTÉE
-    function injectLanguageSelector() {
-        if (document.getElementById('dictationLangSelect')) return;
-        const micBtn = document.getElementById('micBtn');
-        if (!micBtn) return;
+    const API_BASE = 'https://scholars-connect-app.onrender.com';
+    const STORAGE_KEY = 'scholars_chat_history';
+    const LANG_STORAGE = 'scholars_last_lang';
 
-        const select = document.createElement('select');
-        select.id = 'dictationLangSelect';
-        select.style.cssText = 'margin-left: 8px; padding: 6px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 12px; background: white; cursor: pointer;';
-        select.innerHTML = `
-            <option value="auto">🌐 Auto (Système)</option>
-            <option value="ar-SA">🇸🇦 Arabe</option>
-            <option value="fr-FR">🇫🇷 Français</option>
-            <option value="en-US">🇬🇧 Anglais</option>
-            <option value="zh-CN">🇨🇳 Chinois</option>
-            <option value="ru-RU">🇷🇺 Russe</option>
-            <option value="es-ES">🇪🇸 Espagnol</option>
-        `;
-        micBtn.parentNode.insertBefore(select, micBtn.nextSibling);
+    // ============================================================
+    // UTILITAIRES
+    // ============================================================
+    function getToken() {
+        try { return localStorage.getItem('token') || ''; } catch (e) { return ''; }
     }
-    setInterval(injectLanguageSelector, 1000);
+    function getChatContainer() { return document.getElementById('chatMessages'); }
+    function getInput() { return document.getElementById('chatInput'); }
+    function getSendBtn() { return document.getElementById('btnSend'); }
+    function getMicBtn() { return document.getElementById('micBtn'); }
 
-    // 2. DICTÉE VOCALE MULTILINGUE
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (SpeechRecognition) {
-        const recognition = new SpeechRecognition();
-        recognition.continuous = true; 
-        recognition.interimResults = true; 
-
-        let isRecording = false;
-        let finalTranscript = '';
-        let silenceTimer = null;
-
-        const getInput = () => document.getElementById('chatInput');
-        const getSendBtn = () => document.getElementById('btnSend');
-        const getMicBtn = () => document.getElementById('micBtn');
-        const getLangSelect = () => document.getElementById('dictationLangSelect');
-
-        recognition.onstart = () => {
-            isRecording = true;
-            const mb = getMicBtn();
-            if (mb) { mb.style.background = '#16a34a'; mb.innerHTML = '⏹'; }
-        };
-
-        recognition.onresult = (event) => {
-            let interim = '';
-            for (let i = event.resultIndex; i < event.results.length; ++i) {
-                if (event.results[i].isFinal) {
-                    finalTranscript += event.results[i][0].transcript + ' ';
-                } else {
-                    interim += event.results[i][0].transcript;
-                }
-            }
-            const inp = getInput();
-            if (inp) {
-                inp.value = finalTranscript + interim;
-                
-                // Détection automatique : si le texte contient de l'arabe et que le mode est "auto"
-                if (getLangSelect() && getLangSelect().value === 'auto') {
-                    if (/[\u0600-\u06FF]/.test(inp.value)) {
-                        recognition.lang = 'ar-SA';
-                        getLangSelect().value = 'ar-SA'; // Mise à jour visuelle
-                    }
-                }
-            }
-
-            clearTimeout(silenceTimer);
-            silenceTimer = setTimeout(() => {
-                if (isRecording) recognition.stop();
-            }, 5000); // Temps mort de 5s
-        };
-
-        recognition.onend = () => {
-            isRecording = false;
-            const mb = getMicBtn();
-            if (mb) { mb.style.background = '#dc2626'; mb.innerHTML = '🎤'; }
-            
-            const text = getInput() ? getInput().value.trim() : '';
-            if (text.length > 0) {
-                // Confirmation avant envoi (l'IA ne clôture pas, c'est l'utilisateur qui choisit)
-                const confirmSend = confirm("📝 Dictée terminée :\n\n\"" + text + "\"\n\nVoulez-vous envoyer cette question ?");
-                if (confirmSend && getSendBtn()) {
-                    getSendBtn().click();
-                }
-            }
-        };
-
-        setInterval(() => {
-            const mb = getMicBtn();
-            if (mb && !mb.dataset.enhanced) {
-                mb.dataset.enhanced = 'true';
-                mb.addEventListener('click', (e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    if (isRecording) {
-                        recognition.stop();
-                    } else {
-                        finalTranscript = '';
-                        const sel = getLangSelect();
-                        if (sel && sel.value !== 'auto') {
-                            recognition.lang = sel.value;
-                        } else {
-                            const userLang = (navigator.language || 'en-US').split('-')[0];
-                            const langMap = { 'ar':'ar-SA', 'zh':'zh-CN', 'en':'en-US', 'fr':'fr-FR', 'ru':'ru-RU', 'es':'es-ES' };
-                            recognition.lang = langMap[userLang] || 'en-US';
-                        }
-                        try { recognition.start(); } catch(err) {}
-                    }
-                });
-            }
-        }, 1000);
+    function addMsgToDOM(role, text) {
+        const container = getChatContainer();
+        if (!container) return null;
+        const div = document.createElement('div');
+        div.className = 'msg ' + role;
+        if (text && text.indexOf('<') !== -1 && text.indexOf('>') !== -1) {
+            div.innerHTML = text;
+        } else {
+            div.textContent = text;
+        }
+        container.appendChild(div);
+        container.scrollTop = container.scrollHeight;
+        return div;
     }
 
-    // 3. LECTURE VOCALE ET CONTINUITÉ
-    function speakWithNativeVoice(text) {
-        if (!('speechSynthesis' in window)) return;
-        const isArabic = /[\u0600-\u06FF]/.test(text);
-        const targetLang = isArabic ? 'ar-SA' : 'fr-FR';
-
-        const utterance = new SpeechSynthesisUtterance(text);
-        utterance.lang = targetLang;
-        const voices = speechSynthesis.getVoices();
-        const nativeVoice = voices.find(v => v.lang === targetLang);
-        if (nativeVoice) utterance.voice = nativeVoice;
-        speechSynthesis.speak(utterance);
+    // ============================================================
+    // HISTORIQUE : LOCALSTORAGE + API
+    // ============================================================
+    function saveMessageToLocal(role, text) {
+        try {
+            let hist = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+            hist.push({ role: role, text: text, ts: Date.now() });
+            if (hist.length > 200) hist = hist.slice(-200);
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(hist));
+        } catch (e) { console.warn('[voice-enhancer] localStorage save err', e); }
     }
 
-    // Lecture vocale auto à l'arrivée des messages
-    const chatContainer = document.getElementById('chatMessages');
-    if (chatContainer && !chatContainer.dataset.voiceObserver) {
-        chatContainer.dataset.voiceObserver = 'true';
+    function loadFromLocal() {
+        try {
+            const hist = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+            if (hist.length === 0) return false;
+            const container = getChatContainer();
+            if (!container) return false;
+            // Vider la zone sauf le message de bienvenue
+            container.innerHTML = '';
+            hist.forEach(m => addMsgToDOM(m.role, m.text));
+            console.log('[voice-enhancer] ' + hist.length + ' messages restaurés depuis localStorage');
+            return true;
+        } catch (e) { return false; }
+    }
+
+    async function loadFromAPI() {
+        const token = getToken();
+        if (!token) return false;
+        try {
+            const res = await fetch(API_BASE + '/api/history', {
+                headers: { 'Authorization': 'Bearer ' + token }
+            });
+            if (!res.ok) return false;
+            const data = await res.json();
+            if (!data.items || data.items.length === 0) return false;
+            const container = getChatContainer();
+            if (!container) return false;
+            // Merge : afficher les items API (du plus ancien au plus récent)
+            const items = data.items.slice().reverse();
+            items.forEach(item => {
+                if (item.question) {
+                    addMsgToDOM('user', item.question);
+                    saveMessageToLocal('user', item.question);
+                }
+                if (item.answer) {
+                    addMsgToDOM('bot', item.answer);
+                    saveMessageToLocal('bot', item.answer);
+                }
+            });
+            console.log('[voice-enhancer] ' + items.length + ' échanges restaurés depuis /api/history');
+            return true;
+        } catch (e) {
+            console.warn('[voice-enhancer] history API err', e);
+            return false;
+        }
+    }
+
+    async function initHistory() {
+        const container = getChatContainer();
+        if (!container) return;
+        // 1. Charger local d'abord (instantané)
+        const hasLocal = loadFromLocal();
+        // 2. Enrichir avec l'API en arrière-plan
+        if (!hasLocal) {
+            await loadFromAPI();
+        } else {
+            loadFromAPI().catch(() => {});
+        }
+    }
+
+    // Hook : sauvegarder chaque message dès qu'il est ajouté au DOM
+    function hookMessageSave() {
+        const container = getChatContainer();
+        if (!container || container.dataset.saveHooked) return;
+        container.dataset.saveHooked = 'true';
         const observer = new MutationObserver((mutations) => {
-            mutations.forEach((mutation) => {
-                mutation.addedNodes.forEach((node) => {
-                    if (node.nodeType === 1 && node.classList.contains('msg') && node.classList.contains('bot')) {
-                        const voiceAutoCheck = document.getElementById('voiceAuto');
-                        if (voiceAutoCheck && voiceAutoCheck.checked) {
-                            speakWithNativeVoice(node.innerText || node.textContent);
-                        }
+            mutations.forEach(m => {
+                m.addedNodes.forEach(node => {
+                    if (node.nodeType === 1 && node.classList.contains('msg')) {
+                        // Éviter de re-sauvegarder les messages chargés depuis localStorage
+                        if (node.dataset.loaded) return;
+                        const role = node.classList.contains('user') ? 'user' : 'bot';
+                        const text = node.innerText || node.textContent || '';
+                        if (text.trim()) saveMessageToLocal(role, text);
                     }
                 });
             });
         });
-        observer.observe(chatContainer, { childList: true, subtree: true });
+        observer.observe(container, { childList: true, subtree: false });
     }
 
-    // 4. TRADUCTION & PARTAGE
-    function addActionButtons(msgElement) {
-        if (msgElement.querySelector('.enhanced-actions')) return;
-        const actions = document.createElement('div');
-        actions.className = 'enhanced-actions';
-        actions.style.cssText = 'margin-top:8px; display:flex; gap:8px; font-size:12px;';
-        const text = msgElement.innerText || msgElement.textContent;
+    // ============================================================
+    // AUTO-DÉTECTION ARABE : DOUBLE RECONNAISSANCE PARALLÈLE
+    // ============================================================
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 
-        const translateBtn = document.createElement('button');
-        translateBtn.innerHTML = '🌐 Traduire';
-        translateBtn.style.cssText = 'background:#f3f4f6; border:1px solid #d1d5db; border-radius:4px; padding:4px 8px; cursor:pointer;';
-        translateBtn.onclick = async () => {
-            const lang = prompt("Traduire en quelle langue ? (ex: fr, en, ar, es, ru, zh)", "en");
-            if (!lang) return;
-            translateBtn.innerHTML = '⏳...';
-            try {
-                const res = await fetch(`https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=${lang}&dt=t&q=${encodeURIComponent(text)}`);
-                const json = await res.json();
-                const translated = json[0].map(item => item[0]).join('');
-                const transDiv = document.createElement('div');
-                transDiv.style.cssText = 'margin-top:6px; padding:8px; background:#e0f2fe; border-radius:4px; border-left:3px solid #1e5aa8;';
-                transDiv.innerHTML = `<strong>🌐 [${lang.toUpperCase()}] :</strong> ${translated}`;
-                msgElement.appendChild(transDiv);
-                translateBtn.innerHTML = '🌐 Traduire';
-            } catch (e) { alert("Erreur de traduction."); translateBtn.innerHTML = '🌐 Traduire'; }
+    if (SpeechRecognition) {
+        const state = {
+            recording: false,
+            recAr: null,
+            recFr: null,
+            transcriptAr: '',
+            transcriptFr: '',
+            silenceTimer: null,
+            finalTranscript: '',
+            selectedLang: 'auto'
         };
 
-        const shareBtn = document.createElement('button');
-        shareBtn.innerHTML = '📤 Partager';
-        shareBtn.style.cssText = 'background:#f3f4f6; border:1px solid #d1d5db; border-radius:4px; padding:4px 8px; cursor:pointer;';
-        shareBtn.onclick = async () => {
-            if (navigator.share) {
-                try { await navigator.share({ title: 'Scholars Connect', text: text }); } catch (e) {}
-            } else {
-                navigator.clipboard.writeText(text);
-                alert("Texte copié !");
-            }
-        };
-
-        actions.appendChild(translateBtn);
-        actions.appendChild(shareBtn);
-        msgElement.appendChild(actions);
-    }
-
-    setInterval(() => {
-        const chatContainer = document.getElementById('chatMessages');
-        if (chatContainer) chatContainer.querySelectorAll('.msg').forEach(addActionButtons);
-    }, 2000);
-
-    // 5. GARANTIE DE CONTINUITÉ (l'IA ne ferme jamais le chat)
-    // On supprime toute tentative de fermeture automatique ou de redirection
-    window.addEventListener('beforeunload', (e) => {
-        // On empêche la fermeture si c'est l'IA qui tente de le faire (via un flag)
-        if (window._aiClosingChat) {
-            e.preventDefault();
-            e.returnValue = '';
-            return '';
+        function stopAllRecognition() {
+            try { if (state.recAr) state.recAr.stop(); } catch (e) {}
+            try { if (state.recFr) state.recFr.stop(); } catch (e) {}
         }
-    });
 
+        function computeArabicScore(text) {
+            const m = (text || '').match(/[\u0600-\u06FF]/g);
+            return m ? m.length : 0;
+        }
+        function computeLatinScore(text) {
+            const m = (text || '').match(/[a-zA-Z]/g);
+            return m ? m.length : 0;
+        }
+
+        function finishRecognition() {
+            if (!state.recording) return;
+            state.recording = false;
+            stopAllRecognition();
+
+            // Comparer les deux transcriptions
+            const arLen = computeArabicScore(state.transcriptAr);
+            const frLen = computeLatinScore(state.transcriptFr);
+            console.log('[voice-enhancer] Scores : AR=' + arLen + ' | FR=' + frLen);
+
+            let winner = '';
+            let winnerLang = '';
+            if (arLen > frLen && arLen > 5) {
+                winner = state.transcriptAr.trim();
+                winnerLang = 'ar-SA';
+            } else if (frLen > arLen && frLen > 5) {
+                winner = state.transcriptFr.trim();
+                winnerLang = 'fr-FR';
+            } else if (state.transcriptAr.trim().length > state.transcriptFr.trim().length) {
+                winner = state.transcriptAr.trim();
+                winnerLang = 'ar-SA';
+            } else {
+                winner = state.transcriptFr.trim();
+                winnerLang = 'fr-FR';
+            }
+
+            const input = getInput();
+            if (input && winner) {
+                input.value = winner;
+                localStorage.setItem(LANG_STORAGE, winnerLang);
+                console.log('[voice-enhancer] Langue gagnante : ' + winnerLang + ' | "' + winner.slice(0, 80) + '"');
+            }
+
+            const mb = getMicBtn();
+            if (mb) { mb.style.background = '#dc2626'; mb.innerHTML = '🎤'; }
+
+            if (winner && winner.length > 2) {
+                const ok = confirm('📝 Dictée terminée :\n\n"' + winner + '"\n\nEnvoyer ?');
+                if (ok) {
+                    const btn = getSendBtn();
+                    if (btn) btn.click();
+                }
+            }
+        }
+
+        function startSingle(lang) {
+            const rec = new SpeechRecognition();
+            rec.lang = lang;
+            rec.continuous = true;
+            rec.interimResults = true;
+
+            rec.onresult = (event) => {
+                let interim = '';
+                let final = '';
+                for (let i = event.resultIndex; i < event.results.length; i++) {
+                    const t = event.results[i][0].transcript;
+                    if (event.results[i].isFinal) final += t + ' ';
+                    else interim += t;
+                }
+                if (lang === 'ar-SA') state.transcriptAr = (state.transcriptAr + ' ' + final).trim();
+                else state.transcriptFr = (state.transcriptFr + ' ' + final).trim();
+
+                // Afficher le meilleur provisoire
+                const inp = getInput();
+                if (inp) {
+                    const arLen = computeArabicScore(state.transcriptAr);
+                    const frLen = computeLatinScore(state.transcriptFr);
+                    inp.value = (arLen >= frLen ? state.transcriptAr : state.transcriptFr) + ' ' + interim;
+                }
+
+                clearTimeout(state.silenceTimer);
+                state.silenceTimer = setTimeout(finishRecognition, 4000); // 4 sec de silence
+            };
+            rec.onerror = (e) => {
+                console.warn('[voice-enhancer] ' + lang + ' err :', e.error);
+                // Si l'un échoue, on continue avec l'autre
+            };
+            return rec;
+        }
+
+        function startDual() {
+            state.transcriptAr = '';
+            state.transcriptFr = '';
+            state.recAr = startSingle('ar-SA');
+            state.recFr = startSingle('fr-FR');
+            try { state.recAr.start(); } catch (e) { console.warn('recAr start', e); }
+            setTimeout(() => { try { state.recFr.start(); } catch (e) { console.warn('recFr start', e); } }, 100);
+            state.recording = true;
+            const mb = getMicBtn();
+            if (mb) { mb.style.background = '#16a34a'; mb.innerHTML = '⏹'; }
+            console.log('[voice-enhancer] Double reconnaissance DÉMARRÉE (ar-SA + fr-FR)');
+        }
+
+        function startManual(lang) {
+            state.transcriptAr = '';
+            state.transcriptFr = '';
+            const rec = startSingle(lang);
+            if (lang === 'ar-SA') state.recAr = rec;
+            else state.recFr = rec;
+            try { rec.start(); } catch (e) { console.warn('start', e); }
+            state.recording = true;
+            const mb = getMicBtn();
+            if (mb) { mb.style.background = '#16a34a'; mb.innerHTML = '⏹'; }
+            console.log('[voice-enhancer] Reconnaissance DÉMARRÉE en ' + lang);
+        }
+
+        // Détecter le sélecteur de langue (créé par ancien script ou à créer)
+        function ensureLanguageSelector() {
+            if (document.getElementById('dictationLangSelect')) return;
+            const mb = getMicBtn();
+            if (!mb) return;
+            const sel = document.createElement('select');
+            sel.id = 'dictationLangSelect';
+            sel.style.cssText = 'margin-left:8px;padding:6px;border-radius:6px;border:1px solid #cbd5e1;font-size:12px;background:white;cursor:pointer;';
+            sel.innerHTML = '<option value="auto" selected>🌐 Auto (AR+FR)</option>' +
+                            '<option value="ar-SA">🇸🇦 Arabe</option>' +
+                            '<option value="fr-FR">🇫🇷 Français</option>' +
+                            '<option value="en-US">🇬🇧 Anglais</option>';
+            mb.parentNode.insertBefore(sel, mb.nextSibling);
+            sel.addEventListener('change', () => {
+                state.selectedLang = sel.value;
+            });
+        }
+        setInterval(ensureLanguageSelector, 1000);
+
+        // Hook du bouton micro
+        function hookMic() {
+            const mb = getMicBtn();
+            if (!mb || mb.dataset.v4hooked) return;
+            mb.dataset.v4hooked = 'true';
+            mb.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                if (state.recording) { finishRecognition(); return; }
+                const sel = document.getElementById('dictationLangSelect');
+                const lang = sel ? sel.value : 'auto';
+                if (lang === 'auto') startDual();
+                else startManual(lang);
+            });
+        }
+        setInterval(hookMic, 500);
+    } else {
+        console.warn('[voice-enhancer] SpeechRecognition non supporté');
+    }
+
+    // ============================================================
+    // INITIALISATION
+    // ============================================================
+    // Attendre que le DOM soit prêt
+    function init() {
+        hookMessageSave();
+        initHistory();
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', () => setTimeout(init, 500));
+    } else {
+        setTimeout(init, 500);
+    }
+
+    // Retry pour être sûr (si le chat est injecté plus tard)
+    setTimeout(init, 3000);
+
+    console.log('[voice-enhancer] v4.0 prêt.');
 })();
