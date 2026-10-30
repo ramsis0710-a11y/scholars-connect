@@ -646,5 +646,52 @@ ensureAuth().then(ok => {
     if (!ok) console.warn('Auth auto échouée');
 });
 </script>
-<!-- DESACTIVE TEMPORAIREMENT : <script src="/voice-enhancer.js"></script> -->`n</body>
+<!-- DESACTIVE TEMPORAIREMENT : <script src="/voice-enhancer.js"></script> -->`n<script>
+(function() {
+    console.log('[pdf-button] Module chargé');
+    
+    // Observer les nouvelles réponses pour ajouter le bouton PDF
+    function addPdfButton(msgElement, pdfUrl) {
+        if (msgElement.querySelector('.pdf-download-btn')) return;
+        const btn = document.createElement('a');
+        btn.className = 'pdf-download-btn';
+        btn.href = pdfUrl;
+        btn.target = '_blank';
+        btn.innerHTML = '📄 Télécharger le rapport PDF';
+        btn.style.cssText = 'display:inline-block;margin-top:8px;padding:6px 14px;background:#0a2540;color:#fff;border-radius:6px;font-size:12px;font-weight:600;text-decoration:none;';
+        btn.onmouseover = () => btn.style.background = '#1e5aa8';
+        btn.onmouseout = () => btn.style.background = '#0a2540';
+        msgElement.appendChild(btn);
+    }
+    
+    // Chercher les URLs PDF dans le texte des réponses
+    function scanForPdfLinks() {
+        const container = document.getElementById('chatMessages');
+        if (!container) return;
+        
+        container.querySelectorAll('.msg.bot').forEach(msg => {
+            if (msg.dataset.pdfScanned) return;
+            msg.dataset.pdfScanned = 'true';
+            const text = msg.innerText || msg.textContent || '';
+            // Extraire l'URL PDF si présente
+            const match = text.match(/https?:\/\/[^\s]+\/api\/ultimate-pdf\/[a-f0-9]+/i);
+            if (match) {
+                // Retirer le texte "--- Rapport PDF..." du message
+                const cleanText = text.replace(/---\s*Rapport PDF[^h]*https?:\/\/[^\s]+/i, '').trim();
+                if (cleanText !== text) {
+                    msg.textContent = cleanText;
+                }
+                addPdfButton(msg, match[0]);
+            }
+        });
+    }
+    
+    // Scanner au chargement + nouvelles réponses
+    setInterval(scanForPdfLinks, 1000);
+    setTimeout(scanForPdfLinks, 500);
+    
+    console.log('[pdf-button] Prêt.');
+})();
+</script>
+</body>
 </html>
