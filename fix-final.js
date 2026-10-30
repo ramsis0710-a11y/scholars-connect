@@ -204,7 +204,7 @@ module.exports = function(app, mongoose) {
         if (qLower.indexOf('14l') !== -1 && title.indexOf('14l') !== -1) score += 50;
         if ((qLower.indexOf('seal') !== -1 || qLower.indexOf('bore') !== -1) && content.indexOf('seal bore') !== -1) score += 30;
         if ((qLower.indexOf('tolérance') !== -1 || qLower.indexOf('tolerance') !== -1) && content.indexOf('tolerance') !== -1) score += 20;
-        if (title.indexOf('api spec 14l') !== -1) score += 100;
+        // FIX: ligne desactivee car elle force le RAG sur TOUTES les questions (meme 'Bonjour')
         if (title.indexOf('vam') !== -1 && qLower.indexOf('vam') === -1) score -= 30;
         if (score > maxScore) { maxScore = score; best = d; }
       });
