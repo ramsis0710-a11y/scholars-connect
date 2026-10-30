@@ -200,7 +200,7 @@ require('./pdf-report-generator')(app, mongoose);
 
 require('./fix-final')(app, mongoose);
 
-require('./smart-router')(app, mongoose);
+// DESACTIVE TEMPORAIREMENT : require('./smart-router')(app, mongoose);
 
 connectMongo().finally(() => {
     const server = app.listen(PORT, HOST, () => {
@@ -209,3 +209,4 @@ connectMongo().finally(() => {
 });
 
 app.get('/upload-qp', (req, res) => res.sendFile(require('path').join(__dirname, 'public', 'upload-qp.html')));
+
