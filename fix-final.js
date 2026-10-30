@@ -417,7 +417,7 @@ module.exports = function(app, mongoose) {
         } catch (e) { console.warn('[fix-final] PDF err:', e.message); }
 
         const dateStr = new Date().toLocaleString('fr-FR');
-        const answerText = cleanAnswer(answer) + (pdfLink ? '\n\n---\nRapport PDF pour ' + user.name + ' (' + user.email + ') le ' + dateStr + '.\nTelecharger : ' + pdfLink : '');
+        const answerText = cleanAnswer(answer); // FIX: texte PDF retire
 
         return sendJson(res, {
           ok: true,
