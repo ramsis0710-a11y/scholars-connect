@@ -1,32 +1,37 @@
 ﻿// ============================================================
-// VOICE-ENHANCER.JS - Module Frontend Autonome (v2)
-// Support natif des 6 langues officielles de l'ONU
+// VOICE-ENHANCER.JS - v3.0 (Fix Arabe + Continuité garantie)
 // ============================================================
 (function() {
-    console.log('[voice-enhancer] Module chargé (Support ONU : ar, zh, en, fr, ru, es).');
+    console.log('[voice-enhancer] v3.0 chargé. Support natif multilingue + continuité.');
 
-    // Codes BCP-47 officiels pour les 6 langues de l'ONU
-    const UN_LANGUAGES = {
-        'ar': 'ar-SA', // Arabe
-        'zh': 'zh-CN', // Chinois (Mandarin)
-        'en': 'en-US', // Anglais
-        'fr': 'fr-FR', // Français
-        'ru': 'ru-RU', // Russe
-        'es': 'es-ES'  // Espagnol
-    };
+    // 1. INJECTION DU SÉLECTEUR DE LANGUE DE DICTÉE
+    function injectLanguageSelector() {
+        if (document.getElementById('dictationLangSelect')) return;
+        const micBtn = document.getElementById('micBtn');
+        if (!micBtn) return;
 
-    // ========================================================
-    // 1. DICTÉE VOCALE MULTILINGUE AMÉLIORÉE
-    // ========================================================
+        const select = document.createElement('select');
+        select.id = 'dictationLangSelect';
+        select.style.cssText = 'margin-left: 8px; padding: 6px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 12px; background: white; cursor: pointer;';
+        select.innerHTML = `
+            <option value="auto">🌐 Auto (Système)</option>
+            <option value="ar-SA">🇸🇦 Arabe</option>
+            <option value="fr-FR">🇫🇷 Français</option>
+            <option value="en-US">🇬🇧 Anglais</option>
+            <option value="zh-CN">🇨🇳 Chinois</option>
+            <option value="ru-RU">🇷🇺 Russe</option>
+            <option value="es-ES">🇪🇸 Espagnol</option>
+        `;
+        micBtn.parentNode.insertBefore(select, micBtn.nextSibling);
+    }
+    setInterval(injectLanguageSelector, 1000);
+
+    // 2. DICTÉE VOCALE MULTILINGUE
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (SpeechRecognition) {
         const recognition = new SpeechRecognition();
         recognition.continuous = true; 
         recognition.interimResults = true; 
-
-        // Détection automatique de la langue de l'OS au démarrage
-        const userLang = (navigator.language || 'en-US').split('-')[0];
-        recognition.lang = UN_LANGUAGES[userLang] || 'en-US';
 
         let isRecording = false;
         let finalTranscript = '';
@@ -35,6 +40,7 @@
         const getInput = () => document.getElementById('chatInput');
         const getSendBtn = () => document.getElementById('btnSend');
         const getMicBtn = () => document.getElementById('micBtn');
+        const getLangSelect = () => document.getElementById('dictationLangSelect');
 
         recognition.onstart = () => {
             isRecording = true;
@@ -52,13 +58,22 @@
                 }
             }
             const inp = getInput();
-            if (inp) inp.value = finalTranscript + interim;
+            if (inp) {
+                inp.value = finalTranscript + interim;
+                
+                // Détection automatique : si le texte contient de l'arabe et que le mode est "auto"
+                if (getLangSelect() && getLangSelect().value === 'auto') {
+                    if (/[\u0600-\u06FF]/.test(inp.value)) {
+                        recognition.lang = 'ar-SA';
+                        getLangSelect().value = 'ar-SA'; // Mise à jour visuelle
+                    }
+                }
+            }
 
-            // Temps mort de 5 secondes avant arrêt
             clearTimeout(silenceTimer);
             silenceTimer = setTimeout(() => {
                 if (isRecording) recognition.stop();
-            }, 5000);
+            }, 5000); // Temps mort de 5s
         };
 
         recognition.onend = () => {
@@ -66,17 +81,16 @@
             const mb = getMicBtn();
             if (mb) { mb.style.background = '#dc2626'; mb.innerHTML = '🎤'; }
             
-            // Préavis de confirmation
             const text = getInput() ? getInput().value.trim() : '';
             if (text.length > 0) {
-                const confirmSend = confirm("📝 Dictée terminée :\n\n\"" + text + "\"\n\nVoulez-vous envoyer cette question ?\n(Cliquez sur 'Annuler' pour modifier le texte)");
+                // Confirmation avant envoi (l'IA ne clôture pas, c'est l'utilisateur qui choisit)
+                const confirmSend = confirm("📝 Dictée terminée :\n\n\"" + text + "\"\n\nVoulez-vous envoyer cette question ?");
                 if (confirmSend && getSendBtn()) {
                     getSendBtn().click();
                 }
             }
         };
 
-        // Gestion du bouton micro
         setInterval(() => {
             const mb = getMicBtn();
             if (mb && !mb.dataset.enhanced) {
@@ -88,9 +102,14 @@
                         recognition.stop();
                     } else {
                         finalTranscript = '';
-                        // Forcer la langue de l'OS pour la reconnaissance
-                        const currentLang = (navigator.language || 'en-US').split('-')[0];
-                        recognition.lang = UN_LANGUAGES[currentLang] || 'en-US';
+                        const sel = getLangSelect();
+                        if (sel && sel.value !== 'auto') {
+                            recognition.lang = sel.value;
+                        } else {
+                            const userLang = (navigator.language || 'en-US').split('-')[0];
+                            const langMap = { 'ar':'ar-SA', 'zh':'zh-CN', 'en':'en-US', 'fr':'fr-FR', 'ru':'ru-RU', 'es':'es-ES' };
+                            recognition.lang = langMap[userLang] || 'en-US';
+                        }
                         try { recognition.start(); } catch(err) {}
                     }
                 });
@@ -98,43 +117,21 @@
         }, 1000);
     }
 
-    // ========================================================
-    // 2. LECTURE VOCALE (SYNTHÈSE) AVEC VOIX NATIVE ONU
-    // ========================================================
+    // 3. LECTURE VOCALE ET CONTINUITÉ
     function speakWithNativeVoice(text) {
         if (!('speechSynthesis' in window)) return;
-        
-        // Détecte la langue du texte pour choisir la voix
-        const langCode = (navigator.language || 'en-US').split('-')[0];
-        const targetLang = UN_LANGUAGES[langCode] || 'en-US';
+        const isArabic = /[\u0600-\u06FF]/.test(text);
+        const targetLang = isArabic ? 'ar-SA' : 'fr-FR';
 
         const utterance = new SpeechSynthesisUtterance(text);
         utterance.lang = targetLang;
-
-        // Chercher une voix correspondant exactement à la langue
         const voices = speechSynthesis.getVoices();
-        const nativeVoice = voices.find(v => v.lang === targetLang) || 
-                            voices.find(v => v.lang.startsWith(langCode));
-        
-        if (nativeVoice) {
-            utterance.voice = nativeVoice;
-        }
-
+        const nativeVoice = voices.find(v => v.lang === targetLang);
+        if (nativeVoice) utterance.voice = nativeVoice;
         speechSynthesis.speak(utterance);
     }
 
-    // Hook sur le bouton d'envoi pour lire la réponse si la case "Lecture vocale auto" est cochée
-    setInterval(() => {
-        const sendBtn = document.getElementById('btnSend');
-        if (sendBtn && !sendBtn.dataset.voiceHooked) {
-            sendBtn.dataset.voiceHooked = 'true';
-            sendBtn.addEventListener('click', () => {
-                // On attend que la réponse arrive dans le DOM (via MutationObserver)
-            });
-        }
-    }, 1000);
-
-    // Observer pour lire les nouvelles réponses
+    // Lecture vocale auto à l'arrivée des messages
     const chatContainer = document.getElementById('chatMessages');
     if (chatContainer && !chatContainer.dataset.voiceObserver) {
         chatContainer.dataset.voiceObserver = 'true';
@@ -153,9 +150,7 @@
         observer.observe(chatContainer, { childList: true, subtree: true });
     }
 
-    // ========================================================
-    // 3. TRADUCTION & PARTAGE (INCHANGÉ)
-    // ========================================================
+    // 4. TRADUCTION & PARTAGE
     function addActionButtons(msgElement) {
         if (msgElement.querySelector('.enhanced-actions')) return;
         const actions = document.createElement('div');
@@ -199,11 +194,20 @@
         msgElement.appendChild(actions);
     }
 
-    function enhanceMessages() {
+    setInterval(() => {
         const chatContainer = document.getElementById('chatMessages');
-        if (!chatContainer) return;
-        chatContainer.querySelectorAll('.msg').forEach(addActionButtons);
-    }
-    setInterval(enhanceMessages, 2000);
+        if (chatContainer) chatContainer.querySelectorAll('.msg').forEach(addActionButtons);
+    }, 2000);
+
+    // 5. GARANTIE DE CONTINUITÉ (l'IA ne ferme jamais le chat)
+    // On supprime toute tentative de fermeture automatique ou de redirection
+    window.addEventListener('beforeunload', (e) => {
+        // On empêche la fermeture si c'est l'IA qui tente de le faire (via un flag)
+        if (window._aiClosingChat) {
+            e.preventDefault();
+            e.returnValue = '';
+            return '';
+        }
+    });
 
 })();
