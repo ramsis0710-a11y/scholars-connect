@@ -910,8 +910,309 @@ ensureAuth().then(ok => {
             }
         });
         
-        console.log('[mic-fix-v1] Pret. Langue par defaut :', detectLang());
+
+<!-- MIC-FIX-V2 : historique + micro auto AR/FR + lecture vocale avec boutons -->
+<script>
+(function() {
+    console.log('[mic-fix-v2] Module charge');
+    const API = 'https://scholars-connect-app.onrender.com';
+    const HIST_KEY = 'scholars_history_v2';
+
+    // ========================================================
+    // 1. HISTORIQUE (localStorage + API)
+    // ========================================================
+    function saveMsg(role, text) {
+        try {
+            let h = JSON.parse(localStorage.getItem(HIST_KEY) || '[]');
+            h.push({ role: role, text: text, ts: Date.now() });
+            if (h.length > 100) h = h.slice(-100);
+            localStorage.setItem(HIST_KEY, JSON.stringify(h));
+        } catch(e) {}
+    }
+
+    function addMsg(role, text, isRestore) {
+        const c = document.getElementById('chatMessages');
+        if (!c) return;
+        const d = document.createElement('div');
+        d.className = 'msg ' + role;
+        d.textContent = text;
+        if (isRestore) d.dataset.restored = '1';
+        c.appendChild(d);
+        c.scrollTop = c.scrollHeight;
+    }
+
+    function restoreHistory() {
+        const c = document.getElementById('chatMessages');
+        if (!c) return;
+        try {
+            const h = JSON.parse(localStorage.getItem(HIST_KEY) || '[]');
+            if (h.length === 0) return;
+            // Vider sauf le 1er message de bienvenue
+            const firstMsg = c.querySelector('.msg.bot');
+            if (firstMsg) c.innerHTML = '';
+            if (firstMsg) c.appendChild(firstMsg);
+            h.forEach(m => addMsg(m.role, m.text, true));
+            console.log('[mic-fix-v2] ' + h.length + ' messages restaures du localStorage');
+        } catch(e) { console.warn('restore err', e); }
+    }
+
+    async function loadFromAPI() {
+        const token = localStorage.getItem('token');
+        if (!token) return;
+        try {
+            const r = await fetch(API + '/api/history', { headers: { 'Authorization': 'Bearer ' + token } });
+            if (!r.ok) return;
+            const data = await r.json();
+            if (!data.items || data.items.length === 0) return;
+            const c = document.getElementById('chatMessages');
+            if (!c) return;
+            const firstMsg = c.querySelector('.msg.bot');
+            if (firstMsg) c.innerHTML = '';
+            if (firstMsg) c.appendChild(firstMsg);
+            const items = data.items.slice().reverse();
+            items.forEach(it => {
+                if (it.question) { addMsg('user', it.question, true); saveMsg('user', it.question); }
+                if (it.answer) { addMsg('bot', it.answer, true); saveMsg('bot', it.answer); }
+            });
+            console.log('[mic-fix-v2] ' + items.length + ' echanges restaures de /api/history');
+        } catch(e) { console.warn('history API err', e); }
+    }
+
+    function hookSave() {
+        const c = document.getElementById('chatMessages');
+        if (!c || c.dataset.hooked) return;
+        c.dataset.hooked = '1';
+        new MutationObserver(muts => {
+            muts.forEach(m => m.addedNodes.forEach(n => {
+                if (n.nodeType === 1 && n.classList.contains('msg') && !n.dataset.restored) {
+                    const role = n.classList.contains('user') ? 'user' : 'bot';
+                    const txt = n.textContent || '';
+                    if (txt.trim()) saveMsg(role, txt);
+                }
+            }));
+        }).observe(c, { childList: true });
+    }
+
+    // ========================================================
+    // 2. MICRO AVEC DOUBLE RECONNAISSANCE AR PUIS FR
+    // ========================================================
+    setTimeout(function() {
+        const micBtn = document.getElementById('micBtn');
+        if (!micBtn) return;
+        const newMic = micBtn.cloneNode(true);
+        micBtn.parentNode.replaceChild(newMic, micBtn);
+
+        if (!document.getElementById('dictationLang')) {
+            const sel = document.createElement('select');
+            sel.id = 'dictationLang';
+            sel.style.cssText = 'margin-left:6px;padding:4px;border-radius:4px;border:1px solid #cbd5e1;font-size:12px;background:#fff;cursor:pointer;';
+            sel.innerHTML = '<option value="auto" selected>🌐 Auto (AR+FR)</option><option value="ar-SA">🇸🇦 Arabe</option><option value="fr-FR">🇫🇷 Français</option><option value="en-US">🇬🇧 Anglais</option>';
+            newMic.parentNode.insertBefore(sel, newMic.nextSibling);
+        }
+
+        const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SR) {
+            newMic.addEventListener('click', () => alert('Dictee non supportee. Utilisez Chrome ou Edge.'));
+            return;
+        }
+
+        let rec = null, listening = false;
+
+        function setBtn(color, txt) {
+            newMic.style.background = color;
+            newMic.innerHTML = txt;
+        }
+
+        function finishRec(text) {
+            const inp = document.getElementById('chatInput');
+            if (inp && text) inp.value = text;
+            setBtn('#dc2626', '🎤');
+            listening = false;
+            if (text && text.trim().length > 2) {
+                if (confirm('📝 Dictee terminee :\n\n"' + text.trim() + '"\n\nEnvoyer ?')) {
+                    const btn = document.getElementById('btnSend');
+                    if (btn) btn.click();
+                }
+            }
+        }
+
+        function tryLang(lang, nextLang) {
+            rec = new SR();
+            rec.lang = lang;
+            rec.continuous = true;
+            rec.interimResults = true;
+            let finalText = '', silenceTimer = null;
+
+            rec.onresult = (e) => {
+                let interim = '';
+                for (let i = e.resultIndex; i < e.results.length; i++) {
+                    const t = e.results[i][0].transcript;
+                    if (e.results[i].isFinal) finalText += t + ' ';
+                    else interim += t;
+                }
+                const inp = document.getElementById('chatInput');
+                if (inp) inp.value = finalText + interim;
+                clearTimeout(silenceTimer);
+                silenceTimer = setTimeout(() => { if (listening) rec.stop(); }, 4000);
+            };
+
+            rec.onend = () => {
+                if (!listening) return;
+                // Si on a un resultat valide
+                if (finalText.trim().length > 2) {
+                    if (lang === 'ar-SA') {
+                        // Verifier si contient de l'arabe
+                        if (/[\u0600-\u06FF]/.test(finalText)) {
+                            finishRec(finalText);
+                            return;
+                        }
+                        // Sinon, relancer en FR
+                        console.log('[mic-fix-v2] Resultat non-arabe, relance en fr-FR');
+                        listening = false;
+                        tryLang('fr-FR', null);
+                        return;
+                    }
+                    finishRec(finalText);
+                    return;
+                }
+                // Rien detecte
+                if (nextLang && listening) {
+                    console.log('[mic-fix-v2] Rien en ' + lang + ', relance en ' + nextLang);
+                    listening = false;
+                    tryLang(nextLang, null);
+                    return;
+                }
+                listening = false;
+                setBtn('#dc2626', '🎤');
+                alert('Aucune parole detectee. Verifiez votre micro.');
+            };
+
+            rec.onerror = (e) => {
+                console.warn('[mic-fix-v2] Erreur ' + lang + ':', e.error);
+                if (e.error === 'not-allowed') {
+                    alert('Veuillez autoriser l\'acces au microphone.');
+                    listening = false;
+                    setBtn('#dc2626', '🎤');
+                    return;
+                }
+                // Si erreur, essayer la langue suivante
+                if (nextLang && listening) {
+                    listening = false;
+                    tryLang(nextLang, null);
+                } else {
+                    listening = false;
+                    setBtn('#dc2626', '🎤');
+                }
+            };
+
+            try { rec.start(); } catch(e) { console.warn('start err', e); }
+        }
+
+        newMic.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            if (listening && rec) {
+                listening = false;
+                try { rec.stop(); } catch(e) {}
+                return;
+            }
+            const sel = document.getElementById('dictationLang');
+            const lang = sel ? sel.value : 'auto';
+            listening = true;
+            setBtn('#16a34a', '⏹');
+            console.log('[mic-fix-v2] Mode :', lang);
+
+            if (lang === 'auto') {
+                // Double reconnaissance : AR puis FR si echec
+                tryLang('ar-SA', 'fr-FR');
+            } else {
+                tryLang(lang, null);
+            }
+        });
+
+        console.log('[mic-fix-v2] Micro pret.');
     }, 1500);
+
+    // ========================================================
+    // 3. LECTURE VOCALE AVEC BOUTONS
+    // ========================================================
+    setTimeout(function() {
+        // Trouver la case "Lecture vocale auto"
+        const voiceAuto = document.getElementById('voiceAuto');
+        if (!voiceAuto) return;
+
+        // Creer le widget de controle
+        if (document.getElementById('ttsControls')) return;
+        const ctrl = document.createElement('div');
+        ctrl.id = 'ttsControls';
+        ctrl.style.cssText = 'display:inline-flex;gap:4px;margin-left:8px;align-items:center;';
+        ctrl.innerHTML = '<button id="ttsPlay" title="Demarrer" style="background:#16a34a;color:#fff;border:none;border-radius:4px;padding:4px 8px;cursor:pointer;font-size:12px;">▶️</button>' +
+                         '<button id="ttsPause" title="Pause" style="background:#f59e0b;color:#fff;border:none;border-radius:4px;padding:4px 8px;cursor:pointer;font-size:12px;">⏸️</button>' +
+                         '<button id="ttsStop" title="Arreter" style="background:#dc2626;color:#fff;border:none;border-radius:4px;padding:4px 8px;cursor:pointer;font-size:12px;">⏹️</button>';
+        voiceAuto.parentNode.insertBefore(ctrl, voiceAuto.nextSibling);
+
+        let lastAnswer = '';
+        // Observer les nouvelles reponses bot pour stocker la derniere
+        const container = document.getElementById('chatMessages');
+        if (container) {
+            new MutationObserver(muts => {
+                muts.forEach(m => m.addedNodes.forEach(n => {
+                    if (n.nodeType === 1 && n.classList.contains('msg') && n.classList.contains('bot')) {
+                        lastAnswer = n.textContent || '';
+                        if (voiceAuto.checked && lastAnswer && window.speechSynthesis) {
+                            speak(lastAnswer);
+                        }
+                    }
+                }));
+            }).observe(container, { childList: true });
+        }
+
+        function speak(text) {
+            if (!window.speechSynthesis) return;
+            window.speechSynthesis.cancel();
+            const lang = /[\u0600-\u06FF]/.test(text) ? 'ar-SA' : 'fr-FR';
+            const utt = new SpeechSynthesisUtterance(text.substring(0, 3000));
+            utt.lang = lang;
+            const voices = speechSynthesis.getVoices();
+            const v = voices.find(x => x.lang === lang) || voices.find(x => x.lang.indexOf(lang.split('-')[0]) === 0);
+            if (v) utt.voice = v;
+            speechSynthesis.speak(utt);
+            console.log('[mic-fix-v2] Lecture vocale :', lang);
+        }
+
+        document.getElementById('ttsPlay').onclick = () => {
+            if (!lastAnswer) { alert('Aucune reponse a lire.'); return; }
+            speak(lastAnswer);
+        };
+        document.getElementById('ttsPause').onclick = () => {
+            if (speechSynthesis.speaking && !speechSynthesis.paused) {
+                speechSynthesis.pause();
+                console.log('[mic-fix-v2] Lecture en pause');
+            } else if (speechSynthesis.paused) {
+                speechSynthesis.resume();
+                console.log('[mic-fix-v2] Lecture reprise');
+            }
+        };
+        document.getElementById('ttsStop').onclick = () => {
+            speechSynthesis.cancel();
+            console.log('[mic-fix-v2] Lecture arretee');
+        };
+
+        console.log('[mic-fix-v2] Widget lecture vocale pret.');
+    }, 2000);
+
+    // ========================================================
+    // INIT
+    // ========================================================
+    function init() {
+        restoreHistory();
+        hookSave();
+        loadFromAPI().catch(() => {});
+    }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => setTimeout(init, 500));
+    else setTimeout(init, 500);
+
+    console.log('[mic-fix-v2] Pret.');
 })();
 </script>
 </body>
