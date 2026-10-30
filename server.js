@@ -200,6 +200,8 @@ require('./pdf-report-generator')(app, mongoose);
 
 require('./fix-final')(app, mongoose);
 
+require('./smart-router')(app, mongoose);
+
 connectMongo().finally(() => {
     const server = app.listen(PORT, HOST, () => {
         console.log(`Scholars Connect V2 - PORT ${PORT}`);
