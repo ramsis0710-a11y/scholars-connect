@@ -776,5 +776,143 @@ ensureAuth().then(ok => {
     console.log('[lang-fix-v2] Pret.');
 })();
 </script>
+
+<!-- MIC-FIX-V1 : detection langue + selecteur + confirmation -->
+<script>
+(function() {
+    console.log('[mic-fix-v1] Module charge');
+    
+    setTimeout(function() {
+        const micBtn = document.getElementById('micBtn');
+        if (!micBtn) {
+            console.warn('[mic-fix-v1] micBtn introuvable');
+            return;
+        }
+        
+        // 1. Cloner le bouton pour supprimer les anciens listeners (ceux qui forcent fr-FR)
+        const newMicBtn = micBtn.cloneNode(true);
+        micBtn.parentNode.replaceChild(newMicBtn, micBtn);
+        
+        // 2. Ajouter un selecteur de langue a cote du bouton
+        if (!document.getElementById('dictationLang')) {
+            const sel = document.createElement('select');
+            sel.id = 'dictationLang';
+            sel.style.cssText = 'margin-left:6px;padding:4px;border-radius:4px;border:1px solid #cbd5e1;font-size:12px;background:#fff;cursor:pointer;';
+            sel.innerHTML = '<option value="auto" selected>🌐 Auto</option>' +
+                            '<option value="ar-SA">🇸🇦 Arabe</option>' +
+                            '<option value="fr-FR">🇫🇷 Français</option>' +
+                            '<option value="en-US">🇬🇧 Anglais</option>';
+            newMicBtn.parentNode.insertBefore(sel, newMicBtn.nextSibling);
+        }
+        
+        // 3. Detection de la langue
+        function detectLang() {
+            const sel = document.getElementById('dictationLang');
+            if (sel && sel.value !== 'auto') return sel.value;
+            
+            // Dernier message utilisateur en arabe ?
+            const userMsgs = document.querySelectorAll('.msg.user');
+            if (userMsgs.length > 0) {
+                const txt = userMsgs[userMsgs.length - 1].textContent || '';
+                if (/[\u0600-\u06FF]/.test(txt)) return 'ar-SA';
+            }
+            
+            // Selecteur interface en arabe ?
+            const langSelect = document.getElementById('langSelect');
+            if (langSelect && langSelect.value === 'ar') return 'ar-SA';
+            
+            // Navigator
+            const nav = (navigator.language || 'fr-FR');
+            if (nav.indexOf('ar') === 0) return 'ar-SA';
+            if (nav.indexOf('en') === 0) return 'en-US';
+            return 'fr-FR';
+        }
+        
+        const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SR) {
+            newMicBtn.addEventListener('click', function() {
+                alert('La dictee vocale n\'est pas supportee. Utilisez Chrome ou Edge.');
+            });
+            return;
+        }
+        
+        let rec = null;
+        let listening = false;
+        
+        newMicBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            
+            if (listening && rec) {
+                rec.stop();
+                return;
+            }
+            
+            const lang = detectLang();
+            console.log('[mic-fix-v1] Langue utilisee :', lang);
+            
+            rec = new SR();
+            rec.lang = lang;
+            rec.continuous = true;
+            rec.interimResults = true;
+            
+            let finalText = '';
+            let silenceTimer = null;
+            
+            rec.onstart = function() {
+                listening = true;
+                newMicBtn.style.background = '#16a34a';
+                newMicBtn.innerHTML = '⏹';
+            };
+            
+            rec.onresult = function(event) {
+                let interim = '';
+                for (let i = event.resultIndex; i < event.results.length; i++) {
+                    const t = event.results[i][0].transcript;
+                    if (event.results[i].isFinal) finalText += t + ' ';
+                    else interim += t;
+                }
+                const inp = document.getElementById('chatInput');
+                if (inp) inp.value = finalText + interim;
+                
+                clearTimeout(silenceTimer);
+                silenceTimer = setTimeout(function() {
+                    if (listening) rec.stop();
+                }, 4000);
+            };
+            
+            rec.onerror = function(event) {
+                console.warn('[mic-fix-v1] Erreur :', event.error);
+                if (event.error === 'not-allowed') {
+                    alert('Veuillez autoriser l\'acces au microphone dans votre navigateur.');
+                }
+            };
+            
+            rec.onend = function() {
+                listening = false;
+                newMicBtn.style.background = '#dc2626';
+                newMicBtn.innerHTML = '🎤';
+                
+                const inp = document.getElementById('chatInput');
+                const txt = inp ? inp.value.trim() : '';
+                if (txt.length > 2) {
+                    if (confirm('📝 Dictee terminee :\n\n"' + txt + '"\n\nEnvoyer ?')) {
+                        const btn = document.getElementById('btnSend');
+                        if (btn) btn.click();
+                    }
+                }
+            };
+            
+            try {
+                rec.start();
+            } catch(err) {
+                console.warn('[mic-fix-v1] Erreur start :', err);
+            }
+        });
+        
+        console.log('[mic-fix-v1] Pret. Langue par defaut :', detectLang());
+    }, 1500);
+})();
+</script>
 </body>
 </html>
