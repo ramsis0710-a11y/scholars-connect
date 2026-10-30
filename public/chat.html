@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
@@ -691,6 +691,63 @@ ensureAuth().then(ok => {
     setTimeout(scanForPdfLinks, 500);
     
     console.log('[pdf-button] Prêt.');
+})();
+</script>
+
+<!-- PDF-BUTTON-V2 : bouton de telechargement PDF separe du texte -->
+<script>
+(function() {
+    console.log('[pdf-button-v2] Module charge');
+
+    // Intercepter fetch pour capturer pdfLink
+    const origFetch = window.fetch;
+    window.fetch = function(url, opts) {
+        const promise = origFetch.apply(this, arguments);
+        if (typeof url === 'string' && url.indexOf('/api/ask') !== -1) {
+            promise.then(function(response) {
+                const clone = response.clone();
+                clone.json().then(function(data) {
+                    if (data && data.pdfLink) {
+                        window._lastPdfLink = data.pdfLink;
+                    }
+                }).catch(function() {});
+            }).catch(function() {});
+        }
+        return promise;
+    };
+
+    // Observer les nouvelles reponses bot pour ajouter le bouton
+    function addPdfButtonIfNeeded(msgElement) {
+        if (!window._lastPdfLink) return;
+        if (msgElement.querySelector('.pdf-download-btn')) return;
+        if (msgElement.dataset.pdfAttached) return;
+        msgElement.dataset.pdfAttached = 'true';
+
+        const btn = document.createElement('a');
+        btn.className = 'pdf-download-btn';
+        btn.href = window._lastPdfLink;
+        btn.target = '_blank';
+        btn.rel = 'noopener';
+        btn.innerHTML = '📄 Telecharger le rapport PDF';
+        btn.style.cssText = 'display:inline-block;margin-top:10px;padding:8px 16px;background:#0a2540;color:#fff;border-radius:6px;font-size:13px;font-weight:600;text-decoration:none;transition:background 0.2s;';
+        btn.onmouseover = function() { btn.style.background = '#1e5aa8'; };
+        btn.onmouseout = function() { btn.style.background = '#0a2540'; };
+        msgElement.appendChild(btn);
+
+        // Reset pour la prochaine reponse
+        window._lastPdfLink = null;
+    }
+
+    function scanMessages() {
+        const container = document.getElementById('chatMessages');
+        if (!container) return;
+        container.querySelectorAll('.msg.bot').forEach(addPdfButtonIfNeeded);
+    }
+
+    setInterval(scanMessages, 800);
+    setTimeout(scanMessages, 300);
+
+    console.log('[pdf-button-v2] Pret.');
 })();
 </script>
 </body>
