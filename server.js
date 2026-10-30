@@ -198,7 +198,8 @@ app.use((req, res) => res.status(404).json({ error: "Endpoint introuvable" }));
 
 require('./pdf-report-generator')(app, mongoose);
 
-require('./fix-final')(app, mongoose);
+// DESACTIVE fix-final : cause du RAG force
+// require('./fix-final')(app, mongoose);
 
 // DESACTIVE TEMPORAIREMENT : require('./smart-router')(app, mongoose);
 
