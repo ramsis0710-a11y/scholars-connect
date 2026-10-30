@@ -939,26 +939,27 @@ ensureAuth().then(ok => {
 })();
 </script>
 
-<!-- TTS-CLEAN : ne lit que le texte de la reponse, pas la fiche technique -->
+
+<!-- TTS-CLEAN-V2 : lecture limitee au texte de la reponse -->
 <script>
 (function() {
-    console.log('[tts-clean] Module charge');
+    console.log('[tts-clean-v2] Module charge');
     if (!window.speechSynthesis) {
-        console.warn('[tts-clean] speechSynthesis non supporte');
+        console.warn('[tts-clean-v2] speechSynthesis non supporte');
         return;
     }
     
     function cleanForTTS(text) {
         if (!text) return '';
-        let clean = String(text);
-        // Retirer la section "Fiche technique" et tout ce qui suit
-        clean = clean.split(/\uD83D\uDCCB\s*Fiche technique/i)[0];
-        clean = clean.split(/📋\s*Fiche technique/i)[0];
-        // Retirer le prefixe "Reponse detaillee" / "Réponse détaillée"
-        clean = clean.replace(/R[ée]ponse\s+d[ée]taill[ée]e\s*/gi, '');
-        // Retirer les emoji residuels en debut
-        clean = clean.replace(/^[📋\s]+/, '');
-        return clean.trim();
+        let c = String(text);
+        // Couper a "Fiche technique" (avec ou sans emoji)
+        c = c.split(/\uD83D\uDCCB\s*Fiche technique/i)[0];
+        c = c.split(/Fiche technique/i)[0];
+        // Retirer prefixe "Reponse detaillee"
+        c = c.replace(/R[ée]ponse\s+d[ée]taill[ée]e\s*/gi, '');
+        // Retirer emojis residuels en debut
+        c = c.replace(/^[\uD83D\uDCCB\s]+/, '');
+        return c.trim();
     }
     
     const origSpeak = window.speechSynthesis.speak.bind(window.speechSynthesis);
@@ -966,22 +967,19 @@ ensureAuth().then(ok => {
         if (utt && utt.text) {
             const cleaned = cleanForTTS(utt.text);
             if (cleaned && cleaned.length > 2) {
-                console.log('[tts-clean] Lecture (texte nettoye, ' + cleaned.length + ' car.) :', cleaned.substring(0, 80));
+                console.log('[tts-clean-v2] Lecture :', cleaned.substring(0, 80) + '...');
                 utt.text = cleaned;
-            } else {
-                console.warn('[tts-clean] Texte vide apres nettoyage, lecture originale conservee');
             }
         }
         return origSpeak(utt);
     };
     
-    // Test manuel depuis la console
-    window.testTTSClean = function(text) {
-        return cleanForTTS(text || 'Reponse detailleeBonjour.📋 Fiche techniqueDomaineGeneralScore62%');
+    // Test depuis la console : testTTSClean()
+    window.testTTSClean = function(t) {
+        return cleanForTTS(t || 'Reponse detailleeBonjour.📋 Fiche techniqueDomaineGeneral');
     };
     
-    console.log('[tts-clean] Pret - le fiche technique ne sera plus lu');
-    console.log('[tts-clean] Test : testTTSClean() dans la console');
+    console.log('[tts-clean-v2] Pret.');
 })();
 </script>
 </body>
