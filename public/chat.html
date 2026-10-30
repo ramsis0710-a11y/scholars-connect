@@ -80,8 +80,8 @@ textarea { min-height: 100px; resize: vertical; font-family: monospace; }
         </div>
     </div>
     <div class="user">
-        <span id="userLabel">Non connecté</span>
-        <button id="btnLogout" onclick="logout()">Déconnexion</button>
+        <span id="userLabel">Non connectأ©</span>
+        <button id="btnLogout" onclick="logout()">Dأ©connexion</button>
     </div>
 </div>
 
@@ -92,13 +92,13 @@ textarea { min-height: 100px; resize: vertical; font-family: monospace; }
             <button class="tab active" data-tab="chat">Chat</button>
             <button class="tab" data-tab="analyze">Analyser un document</button>
             <button class="tab" data-tab="excel">Excel (liste de WO)</button>
-            <button class="tab" data-tab="qp">Générer un Plan Qualité</button>
+            <button class="tab" data-tab="qp">Gأ©nأ©rer un Plan Qualitأ©</button>
         </div>
 
         <!-- Panneau Chat -->
         <div class="panel active" id="panel-chat">
             <div class="chat-messages" id="chatMessages">
-                <div class="msg bot">Bonjour ! Posez-moi n'importe quelle question technique, scientifique ou générale.</div>
+                <div class="msg bot">Bonjour ! Posez-moi n'importe quelle question technique, scientifique ou gأ©nأ©rale.</div>
             </div>
         </div>
 
@@ -112,23 +112,23 @@ textarea { min-height: 100px; resize: vertical; font-family: monospace; }
                     <button class="opt-btn" data-mode="file">PDF / DOCX</button>
                 </div>
                 <div id="mode-text">
-                    <label>Colle le contenu à analyser (max 20 000 caractères) :</label>
+                    <label>Colle le contenu أ  analyser (max 20 000 caractأ¨res) :</label>
                     <textarea id="analyzeText" placeholder="Colle ici le contenu du document..."></textarea>
                 </div>
                 <div id="mode-url" class="hidden">
-                    <label>URL du document à analyser :</label>
+                    <label>URL du document أ  analyser :</label>
                     <input type="url" id="analyzeUrl" placeholder="https://exemple.com/document.pdf">
                 </div>
                 <div id="mode-file" class="hidden">
                     <label>Choisir un fichier PDF ou DOCX :</label>
                     <div class="zone" id="fileZone">
-                        <div style="font-size:24px;">📎</div>
+                        <div style="font-size:24px;">ًں“ژ</div>
                         <div>Cliquez ou glissez un fichier ici</div>
                         <input type="file" id="analyzeFile" accept=".pdf,.docx,.txt,.doc">
                     </div>
                 </div>
-                <label>Question spécifique (optionnel) :</label>
-                <input type="text" id="analyzeQuestion" placeholder="Ex: Quelles sont les tolérances du seal bore API 14L ?">
+                <label>Question spأ©cifique (optionnel) :</label>
+                <input type="text" id="analyzeQuestion" placeholder="Ex: Quelles sont les tolأ©rances du seal bore API 14L ?">
                 <button class="btn-primary" id="btnAnalyze" type="button">Analyser</button>
                 <div class="result" id="analyzeResult"></div>
             </div>
@@ -140,14 +140,14 @@ textarea { min-height: 100px; resize: vertical; font-family: monospace; }
                 <h3>Charger un fichier Excel (liste de Work Orders)</h3>
                 <label>Fichier Excel / CSV / TSV :</label>
                 <div class="zone" id="excelZone" style="padding:30px;">
-                    <div style="font-size:32px;">📊</div>
+                    <div style="font-size:32px;">ًں“ٹ</div>
                     <div style="margin-top:6px;">Cliquez ou glissez votre fichier Excel ici</div>
                     <div style="margin-top:4px;font-size:11px;color:#9ca3af;">.xlsx, .csv, .tsv, .tab</div>
                     <input type="file" id="excelFile" accept=".csv,.tsv,.txt,.tab,.xlsx,.xls">
                 </div>
                 <label>Ou coller directement depuis Excel (Ctrl+C / Ctrl+V) :</label>
                 <textarea id="excelText" placeholder="Collez ici votre tableau Excel..."></textarea>
-                <button class="btn-primary btn-green" id="btnExcel" type="button">Générer les QP depuis Excel</button>
+                <button class="btn-primary btn-green" id="btnExcel" type="button">Gأ©nأ©rer les QP depuis Excel</button>
                 <div class="result" id="excelResult"></div>
             </div>
         </div>
@@ -155,20 +155,20 @@ textarea { min-height: 100px; resize: vertical; font-family: monospace; }
         <!-- Panneau QP -->
         <div class="panel" id="panel-qp">
             <div class="card">
-                <h3>Générer un Plan Qualité</h3>
+                <h3>Gأ©nأ©rer un Plan Qualitأ©</h3>
                 <label>Fichier Excel / CSV / TSV :</label>
                 <div class="zone" id="qpExcelZone">
-                    <div style="font-size:24px;">📊</div>
+                    <div style="font-size:24px;">ًں“ٹ</div>
                     <div>Cliquez ou glissez un fichier Excel</div>
                     <input type="file" id="qpExcelFile" accept=".csv,.tsv,.txt,.tab">
                 </div>
                 <label>Ou fichier PDF (ARC) :</label>
                 <div class="zone" id="qpPdfZone">
-                    <div style="font-size:24px;">📄</div>
+                    <div style="font-size:24px;">ًں“„</div>
                     <div>Cliquez ou glissez un PDF</div>
                     <input type="file" id="qpPdfFile" accept=".pdf">
                 </div>
-                <button class="btn-primary" id="btnQP" type="button">Générer le QP</button>
+                <button class="btn-primary" id="btnQP" type="button">Gأ©nأ©rer le QP</button>
                 <div class="result" id="qpResult"></div>
             </div>
         </div>
@@ -176,14 +176,14 @@ textarea { min-height: 100px; resize: vertical; font-family: monospace; }
         <!-- Barre de saisie (toujours visible) -->
         <div class="input-bar">
             <div class="options">
-                <span>Langue : <select id="langSelect"><option value="fr">Français</option><option value="ar">Arabe</option><option value="en">Anglais</option></select></span>
+                <span>Langue : <select id="langSelect"><option value="fr">Franأ§ais</option><option value="ar">Arabe</option><option value="en">Anglais</option></select></span>
                 <span>Domaine : <select id="domainSelect"></select></span>
                 <label><input type="checkbox" id="voiceAuto"> Lecture vocale auto</label>
             </div>
             <div class="input-group">
-                <input type="text" id="chatInput" placeholder="Posez votre question... (dictée ou texte)">
-                <button class="mic-btn" id="micBtn" title="Dictée vocale">🎤</button>
-                <button class="attach-btn" id="attachBtn" title="Pièce jointe">📄</button>
+                <input type="text" id="chatInput" placeholder="Posez votre question... (dictأ©e ou texte)">
+                <button class="mic-btn" id="micBtn" title="Dictأ©e vocale">ًںژ¤</button>
+                <button class="attach-btn" id="attachBtn" title="Piأ¨ce jointe">ًں“„</button>
             </div>
             <button class="send-btn" id="btnSend" type="button">Envoyer</button>
         </div>
@@ -266,7 +266,7 @@ function loadDomains() {
 loadDomains();
 
 // ============================================================
-// GESTION DU MICRO (DICTÉE VOCALE)
+// GESTION DU MICRO (DICTأ‰E VOCALE)
 // ============================================================
 let recognition = null;
 let isListening = false;
@@ -283,7 +283,7 @@ if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
         const micBtn = $('micBtn');
         if (micBtn) {
             micBtn.style.background = '#16a34a';
-            micBtn.innerHTML = '⏹';
+            micBtn.innerHTML = 'âڈ¹';
         }
     };
 
@@ -296,7 +296,7 @@ if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
     recognition.onerror = (event) => {
         console.warn('Erreur micro :', event.error);
         if (event.error === 'not-allowed') {
-            alert('Veuillez autoriser l\'accès au microphone dans votre navigateur.');
+            alert('Veuillez autoriser l\'accأ¨s au microphone dans votre navigateur.');
         }
     };
 
@@ -305,7 +305,7 @@ if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
         const micBtn = $('micBtn');
         if (micBtn) {
             micBtn.style.background = '#dc2626';
-            micBtn.innerHTML = '🎤';
+            micBtn.innerHTML = 'ًںژ¤';
         }
     };
 
@@ -318,7 +318,7 @@ if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
     });
 } else {
     $('micBtn').addEventListener('click', () => {
-        alert('La dictée vocale n\'est pas supportée par votre navigateur. Utilisez Chrome, Edge ou Safari.');
+        alert('La dictأ©e vocale n\'est pas supportأ©e par votre navigateur. Utilisez Chrome, Edge ou Safari.');
     });
 }
 
@@ -327,10 +327,10 @@ if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
 // ============================================================
 async function ensureAuth() {
     if (JWT_TOKEN) {
-        $('userLabel').textContent = 'Connecté';
+        $('userLabel').textContent = 'Connectأ©';
         return true;
     }
-    // Tentative de login automatique avec un compte de démo
+    // Tentative de login automatique avec un compte de dأ©mo
     const email = 'demo_' + Date.now() + '@test.tn';
     const password = 'Test123!';
     try {
@@ -362,7 +362,7 @@ async function ensureAuth() {
 function logout() {
     localStorage.removeItem('token');
     JWT_TOKEN = '';
-    $('userLabel').textContent = 'Non connecté';
+    $('userLabel').textContent = 'Non connectأ©';
     window.location.reload();
 }
 
@@ -375,7 +375,7 @@ async function sendChat() {
     if (!question) return;
 
     if (!await ensureAuth()) {
-        alert('Erreur de connexion. Veuillez réessayer.');
+        alert('Erreur de connexion. Veuillez rأ©essayer.');
         return;
     }
 
@@ -400,11 +400,11 @@ async function sendChat() {
 
         if (!resp.ok) throw new Error('HTTP ' + resp.status);
         const data = await resp.json();
-        let answer = data.answer || data.error || 'Pas de réponse';
+        let answer = data.answer || data.error || 'Pas de rأ©ponse';
 
         addMessage('bot', answer);
 
-        // Lecture vocale si cochée
+        // Lecture vocale si cochأ©e
         if ($('voiceAuto').checked && 'speechSynthesis' in window) {
             const utterance = new SpeechSynthesisUtterance(answer.replace(/<[^>]+>/g, ''));
             utterance.lang = lang === 'ar' ? 'ar-SA' : (lang === 'en' ? 'en-US' : 'fr-FR');
@@ -421,7 +421,7 @@ function addMessage(role, text) {
     const container = $('chatMessages');
     const div = document.createElement('div');
     div.className = 'msg ' + role;
-    // Si la réponse contient du HTML (iframe PDF), on l'affiche tel quel
+    // Si la rأ©ponse contient du HTML (iframe PDF), on l'affiche tel quel
     if (text.includes('<') && text.includes('>')) {
         div.innerHTML = text;
     } else {
@@ -447,7 +447,7 @@ $('btnAnalyze').addEventListener('click', async () => {
 
         if (mode === 'text') {
             const text = $('analyzeText').value.trim();
-            if (!text) throw new Error('Collez du texte à analyser');
+            if (!text) throw new Error('Collez du texte أ  analyser');
             endpoint = '/api/analyze-content';
             body = JSON.stringify({ content: text, question, domain: 'General', language: 'fr' });
             contentType = 'application/json';
@@ -461,7 +461,7 @@ $('btnAnalyze').addEventListener('click', async () => {
             const file = $('analyzeFile').files[0];
             if (!file) throw new Error('Choisissez un fichier');
             const buf = await file.arrayBuffer();
-            endpoint = '/api/qp-generate-pdf'; // réutilise la route PDF
+            endpoint = '/api/qp-generate-pdf'; // rأ©utilise la route PDF
             body = buf;
             contentType = 'application/pdf';
         }
@@ -477,11 +477,11 @@ $('btnAnalyze').addEventListener('click', async () => {
 
         let html = '';
         if (data.answer) {
-            html = '<div style="font-weight:700">Réponse :</div><div>' + data.answer.substring(0, 5000) + '</div>';
+            html = '<div style="font-weight:700">Rأ©ponse :</div><div>' + data.answer.substring(0, 5000) + '</div>';
         } else if (data.ok && data.wo !== undefined) {
-            html = '<div style="font-weight:700">' + data.wo + ' WO → ' + data.qpDocs + ' QP</div>';
+            html = '<div style="font-weight:700">' + data.wo + ' WO â†’ ' + data.qpDocs + ' QP</div>';
             if (data.links) {
-                html += '<div style="margin-top:8px">' + data.links.map(l => '<a href="' + API_BASE + l.url + '" target="_blank">PDF QP ' + l.from + ' à ' + l.to + '</a>').join('') + '</div>';
+                html += '<div style="margin-top:8px">' + data.links.map(l => '<a href="' + API_BASE + l.url + '" target="_blank">PDF QP ' + l.from + ' أ  ' + l.to + '</a>').join('') + '</div>';
             }
         } else {
             html = '<pre>' + JSON.stringify(data, null, 2).substring(0, 2000) + '</pre>';
@@ -495,7 +495,7 @@ $('btnAnalyze').addEventListener('click', async () => {
 });
 
 // ============================================================
-// GÉNÉRATION QP DEPUIS EXCEL
+// Gأ‰Nأ‰RATION QP DEPUIS EXCEL
 // ============================================================
 $('btnExcel').addEventListener('click', async () => {
     if (!await ensureAuth()) { alert('Auth error'); return; }
@@ -521,13 +521,13 @@ $('btnExcel').addEventListener('click', async () => {
         const data = await resp.json();
         if (!data.ok) throw new Error(data.error || 'Erreur');
 
-        let html = '<div style="font-weight:700;font-size:15px;color:#0a2540;margin-bottom:10px">' + data.wo + ' WO → ' + data.qpDocs + ' QP générés</div>';
+        let html = '<div style="font-weight:700;font-size:15px;color:#0a2540;margin-bottom:10px">' + data.wo + ' WO â†’ ' + data.qpDocs + ' QP gأ©nأ©rأ©s</div>';
         if (data.customer) html += '<div><strong>Client :</strong> ' + data.customer + '</div>';
         if (data.po) html += '<div><strong>PO :</strong> ' + data.po + '</div>';
         if (data.avgConfidence !== undefined) html += '<div><strong>Confiance :</strong> ' + data.avgConfidence + '%</div>';
         if (data.excelDiag) {
             const d = data.excelDiag;
-            html += '<div style="background:#f0f7ff;border-radius:6px;padding:8px;margin:8px 0;font-family:monospace;font-size:11px">Séparateur : <b>' + d.detectedSeparator + '</b> | Entête : <b>' + (d.headerDetected ? 'détectée' : 'non') + '</b> | Lignes : <b>' + d.dataRows + '</b> | WO valides : <b>' + d.validWOs + '</b></div>';
+            html += '<div style="background:#f0f7ff;border-radius:6px;padding:8px;margin:8px 0;font-family:monospace;font-size:11px">Sأ©parateur : <b>' + d.detectedSeparator + '</b> | Entأھte : <b>' + (d.headerDetected ? 'dأ©tectأ©e' : 'non') + '</b> | Lignes : <b>' + d.dataRows + '</b> | WO valides : <b>' + d.validWOs + '</b></div>';
         }
         if (data.ids && data.ids.length) {
             html += '<div style="margin:8px 0"><strong>' + data.ids.length + ' WO :</strong><br>';
@@ -535,8 +535,8 @@ $('btnExcel').addEventListener('click', async () => {
             html += '</div>';
         }
         if (data.links && data.links.length) {
-            html += '<div style="margin-top:10px;font-weight:700">📥 Télécharger :</div>';
-            data.links.forEach(l => { html += '<a href="' + API_BASE + l.url + '" target="_blank">📄 QP ' + l.from + ' à ' + l.to + '</a>'; });
+            html += '<div style="margin-top:10px;font-weight:700">ًں“¥ Tأ©lأ©charger :</div>';
+            data.links.forEach(l => { html += '<a href="' + API_BASE + l.url + '" target="_blank">ًں“„ QP ' + l.from + ' أ  ' + l.to + '</a>'; });
         }
         showResult('excelResult', html, true);
     } catch (e) {
@@ -547,7 +547,7 @@ $('btnExcel').addEventListener('click', async () => {
 });
 
 // ============================================================
-// GÉNÉRATION QP MULTI (PDF ou Excel)
+// Gأ‰Nأ‰RATION QP MULTI (PDF ou Excel)
 // ============================================================
 $('btnQP').addEventListener('click', async () => {
     if (!await ensureAuth()) { alert('Auth error'); return; }
@@ -583,10 +583,10 @@ $('btnQP').addEventListener('click', async () => {
         const data = await resp.json();
         if (!data.ok) throw new Error(data.error || 'Erreur');
 
-        let html = '<div style="font-weight:700">' + data.wo + ' WO → ' + data.qpDocs + ' QP</div>';
+        let html = '<div style="font-weight:700">' + data.wo + ' WO â†’ ' + data.qpDocs + ' QP</div>';
         if (data.customer) html += '<div>Client : ' + data.customer + '</div>';
         if (data.po) html += '<div>PO : ' + data.po + '</div>';
-        if (data.links) html += '<div style="margin-top:10px">' + data.links.map(l => '<a href="' + API_BASE + l.url + '" target="_blank">📄 QP ' + l.from + ' à ' + l.to + '</a>').join('') + '</div>';
+        if (data.links) html += '<div style="margin-top:10px">' + data.links.map(l => '<a href="' + API_BASE + l.url + '" target="_blank">ًں“„ QP ' + l.from + ' أ  ' + l.to + '</a>').join('') + '</div>';
 
         showResult('qpResult', html, true);
     } catch (e) {
@@ -597,12 +597,12 @@ $('btnQP').addEventListener('click', async () => {
 });
 
 // ============================================================
-// ÉVÉNEMENTS UI
+// أ‰Vأ‰NEMENTS UI
 // ============================================================
 $('btnSend').addEventListener('click', sendChat);
 $('chatInput').addEventListener('keypress', (e) => { if (e.key === 'Enter') sendChat(); });
 
-// Zones de dépôt de fichiers
+// Zones de dأ©pأ´t de fichiers
 function setupZone(zoneId, fileInputId) {
     const zone = $(zoneId);
     const input = $(fileInputId);
@@ -617,14 +617,14 @@ function setupZone(zoneId, fileInputId) {
             input.files = e.dataTransfer.files;
             const f = e.dataTransfer.files[0];
             zone.classList.add('has-file');
-            zone.innerHTML = '<div style="font-size:24px;">✓</div><div style="color:#16a34a;font-weight:700">' + f.name + ' (' + Math.round(f.size/1024) + ' Ko)</div>';
+            zone.innerHTML = '<div style="font-size:24px;">âœ“</div><div style="color:#16a34a;font-weight:700">' + f.name + ' (' + Math.round(f.size/1024) + ' Ko)</div>';
         }
     });
     input.addEventListener('change', () => {
         const f = input.files[0];
         if (f) {
             zone.classList.add('has-file');
-            zone.innerHTML = '<div style="font-size:24px;">✓</div><div style="color:#16a34a;font-weight:700">' + f.name + ' (' + Math.round(f.size/1024) + ' Ko)</div>';
+            zone.innerHTML = '<div style="font-size:24px;">âœ“</div><div style="color:#16a34a;font-weight:700">' + f.name + ' (' + Math.round(f.size/1024) + ' Ko)</div>';
         }
     });
 }
@@ -633,7 +633,7 @@ setupZone('excelZone', 'excelFile');
 setupZone('qpExcelZone', 'qpExcelFile');
 setupZone('qpPdfZone', 'qpPdfFile');
 
-// Bouton pièce jointe (ouvre le fichier d'analyse)
+// Bouton piأ¨ce jointe (ouvre le fichier d'analyse)
 $('attachBtn').addEventListener('click', () => {
     document.querySelector('.tab[data-tab="analyze"]').click();
     setTimeout(() => $('analyzeFile').click(), 200);
@@ -643,55 +643,8 @@ $('attachBtn').addEventListener('click', () => {
 // INITIALISATION
 // ============================================================
 ensureAuth().then(ok => {
-    if (!ok) console.warn('Auth auto échouée');
+    if (!ok) console.warn('Auth auto أ©chouأ©e');
 });
-</script>
-<!-- DESACTIVE TEMPORAIREMENT : <script src="/voice-enhancer.js"></script> -->`n<script>
-(function() {
-    console.log('[pdf-button] Module chargé');
-    
-    // Observer les nouvelles réponses pour ajouter le bouton PDF
-    function addPdfButton(msgElement, pdfUrl) {
-        if (msgElement.querySelector('.pdf-download-btn')) return;
-        const btn = document.createElement('a');
-        btn.className = 'pdf-download-btn';
-        btn.href = pdfUrl;
-        btn.target = '_blank';
-        btn.innerHTML = '📄 Télécharger le rapport PDF';
-        btn.style.cssText = 'display:inline-block;margin-top:8px;padding:6px 14px;background:#0a2540;color:#fff;border-radius:6px;font-size:12px;font-weight:600;text-decoration:none;';
-        btn.onmouseover = () => btn.style.background = '#1e5aa8';
-        btn.onmouseout = () => btn.style.background = '#0a2540';
-        msgElement.appendChild(btn);
-    }
-    
-    // Chercher les URLs PDF dans le texte des réponses
-    function scanForPdfLinks() {
-        const container = document.getElementById('chatMessages');
-        if (!container) return;
-        
-        container.querySelectorAll('.msg.bot').forEach(msg => {
-            if (msg.dataset.pdfScanned) return;
-            msg.dataset.pdfScanned = 'true';
-            const text = msg.innerText || msg.textContent || '';
-            // Extraire l'URL PDF si présente
-            const match = text.match(/https?:\/\/[^\s]+\/api\/ultimate-pdf\/[a-f0-9]+/i);
-            if (match) {
-                // Retirer le texte "--- Rapport PDF..." du message
-                const cleanText = text.replace(/---\s*Rapport PDF[^h]*https?:\/\/[^\s]+/i, '').trim();
-                if (cleanText !== text) {
-                    msg.textContent = cleanText;
-                }
-                addPdfButton(msg, match[0]);
-            }
-        });
-    }
-    
-    // Scanner au chargement + nouvelles réponses
-    setInterval(scanForPdfLinks, 1000);
-    setTimeout(scanForPdfLinks, 500);
-    
-    console.log('[pdf-button] Prêt.');
-})();
 </script>
 
 <!-- PDF-BUTTON-V2 : bouton de telechargement PDF separe du texte -->
@@ -728,7 +681,7 @@ ensureAuth().then(ok => {
         btn.href = window._lastPdfLink;
         btn.target = '_blank';
         btn.rel = 'noopener';
-        btn.innerHTML = '📄 Telecharger le rapport PDF';
+        btn.innerHTML = 'ًں“„ Telecharger le rapport PDF';
         btn.style.cssText = 'display:inline-block;margin-top:10px;padding:8px 16px;background:#0a2540;color:#fff;border-radius:6px;font-size:13px;font-weight:600;text-decoration:none;transition:background 0.2s;';
         btn.onmouseover = function() { btn.style.background = '#1e5aa8'; };
         btn.onmouseout = function() { btn.style.background = '#0a2540'; };
