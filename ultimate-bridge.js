@@ -1,4 +1,4 @@
-﻿// ============================================================
+// ============================================================
 // ULTIMATE-BRIDGE.JS - Module autonome unique (Version corrigée)
 // ============================================================
 'use strict';
@@ -254,7 +254,7 @@ module.exports = function(app, mongoose) {
         
         return origJson({
           ok: true,
-          answer: `${cleanAnswer(finalAnswer)}\n\n---\nRapport PDF pour ${user.name} (${user.email}) le ${dateStr}.\nTelecharger : ${link}`,
+          answer: cleanAnswer(finalAnswer),
           answerRaw: finalAnswer,
           pdfLink: link,
           pdfReport: true,
