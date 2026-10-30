@@ -646,128 +646,29 @@ ensureAuth().then(ok => {
     if (!ok) console.warn('Auth auto échouée');
 });
 </script>
-<!-- DESACTIVE TEMPORAIREMENT : <script src="/voice-enhancer.js"></script> -->`n<script>
-(function() {
-    console.log('[pdf-button] Module chargé');
-    
-    // Observer les nouvelles réponses pour ajouter le bouton PDF
-    function addPdfButton(msgElement, pdfUrl) {
-        if (msgElement.querySelector('.pdf-download-btn')) return;
-        const btn = document.createElement('a');
-        btn.className = 'pdf-download-btn';
-        btn.href = pdfUrl;
-        btn.target = '_blank';
-        btn.innerHTML = '📄 Télécharger le rapport PDF';
-        btn.style.cssText = 'display:inline-block;margin-top:8px;padding:6px 14px;background:#0a2540;color:#fff;border-radius:6px;font-size:12px;font-weight:600;text-decoration:none;';
-        btn.onmouseover = () => btn.style.background = '#1e5aa8';
-        btn.onmouseout = () => btn.style.background = '#0a2540';
-        msgElement.appendChild(btn);
-    }
-    
-    // Chercher les URLs PDF dans le texte des réponses
-    function scanForPdfLinks() {
-        const container = document.getElementById('chatMessages');
-        if (!container) return;
-        
-        container.querySelectorAll('.msg.bot').forEach(msg => {
-            if (msg.dataset.pdfScanned) return;
-            msg.dataset.pdfScanned = 'true';
-            const text = msg.innerText || msg.textContent || '';
-            // Extraire l'URL PDF si présente
-            const match = text.match(/https?:\/\/[^\s]+\/api\/ultimate-pdf\/[a-f0-9]+/i);
-            if (match) {
-                // Retirer le texte "--- Rapport PDF..." du message
-                const cleanText = text.replace(/---\s*Rapport PDF[^h]*https?:\/\/[^\s]+/i, '').trim();
-                if (cleanText !== text) {
-                    msg.textContent = cleanText;
-                }
-                addPdfButton(msg, match[0]);
-            }
-        });
-    }
-    
-    // Scanner au chargement + nouvelles réponses
-    setInterval(scanForPdfLinks, 1000);
-    setTimeout(scanForPdfLinks, 500);
-    
-    console.log('[pdf-button] Prêt.');
-})();
-</script>
 
-<!-- PDF-BUTTON-V2 : bouton de telechargement PDF separe du texte -->
+
+
+
+
+<!-- UNIFIED-FIX : historique + micro (langSelect) + TTS + PDF -->
 <script>
 (function() {
-    console.log('[pdf-button-v2] Module charge');
-
-    // Intercepter fetch pour capturer pdfLink
-    const origFetch = window.fetch;
-    window.fetch = function(url, opts) {
-        const promise = origFetch.apply(this, arguments);
-        if (typeof url === 'string' && url.indexOf('/api/ask') !== -1) {
-            promise.then(function(response) {
-                const clone = response.clone();
-                clone.json().then(function(data) {
-                    if (data && data.pdfLink) {
-                        window._lastPdfLink = data.pdfLink;
-                    }
-                }).catch(function() {});
-            }).catch(function() {});
-        }
-        return promise;
-    };
-
-    // Observer les nouvelles reponses bot pour ajouter le bouton
-    function addPdfButtonIfNeeded(msgElement) {
-        if (!window._lastPdfLink) return;
-        if (msgElement.querySelector('.pdf-download-btn')) return;
-        if (msgElement.dataset.pdfAttached) return;
-        msgElement.dataset.pdfAttached = 'true';
-
-        const btn = document.createElement('a');
-        btn.className = 'pdf-download-btn';
-        btn.href = window._lastPdfLink;
-        btn.target = '_blank';
-        btn.rel = 'noopener';
-        btn.innerHTML = '📄 Telecharger le rapport PDF';
-        btn.style.cssText = 'display:inline-block;margin-top:10px;padding:8px 16px;background:#0a2540;color:#fff;border-radius:6px;font-size:13px;font-weight:600;text-decoration:none;transition:background 0.2s;';
-        btn.onmouseover = function() { btn.style.background = '#1e5aa8'; };
-        btn.onmouseout = function() { btn.style.background = '#0a2540'; };
-        msgElement.appendChild(btn);
-
-        // Reset pour la prochaine reponse
-        window._lastPdfLink = null;
-    }
-
-    function scanMessages() {
-        const container = document.getElementById('chatMessages');
-        if (!container) return;
-        container.querySelectorAll('.msg.bot').forEach(addPdfButtonIfNeeded);
-    }
-
-    setInterval(scanMessages, 800);
-    setTimeout(scanMessages, 300);
-
-    console.log('[pdf-button-v2] Pret.');
-})();
-</script>
-
-
-
-<!-- SIMPLE-FIX : historique + micro (langue du selecteur) + TTS -->
-<script>
-(function() {
-    console.log('[simple-fix] Module charge');
-    const HIST_KEY = 'scholars_history_simple';
+    console.log('[unified] ================================');
+    console.log('[unified] Module charge');
     const API = 'https://scholars-connect-app.onrender.com';
+    const HIST_KEY = 'scholars_hist_v3';
 
-    // ============ 1. HISTORIQUE LOCALSTORAGE ============
+    // ============== 1. HISTORIQUE ==============
     function saveMsg(role, text) {
         try {
             let h = JSON.parse(localStorage.getItem(HIST_KEY) || '[]');
+            if (h.length > 0 && h[h.length-1].role === role && h[h.length-1].text === text) return;
             h.push({ role: role, text: text, ts: Date.now() });
-            if (h.length > 50) h = h.slice(-50);
+            if (h.length > 60) h = h.slice(-60);
             localStorage.setItem(HIST_KEY, JSON.stringify(h));
-        } catch(e) {}
+            console.log('[unified] Message sauvegarde (' + role + '):', text.substring(0, 40));
+        } catch(e) { console.warn('[unified] save err', e); }
     }
 
     function restoreHistory() {
@@ -775,7 +676,20 @@ ensureAuth().then(ok => {
         if (!c) return;
         try {
             const h = JSON.parse(localStorage.getItem(HIST_KEY) || '[]');
-            if (h.length === 0) return;
+            if (h.length === 0) {
+                console.log('[unified] Aucun historique a restaurer');
+                return;
+            }
+            // Vider sauf le 1er message de bienvenue
+            const welcome = c.querySelector('.msg.bot');
+            const welcomeText = welcome ? welcome.textContent : '';
+            c.innerHTML = '';
+            if (welcomeText) {
+                const w = document.createElement('div');
+                w.className = 'msg bot';
+                w.textContent = welcomeText;
+                c.appendChild(w);
+            }
             h.forEach(m => {
                 const d = document.createElement('div');
                 d.className = 'msg ' + m.role;
@@ -784,59 +698,53 @@ ensureAuth().then(ok => {
                 c.appendChild(d);
             });
             c.scrollTop = c.scrollHeight;
-            console.log('[simple-fix] Historique restaure : ' + h.length + ' messages');
-        } catch(e) { console.warn('restore err', e); }
+            console.log('[unified] Historique restaure : ' + h.length + ' messages');
+        } catch(e) { console.warn('[unified] restore err', e); }
     }
 
     function hookSave() {
         const c = document.getElementById('chatMessages');
-        if (!c || c.dataset.hookedSimple) return;
-        c.dataset.hookedSimple = '1';
+        if (!c || c.dataset.hookedUnified) return;
+        c.dataset.hookedUnified = '1';
         new MutationObserver(muts => {
             muts.forEach(m => m.addedNodes.forEach(n => {
                 if (n.nodeType === 1 && n.classList.contains('msg') && !n.dataset.restored) {
                     const role = n.classList.contains('user') ? 'user' : 'bot';
-                    const txt = n.textContent || '';
-                    if (txt.trim()) saveMsg(role, txt);
+                    const txt = (n.textContent || '').trim();
+                    if (txt) saveMsg(role, txt);
                 }
             }));
         }).observe(c, { childList: true });
-        console.log('[simple-fix] Hook sauvegarde actif');
+        console.log('[unified] Hook sauvegarde actif');
     }
 
-    // ============ 2. MICRO : UTILISE LA LANGUE DU SELECTEUR ============
-    setTimeout(function() {
+    // ============== 2. MICRO ==============
+    function setupMic() {
         const micBtn = document.getElementById('micBtn');
-        if (!micBtn) { console.warn('[simple-fix] micBtn introuvable'); return; }
+        if (!micBtn) { console.warn('[unified] micBtn introuvable'); return; }
         
-        // Cloner pour supprimer les anciens listeners
         const newMic = micBtn.cloneNode(true);
         micBtn.parentNode.replaceChild(newMic, micBtn);
-
+        
         const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
         if (!SR) {
             newMic.addEventListener('click', () => alert('Dictee non supportee. Utilisez Chrome ou Edge.'));
             return;
         }
-
-        let rec = null;
-        let listening = false;
-
-        // Determiner la langue a partir du selecteur existant "langSelect"
+        
+        let rec = null, listening = false;
+        
         function getLang() {
-            const langSel = document.getElementById('langSelect');
-            if (langSel) {
-                if (langSel.value === 'ar') return 'ar-SA';
-                if (langSel.value === 'en') return 'en-US';
-                if (langSel.value === 'fr') return 'fr-FR';
+            const ls = document.getElementById('langSelect');
+            if (ls) {
+                const v = ls.value;
+                if (v === 'ar') return 'ar-SA';
+                if (v === 'en') return 'en-US';
+                if (v === 'fr') return 'fr-FR';
             }
-            // Fallback sur navigator
-            const nav = navigator.language || 'fr-FR';
-            if (nav.indexOf('ar') === 0) return 'ar-SA';
-            if (nav.indexOf('en') === 0) return 'en-US';
             return 'fr-FR';
         }
-
+        
         newMic.addEventListener('click', (e) => {
             e.preventDefault();
             e.stopPropagation();
@@ -848,20 +756,20 @@ ensureAuth().then(ok => {
             }
             
             const lang = getLang();
-            console.log('[simple-fix] Micro demarre en :', lang);
+            console.log('[unified] === MIC START === langue=' + lang);
             
             rec = new SR();
             rec.lang = lang;
             rec.continuous = true;
             rec.interimResults = true;
             
-            let finalText = '';
-            let silenceTimer = null;
+            let finalText = '', silenceTimer = null;
             
             rec.onstart = () => {
                 listening = true;
                 newMic.style.background = '#16a34a';
                 newMic.innerHTML = '⏹';
+                console.log('[unified] Micro demarre');
             };
             
             rec.onresult = (event) => {
@@ -877,10 +785,10 @@ ensureAuth().then(ok => {
                 silenceTimer = setTimeout(() => { if (listening) rec.stop(); }, 4000);
             };
             
-            rec.onerror = (event) => {
-                console.warn('[simple-fix] Erreur micro:', event.error);
-                if (event.error === 'not-allowed') {
-                    alert('Veuillez autoriser le micro dans votre navigateur (icone 🔒 a gauche de l\'URL).');
+            rec.onerror = (ev) => {
+                console.warn('[unified] MIC ERROR:', ev.error);
+                if (ev.error === 'not-allowed') {
+                    alert('Autorisez le micro : cliquez sur 🔒 dans la barre d\'URL.');
                 }
                 listening = false;
                 newMic.style.background = '#dc2626';
@@ -895,24 +803,22 @@ ensureAuth().then(ok => {
                 const txt = inp ? inp.value.trim() : '';
                 if (txt.length > 2) {
                     if (confirm('📝 Dictee terminee :\n\n"' + txt + '"\n\nEnvoyer ?')) {
-                        const btn = document.getElementById('btnSend');
-                        if (btn) btn.click();
+                        document.getElementById('btnSend').click();
                     }
                 }
             };
             
-            try { rec.start(); } catch(err) { console.warn('start err', err); }
+            try { rec.start(); } catch(err) { console.warn('[unified] start err', err); }
         });
         
-        console.log('[simple-fix] Micro pret.');
-    }, 1500);
+        console.log('[unified] Micro pret (langue = langSelect)');
+    }
 
-    // ============ 3. TTS : BOUTONS PLAY/PAUSE/STOP ============
-    setTimeout(function() {
-        // Chercher la case "Lecture vocale auto" par son label ou par son ID
+    // ============== 3. TTS (boutons ▶ ⏸ ⏹) ==============
+    function setupTTS() {
+        // Trouver la case voiceAuto par ID, sinon par label
         let voiceAuto = document.getElementById('voiceAuto');
         if (!voiceAuto) {
-            // Chercher par le texte du label
             document.querySelectorAll('label').forEach(l => {
                 if (l.textContent && l.textContent.indexOf('Lecture vocale') !== -1) {
                     voiceAuto = l.querySelector('input');
@@ -920,34 +826,38 @@ ensureAuth().then(ok => {
             });
         }
         if (!voiceAuto) {
-            console.warn('[simple-fix] voiceAuto introuvable, TTS boutons non ajoutes');
+            console.warn('[unified] voiceAuto introuvable');
             return;
         }
-        
-        if (document.getElementById('ttsControlsSimple')) return;
+        if (document.getElementById('ttsBar')) return;
         
         const ctrl = document.createElement('div');
-        ctrl.id = 'ttsControlsSimple';
-        ctrl.style.cssText = 'display:inline-flex;gap:4px;margin-left:8px;align-items:center;vertical-align:middle;';
-        ctrl.innerHTML = '<button id="ttsPlaySimple" title="Demarrer" style="background:#16a34a;color:#fff;border:none;border-radius:4px;padding:4px 10px;cursor:pointer;font-size:14px;">▶</button>' +
-                         '<button id="ttsPauseSimple" title="Pause/Reprendre" style="background:#f59e0b;color:#fff;border:none;border-radius:4px;padding:4px 10px;cursor:pointer;font-size:14px;">⏸</button>' +
-                         '<button id="ttsStopSimple" title="Arreter" style="background:#dc2626;color:#fff;border:none;border-radius:4px;padding:4px 10px;cursor:pointer;font-size:14px;">⏹</button>';
+        ctrl.id = 'ttsBar';
+        ctrl.style.cssText = 'display:inline-flex;gap:4px;margin-left:8px;vertical-align:middle;';
+        ctrl.innerHTML = '<button id="ttsPlayBtn" title="Demarrer" style="background:#16a34a;color:#fff;border:0;border-radius:4px;padding:4px 10px;cursor:pointer;font-size:14px;">▶</button>' +
+                         '<button id="ttsPauseBtn" title="Pause/Reprendre" style="background:#f59e0b;color:#fff;border:0;border-radius:4px;padding:4px 10px;cursor:pointer;font-size:14px;">⏸</button>' +
+                         '<button id="ttsStopBtn" title="Arreter" style="background:#dc2626;color:#fff;border:0;border-radius:4px;padding:4px 10px;cursor:pointer;font-size:14px;">⏹</button>';
         voiceAuto.parentNode.insertBefore(ctrl, voiceAuto.nextSibling);
         
-        let lastAnswer = '';
+        // Auto-lire les nouvelles reponses si la case est cochee
         const container = document.getElementById('chatMessages');
         if (container) {
             new MutationObserver(muts => {
                 muts.forEach(m => m.addedNodes.forEach(n => {
-                    if (n.nodeType === 1 && n.classList.contains('msg') && n.classList.contains('bot')) {
-                        lastAnswer = n.textContent || '';
+                    if (n.nodeType === 1 && n.classList.contains('msg') && n.classList.contains('bot') && !n.dataset.restored) {
+                        if (voiceAuto.checked) speak(n.textContent || '');
                     }
                 }));
             }).observe(container, { childList: true });
         }
         
+        function getLastBotText() {
+            const bots = document.querySelectorAll('.msg.bot');
+            return bots.length > 0 ? bots[bots.length-1].textContent : '';
+        }
+        
         function speak(text) {
-            if (!window.speechSynthesis) { alert('Lecture vocale non supportee.'); return; }
+            if (!window.speechSynthesis || !text) return;
             window.speechSynthesis.cancel();
             const lang = /[\u0600-\u06FF]/.test(text) ? 'ar-SA' : 'fr-FR';
             const utt = new SpeechSynthesisUtterance(text.substring(0, 3000));
@@ -956,40 +866,76 @@ ensureAuth().then(ok => {
             const v = voices.find(x => x.lang === lang) || voices.find(x => x.lang.indexOf(lang.split('-')[0]) === 0);
             if (v) utt.voice = v;
             speechSynthesis.speak(utt);
-            console.log('[simple-fix] Lecture vocale :', lang);
+            console.log('[unified] TTS lecture (' + lang + ')');
         }
         
-        document.getElementById('ttsPlaySimple').onclick = () => {
-            if (!lastAnswer) {
-                const botMsgs = document.querySelectorAll('.msg.bot');
-                if (botMsgs.length > 0) lastAnswer = botMsgs[botMsgs.length - 1].textContent || '';
-            }
-            if (!lastAnswer) { alert('Aucune reponse a lire.'); return; }
-            speak(lastAnswer);
+        document.getElementById('ttsPlayBtn').onclick = () => speak(getLastBotText());
+        document.getElementById('ttsPauseBtn').onclick = () => {
+            if (speechSynthesis.speaking && !speechSynthesis.paused) speechSynthesis.pause();
+            else if (speechSynthesis.paused) speechSynthesis.resume();
         };
-        document.getElementById('ttsPauseSimple').onclick = () => {
-            if (speechSynthesis.speaking && !speechSynthesis.paused) {
-                speechSynthesis.pause();
-            } else if (speechSynthesis.paused) {
-                speechSynthesis.resume();
+        document.getElementById('ttsStopBtn').onclick = () => speechSynthesis.cancel();
+        
+        console.log('[unified] TTS pret (boutons ajoutes)');
+    }
+
+    // ============== 4. PDF (capture pdfLink) ==============
+    function setupPDF() {
+        const origFetch = window.fetch;
+        window.fetch = function(url, opts) {
+            const p = origFetch.apply(this, arguments);
+            if (typeof url === 'string' && url.indexOf('/api/ask') !== -1) {
+                p.then(r => {
+                    const clone = r.clone();
+                    clone.json().then(data => {
+                        if (data && data.pdfLink) {
+                            window._lastPdfLink = data.pdfLink;
+                            console.log('[unified] pdfLink capture:', data.pdfLink);
+                        }
+                    }).catch(() => {});
+                }).catch(() => {});
             }
-        };
-        document.getElementById('ttsStopSimple').onclick = () => {
-            speechSynthesis.cancel();
+            return p;
         };
         
-        console.log('[simple-fix] Widget TTS pret.');
-    }, 2000);
+        // Ajouter le bouton PDF sous les nouvelles reponses
+        const container = document.getElementById('chatMessages');
+        if (container) {
+            new MutationObserver(muts => {
+                muts.forEach(m => m.addedNodes.forEach(n => {
+                    if (n.nodeType === 1 && n.classList.contains('msg') && n.classList.contains('bot') && !n.dataset.pdfAdded && window._lastPdfLink) {
+                        n.dataset.pdfAdded = '1';
+                        const a = document.createElement('a');
+                        a.href = window._lastPdfLink;
+                        a.target = '_blank';
+                        a.textContent = '📄 Telecharger le rapport PDF';
+                        a.style.cssText = 'display:inline-block;margin-top:8px;padding:6px 14px;background:#0a2540;color:#fff;border-radius:6px;font-size:12px;font-weight:600;text-decoration:none;';
+                        n.appendChild(a);
+                        window._lastPdfLink = null;
+                    }
+                }));
+            }).observe(container, { childList: true });
+        }
+        console.log('[unified] PDF pret');
+    }
 
-    // ============ INIT ============
+    // ============== INIT ==============
     function init() {
+        console.log('[unified] INIT...');
         restoreHistory();
         hookSave();
+        setupMic();
+        setupTTS();
+        setupPDF();
+        console.log('[unified] ============== PRET ==============');
     }
-    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => setTimeout(init, 500));
-    else setTimeout(init, 500);
 
-    console.log('[simple-fix] Pret.');
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', () => setTimeout(init, 800));
+    } else {
+        setTimeout(init, 800);
+    }
+    setTimeout(init, 3000);  // Fallback
 })();
 </script>
 </body>
