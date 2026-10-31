@@ -662,6 +662,13 @@ function pickExcerpt(content, query) {
 }
 
 function detectDomain(question, defaultDomain) {
+  // FORCE-DOMAIN-RESPECT : respecter req.body.domain s'il est explicitement force
+  if (defaultDomain && defaultDomain === 'General') return 'General';
+  if (defaultDomain && defaultDomain !== 'General') {
+    // Domaine force par smart-answer : verifier s'il est valide
+    var validDomains = ['Plan Qualite','Petrole & Gaz','Technique','Sciences','General'];
+    if (validDomains.indexOf(defaultDomain) !== -1) return defaultDomain;
+  }
   if (defaultDomain && defaultDomain !== 'General') return defaultDomain;
   var q = String(question || '').toLowerCase();
   if (isQualityPlanRequest(question, '')) return 'Plan Qualite';
