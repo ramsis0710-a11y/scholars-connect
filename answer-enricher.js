@@ -218,6 +218,15 @@ var SCHOLARS_BY_DOMAIN = {
 };
 
 function isQualityPlanRequest(question, content) {
+  // v1.8 : ignorer les questions purement generales
+  var _qLow = String(question || '').toLowerCase();
+  var _generalKw = ['capitale', 'population', 'pays', 'ville', 'président', 'president', 'histoire', 'géographie', 'geographie', 'religion', 'philosophie', 'sport', 'art'];
+  for (var _gk = 0; _gk < _generalKw.length; _gk++) {
+    if (_qLow.indexOf(_generalKw[_gk]) !== -1) {
+      console.log('[v1.8 isQualityPlanRequest] question generale detectee -> false');
+      return false;
+    }
+  }
   var text = ((question || '') + ' ' + (content || '')).toLowerCase();
   var triggers = ['plan qualite','plan qualité','plan de qualite','quality control plan','quality plan','qp ','qp-','qp_','qp01','qp 01','qp standard','controle qualite','control plan'];
   for (var i = 0; i < triggers.length; i++) if (text.indexOf(triggers[i]) !== -1) return true;
@@ -732,7 +741,7 @@ function generateTechSheet(domain, docsUsed, semanticScore, scholars, judgeResul
   if (mode === 'document') html += '<tr><td style="opacity:0.75">Source</td><td>Document colle</td></tr>';
   else { html += '<tr><td style="opacity:0.75">Score</td><td>' + Math.round(semanticScore * 100) + ' %</td></tr>'; html += '<tr><td style="opacity:0.75">Docs</td><td>' + docsUsed + '</td></tr>'; }
   if (scholars && scholars.length) html += '<tr><td style="opacity:0.75">Scholars</td><td>' + esc(scholars.join(', ')) + '</td></tr>';
-  html += '<tr><td style="opacity:0.75">Moteur IA</td><td>MBA-CONSULT AI CORE v1.7</td></tr>';
+  html += '<tr><td style="opacity:0.75">Moteur IA</td><td>MBA-CONSULT AI CORE v1.8</td></tr>';
   html += '<tr><td style="opacity:0.75">Validation</td><td>Juge Claude</td></tr>';
   html += '<tr><td style="opacity:0.75">Date</td><td>' + new Date().toLocaleString('fr-FR') + '</td></tr>';
   html += '</table></div>';
@@ -1684,6 +1693,13 @@ module.exports = function(app, mongoose) {
 
   async function ragPreprocessAsk(req, res, next) {
     if (!req.body || !req.body.question) return next();
+    // v1.8 : ne pas injecter de RAG pour les questions non techniques
+    var _dom = req.body.domain || 'General';
+    var _techDoms = ['Plan Qualite', 'Petrole & Gaz', 'Technique', 'Sciences'];
+    if (_techDoms.indexOf(_dom) === -1) {
+      console.log('[v1.8 ragPreprocessAsk] domaine="' + _dom + '" non technique -> pas de RAG');
+      return next();
+    }
     if (!AutoFeedDoc) { try { AutoFeedDoc = mongoose.model('AutoFeedDocument'); } catch (e) { return next(); } }
     try {
       var q = req.body.question;
@@ -1751,7 +1767,16 @@ module.exports = function(app, mongoose) {
 
   async function enrichAnswer(answer, question, domain, lang, mongoose, mode, originalContent) {
     try {
-      var realQuestion = question; var _hm = question.match(/Nouvelle question[^:]*:\s*([\s\S]+)$/i); if (_hm) realQuestion = _hm[1].trim(); var realDomain = isQualityPlanRequest(realQuestion, originalContent) ? 'Plan Qualite' : detectDomain(realQuestion, domain);
+      var realQuestion = question;
+      // v1.8 : nettoyer les prefixes ajoutes par language-fix et memory-fix
+      var _hm = question.match(/Nouvelle question[^:]*:\s*([\s\S]+)$/i);
+      if (_hm) realQuestion = _hm[1].trim();
+      // retirer le prefixe language-fix "Answer the following question ...:\n\n"
+      realQuestion = realQuestion.replace(/^Answer\s+the\s+following\s+question[^:]*:\s*/i, '').trim();
+      // retirer les extraits RAG "Question : q" a la fin
+      var _ragM = realQuestion.match(/^[\s\S]*?Question\s*:\s*([^\n]+)\s*$/);
+      if (_ragM && _ragM[1].length > 5) realQuestion = _ragM[1].trim();
+      var realDomain = isQualityPlanRequest(realQuestion, originalContent) ? 'Plan Qualite' : detectDomain(realQuestion, domain);
       try { console.log('[TRACE v1.7] domain_in=' + domain + ' | realDomain=' + realDomain + ' | realQ=' + String(realQuestion || '').slice(0, 80) + ' | isQP=' + isQualityPlanRequest(realQuestion, originalContent)); } catch(e) {}
       var AutoFeedDoc2 = null;
       try { AutoFeedDoc2 = mongoose.model('AutoFeedDocument'); } catch (e) {}
