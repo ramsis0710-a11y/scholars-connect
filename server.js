@@ -1,4 +1,4 @@
-﻿require("dotenv").config();
+require("dotenv").config();
 const express  = require("express");
 const cors     = require("cors");
 const mongoose = require("mongoose");
@@ -202,6 +202,8 @@ require('./pdf-report-generator')(app, mongoose);
 // require('./fix-final')(app, mongoose);
 
 // DESACTIVE TEMPORAIREMENT : require('./smart-router')(app, mongoose);
+
+require('./memory-fix')(app, mongoose);
 
 connectMongo().finally(() => {
     const server = app.listen(PORT, HOST, () => {

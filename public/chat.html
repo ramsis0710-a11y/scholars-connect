@@ -982,5 +982,41 @@ ensureAuth().then(ok => {
     console.log('[tts-clean-v2] Pret.');
 })();
 </script>
+
+<!-- MEMORY-INJECT-V1 : envoie l historique avec chaque question -->
+<script>
+(function() {
+    console.log('[memory-inject-v1] Module charge');
+    const HIST_KEY = 'scholars_hist_v3';
+    
+    // Intercepter fetch pour /api/ask
+    const origFetch = window.fetch;
+    window.fetch = function(url, opts) {
+        if (typeof url === 'string' && url.indexOf('/api/ask') !== -1 && opts && opts.body) {
+            try {
+                const body = JSON.parse(opts.body);
+                // Recuperer l historique depuis localStorage
+                let history = [];
+                try {
+                    const h = JSON.parse(localStorage.getItem(HIST_KEY) || '[]');
+                    // Prendre les 8 derniers messages
+                    history = h.slice(-8).map(function(m) {
+                        return { role: m.role, content: m.text };
+                    });
+                } catch(e) {}
+                
+                if (history.length > 0) {
+                    body.history = history;
+                    opts.body = JSON.stringify(body);
+                    console.log('[memory-inject-v1] Historique envoye : ' + history.length + ' messages');
+                }
+            } catch(e) { console.warn('[memory-inject-v1] Erreur :', e); }
+        }
+        return origFetch.apply(this, arguments);
+    };
+    
+    console.log('[memory-inject-v1] Pret.');
+})();
+</script>
 </body>
 </html>
