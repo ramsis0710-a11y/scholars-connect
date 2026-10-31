@@ -1,4 +1,4 @@
-# VERROUILLAGE VERSION STABLE
+﻿# VERROUILLAGE VERSION STABLE
 
 Date : 2026-10-30 17:10:31
 Commit : 099a76335439ccde4c355429093d929bfaf7725c
@@ -15,12 +15,12 @@ Branche : stable-20261030-171023
 6. Reponses en arabe quand question en arabe
 7. Bouton PDF optionnel
 8. 18 domaines
-9. answer-enricher.js INTACT (hash D6D35CF46FC3057A6C2A2560E52C008EE099A64CC12FB060714B628DAFC71C01)
+9. answer-enricher.js INTACT (hash BFE41723D464B69753B381B376FF89824E54B5DA31C008A417E3BEE2534E63B4)
 10. fix-final.js DESACTIVE dans server.js
 
 ## Fichiers proteges - NE PAS TOUCHER
 
-- answer-enricher.js : hash SHA256 D6D35CF46FC3057A6C2A2560E52C008EE099A64CC12FB060714B628DAFC71C01
+- answer-enricher.js : hash SHA256 BFE41723D464B69753B381B376FF89824E54B5DA31C008A417E3BEE2534E63B4
 - server.js : fix-final desactive
 - ultimate-bridge.js : 18 domaines actifs
 - public/chat.html : modules [unified] et [tts-clean-v2]

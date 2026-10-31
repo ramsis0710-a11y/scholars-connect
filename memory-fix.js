@@ -1,4 +1,4 @@
-// ============================================================
+﻿// ============================================================
 // MEMORY-FIX.JS - Memoire conversationnelle
 // Intercepte /api/ask AVANT answer-enricher.js
 // Enrichit la question avec l'historique conversationnel
@@ -27,7 +27,7 @@ module.exports = function(app, mongoose) {
       }
       
       // Construire le prompt avec historique (max 8 messages = 4 echanges)
-      const recent = history.slice(-8);
+      const recent = history.slice(-4);
       const lines = [];
       lines.push('=== HISTORIQUE DE LA CONVERSATION ===');
       recent.forEach(function(m) {
@@ -41,7 +41,9 @@ module.exports = function(app, mongoose) {
       });
       lines.push('=== FIN HISTORIQUE ===');
       lines.push('');
-      lines.push('Nouvelle question (reponds en tenant compte de l historique ci-dessus) :');
+      lines.push('INSTRUCTION OBLIGATOIRE : Tu DOIS repondre a la question ci-dessous en te basant sur l historique. Si la question contient "il", "elle", "son", "sa", "et", "donc", "cette", "ce", refere-toi au sujet de l historique. Ne demande JAMAIS de preciser le sujet si l historique le mentionne.');
+      lines.push('');
+      lines.push('Nouvelle question :');
       lines.push(question);
       
       const enrichedQuestion = lines.join('\n');
