@@ -203,6 +203,7 @@ require('./pdf-report-generator')(app, mongoose);
 
 // DESACTIVE TEMPORAIREMENT : require('./smart-router')(app, mongoose);
 
+require('./smart-answer')(app, mongoose);
 require('./memory-fix')(app, mongoose);
 
 connectMongo().finally(() => {
