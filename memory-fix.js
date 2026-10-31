@@ -46,6 +46,13 @@ module.exports = function(app, mongoose) {
       lines.push('=== REGLES STRICTES ===');
       lines.push('Utilise l historique. Si la question est courte, refere au sujet precedent.');
       lines.push('=== FIN REGLES ===');
+      lines.push('=== REGLES OBLIGATOIRES ===');
+      lines.push('REGLE 1 : Tu as recu un historique ci-dessus. Tu DOIS l utiliser.');
+      lines.push('REGLE 2 : Si la question est courte (et sa population, et son president, combien, et apres), elle refere au SUJET de la derniere question de l historique.');
+      lines.push('REGLE 3 : Ne reponds JAMAIS de quoi parlez-vous ou je n ai pas d information si le sujet est dans l historique.');
+      lines.push('REGLE 4 : Reponds concretement sur le sujet de l historique, sans le mentionner.');
+      lines.push('=== FIN REGLES ===');
+      lines.push('');
       lines.push('Nouvelle question :');
       lines.push(question);
       
