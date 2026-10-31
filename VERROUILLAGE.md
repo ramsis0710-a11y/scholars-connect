@@ -15,12 +15,12 @@ Branche : stable-20261030-171023
 6. Reponses en arabe quand question en arabe
 7. Bouton PDF optionnel
 8. 18 domaines
-9. answer-enricher.js INTACT (hash BFE41723D464B69753B381B376FF89824E54B5DA31C008A417E3BEE2534E63B4)
+9. answer-enricher.js INTACT (hash 52303327654E5B60D560C854401874B6C50570CEEB72802F35554E47B1FD0A66)
 10. fix-final.js DESACTIVE dans server.js
 
 ## Fichiers proteges - NE PAS TOUCHER
 
-- answer-enricher.js : hash SHA256 BFE41723D464B69753B381B376FF89824E54B5DA31C008A417E3BEE2534E63B4
+- answer-enricher.js : hash SHA256 52303327654E5B60D560C854401874B6C50570CEEB72802F35554E47B1FD0A66
 - server.js : fix-final desactive
 - ultimate-bridge.js : 18 domaines actifs
 - public/chat.html : modules [unified] et [tts-clean-v2]
@@ -55,3 +55,12 @@ Puis sur Render : Manual Deploy -> Clear build cache and deploy
 5. TOUJOURS verifier hash answer-enricher.js avant commit
 
 Document genere par le script de verrouillage.
+
+## Verrouillage v1.3 - 2026-10-31 14:01:57
+
+- answer-enricher.js : 52303327654E5B60D560C854401874B6C50570CEEB72802F35554E47B1FD0A66
+- CORRECTION 1 : ragPreprocessAsk ne fait du RAG QUE pour les domaines techniques
+- CORRECTION 2 : enrichAnswer extrait la vraie question + respecte req.body.domain
+- CORRECTION 3 : RAG seuil releve a 0.30 + technique uniquement dans enrichAnswer
+- Effet : "capitale Tunisie" -> Domaine General + pas de RAG
+- Effet : "API 5CT" -> Domaine Petrole & Gaz + RAG cible

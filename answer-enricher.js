@@ -1683,6 +1683,9 @@ module.exports = function(app, mongoose) {
 
   async function ragPreprocessAsk(req, res, next) {
     if (!req.body || !req.body.question) return next();
+    var _ragDomain = req.body.domain || 'General';
+    var _ragTech = ['Plan Qualite', 'Petrole & Gaz', 'Technique', 'Sciences'];
+    if (_ragTech.indexOf(_ragDomain) === -1) return next();
     if (!AutoFeedDoc) { try { AutoFeedDoc = mongoose.model('AutoFeedDocument'); } catch (e) { return next(); } }
     try {
       var q = req.body.question;
@@ -1734,14 +1737,25 @@ module.exports = function(app, mongoose) {
 
   async function enrichAnswer(answer, question, domain, lang, mongoose, mode, originalContent) {
     try {
-      var realDomain = isQualityPlanRequest(question, originalContent) ? 'Plan Qualite' : detectDomain(question, domain);
+      var realQuestion = question;
+      var _hm = question.match(/Nouvelle question[^:]*:\s*([\s\S]+)$/i);
+      if (_hm) realQuestion = _hm[1].trim();
+      var realDomain;
+      if (domain === 'General' && isQualityPlanRequest(realQuestion, originalContent)) { realDomain = 'Plan Qualite'; }
+      else if (domain) { realDomain = domain; }
+      else if (isQualityPlanRequest(realQuestion, originalContent)) { realDomain = 'Plan Qualite'; }
+      else { realDomain = detectDomain(realQuestion, ''); }
       var AutoFeedDoc2 = null;
       try { AutoFeedDoc2 = mongoose.model('AutoFeedDocument'); } catch (e) {}
       var docs = [];
       var semanticScore = 0;
-      if (mode === 'ask' && AutoFeedDoc2) { docs = await findRelevantDocuments(AutoFeedDoc2, question, 5, 0.15); if (docs.length > 0) semanticScore = docs[0].score; }
+      var _techDomains2 = ['Plan Qualite', 'Petrole & Gaz', 'Technique', 'Sciences'];
+      if (mode === 'ask' && AutoFeedDoc2 && _techDomains2.indexOf(realDomain) !== -1) {
+        docs = await findRelevantDocuments(AutoFeedDoc2, realQuestion, 5, 0.30);
+        if (docs.length > 0) semanticScore = docs[0].score;
+      }
       var scholars = [];
-      if (isLiteraryOrReligious(realDomain)) scholars = extractScholars(question, answer, realDomain);
+      if (isLiteraryOrReligious(realDomain)) scholars = extractScholars(realQuestion, answer, realDomain);
       var enriched = '<div style="background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:24px;margin:0 0 20px 0"><h3 style="color:#0a2540;font-size:17px;font-weight:700;margin:0 0 16px 0;padding-bottom:10px;border-bottom:2px solid #1e5aa8">Reponse detaillee</h3><div style="font-size:14px;color:#17202a">' + formatForHTML(answer) + '</div></div>';
       enriched += generateTechSheet(realDomain, docs.length, semanticScore, scholars, null, mode);
       return enriched;
