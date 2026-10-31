@@ -1713,7 +1713,14 @@ module.exports = function(app, mongoose) {
     return function(req, res, next) {
       var originalJson = res.json.bind(res);
       res.json = function(data) {
-        if (!data || !data.answer || data.enriched) return originalJson(data);
+        if (!data || !data.answer) return originalJson(data);
+      // v1.5 : TOUJOURS regenerer la fiche (retirer l'ancienne si elle existe)
+      var _cleanAnswer = String(data.answer);
+      var _ficheIdx = _cleanAnswer.indexOf('<div style="background:linear-gradient');
+      if (_ficheIdx !== -1) _cleanAnswer = _cleanAnswer.substring(0, _ficheIdx);
+      _cleanAnswer = _cleanAnswer.replace(/<div style="background:#fff;border:1px solid #e5e7eb[\s\S]*?<h3[^>]*>Reponse detaillee<\/h3>/, '<div style="font-size:14px;color:#17202a">');
+      _cleanAnswer = _cleanAnswer.replace(/<\/div><\/div>\s*$/, '');
+      data.answer = _cleanAnswer.trim();
         var q = mode === 'document' ? (req._documentQuestion || '') : (req.body && req.body.question ? req.body.question : '');
         var domain = req.body && req.body.domain ? req.body.domain : 'General';
         var lang = req.body && req.body.language ? req.body.language : 'fr';

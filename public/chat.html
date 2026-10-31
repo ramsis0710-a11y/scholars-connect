@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
@@ -1016,6 +1016,23 @@ ensureAuth().then(ok => {
     };
     
     console.log('[memory-inject-v1] Pret.');
+})();
+</script>
+
+<!-- CACHE-CLEAR-V15 : vide localStorage une seule fois a la v1.5 -->
+<script>
+(function(){
+    var V = 'v1.5';
+    var key = 'app_cache_version';
+    try {
+        if (localStorage.getItem(key) !== V) {
+            console.log('[cache-clear-v15] Nouvelle version detectee, vidage du cache...');
+            localStorage.clear();
+            localStorage.setItem(key, V);
+            console.log('[cache-clear-v15] Cache vide, rechargement...');
+            setTimeout(function(){ location.reload(); }, 100);
+        }
+    } catch(e) { console.warn('[cache-clear-v15]', e); }
 })();
 </script>
 </body>
