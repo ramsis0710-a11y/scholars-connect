@@ -43,6 +43,9 @@ module.exports = function(app, mongoose) {
       lines.push('');
       lines.push('INSTRUCTION OBLIGATOIRE : Tu DOIS repondre a la question ci-dessous en te basant sur l historique. Si la question contient "il", "elle", "son", "sa", "et", "donc", "cette", "ce", refere-toi au sujet de l historique. Ne demande JAMAIS de preciser le sujet si l historique le mentionne.');
       lines.push('');
+      lines.push('=== REGLES STRICTES ===');
+      lines.push('Utilise l historique. Si la question est courte, refere au sujet precedent.');
+      lines.push('=== FIN REGLES ===');
       lines.push('Nouvelle question :');
       lines.push(question);
       
