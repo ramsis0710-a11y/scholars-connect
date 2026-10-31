@@ -731,7 +731,7 @@ function generateTechSheet(domain, docsUsed, semanticScore, scholars, judgeResul
   if (mode === 'document') html += '<tr><td style="opacity:0.75">Source</td><td>Document colle</td></tr>';
   else { html += '<tr><td style="opacity:0.75">Score</td><td>' + Math.round(semanticScore * 100) + ' %</td></tr>'; html += '<tr><td style="opacity:0.75">Docs</td><td>' + docsUsed + '</td></tr>'; }
   if (scholars && scholars.length) html += '<tr><td style="opacity:0.75">Scholars</td><td>' + esc(scholars.join(', ')) + '</td></tr>';
-  html += '<tr><td style="opacity:0.75">Moteur IA</td><td>MBA-CONSULT AI CORE</td></tr>';
+  html += '<tr><td style="opacity:0.75">Moteur IA</td><td>MBA-CONSULT AI CORE v1.6</td></tr>';
   html += '<tr><td style="opacity:0.75">Validation</td><td>Juge Claude</td></tr>';
   html += '<tr><td style="opacity:0.75">Date</td><td>' + new Date().toLocaleString('fr-FR') + '</td></tr>';
   html += '</table></div>';
@@ -1723,6 +1723,15 @@ module.exports = function(app, mongoose) {
       data.answer = _cleanAnswer.trim();
         var q = mode === 'document' ? (req._documentQuestion || '') : (req.body && req.body.question ? req.body.question : '');
         var domain = req.body && req.body.domain ? req.body.domain : 'General';
+      // v1.6 : recalculer le domaine a partir de la VRAIE question (ignore le domaine envoye)
+      var _qReal = q;
+      var _hmPost = q.match(/Nouvelle question[^:]*:\s*([\s\S]+)$/i);
+      if (_hmPost) _qReal = _hmPost[1].trim();
+      var _qLow = String(_qReal || '').toLowerCase();
+      var _techKw = ['api 5ct','api 5b','api 6a','api 7-1','api 7-2','api 14l','api 5c5','tubing','casing','petrole','pétrole','gaz','forage','drilling','vam','tenaris','hydril','nace','h2s','thread','coupling','plan qualite','plan qualité','quality plan','qp standard','ndt','mpi','soudure','weld','hydrostatic','pressure test','mtc','certificat','inspection','tolerance','tolérance','acier','steel','grade l80','grade p110'];
+      var _hasTech = false;
+      for (var _k = 0; _k < _techKw.length; _k++) { if (_qLow.indexOf(_techKw[_k]) !== -1) { _hasTech = true; break; } }
+      if (!_hasTech) { domain = 'General'; }  // force General si aucun mot-clé technique
         var lang = req.body && req.body.language ? req.body.language : 'fr';
         enrichAnswer(data.answer, q, domain, lang, mongoose, mode, req._documentContent || '')
           .then(function(enriched) {
