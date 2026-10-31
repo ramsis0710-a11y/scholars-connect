@@ -727,11 +727,12 @@ function generateTechSheet(domain, docsUsed, semanticScore, scholars, judgeResul
   var html = '<div style="background:linear-gradient(135deg,#0a2540,#1e5aa8);color:#fff;border-radius:12px;padding:20px;margin:20px 0">';
   html += '<h4 style="margin:0 0 14px 0;font-size:16px;font-weight:700">📋 Fiche technique</h4>';
   html += '<table style="width:100%;font-size:13px;color:#fff">';
+  try { console.log('[TRACE v1.7] generateTechSheet domain=' + domain + ' docsUsed=' + docsUsed + ' score=' + semanticScore); } catch(e) {}
   html += '<tr><td style="opacity:0.75;width:200px">Domaine</td><td>' + esc(domain) + '</td></tr>';
   if (mode === 'document') html += '<tr><td style="opacity:0.75">Source</td><td>Document colle</td></tr>';
   else { html += '<tr><td style="opacity:0.75">Score</td><td>' + Math.round(semanticScore * 100) + ' %</td></tr>'; html += '<tr><td style="opacity:0.75">Docs</td><td>' + docsUsed + '</td></tr>'; }
   if (scholars && scholars.length) html += '<tr><td style="opacity:0.75">Scholars</td><td>' + esc(scholars.join(', ')) + '</td></tr>';
-  html += '<tr><td style="opacity:0.75">Moteur IA</td><td>MBA-CONSULT AI CORE v1.6</td></tr>';
+  html += '<tr><td style="opacity:0.75">Moteur IA</td><td>MBA-CONSULT AI CORE v1.7</td></tr>';
   html += '<tr><td style="opacity:0.75">Validation</td><td>Juge Claude</td></tr>';
   html += '<tr><td style="opacity:0.75">Date</td><td>' + new Date().toLocaleString('fr-FR') + '</td></tr>';
   html += '</table></div>';
@@ -1751,6 +1752,7 @@ module.exports = function(app, mongoose) {
   async function enrichAnswer(answer, question, domain, lang, mongoose, mode, originalContent) {
     try {
       var realQuestion = question; var _hm = question.match(/Nouvelle question[^:]*:\s*([\s\S]+)$/i); if (_hm) realQuestion = _hm[1].trim(); var realDomain = isQualityPlanRequest(realQuestion, originalContent) ? 'Plan Qualite' : detectDomain(realQuestion, domain);
+      try { console.log('[TRACE v1.7] domain_in=' + domain + ' | realDomain=' + realDomain + ' | realQ=' + String(realQuestion || '').slice(0, 80) + ' | isQP=' + isQualityPlanRequest(realQuestion, originalContent)); } catch(e) {}
       var AutoFeedDoc2 = null;
       try { AutoFeedDoc2 = mongoose.model('AutoFeedDocument'); } catch (e) {}
       var docs = [];
