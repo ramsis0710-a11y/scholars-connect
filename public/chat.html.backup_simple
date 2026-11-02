@@ -1,0 +1,1215 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Scholars Connect - Assistant IA</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif; background: #0a2540; height: 100vh; display: flex; flex-direction: column; }
+.topbar { background: #0a2540; color: #fff; padding: 12px 24px; display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; border-bottom: 1px solid rgba(255,255,255,0.1); }
+.topbar .brand { display: flex; align-items: center; gap: 12px; }
+.topbar .brand .logo { width: 40px; height: 40px; background: #fff; color: #0a2540; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 20px; }
+.topbar .brand h1 { font-size: 18px; font-weight: 700; }
+.topbar .brand p { font-size: 12px; opacity: 0.7; }
+.topbar .user { display: flex; align-items: center; gap: 16px; }
+.topbar .user span { font-size: 13px; opacity: 0.8; }
+.topbar .user button { background: rgba(255,255,255,0.1); color: #fff; border: 1px solid rgba(255,255,255,0.2); padding: 8px 18px; border-radius: 6px; font-weight: 600; font-size: 13px; cursor: pointer; }
+.topbar .user button:hover { background: rgba(255,255,255,0.2); }
+.main-container { flex: 1; display: flex; flex-direction: column; padding: 20px; overflow: hidden; }
+.chat-wrapper { background: #fff; border-radius: 12px; flex: 1; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.3); }
+.tabs-bar { display: flex; gap: 4px; padding: 8px 16px; background: #f9fafb; border-bottom: 1px solid #e5e7eb; flex-wrap: wrap; }
+.tab { padding: 8px 16px; background: none; border: none; font-size: 13px; font-weight: 600; color: #6b7280; cursor: pointer; border-bottom: 3px solid transparent; margin-bottom: -9px; }
+.tab.active { color: #0a2540; border-bottom-color: #1e5aa8; }
+.tab:hover:not(.active) { color: #1e5aa8; }
+.panel { display: none; flex: 1; padding: 16px; overflow-y: auto; }
+.panel.active { display: flex; flex-direction: column; }
+.card { background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; padding: 16px; margin-bottom: 12px; }
+.card h3 { color: #0a2540; font-size: 15px; margin: 0 0 12px 0; }
+.option-row { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+.opt-btn { padding: 6px 14px; border: 1px solid #cbd5e1; background: #fff; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; color: #374151; }
+.opt-btn.active { background: #1e5aa8; color: #fff; border-color: #1e5aa8; }
+.zone { border: 2px dashed #cbd5e1; border-radius: 8px; padding: 20px; text-align: center; cursor: pointer; margin: 8px 0; font-size: 13px; color: #6b7280; }
+.zone:hover { border-color: #1e5aa8; background: #f0f7ff; }
+.zone.has-file { border-color: #16a34a; background: #f0fdf4; }
+.zone input[type="file"] { display: none; }
+.btn-primary { background: #0a2540; color: #fff; border: 0; padding: 12px 24px; border-radius: 8px; font-size: 14px; font-weight: 700; cursor: pointer; }
+.btn-primary:hover { background: #1e5aa8; }
+.btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-green { background: #16a34a; }
+.btn-green:hover { background: #15803d; }
+label { display: block; font-size: 13px; font-weight: 600; color: #374151; margin: 8px 0 4px 0; }
+textarea, input[type="text"], input[type="url"] { width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 13px; margin-bottom: 8px; }
+textarea { min-height: 100px; resize: vertical; font-family: monospace; }
+.chat-messages { flex: 1; overflow-y: auto; padding: 16px; background: #f9fafb; border-radius: 8px; margin-bottom: 12px; min-height: 200px; }
+.msg { margin-bottom: 12px; padding: 12px 16px; border-radius: 10px; font-size: 14px; line-height: 1.6; max-width: 85%; }
+.msg.user { background: #e0f2fe; color: #0c4a6e; margin-left: auto; }
+.msg.bot { background: #fff; border: 1px solid #e5e7eb; color: #17202a; }
+.input-bar { display: flex; gap: 8px; align-items: center; padding: 8px 16px; background: #f9fafb; border-top: 1px solid #e5e7eb; flex-wrap: wrap; }
+.input-bar .input-group { flex: 1; display: flex; align-items: center; gap: 8px; background: #fff; border: 1px solid #d1d5db; border-radius: 8px; padding: 4px 12px; }
+.input-bar .input-group input { flex: 1; border: none; outline: none; padding: 10px 0; font-size: 14px; }
+.input-bar .input-group .mic-btn { background: #dc2626; color: #fff; border: none; border-radius: 50%; width: 38px; height: 38px; font-size: 18px; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: background 0.2s; }
+.input-bar .input-group .mic-btn.listening { background: #16a34a; }
+.input-bar .input-group .mic-btn:hover { opacity: 0.9; }
+.input-bar .input-group .attach-btn { background: none; border: none; font-size: 20px; cursor: pointer; color: #6b7280; padding: 4px; }
+.input-bar .send-btn { background: #0a2540; color: #fff; border: none; border-radius: 8px; padding: 12px 28px; font-weight: 700; font-size: 14px; cursor: pointer; }
+.input-bar .send-btn:hover { background: #1e5aa8; }
+.input-bar .options { display: flex; gap: 16px; align-items: center; font-size: 12px; color: #6b7280; padding: 4px 0; width: 100%; }
+.input-bar .options select { padding: 4px 8px; border: 1px solid #d1d5db; border-radius: 4px; font-size: 12px; background: #fff; }
+.input-bar .options label { display: flex; align-items: center; gap: 4px; margin: 0; font-weight: normal; cursor: pointer; }
+.result { margin-top: 12px; padding: 12px; border-radius: 8px; font-size: 13px; display: none; }
+.result.ok { background: #dcfce7; border-left: 4px solid #16a34a; color: #14532d; display: block; }
+.result.ko { background: #fee2e2; border-left: 4px solid #dc2626; color: #7f1d1d; display: block; }
+.result a { background: #0a2540; color: #fff; text-decoration: none; padding: 8px 14px; border-radius: 5px; display: inline-block; margin: 4px 4px 0 0; font-weight: 700; }
+.result a:hover { background: #1e5aa8; }
+.hidden { display: none !important; }
+@media (max-width: 768px) {
+    .input-bar { flex-direction: column; align-items: stretch; }
+    .input-bar .send-btn { width: 100%; }
+}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+    <div class="brand">
+        <div class="logo">SC</div>
+        <div>
+            <h1>Scholars Connect</h1>
+            <p>Assistant IA</p>
+        </div>
+    </div>
+    <div class="user">
+        <span id="userLabel">Non connecté</span>
+        <button id="btnLogout" onclick="logout()">Déconnexion</button>
+    </div>
+</div>
+
+<div class="main-container">
+    <div class="chat-wrapper">
+        <!-- Barre d'onglets -->
+        <div class="tabs-bar">
+            <button class="tab active" data-tab="chat">Chat</button>
+            <button class="tab" data-tab="analyze">Analyser un document</button>
+            <button class="tab" data-tab="excel">Excel (liste de WO)</button>
+            <button class="tab" data-tab="qp">Générer un Plan Qualité</button>
+        </div>
+
+        <!-- Panneau Chat -->
+        <div class="panel active" id="panel-chat">
+            <div class="chat-messages" id="chatMessages">
+                <div class="msg bot">Bonjour ! Posez-moi n'importe quelle question technique, scientifique ou générale.</div>
+            </div>
+        </div>
+
+        <!-- Panneau Analyser -->
+        <div class="panel" id="panel-analyze">
+            <div class="card">
+                <h3>Analyser un contenu</h3>
+                <div class="option-row">
+                    <button class="opt-btn active" data-mode="text">Coller du texte</button>
+                    <button class="opt-btn" data-mode="url">Coller une URL</button>
+                    <button class="opt-btn" data-mode="file">PDF / DOCX</button>
+                </div>
+                <div id="mode-text">
+                    <label>Colle le contenu à analyser (max 20 000 caractères) :</label>
+                    <textarea id="analyzeText" placeholder="Colle ici le contenu du document..."></textarea>
+                </div>
+                <div id="mode-url" class="hidden">
+                    <label>URL du document à analyser :</label>
+                    <input type="url" id="analyzeUrl" placeholder="https://exemple.com/document.pdf">
+                </div>
+                <div id="mode-file" class="hidden">
+                    <label>Choisir un fichier PDF ou DOCX :</label>
+                    <div class="zone" id="fileZone">
+                        <div style="font-size:24px;">📎</div>
+                        <div>Cliquez ou glissez un fichier ici</div>
+                        <input type="file" id="analyzeFile" accept=".pdf,.docx,.txt,.doc">
+                    </div>
+                </div>
+                <label>Question spécifique (optionnel) :</label>
+                <input type="text" id="analyzeQuestion" placeholder="Ex: Quelles sont les tolérances du seal bore API 14L ?">
+                <button class="btn-primary" id="btnAnalyze" type="button">Analyser</button>
+                <div class="result" id="analyzeResult"></div>
+            </div>
+        </div>
+
+        <!-- Panneau Excel -->
+        <div class="panel" id="panel-excel">
+            <div class="card">
+                <h3>Charger un fichier Excel (liste de Work Orders)</h3>
+                <label>Fichier Excel / CSV / TSV :</label>
+                <div class="zone" id="excelZone" style="padding:30px;">
+                    <div style="font-size:32px;">📊</div>
+                    <div style="margin-top:6px;">Cliquez ou glissez votre fichier Excel ici</div>
+                    <div style="margin-top:4px;font-size:11px;color:#9ca3af;">.xlsx, .csv, .tsv, .tab</div>
+                    <input type="file" id="excelFile" accept=".csv,.tsv,.txt,.tab,.xlsx,.xls">
+                </div>
+                <label>Ou coller directement depuis Excel (Ctrl+C / Ctrl+V) :</label>
+                <textarea id="excelText" placeholder="Collez ici votre tableau Excel..."></textarea>
+                <button class="btn-primary btn-green" id="btnExcel" type="button">Générer les QP depuis Excel</button>
+                <div class="result" id="excelResult"></div>
+            </div>
+        </div>
+
+        <!-- Panneau QP -->
+        <div class="panel" id="panel-qp">
+            <div class="card">
+                <h3>Générer un Plan Qualité</h3>
+                <label>Fichier Excel / CSV / TSV :</label>
+                <div class="zone" id="qpExcelZone">
+                    <div style="font-size:24px;">📊</div>
+                    <div>Cliquez ou glissez un fichier Excel</div>
+                    <input type="file" id="qpExcelFile" accept=".csv,.tsv,.txt,.tab">
+                </div>
+                <label>Ou fichier PDF (ARC) :</label>
+                <div class="zone" id="qpPdfZone">
+                    <div style="font-size:24px;">📄</div>
+                    <div>Cliquez ou glissez un PDF</div>
+                    <input type="file" id="qpPdfFile" accept=".pdf">
+                </div>
+                <button class="btn-primary" id="btnQP" type="button">Générer le QP</button>
+                <div class="result" id="qpResult"></div>
+            </div>
+        </div>
+
+        <!-- Barre de saisie (toujours visible) -->
+        <div class="input-bar">
+            <div class="options">
+                <span>Langue : <select id="langSelect"><option value="fr">Français</option><option value="ar">Arabe</option><option value="en">Anglais</option></select></span>
+                <span>Domaine : <select id="domainSelect"></select></span>
+                <label><input type="checkbox" id="voiceAuto"> Lecture vocale auto</label>
+            </div>
+            <div class="input-group">
+                <input type="text" id="chatInput" placeholder="Posez votre question... (dictée ou texte)">
+                <button class="mic-btn" id="micBtn" title="Dictée vocale">🎤</button>
+                <button class="attach-btn" id="attachBtn" title="Pièce jointe">📄</button>
+            </div>
+            <button class="send-btn" id="btnSend" type="button">Envoyer</button>
+        </div>
+    </div>
+</div>
+
+<script>
+// ============================================================
+// CONFIGURATION
+// ============================================================
+const API_BASE = 'https://scholars-connect-app.onrender.com';
+let JWT_TOKEN = localStorage.getItem('token') || '';
+
+// ============================================================
+// UTILITAIRES
+// ============================================================
+function $(id) { return document.getElementById(id); }
+function showResult(id, html, isOk) {
+    const el = $(id);
+    el.innerHTML = html;
+    el.className = 'result ' + (isOk ? 'ok' : 'ko');
+}
+function clearResult(id) {
+    const el = $(id);
+    el.innerHTML = '';
+    el.className = 'result';
+}
+
+// ============================================================
+// GESTION DES ONGLETS
+// ============================================================
+document.querySelectorAll('.tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+        tab.classList.add('active');
+        const panelId = 'panel-' + tab.dataset.tab;
+        const panel = $(panelId);
+        if (panel) panel.classList.add('active');
+    });
+});
+
+// ============================================================
+// MODES D'ANALYSE
+// ============================================================
+document.querySelectorAll('.opt-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        document.querySelectorAll('.opt-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        ['text','url','file'].forEach(m => {
+            const el = $('mode-' + m);
+            if (el) el.classList.add('hidden');
+        });
+        const mode = $('mode-' + btn.dataset.mode);
+        if (mode) mode.classList.remove('hidden');
+    });
+});
+
+// ============================================================
+// CHARGEMENT DES 18 DOMAINES
+// ============================================================
+const DOMAINES = [
+    "General", "Religion", "Education", "Technique", "Analyse",
+    "Sante", "Droit", "Economie", "Histoire", "Philosophie",
+    "Sciences", "Litterature", "Arts", "Langues", "Sport",
+    "Industrie", "Petrole & Gaz", "Plan Qualite"
+];
+function loadDomains() {
+    const select = $('domainSelect');
+    if (!select) return;
+    select.innerHTML = '';
+    DOMAINES.forEach(d => {
+        const opt = document.createElement('option');
+        opt.value = d;
+        opt.textContent = d;
+        if (d === 'General') opt.selected = true;
+        select.appendChild(opt);
+    });
+}
+loadDomains();
+
+// ============================================================
+// GESTION DU MICRO (DICTÉE VOCALE)
+// ============================================================
+let recognition = null;
+let isListening = false;
+
+if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    recognition = new SpeechRecognition();
+    recognition.lang = 'fr-FR';
+    recognition.continuous = false;
+    recognition.interimResults = false;
+
+    recognition.onstart = () => {
+        isListening = true;
+        const micBtn = $('micBtn');
+        if (micBtn) {
+            micBtn.style.background = '#16a34a';
+            micBtn.innerHTML = '⏹';
+        }
+    };
+
+    recognition.onresult = (event) => {
+        const transcript = event.results[0][0].transcript;
+        const input = $('chatInput');
+        if (input) input.value += (input.value ? ' ' : '') + transcript;
+    };
+
+    recognition.onerror = (event) => {
+        console.warn('Erreur micro :', event.error);
+        if (event.error === 'not-allowed') {
+            alert('Veuillez autoriser l\'accès au microphone dans votre navigateur.');
+        }
+    };
+
+    recognition.onend = () => {
+        isListening = false;
+        const micBtn = $('micBtn');
+        if (micBtn) {
+            micBtn.style.background = '#dc2626';
+            micBtn.innerHTML = '🎤';
+        }
+    };
+
+    $('micBtn').addEventListener('click', () => {
+        if (isListening) {
+            recognition.stop();
+        } else {
+            try { recognition.start(); } catch (e) { console.warn(e); }
+        }
+    });
+} else {
+    $('micBtn').addEventListener('click', () => {
+        alert('La dictée vocale n\'est pas supportée par votre navigateur. Utilisez Chrome, Edge ou Safari.');
+    });
+}
+
+// ============================================================
+// AUTHENTIFICATION (auto-login ou login simple)
+// ============================================================
+async function ensureAuth() {
+    if (JWT_TOKEN) {
+        $('userLabel').textContent = 'Connecté';
+        return true;
+    }
+    // Tentative de login automatique avec un compte de démo
+    const email = 'demo_' + Date.now() + '@test.tn';
+    const password = 'Test123!';
+    try {
+        let resp = await fetch(API_BASE + '/api/auth/register', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, password, name: 'Demo' })
+        });
+        if (!resp.ok) {
+            resp = await fetch(API_BASE + '/api/auth/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email, password })
+            });
+        }
+        if (resp.ok) {
+            const data = await resp.json();
+            if (data.token) {
+                JWT_TOKEN = data.token;
+                localStorage.setItem('token', JWT_TOKEN);
+                $('userLabel').textContent = email;
+                return true;
+            }
+        }
+    } catch (e) { console.warn('Auth error', e); }
+    return false;
+}
+
+function logout() {
+    localStorage.removeItem('token');
+    JWT_TOKEN = '';
+    $('userLabel').textContent = 'Non connecté';
+    window.location.reload();
+}
+
+// ============================================================
+// ENVOI DU CHAT
+// ============================================================
+async function sendChat() {
+    const input = $('chatInput');
+    const question = input.value.trim();
+    if (!question) return;
+
+    if (!await ensureAuth()) {
+        alert('Erreur de connexion. Veuillez réessayer.');
+        return;
+    }
+
+    addMessage('user', question);
+    input.value = '';
+
+    const sendBtn = $('btnSend');
+    sendBtn.disabled = true;
+
+    try {
+        const lang = $('langSelect').value;
+        const domain = $('domainSelect').value;
+
+        const resp = await fetch(API_BASE + '/api/ask', {
+            method: 'POST',
+            headers: {
+                'Authorization': 'Bearer ' + JWT_TOKEN,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ question, language: lang, domain })
+        });
+
+        if (!resp.ok) throw new Error('HTTP ' + resp.status);
+        const data = await resp.json();
+        let answer = data.answer || data.error || 'Pas de réponse';
+
+        addMessage('bot', answer);
+
+        // Lecture vocale si cochée
+        if ($('voiceAuto').checked && 'speechSynthesis' in window) {
+            const utterance = new SpeechSynthesisUtterance(answer.replace(/<[^>]+>/g, ''));
+            utterance.lang = lang === 'ar' ? 'ar-SA' : (lang === 'en' ? 'en-US' : 'fr-FR');
+            speechSynthesis.speak(utterance);
+        }
+    } catch (e) {
+        addMessage('bot', 'Erreur : ' + e.message);
+    } finally {
+        sendBtn.disabled = false;
+    }
+}
+
+function addMessage(role, text) {
+    const container = $('chatMessages');
+    const div = document.createElement('div');
+    div.className = 'msg ' + role;
+    // Si la réponse contient du HTML (iframe PDF), on l'affiche tel quel
+    if (text.includes('<') && text.includes('>')) {
+        div.innerHTML = text;
+    } else {
+        div.textContent = text;
+    }
+    container.appendChild(div);
+    container.scrollTop = container.scrollHeight;
+}
+
+// ============================================================
+// ANALYSE DE DOCUMENT
+// ============================================================
+$('btnAnalyze').addEventListener('click', async () => {
+    if (!await ensureAuth()) { alert('Auth error'); return; }
+
+    const mode = document.querySelector('.opt-btn.active').dataset.mode;
+    const question = $('analyzeQuestion').value.trim() || 'Analyse ce document';
+    clearResult('analyzeResult');
+    $('btnAnalyze').disabled = true;
+
+    try {
+        let endpoint, body, contentType;
+
+        if (mode === 'text') {
+            const text = $('analyzeText').value.trim();
+            if (!text) throw new Error('Collez du texte à analyser');
+            endpoint = '/api/analyze-content';
+            body = JSON.stringify({ content: text, question, domain: 'General', language: 'fr' });
+            contentType = 'application/json';
+        } else if (mode === 'url') {
+            const url = $('analyzeUrl').value.trim();
+            if (!url) throw new Error('Entrez une URL');
+            endpoint = '/api/analyze-content';
+            body = JSON.stringify({ content: url, type: 'url', question, domain: 'General', language: 'fr' });
+            contentType = 'application/json';
+        } else {
+            const file = $('analyzeFile').files[0];
+            if (!file) throw new Error('Choisissez un fichier');
+            const buf = await file.arrayBuffer();
+            endpoint = '/api/qp-generate-pdf'; // réutilise la route PDF
+            body = buf;
+            contentType = 'application/pdf';
+        }
+
+        const resp = await fetch(API_BASE + endpoint, {
+            method: 'POST',
+            headers: { 'Authorization': 'Bearer ' + JWT_TOKEN, 'Content-Type': contentType },
+            body: body
+        });
+
+        const data = await resp.json();
+        if (!resp.ok) throw new Error(data.error || 'HTTP ' + resp.status);
+
+        let html = '';
+        if (data.answer) {
+            html = '<div style="font-weight:700">Réponse :</div><div>' + data.answer.substring(0, 5000) + '</div>';
+        } else if (data.ok && data.wo !== undefined) {
+            html = '<div style="font-weight:700">' + data.wo + ' WO → ' + data.qpDocs + ' QP</div>';
+            if (data.links) {
+                html += '<div style="margin-top:8px">' + data.links.map(l => '<a href="' + API_BASE + l.url + '" target="_blank">PDF QP ' + l.from + ' à ' + l.to + '</a>').join('') + '</div>';
+            }
+        } else {
+            html = '<pre>' + JSON.stringify(data, null, 2).substring(0, 2000) + '</pre>';
+        }
+        showResult('analyzeResult', html, true);
+    } catch (e) {
+        showResult('analyzeResult', '<strong>Erreur :</strong> ' + e.message, false);
+    } finally {
+        $('btnAnalyze').disabled = false;
+    }
+});
+
+// ============================================================
+// GÉNÉRATION QP DEPUIS EXCEL
+// ============================================================
+$('btnExcel').addEventListener('click', async () => {
+    if (!await ensureAuth()) { alert('Auth error'); return; }
+
+    clearResult('excelResult');
+    $('btnExcel').disabled = true;
+
+    try {
+        let content = '';
+        const file = $('excelFile').files[0];
+        const text = $('excelText').value.trim();
+
+        if (file) content = await file.text();
+        else if (text) content = text;
+        else throw new Error('Choisissez un fichier ou collez du texte');
+
+        const resp = await fetch(API_BASE + '/api/qp-generate-excel', {
+            method: 'POST',
+            headers: { 'Authorization': 'Bearer ' + JWT_TOKEN, 'Content-Type': 'text/plain; charset=utf-8' },
+            body: content
+        });
+
+        const data = await resp.json();
+        if (!data.ok) throw new Error(data.error || 'Erreur');
+
+        let html = '<div style="font-weight:700;font-size:15px;color:#0a2540;margin-bottom:10px">' + data.wo + ' WO → ' + data.qpDocs + ' QP générés</div>';
+        if (data.customer) html += '<div><strong>Client :</strong> ' + data.customer + '</div>';
+        if (data.po) html += '<div><strong>PO :</strong> ' + data.po + '</div>';
+        if (data.avgConfidence !== undefined) html += '<div><strong>Confiance :</strong> ' + data.avgConfidence + '%</div>';
+        if (data.excelDiag) {
+            const d = data.excelDiag;
+            html += '<div style="background:#f0f7ff;border-radius:6px;padding:8px;margin:8px 0;font-family:monospace;font-size:11px">Séparateur : <b>' + d.detectedSeparator + '</b> | Entête : <b>' + (d.headerDetected ? 'détectée' : 'non') + '</b> | Lignes : <b>' + d.dataRows + '</b> | WO valides : <b>' + d.validWOs + '</b></div>';
+        }
+        if (data.ids && data.ids.length) {
+            html += '<div style="margin:8px 0"><strong>' + data.ids.length + ' WO :</strong><br>';
+            data.ids.slice(0, 50).forEach(id => { html += '<span style="background:#fff;border:1px solid #1e5aa8;color:#1e5aa8;padding:2px 6px;border-radius:10px;font-size:11px;margin:2px;display:inline-block">QP-' + id + '</span>'; });
+            html += '</div>';
+        }
+        if (data.links && data.links.length) {
+            html += '<div style="margin-top:10px;font-weight:700">📥 Télécharger :</div>';
+            data.links.forEach(l => { html += '<a href="' + API_BASE + l.url + '" target="_blank">📄 QP ' + l.from + ' à ' + l.to + '</a>'; });
+        }
+        showResult('excelResult', html, true);
+    } catch (e) {
+        showResult('excelResult', '<strong>Erreur :</strong> ' + e.message, false);
+    } finally {
+        $('btnExcel').disabled = false;
+    }
+});
+
+// ============================================================
+// GÉNÉRATION QP MULTI (PDF ou Excel)
+// ============================================================
+$('btnQP').addEventListener('click', async () => {
+    if (!await ensureAuth()) { alert('Auth error'); return; }
+
+    clearResult('qpResult');
+    $('btnQP').disabled = true;
+
+    try {
+        const excelFile = $('qpExcelFile').files[0];
+        const pdfFile = $('qpPdfFile').files[0];
+        let endpoint, body, contentType;
+
+        if (pdfFile) {
+            const buf = await pdfFile.arrayBuffer();
+            endpoint = '/api/qp-generate-pdf';
+            body = buf;
+            contentType = 'application/pdf';
+        } else if (excelFile) {
+            const content = await excelFile.text();
+            endpoint = '/api/qp-generate-excel';
+            body = content;
+            contentType = 'text/plain; charset=utf-8';
+        } else {
+            throw new Error('Choisissez un fichier Excel ou PDF');
+        }
+
+        const resp = await fetch(API_BASE + endpoint, {
+            method: 'POST',
+            headers: { 'Authorization': 'Bearer ' + JWT_TOKEN, 'Content-Type': contentType },
+            body: body
+        });
+
+        const data = await resp.json();
+        if (!data.ok) throw new Error(data.error || 'Erreur');
+
+        let html = '<div style="font-weight:700">' + data.wo + ' WO → ' + data.qpDocs + ' QP</div>';
+        if (data.customer) html += '<div>Client : ' + data.customer + '</div>';
+        if (data.po) html += '<div>PO : ' + data.po + '</div>';
+        if (data.links) html += '<div style="margin-top:10px">' + data.links.map(l => '<a href="' + API_BASE + l.url + '" target="_blank">📄 QP ' + l.from + ' à ' + l.to + '</a>').join('') + '</div>';
+
+        showResult('qpResult', html, true);
+    } catch (e) {
+        showResult('qpResult', '<strong>Erreur :</strong> ' + e.message, false);
+    } finally {
+        $('btnQP').disabled = false;
+    }
+});
+
+// ============================================================
+// ÉVÉNEMENTS UI
+// ============================================================
+$('btnSend').addEventListener('click', sendChat);
+$('chatInput').addEventListener('keypress', (e) => { if (e.key === 'Enter') sendChat(); });
+
+// Zones de dépôt de fichiers
+function setupZone(zoneId, fileInputId) {
+    const zone = $(zoneId);
+    const input = $(fileInputId);
+    if (!zone || !input) return;
+    zone.addEventListener('click', () => input.click());
+    zone.addEventListener('dragover', (e) => { e.preventDefault(); zone.style.borderColor = '#16a34a'; });
+    zone.addEventListener('dragleave', (e) => { e.preventDefault(); zone.style.borderColor = ''; });
+    zone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        zone.style.borderColor = '';
+        if (e.dataTransfer.files.length) {
+            input.files = e.dataTransfer.files;
+            const f = e.dataTransfer.files[0];
+            zone.classList.add('has-file');
+            zone.innerHTML = '<div style="font-size:24px;">✓</div><div style="color:#16a34a;font-weight:700">' + f.name + ' (' + Math.round(f.size/1024) + ' Ko)</div>';
+        }
+    });
+    input.addEventListener('change', () => {
+        const f = input.files[0];
+        if (f) {
+            zone.classList.add('has-file');
+            zone.innerHTML = '<div style="font-size:24px;">✓</div><div style="color:#16a34a;font-weight:700">' + f.name + ' (' + Math.round(f.size/1024) + ' Ko)</div>';
+        }
+    });
+}
+setupZone('fileZone', 'analyzeFile');
+setupZone('excelZone', 'excelFile');
+setupZone('qpExcelZone', 'qpExcelFile');
+setupZone('qpPdfZone', 'qpPdfFile');
+
+// Bouton pièce jointe (ouvre le fichier d'analyse)
+$('attachBtn').addEventListener('click', () => {
+    document.querySelector('.tab[data-tab="analyze"]').click();
+    setTimeout(() => $('analyzeFile').click(), 200);
+});
+
+// ============================================================
+// INITIALISATION
+// ============================================================
+ensureAuth().then(ok => {
+    if (!ok) console.warn('Auth auto échouée');
+});
+</script>
+<!-- DESACTIVE TEMPORAIREMENT : <script src="/voice-enhancer.js"></script> -->`n<script>
+(function() {
+    console.log('[pdf-button] Module chargé');
+    
+    // Observer les nouvelles réponses pour ajouter le bouton PDF
+    function addPdfButton(msgElement, pdfUrl) {
+        if (msgElement.querySelector('.pdf-download-btn')) return;
+        const btn = document.createElement('a');
+        btn.className = 'pdf-download-btn';
+        btn.href = pdfUrl;
+        btn.target = '_blank';
+        btn.innerHTML = '📄 Télécharger le rapport PDF';
+        btn.style.cssText = 'display:inline-block;margin-top:8px;padding:6px 14px;background:#0a2540;color:#fff;border-radius:6px;font-size:12px;font-weight:600;text-decoration:none;';
+        btn.onmouseover = () => btn.style.background = '#1e5aa8';
+        btn.onmouseout = () => btn.style.background = '#0a2540';
+        msgElement.appendChild(btn);
+    }
+    
+    // Chercher les URLs PDF dans le texte des réponses
+    function scanForPdfLinks() {
+        const container = document.getElementById('chatMessages');
+        if (!container) return;
+        
+        container.querySelectorAll('.msg.bot').forEach(msg => {
+            if (msg.dataset.pdfScanned) return;
+            msg.dataset.pdfScanned = 'true';
+            const text = msg.innerText || msg.textContent || '';
+            // Extraire l'URL PDF si présente
+            const match = text.match(/https?:\/\/[^\s]+\/api\/ultimate-pdf\/[a-f0-9]+/i);
+            if (match) {
+                // Retirer le texte "--- Rapport PDF..." du message
+                const cleanText = text.replace(/---\s*Rapport PDF[^h]*https?:\/\/[^\s]+/i, '').trim();
+                if (cleanText !== text) {
+                    msg.textContent = cleanText;
+                }
+                addPdfButton(msg, match[0]);
+            }
+        });
+    }
+    
+    // Scanner au chargement + nouvelles réponses
+    setInterval(scanForPdfLinks, 1000);
+    setTimeout(scanForPdfLinks, 500);
+    
+    console.log('[pdf-button] Prêt.');
+})();
+</script>
+
+<!-- PDF-BUTTON-V2 : bouton de telechargement PDF separe du texte -->
+<script>
+(function() {
+    console.log('[pdf-button-v2] Module charge');
+
+    // Intercepter fetch pour capturer pdfLink
+    const origFetch = window.fetch;
+    window.fetch = function(url, opts) {
+        const promise = origFetch.apply(this, arguments);
+        if (typeof url === 'string' && url.indexOf('/api/ask') !== -1) {
+            promise.then(function(response) {
+                const clone = response.clone();
+                clone.json().then(function(data) {
+                    if (data && data.pdfLink) {
+                        window._lastPdfLink = data.pdfLink;
+                    }
+                }).catch(function() {});
+            }).catch(function() {});
+        }
+        return promise;
+    };
+
+    // Observer les nouvelles reponses bot pour ajouter le bouton
+    function addPdfButtonIfNeeded(msgElement) {
+        if (!window._lastPdfLink) return;
+        if (msgElement.querySelector('.pdf-download-btn')) return;
+        if (msgElement.dataset.pdfAttached) return;
+        msgElement.dataset.pdfAttached = 'true';
+
+        const btn = document.createElement('a');
+        btn.className = 'pdf-download-btn';
+        btn.href = window._lastPdfLink;
+        btn.target = '_blank';
+        btn.rel = 'noopener';
+        btn.innerHTML = '📄 Telecharger le rapport PDF';
+        btn.style.cssText = 'display:inline-block;margin-top:10px;padding:8px 16px;background:#0a2540;color:#fff;border-radius:6px;font-size:13px;font-weight:600;text-decoration:none;transition:background 0.2s;';
+        btn.onmouseover = function() { btn.style.background = '#1e5aa8'; };
+        btn.onmouseout = function() { btn.style.background = '#0a2540'; };
+        msgElement.appendChild(btn);
+
+        // Reset pour la prochaine reponse
+        window._lastPdfLink = null;
+    }
+
+    function scanMessages() {
+        const container = document.getElementById('chatMessages');
+        if (!container) return;
+        container.querySelectorAll('.msg.bot').forEach(addPdfButtonIfNeeded);
+    }
+
+    setInterval(scanMessages, 800);
+    setTimeout(scanMessages, 300);
+
+    console.log('[pdf-button-v2] Pret.');
+})();
+</script>
+
+<!-- LANG-FIX-V2 : force l'arabe dans la question + language='ar' -->
+<script>
+(function() {
+    console.log('[lang-fix-v2] Module charge');
+    const origFetch = window.fetch;
+    window.fetch = function(url, opts) {
+        if (typeof url === 'string' && url.indexOf('/api/ask') !== -1 && opts && opts.body) {
+            try {
+                const body = JSON.parse(opts.body);
+                if (body.question) {
+                    const hasArabic = /[\u0600-\u06FF]/.test(body.question);
+                    if (hasArabic && !body.question.startsWith('أجب على')) {
+                        body.language = 'ar';
+                        body.question = 'أجب على السؤال التالي باللغة العربية الفصحى فقط. لا تجب بالفرنسية أو الإنجليزية.\n\n' + body.question;
+                        opts.body = JSON.stringify(body);
+                        console.log('[lang-fix-v2] Langue forcee en AR pour :', body.question.substring(0, 100));
+                    }
+                }
+            } catch(e) { console.warn('[lang-fix-v2] Erreur :', e); }
+        }
+        return origFetch.apply(this, arguments);
+    };
+    console.log('[lang-fix-v2] Pret.');
+})();
+</script>
+
+<!-- MIC-FIX-V1 : detection langue + selecteur + confirmation -->
+<script>
+(function() {
+    console.log('[mic-fix-v1] Module charge');
+    
+    setTimeout(function() {
+        const micBtn = document.getElementById('micBtn');
+        if (!micBtn) {
+            console.warn('[mic-fix-v1] micBtn introuvable');
+            return;
+        }
+        
+        // 1. Cloner le bouton pour supprimer les anciens listeners (ceux qui forcent fr-FR)
+        const newMicBtn = micBtn.cloneNode(true);
+        micBtn.parentNode.replaceChild(newMicBtn, micBtn);
+        
+        // 2. Ajouter un selecteur de langue a cote du bouton
+        if (!document.getElementById('dictationLang')) {
+            const sel = document.createElement('select');
+            sel.id = 'dictationLang';
+            sel.style.cssText = 'margin-left:6px;padding:4px;border-radius:4px;border:1px solid #cbd5e1;font-size:12px;background:#fff;cursor:pointer;';
+            sel.innerHTML = '<option value="auto" selected>🌐 Auto</option>' +
+                            '<option value="ar-SA">🇸🇦 Arabe</option>' +
+                            '<option value="fr-FR">🇫🇷 Français</option>' +
+                            '<option value="en-US">🇬🇧 Anglais</option>';
+            newMicBtn.parentNode.insertBefore(sel, newMicBtn.nextSibling);
+        }
+        
+        // 3. Detection de la langue
+        function detectLang() {
+            const sel = document.getElementById('dictationLang');
+            if (sel && sel.value !== 'auto') return sel.value;
+            
+            // Dernier message utilisateur en arabe ?
+            const userMsgs = document.querySelectorAll('.msg.user');
+            if (userMsgs.length > 0) {
+                const txt = userMsgs[userMsgs.length - 1].textContent || '';
+                if (/[\u0600-\u06FF]/.test(txt)) return 'ar-SA';
+            }
+            
+            // Selecteur interface en arabe ?
+            const langSelect = document.getElementById('langSelect');
+            if (langSelect && langSelect.value === 'ar') return 'ar-SA';
+            
+            // Navigator
+            const nav = (navigator.language || 'fr-FR');
+            if (nav.indexOf('ar') === 0) return 'ar-SA';
+            if (nav.indexOf('en') === 0) return 'en-US';
+            return 'fr-FR';
+        }
+        
+        const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SR) {
+            newMicBtn.addEventListener('click', function() {
+                alert('La dictee vocale n\'est pas supportee. Utilisez Chrome ou Edge.');
+            });
+            return;
+        }
+        
+        let rec = null;
+        let listening = false;
+        
+        newMicBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            
+            if (listening && rec) {
+                rec.stop();
+                return;
+            }
+            
+            const lang = detectLang();
+            console.log('[mic-fix-v1] Langue utilisee :', lang);
+            
+            rec = new SR();
+            rec.lang = lang;
+            rec.continuous = true;
+            rec.interimResults = true;
+            
+            let finalText = '';
+            let silenceTimer = null;
+            
+            rec.onstart = function() {
+                listening = true;
+                newMicBtn.style.background = '#16a34a';
+                newMicBtn.innerHTML = '⏹';
+            };
+            
+            rec.onresult = function(event) {
+                let interim = '';
+                for (let i = event.resultIndex; i < event.results.length; i++) {
+                    const t = event.results[i][0].transcript;
+                    if (event.results[i].isFinal) finalText += t + ' ';
+                    else interim += t;
+                }
+                const inp = document.getElementById('chatInput');
+                if (inp) inp.value = finalText + interim;
+                
+                clearTimeout(silenceTimer);
+                silenceTimer = setTimeout(function() {
+                    if (listening) rec.stop();
+                }, 4000);
+            };
+            
+            rec.onerror = function(event) {
+                console.warn('[mic-fix-v1] Erreur :', event.error);
+                if (event.error === 'not-allowed') {
+                    alert('Veuillez autoriser l\'acces au microphone dans votre navigateur.');
+                }
+            };
+            
+            rec.onend = function() {
+                listening = false;
+                newMicBtn.style.background = '#dc2626';
+                newMicBtn.innerHTML = '🎤';
+                
+                const inp = document.getElementById('chatInput');
+                const txt = inp ? inp.value.trim() : '';
+                if (txt.length > 2) {
+                    if (confirm('📝 Dictee terminee :\n\n"' + txt + '"\n\nEnvoyer ?')) {
+                        const btn = document.getElementById('btnSend');
+                        if (btn) btn.click();
+                    }
+                }
+            };
+            
+            try {
+                rec.start();
+            } catch(err) {
+
+<!-- MIC-FIX-V2 : historique + micro auto AR/FR + lecture vocale avec boutons -->
+<script>
+(function() {
+    console.log('[mic-fix-v2] Module charge');
+    const API = 'https://scholars-connect-app.onrender.com';
+    const HIST_KEY = 'scholars_history_v2';
+
+    // ========================================================
+    // 1. HISTORIQUE (localStorage + API)
+    // ========================================================
+    function saveMsg(role, text) {
+        try {
+            let h = JSON.parse(localStorage.getItem(HIST_KEY) || '[]');
+            h.push({ role: role, text: text, ts: Date.now() });
+            if (h.length > 100) h = h.slice(-100);
+            localStorage.setItem(HIST_KEY, JSON.stringify(h));
+        } catch(e) {}
+    }
+
+    function addMsg(role, text, isRestore) {
+        const c = document.getElementById('chatMessages');
+        if (!c) return;
+        const d = document.createElement('div');
+        d.className = 'msg ' + role;
+        d.textContent = text;
+        if (isRestore) d.dataset.restored = '1';
+        c.appendChild(d);
+        c.scrollTop = c.scrollHeight;
+    }
+
+    function restoreHistory() {
+        const c = document.getElementById('chatMessages');
+        if (!c) return;
+        try {
+            const h = JSON.parse(localStorage.getItem(HIST_KEY) || '[]');
+            if (h.length === 0) return;
+            // Vider sauf le 1er message de bienvenue
+            const firstMsg = c.querySelector('.msg.bot');
+            if (firstMsg) c.innerHTML = '';
+            if (firstMsg) c.appendChild(firstMsg);
+            h.forEach(m => addMsg(m.role, m.text, true));
+            console.log('[mic-fix-v2] ' + h.length + ' messages restaures du localStorage');
+        } catch(e) { console.warn('restore err', e); }
+    }
+
+    async function loadFromAPI() {
+        const token = localStorage.getItem('token');
+        if (!token) return;
+        try {
+            const r = await fetch(API + '/api/history', { headers: { 'Authorization': 'Bearer ' + token } });
+            if (!r.ok) return;
+            const data = await r.json();
+            if (!data.items || data.items.length === 0) return;
+            const c = document.getElementById('chatMessages');
+            if (!c) return;
+            const firstMsg = c.querySelector('.msg.bot');
+            if (firstMsg) c.innerHTML = '';
+            if (firstMsg) c.appendChild(firstMsg);
+            const items = data.items.slice().reverse();
+            items.forEach(it => {
+                if (it.question) { addMsg('user', it.question, true); saveMsg('user', it.question); }
+                if (it.answer) { addMsg('bot', it.answer, true); saveMsg('bot', it.answer); }
+            });
+            console.log('[mic-fix-v2] ' + items.length + ' echanges restaures de /api/history');
+        } catch(e) { console.warn('history API err', e); }
+    }
+
+    function hookSave() {
+        const c = document.getElementById('chatMessages');
+        if (!c || c.dataset.hooked) return;
+        c.dataset.hooked = '1';
+        new MutationObserver(muts => {
+            muts.forEach(m => m.addedNodes.forEach(n => {
+                if (n.nodeType === 1 && n.classList.contains('msg') && !n.dataset.restored) {
+                    const role = n.classList.contains('user') ? 'user' : 'bot';
+                    const txt = n.textContent || '';
+                    if (txt.trim()) saveMsg(role, txt);
+                }
+            }));
+        }).observe(c, { childList: true });
+    }
+
+    // ========================================================
+    // 2. MICRO AVEC DOUBLE RECONNAISSANCE AR PUIS FR
+    // ========================================================
+    setTimeout(function() {
+        const micBtn = document.getElementById('micBtn');
+        if (!micBtn) return;
+        const newMic = micBtn.cloneNode(true);
+        micBtn.parentNode.replaceChild(newMic, micBtn);
+
+        if (!document.getElementById('dictationLang')) {
+            const sel = document.createElement('select');
+            sel.id = 'dictationLang';
+            sel.style.cssText = 'margin-left:6px;padding:4px;border-radius:4px;border:1px solid #cbd5e1;font-size:12px;background:#fff;cursor:pointer;';
+            sel.innerHTML = '<option value="auto" selected>🌐 Auto (AR+FR)</option><option value="ar-SA">🇸🇦 Arabe</option><option value="fr-FR">🇫🇷 Français</option><option value="en-US">🇬🇧 Anglais</option>';
+            newMic.parentNode.insertBefore(sel, newMic.nextSibling);
+        }
+
+        const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SR) {
+            newMic.addEventListener('click', () => alert('Dictee non supportee. Utilisez Chrome ou Edge.'));
+            return;
+        }
+
+        let rec = null, listening = false;
+
+        function setBtn(color, txt) {
+            newMic.style.background = color;
+            newMic.innerHTML = txt;
+        }
+
+        function finishRec(text) {
+            const inp = document.getElementById('chatInput');
+            if (inp && text) inp.value = text;
+            setBtn('#dc2626', '🎤');
+            listening = false;
+            if (text && text.trim().length > 2) {
+                if (confirm('📝 Dictee terminee :\n\n"' + text.trim() + '"\n\nEnvoyer ?')) {
+                    const btn = document.getElementById('btnSend');
+                    if (btn) btn.click();
+                }
+            }
+        }
+
+        function tryLang(lang, nextLang) {
+            rec = new SR();
+            rec.lang = lang;
+            rec.continuous = true;
+            rec.interimResults = true;
+            let finalText = '', silenceTimer = null;
+
+            rec.onresult = (e) => {
+                let interim = '';
+                for (let i = e.resultIndex; i < e.results.length; i++) {
+                    const t = e.results[i][0].transcript;
+                    if (e.results[i].isFinal) finalText += t + ' ';
+                    else interim += t;
+                }
+                const inp = document.getElementById('chatInput');
+                if (inp) inp.value = finalText + interim;
+                clearTimeout(silenceTimer);
+                silenceTimer = setTimeout(() => { if (listening) rec.stop(); }, 4000);
+            };
+
+            rec.onend = () => {
+                if (!listening) return;
+                // Si on a un resultat valide
+                if (finalText.trim().length > 2) {
+                    if (lang === 'ar-SA') {
+                        // Verifier si contient de l'arabe
+                        if (/[\u0600-\u06FF]/.test(finalText)) {
+                            finishRec(finalText);
+                            return;
+                        }
+                        // Sinon, relancer en FR
+                        console.log('[mic-fix-v2] Resultat non-arabe, relance en fr-FR');
+                        listening = false;
+                        tryLang('fr-FR', null);
+                        return;
+                    }
+                    finishRec(finalText);
+                    return;
+                }
+                // Rien detecte
+                if (nextLang && listening) {
+                    console.log('[mic-fix-v2] Rien en ' + lang + ', relance en ' + nextLang);
+                    listening = false;
+                    tryLang(nextLang, null);
+                    return;
+                }
+                listening = false;
+                setBtn('#dc2626', '🎤');
+                alert('Aucune parole detectee. Verifiez votre micro.');
+            };
+
+            rec.onerror = (e) => {
+                console.warn('[mic-fix-v2] Erreur ' + lang + ':', e.error);
+                if (e.error === 'not-allowed') {
+                    alert('Veuillez autoriser l\'acces au microphone.');
+                    listening = false;
+                    setBtn('#dc2626', '🎤');
+                    return;
+                }
+                // Si erreur, essayer la langue suivante
+                if (nextLang && listening) {
+                    listening = false;
+                    tryLang(nextLang, null);
+                } else {
+                    listening = false;
+                    setBtn('#dc2626', '🎤');
+                }
+            };
+
+            try { rec.start(); } catch(e) { console.warn('start err', e); }
+        }
+
+        newMic.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            if (listening && rec) {
+                listening = false;
+                try { rec.stop(); } catch(e) {}
+                return;
+            }
+            const sel = document.getElementById('dictationLang');
+            const lang = sel ? sel.value : 'auto';
+            listening = true;
+            setBtn('#16a34a', '⏹');
+            console.log('[mic-fix-v2] Mode :', lang);
+
+            if (lang === 'auto') {
+                // Double reconnaissance : AR puis FR si echec
+                tryLang('ar-SA', 'fr-FR');
+            } else {
+                tryLang(lang, null);
+            }
+        });
+
+        console.log('[mic-fix-v2] Micro pret.');
+    }, 1500);
+
+    // ========================================================
+    // 3. LECTURE VOCALE AVEC BOUTONS
+    // ========================================================
+    setTimeout(function() {
+        // Trouver la case "Lecture vocale auto"
+        const voiceAuto = document.getElementById('voiceAuto');
+        if (!voiceAuto) return;
+
+        // Creer le widget de controle
+        if (document.getElementById('ttsControls')) return;
+        const ctrl = document.createElement('div');
+        ctrl.id = 'ttsControls';
+        ctrl.style.cssText = 'display:inline-flex;gap:4px;margin-left:8px;align-items:center;';
+        ctrl.innerHTML = '<button id="ttsPlay" title="Demarrer" style="background:#16a34a;color:#fff;border:none;border-radius:4px;padding:4px 8px;cursor:pointer;font-size:12px;">▶️</button>' +
+                         '<button id="ttsPause" title="Pause" style="background:#f59e0b;color:#fff;border:none;border-radius:4px;padding:4px 8px;cursor:pointer;font-size:12px;">⏸️</button>' +
+                         '<button id="ttsStop" title="Arreter" style="background:#dc2626;color:#fff;border:none;border-radius:4px;padding:4px 8px;cursor:pointer;font-size:12px;">⏹️</button>';
+        voiceAuto.parentNode.insertBefore(ctrl, voiceAuto.nextSibling);
+
+        let lastAnswer = '';
+        // Observer les nouvelles reponses bot pour stocker la derniere
+        const container = document.getElementById('chatMessages');
+        if (container) {
+            new MutationObserver(muts => {
+                muts.forEach(m => m.addedNodes.forEach(n => {
+                    if (n.nodeType === 1 && n.classList.contains('msg') && n.classList.contains('bot')) {
+                        lastAnswer = n.textContent || '';
+                        if (voiceAuto.checked && lastAnswer && window.speechSynthesis) {
+                            speak(lastAnswer);
+                        }
+                    }
+                }));
+            }).observe(container, { childList: true });
+        }
+
+        function speak(text) {
+            if (!window.speechSynthesis) return;
+            window.speechSynthesis.cancel();
+            const lang = /[\u0600-\u06FF]/.test(text) ? 'ar-SA' : 'fr-FR';
+            const utt = new SpeechSynthesisUtterance(text.substring(0, 3000));
+            utt.lang = lang;
+            const voices = speechSynthesis.getVoices();
+            const v = voices.find(x => x.lang === lang) || voices.find(x => x.lang.indexOf(lang.split('-')[0]) === 0);
+            if (v) utt.voice = v;
+            speechSynthesis.speak(utt);
+            console.log('[mic-fix-v2] Lecture vocale :', lang);
+        }
+
+        document.getElementById('ttsPlay').onclick = () => {
+            if (!lastAnswer) { alert('Aucune reponse a lire.'); return; }
+            speak(lastAnswer);
+        };
+        document.getElementById('ttsPause').onclick = () => {
+            if (speechSynthesis.speaking && !speechSynthesis.paused) {
+                speechSynthesis.pause();
+                console.log('[mic-fix-v2] Lecture en pause');
+            } else if (speechSynthesis.paused) {
+                speechSynthesis.resume();
+                console.log('[mic-fix-v2] Lecture reprise');
+            }
+        };
+        document.getElementById('ttsStop').onclick = () => {
+            speechSynthesis.cancel();
+            console.log('[mic-fix-v2] Lecture arretee');
+        };
+
+        console.log('[mic-fix-v2] Widget lecture vocale pret.');
+    }, 2000);
+
+    // ========================================================
+    // INIT
+    // ========================================================
+    function init() {
+        restoreHistory();
+        hookSave();
+        loadFromAPI().catch(() => {});
+    }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => setTimeout(init, 500));
+    else setTimeout(init, 500);
+
+    console.log('[mic-fix-v2] Pret.');
+})();
+</script>
+</body>
+</html>
