@@ -1,17 +1,13 @@
 // ============================================================
-// EXTRAS-BACKEND.JS - v1.19
-// Intercepte /api/ask en position 0 (avant answer-enricher)
-// - Parse body manuellement
-// - Calcule score petrole (stopwords + boost)
-// - Detecte les questions de suivi (et sa, combien, cette...)
-// - Si petrole pur -> next() -> answer-enricher (RAG local)
-// - Sinon -> cascade Claude/Gemini/OpenAI avec historique
-// - Timeouts 20s partout
+// EXTRAS-BACKEND.JS - v1.19b (SECURISE)
+// - Toutes les reponses passent par un helper safeJson()
+// - Try/catch global + logs detailles
+// - Ne fait JAMAIS next() apres res.json()
 // ============================================================
 'use strict';
 
 module.exports = function(app, mongoose) {
-  console.log('[extras-backend] Module charge');
+  console.log('[extras-backend] Module charge (v1.19b)');
   
   const RAG_THRESHOLD = 0.60;
   const AI_TIMEOUT_MS = 20000;
@@ -45,9 +41,27 @@ module.exports = function(app, mongoose) {
     'petrole','gaz','oil','gas','puits'
   ];
   
-  // Marqueurs de question de suivi
   const FOLLOWUP_MARKERS = ['et sa ', 'et son ', 'et ses ', 'et le ', 'et la ',
     'combien', 'c\'est quoi cette', 'c\'est quoi ce', 'quelle est sa', 'quel est son'];
+  
+  // Helper: envoie JSON seulement si res est valide et pas deja envoye
+  function safeJson(res, data, tag) {
+    try {
+      if (!res || typeof res.json !== 'function') {
+        console.warn('[extras-backend] safeJson(' + tag + ') : res.json indisponible');
+        return false;
+      }
+      if (res.headersSent) {
+        console.warn('[extras-backend] safeJson(' + tag + ') : headers deja envoyes');
+        return false;
+      }
+      res.json(data);
+      return true;
+    } catch (e) {
+      console.error('[extras-backend] safeJson(' + tag + ') ERREUR :', e.message);
+      return false;
+    }
+  }
   
   function parseBodyIfNeeded(req) {
     return new Promise(function(resolve) {
@@ -153,14 +167,12 @@ module.exports = function(app, mongoose) {
       
       console.log('[extras-backend] Q="' + realQ.slice(0, 50) + '" | score=' + petroScore.toFixed(2) + ' | followup=' + isFollowup + ' | history=' + (hasHistory ? body.history.length : 0));
       
-      // Question petrole pure (pas de suivi) -> answer-enricher RAG local
       if (petroScore >= RAG_THRESHOLD && !isFollowup) {
         console.log('[extras-backend] -> answer-enricher (RAG local)');
         return next();
       }
       
-      // Sinon -> cascade IA avec historique
-      console.log('[extras-backend] -> cascade Claude/Gemini/OpenAI');
+      console.log('[extras-backend] -> cascade IA');
       
       var history = Array.isArray(body.history) ? body.history.slice(-4) : [];
       var messages = [];
@@ -241,15 +253,12 @@ module.exports = function(app, mongoose) {
       
       if (!answer) {
         console.warn('[extras-backend] Tous agents KO -> fallback');
-        if (typeof res.json === 'function') {
-          return res.json({answer: 'Service temporairement indisponible. Veuillez reessayer.', source: 'fallback', enriched: true});
-        }
-        return next();
+        safeJson(res, {answer: 'Service temporairement indisponible. Veuillez reessayer.', source: 'fallback', enriched: true}, 'fallback');
+        return;
       }
       
       console.log('[extras-backend] Reponse par ' + source + ' (' + answer.length + ' chars)');
       
-      // Sauvegarder QA
       try {
         var QA = mongoose.model('QA');
         var jwt = require('jsonwebtoken');
@@ -264,21 +273,14 @@ module.exports = function(app, mongoose) {
         }
       } catch(e) {}
       
-      if (typeof res.json === 'function') {
-        return res.json({answer: answer, source: source, enriched: true, fallbackUsed: source});
-      }
-      return next();
+      safeJson(res, {answer: answer, source: source, enriched: true, fallbackUsed: source}, 'success');
       
     } catch(e) {
-      console.warn('[extras-backend] Erreur: ' + e.message);
-      if (typeof res.json === 'function' && !res.headersSent) {
-        return res.json({answer: 'Erreur technique. Veuillez reessayer.', source: 'error', enriched: true});
-      }
-      return next();
+      console.error('[extras-backend] ERREUR GLOBALE :', e.message, e.stack);
+      safeJson(res, {answer: 'Erreur technique. Veuillez reessayer.', source: 'error', enriched: true}, 'error');
     }
   };
   
-  // Injection position 0 (dernier a unshift)
   try {
     var router = app._router || app.router;
     if (!router || !router.stack) return;
@@ -293,5 +295,5 @@ module.exports = function(app, mongoose) {
     console.error('[extras-backend] Erreur injection: ' + e.message);
   }
   
-  console.log('[extras-backend] Pret - routage intelligent + cascade IA');
+  console.log('[extras-backend] Pret - routage intelligent + cascade IA (v1.19b)');
 };
