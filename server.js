@@ -168,7 +168,7 @@ REGLE ABSOLUE DE FIABILITE TECHNIQUE (priorite maximale) :
       return '[Timeout] Service temporairement indisponible. Veuillez reessayer dans quelques instants.';
     }
     const data = await r.json();
-    if (!r.ok) throw new Error(data?.error?.message || "OpenRouter error");
+    if (!r.ok) { console.warn("[askAI] OpenRouter HTTP " + r.status + " : " + (data?.error?.message || "")); return "[Service IA temporairement indisponible (OpenRouter HTTP " + r.status + "). Veuillez reessayer dans quelques instants.]"; }
     return data?.choices?.[0]?.message?.content || "";
 }
 
@@ -213,15 +213,21 @@ app.get("/api/auth/me", requireAuth, async (req, res) => {
 require('./ultimate-bridge')(app, mongoose);
 
 app.post("/api/ask", requireAuth, async (req, res) => {
+    const { question, language, domain, history } = req.body || {};
+    if (!question) return res.status(400).json({ error: "question requise" });
+    let answer;
     try {
-        const { question, language, domain, history } = req.body || {};
-        if (!question) return res.status(400).json({ error: "question requise" });
-        const answer = await askAI(question, { domain, language, history });
-        if (mongoReady) {
+        answer = await askAI(question, { domain, language, history });
+    } catch (e) {
+        console.warn("[api/ask] askAI crash : " + e.message);
+        answer = "[Erreur IA temporaire] " + (e.message || "inconnue") + ". Veuillez reessayer dans quelques instants.";
+    }
+    try {
+        if (mongoReady && answer && answer.indexOf("[Erreur") !== 0 && answer.indexOf("[Service IA") !== 0 && answer.indexOf("[Timeout") !== 0) {
             await QA.create({ userId: req.user.id, question, answer, language: language || "fr", domain: domain || "General" });
         }
-        res.json({ answer, language: language || "fr" });
-    } catch (e) { res.status(500).json({ error: e.message }); }
+    } catch (e) { console.warn("[api/ask] QA.create erreur : " + e.message); }
+    return res.json({ answer, language: language || "fr" });
 });
 
 app.get("/api/history", requireAuth, async (req, res) => {
@@ -236,6 +242,15 @@ app.get("/chat", (req, res) => res.sendFile(path.join(__dirname, "public", "chat
 app.get("/login", (req, res) => res.sendFile(path.join(__dirname, "public", "login.html")));
 app.get("/admin", (req, res) => res.sendFile(path.join(__dirname, "public", "admin.html")));
 app.get("/", (req, res) => res.sendFile(path.join(__dirname, "public", "index.html")));
+
+// v1.23 : error handler global - ne jamais renvoyer 500
+app.use((err, req, res, next) => {
+    console.error("[global-error] " + (err && err.stack || err));
+    if (res.headersSent) return next(err);
+    const msg = (err && err.message) || "Erreur inconnue";
+    if (req.path === "/api/ask") return res.json({ answer: "[Erreur temporaire] " + msg });
+    return res.status(500).json({ error: msg });
+});
 
 app.use((req, res) => res.status(404).json({ error: "Endpoint introuvable" }));
 
