@@ -1,20 +1,133 @@
 // ============================================================
-// INTELLIGENT-ROUTER.JS - v1.16b
-// Logique de routage pour /api/ask :
-// 1. Recherche RAG sur AutoFeedDocument
-// 2. Si la question est EN RELATION avec le domaine petrolier (score >= 0.45)
-//    -> next() -> answer-enricher (RAG local sur les docs API)
-// 3. Si la question N'EST PAS en relation (score < 0.45)
-//    -> cascade Claude -> Gemini -> OpenAI
-// 4. Si cascade echoue -> next() -> server.js askAI (fallback)
+// INTELLIGENT-ROUTER.JS - v1.16d
+// - Force express.json en position 0
+// - Stoplist de mots generiques (population, capitale, version, norme...)
+// - Boost pour termes petrole specifiques (API 5CT, VAM, tubing...)
+// - Seuil 0.60 (au lieu de 0.45)
 // ============================================================
 'use strict';
 
 module.exports = function(app, mongoose) {
   console.log('[intelligent-router] Module charge');
   
-  const RAG_THRESHOLD = 0.45;  // Seuil de pertinence semantique petroliere
+  const RAG_THRESHOLD = 0.60;
   
+  // Mots generiques (ne declenchent PAS la route petrole)
+  const STOPWORDS = new Set([
+    'population','capitale','pays','ville','region','histoire','geographie',
+    'qui','est','quel','quelle','quels','quelles','version','derniere',
+    'dernier','cette','cet','son','sa','ses','leur','leurs','dans',
+    'avec','pour','par','sur','que','quoi','comment','pourquoi','quand',
+    'ou','combien','tunisie','tunisien','francais','arabe','anglais',
+    'bonjour','salut','merci','relation','domaine','application',
+    'definir','definition','expliquer','signifie','mosaique','information',
+    'info','detail','detaille','reponse','question','connu','connais',
+    'connaissance','base','actuelle','officiel','document','consulter',
+    'sources','fiables','etudes','demographiques','president','guerre',
+    'religion','science','medecine','sante','economie','politique',
+    'culture','art','litterature','philosophie','theologie'
+  ]);
+  
+  // Termes petrole specifiques (boost)
+  const PETRO_BOOST = [
+    'api 5ct','api 5b','api 6a','api 5l','api 7-1','api 7-2','api 5c5','api 14l',
+    'tubing','casing','coupling','thread','threading',
+    'vam','tenaris','hydril','jfe','seal-lock','tec-lock',
+    'nace','mr0175','h2s','sour service',
+    'ndt','mpi','hydrostatic','pressure test',
+    'mtc','certificat','inspection','tolerance','grade l80',
+    'grade p110','corrosion','forage','drilling',
+    'wellhead','christmas tree','psl',
+    'norme api','specification api','edition api','addendum','errata',
+    'petrole','gaz','oil','gas','puits'
+  ];
+  
+  // ============================================================
+  // ETAPE 1 : Force express.json en position 0
+  // ============================================================
+  try {
+    const express = require('express');
+    const router = app._router || app.router;
+    if (router && router.stack) {
+      let oldJsonLayer = null;
+      for (let i = router.stack.length - 1; i >= 0; i--) {
+        const layer = router.stack[i];
+        if (layer && layer.handle && layer.handle.name === 'jsonParser') {
+          oldJsonLayer = router.stack.splice(i, 1)[0];
+          break;
+        }
+      }
+      const jsonParser = express.json({ limit: '20mb' });
+      const jsonLayer = {
+        handle: jsonParser,
+        name: 'jsonParserForced',
+        params: undefined,
+        path: '/',
+        keys: [],
+        regexp: /^\/?$/i,
+        route: undefined
+      };
+      router.stack.unshift(jsonLayer);
+      console.log('[intelligent-router] express.json force en position 0 (ancien retire : ' + (oldJsonLayer ? 'oui' : 'non') + ')');
+    }
+  } catch (e) {
+    console.error('[intelligent-router] Erreur force express.json :', e.message);
+  }
+  
+  // ============================================================
+  // Fonction de scoring petrole
+  // ============================================================
+  function scorePetrole(question, docs) {
+    const qLower = String(question || '').toLowerCase();
+    const tokens = qLower.match(/[a-z0-9\u0600-\u06FF]{3,}/g) || [];
+    
+    // Filtrer les tokens significatifs (pas stopwords, longueur >= 4)
+    const sigTokens = tokens.filter(function(t) {
+      return t.length >= 4 && !STOPWORDS.has(t);
+    });
+    
+    // Si aucun token significatif -> PAS petrole
+    if (sigTokens.length === 0) {
+      return { score: 0, doc: null, sigTokens: [], boost: 0, reason: 'aucun token significatif' };
+    }
+    
+    // Boost petrole
+    let boost = 0;
+    const matchedKw = [];
+    for (let i = 0; i < PETRO_BOOST.length; i++) {
+      if (qLower.indexOf(PETRO_BOOST[i]) !== -1) {
+        boost += 0.2;
+        matchedKw.push(PETRO_BOOST[i]);
+      }
+    }
+    boost = Math.min(1, boost);
+    
+    // Score RAG sur les docs
+    let bestScore = 0, bestDoc = null;
+    for (let i = 0; i < docs.length; i++) {
+      const d = docs[i];
+      const title = (d.title || '').toLowerCase();
+      const content = (d.content || '').toLowerCase();
+      let score = 0;
+      for (let j = 0; j < sigTokens.length; j++) {
+        const tk = sigTokens[j];
+        if (title.indexOf(tk) !== -1) score += 15;
+        if (content.indexOf(tk) !== -1) score += 2;
+      }
+      const normScore = Math.min(1, score / Math.max(20, sigTokens.length * 5));
+      if (normScore > bestScore) {
+        bestScore = normScore;
+        bestDoc = d;
+      }
+    }
+    
+    const finalScore = Math.max(bestScore, boost);
+    return { score: finalScore, doc: bestDoc, sigTokens: sigTokens, boost: boost, matchedKw: matchedKw };
+  }
+  
+  // ============================================================
+  // ETAPE 2 : Middleware de routage
+  // ============================================================
   const middleware = async function(req, res, next) {
     if (req.method !== 'POST') return next();
     const url = (req.originalUrl || req.url || '').split('?')[0];
@@ -25,49 +138,32 @@ module.exports = function(app, mongoose) {
       let question = String(body.question || '').trim();
       if (!question) return next();
       
-      // Extraire la vraie question (retirer les prefixes)
+      // Extraire la vraie question
       let realQ = question;
       const hm = question.match(/Nouvelle question[^:]*:\s*([\s\S]+)$/i);
       if (hm) realQ = hm[1].trim();
       realQ = realQ.replace(/^Answer\s+the\s+following\s+question[^:]*:\s*/i, '').trim();
       
-      // Recherche RAG pour determiner la pertinence petroliere
+      // Charger les docs
       let AutoFeedDoc;
       try { AutoFeedDoc = mongoose.model('AutoFeedDocument'); } catch(e) { return next(); }
-      
-      const qTokens = String(realQ).toLowerCase().match(/[a-z0-9\u0600-\u06FF]{3,}/g) || [];
       const docs = await AutoFeedDoc.find().sort({ createdAt: -1 }).limit(500).lean();
       
-      let bestScore = 0, bestDoc = null;
-      for (let i = 0; i < docs.length; i++) {
-        const d = docs[i];
-        const title = (d.title || '').toLowerCase();
-        const content = (d.content || '').toLowerCase();
-        let score = 0;
-        for (let j = 0; j < qTokens.length; j++) {
-          const tk = qTokens[j];
-          if (title.indexOf(tk) !== -1) score += 15;
-          if (content.indexOf(tk) !== -1) score += 2;
-        }
-        const normScore = Math.min(1, score / Math.max(20, qTokens.length * 5));
-        if (normScore > bestScore) {
-          bestScore = normScore;
-          bestDoc = d;
-        }
-      }
+      // Calculer le score
+      const s = scorePetrole(realQ, docs);
       
-      console.log('[intelligent-router] Q="' + realQ.slice(0, 50) + '" | score pertinence petroliere=' + bestScore.toFixed(2) + ' | doc="' + (bestDoc ? bestDoc.title.slice(0, 40) : 'none') + '"');
+      console.log('[intelligent-router] Q="' + realQ.slice(0, 50) + '" | score petrole=' + s.score.toFixed(2) + ' | sigTokens=[' + s.sigTokens.join(',') + '] | boost=' + s.boost.toFixed(1) + (s.matchedKw && s.matchedKw.length ? ' | kw=[' + s.matchedKw.slice(0,3).join(',') + ']' : ''));
       
-      // Si la question est EN RELATION avec le domaine petrolier -> answer-enricher
-      if (bestScore >= RAG_THRESHOLD) {
-        console.log('[intelligent-router] Question EN RELATION avec le domaine petrolier -> answer-enricher (RAG local)');
+      // Si en relation avec le petrole -> answer-enricher (RAG local)
+      if (s.score >= RAG_THRESHOLD) {
+        console.log('[intelligent-router] EN RELATION avec le domaine petrolier -> answer-enricher (RAG local)');
         return next();
       }
       
-      // Si la question N'EST PAS en relation -> cascade IA
-      console.log('[intelligent-router] Question PAS en relation avec le domaine petrolier -> cascade Claude/Gemini/OpenAI');
+      // Sinon -> cascade IA
+      console.log('[intelligent-router] PAS en relation avec le domaine petrolier -> cascade Claude/Gemini/OpenAI');
       
-      // Construire les messages avec historique
+      // Construire messages avec historique
       const history = Array.isArray(body.history) ? body.history.slice(-6) : [];
       const messages = [];
       for (let i = 0; i < history.length; i++) {
@@ -85,7 +181,7 @@ module.exports = function(app, mongoose) {
       let answer = null;
       let source = null;
       
-      // 1. Claude via OpenRouter
+      // 1. Claude
       try {
         const key = process.env.OPENROUTER_API_KEY;
         if (key) {
@@ -162,9 +258,10 @@ module.exports = function(app, mongoose) {
         } catch (e) { console.warn('[intelligent-router] OpenAI KO: ' + e.message); }
       }
       
-      // Tous agents KO -> fallback
+      // Tous KO -> fallback (marquer _skipRag pour empecher answer-enricher de faire du RAG petrole)
       if (!answer) {
-        console.warn('[intelligent-router] Tous agents KO -> next() pour server.js askAI');
+        console.warn('[intelligent-router] Tous agents KO -> fallback server.js askAI (sans RAG)');
+        req._skipRag = true;  // Empeche answer-enricher de faire du RAG
         return next();
       }
       
@@ -189,11 +286,12 @@ module.exports = function(app, mongoose) {
       
     } catch (e) {
       console.warn('[intelligent-router] Erreur: ' + e.message);
+      req._skipRag = true;
       return next();
     }
   };
   
-  // Injection en position 0
+  // Inserer le middleware en position 0
   try {
     const router = app._router || app.router;
     if (!router || !router.stack) return;
