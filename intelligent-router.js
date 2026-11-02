@@ -1,8 +1,9 @@
 // ============================================================
-// INTELLIGENT-ROUTER.JS - v1.16e
-// Fix : layer.match is not a function (retrait du jsonLayer buggé)
-// Nouveau : parse son propre body si req.body est vide
-// Logique : stoplist generiques + boost petrole + seuil 0.60
+// INTELLIGENT-ROUTER.JS - v1.17d
+// - Timeouts AbortController sur chaque appel IA (20s max)
+// - N'appelle JAMAIS next() pour non-petrole (evite askAI 502)
+// - Fallback rapide si tous les agents echouent
+// - Terminologie : "en relation avec le domaine petrolier"
 // ============================================================
 'use strict';
 
@@ -10,6 +11,8 @@ module.exports = function(app, mongoose) {
   console.log('[intelligent-router] Module charge');
   
   const RAG_THRESHOLD = 0.60;
+  const AI_TIMEOUT_MS = 20000;
+  const MAX_TOKENS = 2000;
   
   const STOPWORDS = new Set([
     'population','capitale','pays','ville','region','histoire','geographie',
@@ -39,18 +42,14 @@ module.exports = function(app, mongoose) {
     'petrole','gaz','oil','gas','puits'
   ];
   
-  // ============================================================
-  // Parseur manuel du body (car on est en position 0, avant express.json)
-  // ============================================================
+  // Parseur body manuel (car on est en position 0)
   function parseBodyIfNeeded(req) {
     return new Promise(function(resolve) {
-      // Deja parse par un autre middleware ?
       if (req._body === true) return resolve();
       if (req.body && typeof req.body === 'object' && Object.keys(req.body).length > 0) {
         req._body = true;
         return resolve();
       }
-      // Parser manuellement
       const chunks = [];
       req.on('data', function(c) { chunks.push(c); });
       req.on('end', function() {
@@ -59,14 +58,12 @@ module.exports = function(app, mongoose) {
           req.body = raw ? JSON.parse(raw) : {};
           req._body = true;
         } catch(e) {
-          console.error('[intelligent-router] Erreur parse body:', e.message);
           req.body = {};
           req._body = true;
         }
         resolve();
       });
-      req.on('error', function(e) {
-        console.error('[intelligent-router] Erreur stream:', e.message);
+      req.on('error', function() {
         req.body = {};
         req._body = true;
         resolve();
@@ -74,21 +71,29 @@ module.exports = function(app, mongoose) {
     });
   }
   
-  // ============================================================
-  // Scoring petrole
-  // ============================================================
+  // Fetch avec timeout
+  async function fetchWithTimeout(url, options, timeoutMs) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const r = await fetch(url, Object.assign({}, options, { signal: controller.signal }));
+      clearTimeout(timer);
+      return r;
+    } catch(e) {
+      clearTimeout(timer);
+      throw e;
+    }
+  }
+  
   function scorePetrole(question, docs) {
     const qLower = String(question || '').toLowerCase();
     const tokens = qLower.match(/[a-z0-9\u0600-\u06FF]{3,}/g) || [];
-    
     const sigTokens = tokens.filter(function(t) {
       return t.length >= 4 && !STOPWORDS.has(t);
     });
-    
     if (sigTokens.length === 0) {
-      return { score: 0, doc: null, sigTokens: [], boost: 0, matchedKw: [] };
+      return { score: 0, sigTokens: [], boost: 0, matchedKw: [] };
     }
-    
     let boost = 0;
     const matchedKw = [];
     for (let i = 0; i < PETRO_BOOST.length; i++) {
@@ -98,8 +103,7 @@ module.exports = function(app, mongoose) {
       }
     }
     boost = Math.min(1, boost);
-    
-    let bestScore = 0, bestDoc = null;
+    let bestScore = 0;
     for (let i = 0; i < docs.length; i++) {
       const d = docs[i];
       const title = (d.title || '').toLowerCase();
@@ -111,34 +115,21 @@ module.exports = function(app, mongoose) {
         if (content.indexOf(tk) !== -1) score += 2;
       }
       const normScore = Math.min(1, score / Math.max(20, sigTokens.length * 5));
-      if (normScore > bestScore) {
-        bestScore = normScore;
-        bestDoc = d;
-      }
+      if (normScore > bestScore) bestScore = normScore;
     }
-    
-    const finalScore = Math.max(bestScore, boost);
-    return { score: finalScore, doc: bestDoc, sigTokens: sigTokens, boost: boost, matchedKw: matchedKw };
+    return { score: Math.max(bestScore, boost), sigTokens: sigTokens, boost: boost, matchedKw: matchedKw };
   }
   
-  // ============================================================
-  // Middleware principal
-  // ============================================================
   const middleware = async function(req, res, next) {
     if (req.method !== 'POST') return next();
     const url = (req.originalUrl || req.url || '').split('?')[0];
     if (url !== '/api/ask') return next();
     
     try {
-      // Parser le body si necessaire
       await parseBodyIfNeeded(req);
-      
       const body = req.body || {};
       let question = String(body.question || '').trim();
-      if (!question) {
-        console.log('[intelligent-router] Question vide, next()');
-        return next();
-      }
+      if (!question) return next();
       
       let realQ = question;
       const hm = question.match(/Nouvelle question[^:]*:\s*([\s\S]+)$/i);
@@ -146,24 +137,25 @@ module.exports = function(app, mongoose) {
       realQ = realQ.replace(/^Answer\s+the\s+following\s+question[^:]*:\s*/i, '').trim();
       
       let AutoFeedDoc;
-      try { AutoFeedDoc = mongoose.model('AutoFeedDocument'); } catch(e) {
-        console.log('[intelligent-router] AutoFeedDocument introuvable, next()');
-        return next();
+      try { AutoFeedDoc = mongoose.model('AutoFeedDocument'); } catch(e) {}
+      let docs = [];
+      if (AutoFeedDoc) {
+        try { docs = await AutoFeedDoc.find().sort({ createdAt: -1 }).limit(500).lean(); } catch(e) {}
       }
-      const docs = await AutoFeedDoc.find().sort({ createdAt: -1 }).limit(500).lean();
       
       const s = scorePetrole(realQ, docs);
+      console.log('[intelligent-router] Q="' + realQ.slice(0, 50) + '" | score=' + s.score.toFixed(2) + ' | sigTokens=[' + s.sigTokens.join(',') + '] | boost=' + s.boost.toFixed(1) + (s.matchedKw.length ? ' | kw=[' + s.matchedKw.slice(0,2).join(',') + ']' : ''));
       
-      console.log('[intelligent-router] Q="' + realQ.slice(0, 50) + '" | score petrole=' + s.score.toFixed(2) + ' | sigTokens=[' + s.sigTokens.join(',') + '] | boost=' + s.boost.toFixed(1) + (s.matchedKw.length ? ' | kw=[' + s.matchedKw.slice(0,3).join(',') + ']' : ''));
-      
+      // Petrole -> answer-enricher
       if (s.score >= RAG_THRESHOLD) {
-        console.log('[intelligent-router] EN RELATION avec le domaine petrolier -> answer-enricher (RAG local)');
+        console.log('[intelligent-router] EN RELATION petrole -> answer-enricher');
         return next();
       }
       
-      console.log('[intelligent-router] PAS en relation avec le domaine petrolier -> cascade Claude/Gemini/OpenAI');
+      console.log('[intelligent-router] PAS en relation -> cascade IA');
       
-      const history = Array.isArray(body.history) ? body.history.slice(-6) : [];
+      // Construire messages
+      const history = Array.isArray(body.history) ? body.history.slice(-4) : [];
       const messages = [];
       for (let i = 0; i < history.length; i++) {
         const h = history[i];
@@ -173,30 +165,22 @@ module.exports = function(app, mongoose) {
       }
       messages.push({ role: 'user', content: realQ });
       
-      const systemPrompt = 'Tu es Scholars Connect, un assistant IA expert multidisciplinaire (sciences, histoire, geographie, culture, religion, economie, droit, philosophie, sante, technologie, etc.). Reponds de maniere detaillee, structuree et factuelle en francais. Si un historique de conversation est present, utilise-le pour comprendre les questions de suivi (et sa population, et son president, combien, etc.). Ne mentionne PAS l\'historique dans ta reponse. Ne dis JAMAIS "en tant qu\'IA".';
+      const systemPrompt = 'Tu es Scholars Connect, un assistant IA expert multidisciplinaire. Reponds de maniere detaillee, structuree et factuelle en francais. Si un historique est present, utilise-le pour les questions de suivi. Ne dis JAMAIS "en tant qu\'IA". Reponds en maximum 500 mots.';
       
       const fullMessages = [{ role: 'system', content: systemPrompt }].concat(messages);
       
       let answer = null;
       let source = null;
       
+      // 1. Claude (timeout 20s)
       try {
         const key = process.env.OPENROUTER_API_KEY;
         if (key) {
-          const r = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+          const r = await fetchWithTimeout('https://openrouter.ai/api/v1/chat/completions', {
             method: 'POST',
-            headers: {
-              'Authorization': 'Bearer ' + key,
-              'Content-Type': 'application/json',
-              'HTTP-Referer': 'https://scholars-connect-app.onrender.com'
-            },
-            body: JSON.stringify({
-              model: 'anthropic/claude-sonnet-4.6',
-              temperature: 0.3,
-              max_tokens: 4000,
-              messages: fullMessages
-            })
-          });
+            headers: { 'Authorization': 'Bearer ' + key, 'Content-Type': 'application/json', 'HTTP-Referer': 'https://scholars-connect-app.onrender.com' },
+            body: JSON.stringify({ model: 'anthropic/claude-3.5-sonnet', temperature: 0.3, max_tokens: MAX_TOKENS, messages: fullMessages })
+          }, AI_TIMEOUT_MS);
           if (r.ok) {
             const j = await r.json();
             answer = j.choices && j.choices[0] && j.choices[0].message ? j.choices[0].message.content : '';
@@ -207,6 +191,7 @@ module.exports = function(app, mongoose) {
         }
       } catch (e) { console.warn('[intelligent-router] Claude KO: ' + e.message); }
       
+      // 2. Gemini (timeout 20s)
       if (!answer) {
         try {
           const key = process.env.GEMINI_API_KEY;
@@ -218,33 +203,28 @@ module.exports = function(app, mongoose) {
             for (let i = 1; i < fullMessages.length; i++) {
               userParts.push((fullMessages[i].role === 'user' ? 'Utilisateur: ' : 'Assistant: ') + fullMessages[i].content);
             }
-            const r = await ai.models.generateContent({
+            const geminiPromise = ai.models.generateContent({
               model: process.env.GEMINI_MODEL || 'gemini-2.5-flash',
               contents: system + '\n\n' + userParts.join('\n\n')
             });
+            const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Gemini timeout')), AI_TIMEOUT_MS));
+            const r = await Promise.race([geminiPromise, timeoutPromise]);
             answer = (r && r.text) || '';
             if (answer && answer.length > 20) source = 'gemini';
           }
         } catch (e) { console.warn('[intelligent-router] Gemini KO: ' + e.message); }
       }
       
+      // 3. OpenAI (timeout 20s)
       if (!answer) {
         try {
           const key = process.env.OPENAI_API_KEY;
           if (key) {
-            const r = await fetch('https://api.openai.com/v1/chat/completions', {
+            const r = await fetchWithTimeout('https://api.openai.com/v1/chat/completions', {
               method: 'POST',
-              headers: {
-                'Authorization': 'Bearer ' + key,
-                'Content-Type': 'application/json'
-              },
-              body: JSON.stringify({
-                model: 'gpt-4o-mini',
-                temperature: 0.3,
-                max_tokens: 4000,
-                messages: fullMessages
-              })
-            });
+              headers: { 'Authorization': 'Bearer ' + key, 'Content-Type': 'application/json' },
+              body: JSON.stringify({ model: 'gpt-4o-mini', temperature: 0.3, max_tokens: MAX_TOKENS, messages: fullMessages })
+            }, AI_TIMEOUT_MS);
             if (r.ok) {
               const j = await r.json();
               answer = j.choices && j.choices[0] && j.choices[0].message ? j.choices[0].message.content : '';
@@ -254,14 +234,19 @@ module.exports = function(app, mongoose) {
         } catch (e) { console.warn('[intelligent-router] OpenAI KO: ' + e.message); }
       }
       
+      // Fallback rapide si tous echouent
       if (!answer) {
-        console.warn('[intelligent-router] Tous agents KO -> next() avec _skipRag');
-        req._skipRag = true;
-        return next();
+        console.warn('[intelligent-router] Tous agents KO -> fallback rapide');
+        return res.json({
+          answer: 'Service temporairement indisponible. Veuillez reessayer dans quelques instants.',
+          source: 'fallback',
+          enriched: true
+        });
       }
       
       console.log('[intelligent-router] Reponse par ' + source + ' (' + answer.length + ' chars)');
       
+      // Sauvegarder QA
       try {
         const QA = mongoose.model('QA');
         const jwt = require('jsonwebtoken');
@@ -276,18 +261,29 @@ module.exports = function(app, mongoose) {
         }
       } catch(e) {}
       
-      return res.json({ answer: answer, source: source, enriched: true, fallbackUsed: source });
+      // Retour DIRECT (pas de next) pour eviter askAI 502
+      return res.json({
+        answer: answer,
+        source: source,
+        enriched: true,
+        fallbackUsed: source,
+        domain: 'General',
+        language: 'fr'
+      });
       
     } catch (e) {
-      console.warn('[intelligent-router] Erreur: ' + e.message);
-      req._skipRag = true;
-      return next();
+      console.warn('[intelligent-router] Erreur globale: ' + e.message);
+      if (!res.headersSent) {
+        return res.json({
+          answer: 'Erreur technique. Veuillez reessayer.',
+          source: 'error',
+          enriched: true
+        });
+      }
     }
   };
   
-  // ============================================================
-  // Injection en position 0 (methode propre, SANS toucher router.stack manuellement)
-  // ============================================================
+  // Injection position 0
   try {
     const router = app._router || app.router;
     if (!router || !router.stack) return;
@@ -302,5 +298,5 @@ module.exports = function(app, mongoose) {
     console.error('[intelligent-router] Erreur injection: ' + e.message);
   }
   
-  console.log('[intelligent-router] Pret - cascade Claude/Gemini/OpenAI pour questions hors petrole');
+  console.log('[intelligent-router] Pret - timeouts 20s + fallback rapide');
 };
