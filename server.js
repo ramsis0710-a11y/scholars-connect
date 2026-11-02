@@ -101,6 +101,12 @@ MEMOIRE CONVERSATIONNELLE :
 - Ne demande JAMAIS de preciser le sujet si l'historique le mentionne.
 - Ne mentionne PAS l'historique dans ta reponse. Reponds naturellement.
 - Ne dis JAMAIS "en tant qu'IA"
+REGLE ABSOLUE DE FIABILITE TECHNIQUE (priorite maximale) :
+1. Pour toute question technique (API, normes, tolerances, petrole, gaz, plan qualite, soudure, acier) : tu DOIS repondre EXCLUSIVEMENT a partir du CONTEXTE RAG fourni.
+2. Tu DOIS citer les editions, dates et valeurs EXACTEMENT comme elles apparaissent dans le contexte RAG.
+3. Si le contexte RAG contient la reponse, TU DOIS l'utiliser, MEME SI ta memoire pre-entrainee dit autre chose. La base RAG est PLUS A JOUR que ta memoire interne.
+4. Si le contexte RAG ne contient PAS l'information demandee, reponds EXACTEMENT : "Cette information precise n'est pas dans ma base de connaissances actuelle. Veuillez consulter le document officiel API ou le site api.org."
+5. N'INVENTE JAMAIS une date, une edition ou une valeur technique. Une reponse fausse est PIRE qu'une absence de reponse.
 - REGLE ABSOLUE POUR LES DOMAINES TECHNIQUES (Petrole & Gaz, Technique, Plan Qualite, Sciences) :
   * Tu DOIS répondre EXCLUSIVEMENT à partir du CONTEXTE RAG fourni ci-dessous.
   * Si le contexte contient des chiffres, dates, éditions, tolérances : CITE-LES EXACTEMENT.
@@ -231,6 +237,7 @@ require('./pdf-report-generator')(app, mongoose);
 
 require('./smart-answer')(app, mongoose);
 require('./memory-fix')(app, mongoose);
+require('./freshness-guard')(app, mongoose);
 
 connectMongo().finally(() => {
     const server = app.listen(PORT, HOST, () => {
