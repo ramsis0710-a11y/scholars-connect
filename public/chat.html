@@ -1035,5 +1035,132 @@ ensureAuth().then(ok => {
     } catch(e) { console.warn('[cache-clear-v15]', e); }
 })();
 </script>
+
+<!-- HISTORY-LOADER-V15 : recharge l'historique depuis /api/history si le chat est vide -->
+<script>
+(function() {
+    console.log('[history-loader-v15] Module charge');
+    var API = 'https://scholars-connect-app.onrender.com';
+
+    function loadHistory() {
+        var token = localStorage.getItem('token');
+        if (!token || token.length < 20) {
+            console.log('[history-loader-v15] Pas de token, retry dans 2s');
+            setTimeout(loadHistory, 2000);
+            return;
+        }
+
+        var container = document.getElementById('chatMessages');
+        if (!container) {
+            console.log('[history-loader-v15] #chatMessages introuvable, retry');
+            setTimeout(loadHistory, 1000);
+            return;
+        }
+
+        var existingMsgs = container.querySelectorAll('.msg');
+        console.log('[history-loader-v15] Messages existants : ' + existingMsgs.length);
+
+        fetch(API + '/api/history', {
+            headers: { 'Authorization': 'Bearer ' + token }
+        }).then(function(r) {
+            if (!r.ok) throw new Error('HTTP ' + r.status);
+            return r.json();
+        }).then(function(data) {
+            if (!data || !data.items || data.items.length === 0) {
+                console.log('[history-loader-v15] Aucun historique serveur');
+                return;
+            }
+
+            // Verifier que le conteneur contient encore le message de bienvenue
+            var welcome = container.querySelector('.msg.bot');
+            var welcomeText = welcome ? welcome.textContent : '';
+
+            // Vider sauf bienvenue
+            container.innerHTML = '';
+            if (welcomeText) {
+                var w = document.createElement('div');
+                w.className = 'msg bot';
+                w.textContent = welcomeText;
+                container.appendChild(w);
+            }
+
+            // Ajouter les messages de l'API (ordre chronologique)
+            var items = data.items.slice().reverse();
+            items.forEach(function(item) {
+                if (item.question) {
+                    var u = document.createElement('div');
+                    u.className = 'msg user';
+                    u.textContent = item.question;
+                    u.dataset.restored = '1';
+                    container.appendChild(u);
+                }
+                if (item.answer) {
+                    var b = document.createElement('div');
+                    b.className = 'msg bot';
+                    b.textContent = item.answer;
+                    b.dataset.restored = '1';
+                    container.appendChild(b);
+                }
+            });
+            container.scrollTop = container.scrollHeight;
+            console.log('[history-loader-v15] ' + items.length + ' echanges restaures depuis API');
+        }).catch(function(e) {
+            console.warn('[history-loader-v15] Erreur :', e.message);
+        });
+    }
+
+    // Attendre 2s que le token soit eventuellement restaure par AUTO-AUTH
+    setTimeout(loadHistory, 2000);
+})();
+</script>
+
+<!-- AUTO-AUTH-V15 : restaure le token si absent (apres localStorage.clear) -->
+<script>
+(function() {
+    var token = localStorage.getItem('token');
+    if (token && token.length > 20) {
+        console.log('[auto-auth-v15] Token OK (' + token.length + ' chars)');
+        return;
+    }
+    console.log('[auto-auth-v15] Token absent, restauration...');
+    var attempts = [
+        {email: 'mba@mba-consult.tn', password: 'Test123!'},
+        {email: 'mba@mba-consult.tn', password: 'MbaConsult2026'},
+        {email: 'demo@test.tn', password: 'Test123!'}
+    ];
+    var idx = 0;
+    function tryNext() {
+        if (idx >= attempts.length) {
+            var email = 'demo_' + Date.now() + '@test.tn';
+            doAuth(email, 'Test123!');
+            return;
+        }
+        var a = attempts[idx++];
+        doAuth(a.email, a.password);
+    }
+    function doAuth(email, password) {
+        fetch('/api/auth/login', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({email: email, password: password})
+        }).then(function(r) {
+            if (r.ok) return r.json();
+            return fetch('/api/auth/register', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({email: email, password: password, name: email})
+            }).then(function(r2) { return r2.ok ? r2.json() : null; });
+        }).then(function(data) {
+            if (data && data.token) {
+                localStorage.setItem('token', data.token);
+                console.log('[auto-auth-v15] Token restaure pour ' + email);
+            } else {
+                tryNext();
+            }
+        }).catch(function() { tryNext(); });
+    }
+    tryNext();
+})();
+</script>
 </body>
 </html>
