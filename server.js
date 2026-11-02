@@ -237,6 +237,7 @@ require('./pdf-report-generator')(app, mongoose);
 
 require('./smart-answer')(app, mongoose);
 require('./memory-fix')(app, mongoose);
+require('./intelligent-router')(app, mongoose);
 require('./freshness-guard')(app, mongoose);
 
 connectMongo().finally(() => {
