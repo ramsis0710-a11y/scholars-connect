@@ -1,4 +1,4 @@
-require("dotenv").config();
+﻿require("dotenv").config();
 const express  = require("express");
 const cors     = require("cors");
 const mongoose = require("mongoose");
@@ -95,6 +95,11 @@ STYLE ET TON :
 - Sois CHALEUREUX et encourageant
 - Phrases courtes et naturelles
 - Termine par une formule encourageante
+MEMOIRE CONVERSATIONNELLE :
+- Si le message contient "=== INSTRUCTIONS DE MEMOIRE ===" ou "=== HISTORIQUE DE LA CONVERSATION ===", tu DOIS utiliser cet historique.
+- Si la question est courte (et sa population, et son president, combien, et apres), refere-toi au SUJET de la derniere question de l'historique.
+- Ne demande JAMAIS de preciser le sujet si l'historique le mentionne.
+- Ne mentionne PAS l'historique dans ta reponse. Reponds naturellement.
 - Ne dis JAMAIS "en tant qu'IA"`;
 
     // INJECTION DU CONTEXTE RAG (API 14L, etc.)
