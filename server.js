@@ -86,6 +86,41 @@ function requireAuth(req, res, next) {
 // ============================================================
 // IA CENTRALE : RAG INJECTION + MAX TOKENS
 // ============================================================
+async function callGeminiAI(messages, system) {
+    const key = process.env.GEMINI_API_KEY;
+    if (!key) throw new Error('GEMINI_API_KEY absente');
+    const { GoogleGenAI } = require('@google/genai');
+    const ai = new GoogleGenAI({ apiKey: key });
+    const parts = [system || ''];
+    for (let i = 0; i < messages.length; i++) {
+        const m = messages[i];
+        if (m.role === 'system') continue;
+        parts.push((m.role === 'user' ? 'Utilisateur: ' : 'Assistant: ') + m.content);
+    }
+    const r = await ai.models.generateContent({
+        model: process.env.GEMINI_MODEL || 'gemini-2.5-flash',
+        contents: parts.join('\n\n')
+    });
+    return (r && r.text) || '';
+}
+
+async function callOpenAIAI(messages) {
+    const key = process.env.OPENAI_API_KEY;
+    if (!key) throw new Error('OPENAI_API_KEY absente');
+    const r = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + key, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            model: 'gpt-4o-mini',
+            temperature: 0.2,
+            max_tokens: 4000,
+            messages: messages
+        })
+    });
+    if (!r.ok) throw new Error('OpenAI HTTP ' + r.status);
+    const j = await r.json();
+    return (j && j.choices && j.choices[0] && j.choices[0].message) ? j.choices[0].message.content : '';
+}
 async function askAI(prompt, opts = {}) {
     const { domain = "General", language = "fr", history = [] } = opts;
 
@@ -142,34 +177,60 @@ REGLE ABSOLUE DE FIABILITE TECHNIQUE (priorite maximale) :
     if (newQ) cleanPrompt = newQ[1].trim();
     messages.push({ role: "user", content: cleanPrompt + "\n\n[INSTRUCTION CRITIQUE : Pour toute question technique (API, normes, tolerances), tu DOIS utiliser le CONTEXTE RAG ci-dessus. Cite les numeros d'edition et les dates EXACTEMENT comme ils apparaissent dans le contexte. Si l'information n'est pas dans le contexte, dis-le clairement.]" });
 
-    // v1.18 : timeout 25s pour eviter le 502 Render
-    const _ctrl = new AbortController();
-    const _timer = setTimeout(function() { _ctrl.abort(); }, 25000);
-    let r;
-    try {
-      r = await fetch("https://openrouter.ai/api/v1/chat/completions", { signal: _ctrl.signal,
-        method: "POST",
-        headers: {
+        // v1.24 : cascade OpenRouter -> Gemini -> OpenAI
+    let _answer = "";
+    if (OPENROUTER_API_KEY) {
+      const _ctrl = new AbortController();
+      const _timer = setTimeout(function() { _ctrl.abort(); }, 25000);
+      try {
+        const r = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+          signal: _ctrl.signal,
+          method: "POST",
+          headers: {
             "Authorization": `Bearer ${OPENROUTER_API_KEY}`,
             "Content-Type": "application/json",
             "HTTP-Referer": "https://scholars-connect-app.onrender.com"
-        },
-        body: JSON.stringify({
+          },
+          body: JSON.stringify({
             model: OPENROUTER_MODEL,
             temperature: 0.2,
             max_tokens: 4000,
             messages: messages
-        })
-    });
-    clearTimeout(_timer);
-    } catch (e) {
-      clearTimeout(_timer);
-      console.warn('[askAI] Timeout ou erreur : ' + e.message);
-      return '[Timeout] Service temporairement indisponible. Veuillez reessayer dans quelques instants.';
+          })
+        });
+        clearTimeout(_timer);
+        if (r.ok) {
+          try {
+            const data = await r.json();
+            _answer = (data && data.choices && data.choices[0] && data.choices[0].message) ? data.choices[0].message.content : "";
+          } catch(e) { console.warn('[askAI] OpenRouter json KO : ' + e.message); }
+          if (_answer && _answer.length > 20) {
+            console.log('[askAI] OpenRouter OK (' + _answer.length + ' chars)');
+            return _answer;
+          }
+        } else {
+          console.warn('[askAI] OpenRouter HTTP ' + r.status + ' - Fallback Gemini/OpenAI');
+        }
+      } catch (e) {
+        clearTimeout(_timer);
+        console.warn('[askAI] OpenRouter KO : ' + e.message);
+      }
     }
-    const data = await r.json();
-    if (!r.ok) { console.warn("[askAI] OpenRouter HTTP " + r.status + " : " + (data?.error?.message || "")); return "[Service IA temporairement indisponible (OpenRouter HTTP " + r.status + "). Veuillez reessayer dans quelques instants.]"; }
-    return data?.choices?.[0]?.message?.content || "";
+    try {
+      const gAnswer = await callGeminiAI(messages, system);
+      if (gAnswer && gAnswer.length > 20) {
+        console.log('[askAI] Fallback Gemini OK (' + gAnswer.length + ' chars)');
+        return gAnswer;
+      }
+    } catch(e) { console.warn('[askAI] Gemini KO : ' + e.message); }
+    try {
+      const oAnswer = await callOpenAIAI(messages);
+      if (oAnswer && oAnswer.length > 20) {
+        console.log('[askAI] Fallback OpenAI OK (' + oAnswer.length + ' chars)');
+        return oAnswer;
+      }
+    } catch(e) { console.warn('[askAI] OpenAI KO : ' + e.message); }
+    return "[Service IA temporairement indisponible] OpenRouter/Gemini/OpenAI ont tous echoue.";
 }
 
 app.get("/api/health", (req, res) => res.json({ ok: true, mongo: mongoReady, ai: !!OPENROUTER_API_KEY }));
