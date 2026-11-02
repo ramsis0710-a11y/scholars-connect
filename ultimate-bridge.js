@@ -1,4 +1,4 @@
-// ============================================================
+﻿// ============================================================
 // ULTIMATE-BRIDGE.JS - Module autonome unique (Version corrigée)
 // ============================================================
 'use strict';
@@ -194,6 +194,10 @@ module.exports = function(app, mongoose) {
 
   const bridgeMiddleware = async function(req, res, next) {
     if (req.method !== 'POST' || !req.body) return next();
+    if (!res || typeof res.json !== 'function') {
+      console.warn('[ultimate-bridge] res undefined - skip');
+      return next();
+    }
     const origJson = res.json.bind(res);
     let processed = false;
 
