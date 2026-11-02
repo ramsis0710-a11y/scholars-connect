@@ -87,7 +87,7 @@ function requireAuth(req, res, next) {
 // IA CENTRALE : RAG INJECTION + MAX TOKENS
 // ============================================================
 async function askAI(prompt, opts = {}) {
-    const { domain = "General", language = "fr" } = opts;
+    const { domain = "General", language = "fr", history = [] } = opts;
 
     let system = `Tu es Scholars Connect, un assistant academique chaleureux et humain, propulse par MBA-CONSULT AI CORE.
 ROLE : Aider les etudiants avec pedagogie. Corriger les exercices en detaillant CHAQUE etape.
@@ -112,6 +112,24 @@ MEMOIRE CONVERSATIONNELLE :
 
     if (!OPENROUTER_API_KEY) return "[Mode degrade] OPENROUTER_API_KEY non configuree.";
 
+    // v1.10 : construire messages avec historique separe (format ChatGPT)
+    const messages = [{ role: "system", content: system }];
+    if (Array.isArray(history) && history.length > 0) {
+        history.slice(-6).forEach(function(m) {
+            const role = (m.role === 'user') ? 'user' : 'assistant';
+            let content = String(m.content || m.text || '').split(/Fiche technique/i)[0].replace(/Reponse detaillee/i, '').trim();
+            if (content) messages.push({ role: role, content: content });
+        });
+        console.log('[v1.10 askAI] ' + history.length + ' messages historique ajoutes');
+    }
+    // Parser le prompt : retirer l historique eventuel (ancien format memory-fix) pour ne pas doubler
+    let cleanPrompt = finalPrompt;
+    const histPrefix = cleanPrompt.match(/=== HISTORIQUE DE LA CONVERSATION ===[\s\S]*?=== FIN HISTORIQUE ===\s*/);
+    if (histPrefix) cleanPrompt = cleanPrompt.replace(histPrefix[0], '').trim();
+    const newQ = cleanPrompt.match(/Nouvelle question\s*:\s*\n?([\s\S]+)$/);
+    if (newQ) cleanPrompt = newQ[1].trim();
+    messages.push({ role: "user", content: cleanPrompt });
+
     const r = await fetch("https://openrouter.ai/api/v1/chat/completions", {
         method: "POST",
         headers: {
@@ -122,11 +140,8 @@ MEMOIRE CONVERSATIONNELLE :
         body: JSON.stringify({
             model: OPENROUTER_MODEL,
             temperature: 0.2,
-            max_tokens: 4000, // CORRECTION CRITIQUE
-            messages: [
-                { role: "system", content: system },
-                { role: "user", content: finalPrompt }
-            ]
+            max_tokens: 4000,
+            messages: messages
         })
     });
     const data = await r.json();
@@ -176,9 +191,9 @@ require('./ultimate-bridge')(app, mongoose);
 
 app.post("/api/ask", requireAuth, async (req, res) => {
     try {
-        const { question, language, domain } = req.body || {};
+        const { question, language, domain, history } = req.body || {};
         if (!question) return res.status(400).json({ error: "question requise" });
-        const answer = await askAI(question, { domain, language });
+        const answer = await askAI(question, { domain, language, history });
         if (mongoReady) {
             await QA.create({ userId: req.user.id, question, answer, language: language || "fr", domain: domain || "General" });
         }

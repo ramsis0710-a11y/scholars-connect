@@ -27,30 +27,21 @@ module.exports = function(app, mongoose) {
       }
       
       // Construire le prompt avec historique (max 8 messages = 4 echanges)
-      const recent = history.slice(-4);
-            const lines = [];
-      // v1.9 : regles AVANT l historique
-      lines.push('=== INSTRUCTIONS DE MEMOIRE (PRIORITAIRES) ===');
-      lines.push('1. Tu as recu un historique de conversation ci-dessous.');
-      lines.push('2. Tu DOIS utiliser cet historique pour repondre.');
-      lines.push('3. Si la question est COURTE (et sa population, et son president, combien, et apres), elle refere au SUJET de la derniere question de l historique.');
-      lines.push('4. Ne reponds JAMAIS de quoi parlez-vous ou je n ai pas d information si le sujet est dans l historique.');
-      lines.push('5. Reponds concretement en utilisant tes connaissances sur le sujet.');
-      lines.push('6. Ne mentionne PAS l historique dans ta reponse.');
-      lines.push('=== FIN INSTRUCTIONS ===');
-      lines.push('');
-      lines.push('=== HISTORIQUE DE LA CONVERSATION ===');
-      recent.forEach(function(m) {
-        const role = m.role === 'user' ? 'Utilisateur' : 'Assistant';
-        let content = String(m.content || m.text || '');
-        if (content.length > 2000) content = content.slice(0, 2000) + '...';
-        content = content.split(/Fiche technique/i)[0].trim();
-        if (content) lines.push(role + ' : ' + content);
-      });
-      lines.push('=== FIN HISTORIQUE ===');
-      lines.push('');
-      lines.push('Nouvelle question :');
-      lines.push(question);
+            const recent = history.slice(-4);
+      // v1.10 : nettoyer req.body.history (couper les fiches techniques) 
+      // et NE PAS prefixer req.body.question (le LLM recevra l historique en messages separes)
+      try {
+        req.body.history = recent.map(function(m) {
+          const role = (m.role === 'user') ? 'user' : 'assistant';
+          let content = String(m.content || m.text || '');
+          if (content.length > 2000) content = content.slice(0, 2000) + '...';
+          content = content.split(/Fiche technique/i)[0].replace(/Reponse detaillee/i, '').trim();
+          return { role: role, content: content };
+        }).filter(function(m) { return m.content; });
+        console.log('[v1.10 memory-fix] history nettoyee : ' + req.body.history.length + ' messages');
+      } catch(e) {}
+      // Ne pas modifier req.body.question - il sera passe tel quel a askAI
+      return next();
       
       const enrichedQuestion = lines.join('\n');
       
