@@ -1,9 +1,11 @@
 // ============================================================
-// INTELLIGENT-ROUTER.JS - v1.16
+// INTELLIGENT-ROUTER.JS - v1.16b
 // Logique de routage pour /api/ask :
-// 1. RAG search sur AutoFeedDocument
-// 2. Si score >= 0.45 (petrole fort) -> next() -> answer-enricher (RAG local)
-// 3. Si score < 0.45 -> cascade Claude -> Gemini -> OpenAI
+// 1. Recherche RAG sur AutoFeedDocument
+// 2. Si la question est EN RELATION avec le domaine petrolier (score >= 0.45)
+//    -> next() -> answer-enricher (RAG local sur les docs API)
+// 3. Si la question N'EST PAS en relation (score < 0.45)
+//    -> cascade Claude -> Gemini -> OpenAI
 // 4. Si cascade echoue -> next() -> server.js askAI (fallback)
 // ============================================================
 'use strict';
@@ -11,7 +13,7 @@
 module.exports = function(app, mongoose) {
   console.log('[intelligent-router] Module charge');
   
-  const RAG_THRESHOLD = 0.45;
+  const RAG_THRESHOLD = 0.45;  // Seuil de pertinence semantique petroliere
   
   const middleware = async function(req, res, next) {
     if (req.method !== 'POST') return next();
@@ -29,7 +31,7 @@ module.exports = function(app, mongoose) {
       if (hm) realQ = hm[1].trim();
       realQ = realQ.replace(/^Answer\s+the\s+following\s+question[^:]*:\s*/i, '').trim();
       
-      // RAG search
+      // Recherche RAG pour determiner la pertinence petroliere
       let AutoFeedDoc;
       try { AutoFeedDoc = mongoose.model('AutoFeedDocument'); } catch(e) { return next(); }
       
@@ -54,15 +56,16 @@ module.exports = function(app, mongoose) {
         }
       }
       
-      console.log('[intelligent-router] Q="' + realQ.slice(0, 50) + '" | score=' + bestScore.toFixed(2) + ' | doc="' + (bestDoc ? bestDoc.title.slice(0, 40) : 'none') + '"');
+      console.log('[intelligent-router] Q="' + realQ.slice(0, 50) + '" | score pertinence petroliere=' + bestScore.toFixed(2) + ' | doc="' + (bestDoc ? bestDoc.title.slice(0, 40) : 'none') + '"');
       
-      // Si match fort -> laisser answer-enricher faire le RAG petrole
+      // Si la question est EN RELATION avec le domaine petrolier -> answer-enricher
       if (bestScore >= RAG_THRESHOLD) {
-        console.log('[intelligent-router] RAG FORT -> answer-enricher (petrole)');
+        console.log('[intelligent-router] Question EN RELATION avec le domaine petrolier -> answer-enricher (RAG local)');
         return next();
       }
       
-      console.log('[intelligent-router] RAG FAIBLE -> cascade Claude/Gemini/OpenAI');
+      // Si la question N'EST PAS en relation -> cascade IA
+      console.log('[intelligent-router] Question PAS en relation avec le domaine petrolier -> cascade Claude/Gemini/OpenAI');
       
       // Construire les messages avec historique
       const history = Array.isArray(body.history) ? body.history.slice(-6) : [];
@@ -205,5 +208,5 @@ module.exports = function(app, mongoose) {
     console.error('[intelligent-router] Erreur injection: ' + e.message);
   }
   
-  console.log('[intelligent-router] Pret - cascade Claude/Gemini/OpenAI');
+  console.log('[intelligent-router] Pret - cascade Claude/Gemini/OpenAI pour questions hors petrole');
 };
