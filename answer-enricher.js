@@ -671,19 +671,12 @@ function pickExcerpt(content, query) {
 }
 
 function detectDomain(question, defaultDomain) {
-  // FORCE-DOMAIN-RESPECT : respecter req.body.domain s'il est explicitement force
-  if (defaultDomain && defaultDomain === 'General') return 'General';
-  if (defaultDomain && defaultDomain !== 'General') {
-    // Domaine force par smart-answer : verifier s'il est valide
-    var validDomains = ['Plan Qualite','Petrole & Gaz','Technique','Sciences','General'];
-    if (validDomains.indexOf(defaultDomain) !== -1) return defaultDomain;
-  }
-  if (defaultDomain && defaultDomain !== 'General') return defaultDomain;
+  // v1.9 : IGNORER defaultDomain, toujours recalculer depuis la question
   var q = String(question || '').toLowerCase();
   if (isQualityPlanRequest(question, '')) return 'Plan Qualite';
-  var petro = ['api 5ct','api 5b','api 6a','vam','tubage','casing','tubing','petrole','gaz','nace','h2s','thread','coupling'];
+  var petro = ['api 5ct','api 5b','api 6a','api 7-1','api 7-2','api 5c5','api 14l','vam','tenaris','hydril','tubage','casing','tubing','petrole','gaz','nace','h2s','thread','coupling','forage','drilling'];
   for (var i = 0; i < petro.length; i++) if (q.indexOf(petro[i]) !== -1) return 'Petrole & Gaz';
-  var tech = ['norme','iso','qualite','fabrication','certificat','mtc','inspection','test pression','ndt','soudure','welding','acier','steel','tolerance'];
+  var tech = ['norme','iso','qualite','fabrication','certificat','mtc','inspection','test pression','ndt','soudure','welding','acier','steel','tolerance','grade l80','grade p110'];
   for (var j = 0; j < tech.length; j++) if (q.indexOf(tech[j]) !== -1) return 'Technique';
   return 'General';
 }
@@ -741,7 +734,7 @@ function generateTechSheet(domain, docsUsed, semanticScore, scholars, judgeResul
   if (mode === 'document') html += '<tr><td style="opacity:0.75">Source</td><td>Document colle</td></tr>';
   else { html += '<tr><td style="opacity:0.75">Score</td><td>' + Math.round(semanticScore * 100) + ' %</td></tr>'; html += '<tr><td style="opacity:0.75">Docs</td><td>' + docsUsed + '</td></tr>'; }
   if (scholars && scholars.length) html += '<tr><td style="opacity:0.75">Scholars</td><td>' + esc(scholars.join(', ')) + '</td></tr>';
-  html += '<tr><td style="opacity:0.75">Moteur IA</td><td>MBA-CONSULT AI CORE v1.8</td></tr>';
+  html += '<tr><td style="opacity:0.75">Moteur IA</td><td>MBA-CONSULT AI CORE v1.9</td></tr>';
   html += '<tr><td style="opacity:0.75">Validation</td><td>Juge Claude</td></tr>';
   html += '<tr><td style="opacity:0.75">Date</td><td>' + new Date().toLocaleString('fr-FR') + '</td></tr>';
   html += '</table></div>';
@@ -1776,8 +1769,14 @@ module.exports = function(app, mongoose) {
       // retirer les extraits RAG "Question : q" a la fin
       var _ragM = realQuestion.match(/^[\s\S]*?Question\s*:\s*([^\n]+)\s*$/);
       if (_ragM && _ragM[1].length > 5) realQuestion = _ragM[1].trim();
-      var realDomain = isQualityPlanRequest(realQuestion, originalContent) ? 'Plan Qualite' : detectDomain(realQuestion, domain);
-      try { console.log('[TRACE v1.7] domain_in=' + domain + ' | realDomain=' + realDomain + ' | realQ=' + String(realQuestion || '').slice(0, 80) + ' | isQP=' + isQualityPlanRequest(realQuestion, originalContent)); } catch(e) {}
+      // v1.9 : recalculer le domaine UNIQUEMENT depuis la question (ignorer 'domain' passe)
+      var realDomain;
+      if (isQualityPlanRequest(realQuestion, originalContent)) {
+        realDomain = 'Plan Qualite';
+      } else {
+        realDomain = detectDomain(realQuestion, '');
+      }
+      try { console.log('[TRACE v1.9] domain_in=' + domain + ' | realDomain=' + realDomain + ' | realQ=' + String(realQuestion || '').slice(0, 80)); } catch(e) {}
       var AutoFeedDoc2 = null;
       try { AutoFeedDoc2 = mongoose.model('AutoFeedDocument'); } catch (e) {}
       var docs = [];

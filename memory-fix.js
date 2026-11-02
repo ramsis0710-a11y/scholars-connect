@@ -28,30 +28,26 @@ module.exports = function(app, mongoose) {
       
       // Construire le prompt avec historique (max 8 messages = 4 echanges)
       const recent = history.slice(-4);
-      const lines = [];
+            const lines = [];
+      // v1.9 : regles AVANT l historique
+      lines.push('=== INSTRUCTIONS DE MEMOIRE (PRIORITAIRES) ===');
+      lines.push('1. Tu as recu un historique de conversation ci-dessous.');
+      lines.push('2. Tu DOIS utiliser cet historique pour repondre.');
+      lines.push('3. Si la question est COURTE (et sa population, et son president, combien, et apres), elle refere au SUJET de la derniere question de l historique.');
+      lines.push('4. Ne reponds JAMAIS de quoi parlez-vous ou je n ai pas d information si le sujet est dans l historique.');
+      lines.push('5. Reponds concretement en utilisant tes connaissances sur le sujet.');
+      lines.push('6. Ne mentionne PAS l historique dans ta reponse.');
+      lines.push('=== FIN INSTRUCTIONS ===');
+      lines.push('');
       lines.push('=== HISTORIQUE DE LA CONVERSATION ===');
       recent.forEach(function(m) {
         const role = m.role === 'user' ? 'Utilisateur' : 'Assistant';
         let content = String(m.content || m.text || '');
-        // Tronquer les messages trop longs (2000 chars max par message)
         if (content.length > 2000) content = content.slice(0, 2000) + '...';
-        // Supprimer les fiches techniques du contexte
         content = content.split(/Fiche technique/i)[0].trim();
         if (content) lines.push(role + ' : ' + content);
       });
       lines.push('=== FIN HISTORIQUE ===');
-      lines.push('');
-      lines.push('INSTRUCTION OBLIGATOIRE : Tu DOIS repondre a la question ci-dessous en te basant sur l historique. Si la question contient "il", "elle", "son", "sa", "et", "donc", "cette", "ce", refere-toi au sujet de l historique. Ne demande JAMAIS de preciser le sujet si l historique le mentionne.');
-      lines.push('');
-      lines.push('=== REGLES STRICTES ===');
-      lines.push('Utilise l historique. Si la question est courte, refere au sujet precedent.');
-      lines.push('=== FIN REGLES ===');
-      lines.push('=== REGLES OBLIGATOIRES ===');
-      lines.push('REGLE 1 : Tu as recu un historique ci-dessus. Tu DOIS l utiliser.');
-      lines.push('REGLE 2 : Si la question est courte (et sa population, et son president, combien, et apres), elle refere au SUJET de la derniere question de l historique.');
-      lines.push('REGLE 3 : Ne reponds JAMAIS de quoi parlez-vous ou je n ai pas d information si le sujet est dans l historique.');
-      lines.push('REGLE 4 : Reponds concretement sur le sujet de l historique, sans le mentionner.');
-      lines.push('=== FIN REGLES ===');
       lines.push('');
       lines.push('Nouvelle question :');
       lines.push(question);
