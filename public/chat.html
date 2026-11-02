@@ -1114,52 +1114,157 @@ ensureAuth().then(ok => {
 })();
 </script>
 
-<!-- AUTO-AUTH-V15 : restaure le token si absent (apres localStorage.clear) -->
+
+<!-- AUTO-AUTH-V17 : prompt pour credentials + bouton reconnexion + ne cree JAMAIS de compte demo -->
 <script>
 (function() {
+    var DEFAULT_EMAIL = 'mba@mba-consult.tn';
+    var CREDS_KEY = 'scholars_credentials';
     var token = localStorage.getItem('token');
+    
+    // Si token valide -> verifier qu'il n'est pas expire
     if (token && token.length > 20) {
-        console.log('[auto-auth-v15] Token OK (' + token.length + ' chars)');
+        try {
+            var payload = JSON.parse(atob(token.split('.')[1]));
+            if (payload.exp && payload.exp * 1000 > Date.now()) {
+                console.log('[auto-auth-v17] Token OK (' + (payload.email || 'unknown') + ')');
+                return;
+            }
+            console.log('[auto-auth-v17] Token expire, reconnexion...');
+        } catch(e) {
+            console.log('[auto-auth-v17] Token invalide, reconnexion...');
+        }
+    } else {
+        console.log('[auto-auth-v17] Token absent, tentative de restauration...');
+    }
+    
+    // Charger les credentials sauvegardes
+    var savedCreds = null;
+    try {
+        savedCreds = JSON.parse(localStorage.getItem(CREDS_KEY) || 'null');
+    } catch(e) {}
+    
+    // Si credentials sauvegardes -> tenter directement
+    if (savedCreds && savedCreds.email && savedCreds.password) {
+        tryLogin(savedCreds.email, savedCreds.password, false);
         return;
     }
-    console.log('[auto-auth-v15] Token absent, restauration...');
-    var attempts = [
-        {email: 'mba@mba-consult.tn', password: 'Test123!'},
-        {email: 'mba@mba-consult.tn', password: 'MbaConsult2026'},
-        {email: 'demo@test.tn', password: 'Test123!'}
-    ];
-    var idx = 0;
-    function tryNext() {
-        if (idx >= attempts.length) {
-            var email = 'demo_' + Date.now() + '@test.tn';
-            doAuth(email, 'Test123!');
-            return;
-        }
-        var a = attempts[idx++];
-        doAuth(a.email, a.password);
-    }
-    function doAuth(email, password) {
+    
+    // Sinon -> prompt
+    setTimeout(function() {
+        showReconnectPrompt();
+    }, 1500);
+    
+    function tryLogin(email, password, saveOnSuccess) {
         fetch('/api/auth/login', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({email: email, password: password})
         }).then(function(r) {
             if (r.ok) return r.json();
-            return fetch('/api/auth/register', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({email: email, password: password, name: email})
-            }).then(function(r2) { return r2.ok ? r2.json() : null; });
+            return null;
         }).then(function(data) {
             if (data && data.token) {
                 localStorage.setItem('token', data.token);
-                console.log('[auto-auth-v15] Token restaure pour ' + email);
+                if (saveOnSuccess) {
+                    localStorage.setItem(CREDS_KEY, JSON.stringify({email: email, password: password}));
+                }
+                console.log('[auto-auth-v17] Connexion OK pour ' + email);
+                // Recharger pour que history-loader charge l'historique
+                setTimeout(function() { location.reload(); }, 300);
             } else {
-                tryNext();
+                console.log('[auto-auth-v17] Login echoue pour ' + email);
+                if (!saveOnSuccess) {
+                    // Si les creds sauvegardes sont mauvais -> prompt
+                    localStorage.removeItem(CREDS_KEY);
+                    showReconnectPrompt();
+                } else {
+                    showReconnectPrompt('Identifiants incorrects');
+                }
             }
-        }).catch(function() { tryNext(); });
+        }).catch(function(e) {
+            console.error('[auto-auth-v17] Erreur reseau:', e);
+            if (!saveOnSuccess) showReconnectPrompt();
+        });
     }
-    tryNext();
+    
+    function showReconnectPrompt(errorMsg) {
+        // Verifier si un prompt existe deja
+        if (document.getElementById('reconnectOverlay')) return;
+        
+        var overlay = document.createElement('div');
+        overlay.id = 'reconnectOverlay';
+        overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(10,37,64,0.95);z-index:99999;display:flex;align-items:center;justify-content:center;font-family:Arial,sans-serif;';
+        overlay.innerHTML = ''
+            + '<div style="background:#fff;border-radius:12px;padding:32px;max-width:420px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,0.5);">'
+            + '<h2 style="color:#0a2540;margin:0 0 8px 0;font-size:20px;">🔐 Reconnexion</h2>'
+            + '<p style="color:#6b7280;margin:0 0 20px 0;font-size:14px;">Votre session a expire. Veuillez vous reconnecter.</p>'
+            + (errorMsg ? '<div style="background:#fee2e2;color:#991b1b;padding:10px;border-radius:6px;margin-bottom:16px;font-size:13px;">' + errorMsg + '</div>' : '')
+            + '<label style="display:block;color:#374151;font-weight:600;font-size:13px;margin-bottom:6px;">Email</label>'
+            + '<input type="email" id="reconnectEmail" value="' + DEFAULT_EMAIL + '" style="width:100%;padding:10px;border:1px solid #cbd5e1;border-radius:6px;margin-bottom:14px;font-size:14px;box-sizing:border-box;">'
+            + '<label style="display:block;color:#374151;font-weight:600;font-size:13px;margin-bottom:6px;">Mot de passe</label>'
+            + '<input type="password" id="reconnectPassword" placeholder="Votre mot de passe" style="width:100%;padding:10px;border:1px solid #cbd5e1;border-radius:6px;margin-bottom:20px;font-size:14px;box-sizing:border-box;">'
+            + '<button id="reconnectSubmit" style="width:100%;padding:12px;background:#0a2540;color:#fff;border:0;border-radius:8px;font-weight:700;font-size:15px;cursor:pointer;">Se connecter</button>'
+            + '<div id="reconnectStatus" style="margin-top:12px;color:#dc2626;font-size:13px;text-align:center;"></div>'
+            + '</div>';
+        document.body.appendChild(overlay);
+        
+        document.getElementById('reconnectSubmit').onclick = function() {
+            var email = document.getElementById('reconnectEmail').value.trim();
+            var password = document.getElementById('reconnectPassword').value;
+            if (!email || !password) {
+                document.getElementById('reconnectStatus').textContent = 'Email et mot de passe requis';
+                return;
+            }
+            document.getElementById('reconnectStatus').textContent = 'Connexion...';
+            document.getElementById('reconnectStatus').style.color = '#1e5aa8';
+            
+            fetch('/api/auth/login', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({email: email, password: password})
+            }).then(function(r) { return r.ok ? r.json() : null; })
+            .then(function(data) {
+                if (data && data.token) {
+                    localStorage.setItem('token', data.token);
+                    localStorage.setItem(CREDS_KEY, JSON.stringify({email: email, password: password}));
+                    console.log('[auto-auth-v17] Connexion manuelle OK pour ' + email);
+                    overlay.remove();
+                    location.reload();
+                } else {
+                    document.getElementById('reconnectStatus').textContent = 'Identifiants incorrects';
+                    document.getElementById('reconnectStatus').style.color = '#dc2626';
+                }
+            }).catch(function() {
+                document.getElementById('reconnectStatus').textContent = 'Erreur reseau';
+                document.getElementById('reconnectStatus').style.color = '#dc2626';
+            });
+        };
+        
+        // Enter pour soumettre
+        document.getElementById('reconnectPassword').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') document.getElementById('reconnectSubmit').click();
+        });
+    }
+    
+    // Bouton "Reconnexion" dans le topbar (toujours visible)
+    setTimeout(function() {
+        var userDiv = document.querySelector('.topbar .user');
+        if (userDiv && !document.getElementById('btnReconnect')) {
+            var btn = document.createElement('button');
+            btn.id = 'btnReconnect';
+            btn.textContent = '🔄 Reconnexion';
+            btn.style.cssText = 'background:rgba(255,255,255,0.1);color:#fff;border:1px solid rgba(255,255,255,0.2);padding:8px 18px;border-radius:6px;font-weight:600;font-size:13px;cursor:pointer;margin-right:8px;';
+            btn.onclick = function() {
+                localStorage.removeItem('token');
+                localStorage.removeItem(CREDS_KEY);
+                showReconnectPrompt();
+            };
+            var logoutBtn = userDiv.querySelector('button');
+            if (logoutBtn) userDiv.insertBefore(btn, logoutBtn);
+            else userDiv.appendChild(btn);
+        }
+    }, 2000);
 })();
 </script>
 </body>
