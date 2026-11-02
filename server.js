@@ -142,7 +142,12 @@ REGLE ABSOLUE DE FIABILITE TECHNIQUE (priorite maximale) :
     if (newQ) cleanPrompt = newQ[1].trim();
     messages.push({ role: "user", content: cleanPrompt + "\n\n[INSTRUCTION CRITIQUE : Pour toute question technique (API, normes, tolerances), tu DOIS utiliser le CONTEXTE RAG ci-dessus. Cite les numeros d'edition et les dates EXACTEMENT comme ils apparaissent dans le contexte. Si l'information n'est pas dans le contexte, dis-le clairement.]" });
 
-    const r = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+    // v1.18 : timeout 25s pour eviter le 502 Render
+    const _ctrl = new AbortController();
+    const _timer = setTimeout(function() { _ctrl.abort(); }, 25000);
+    let r;
+    try {
+      r = await fetch("https://openrouter.ai/api/v1/chat/completions", { signal: _ctrl.signal,
         method: "POST",
         headers: {
             "Authorization": `Bearer ${OPENROUTER_API_KEY}`,
@@ -156,6 +161,12 @@ REGLE ABSOLUE DE FIABILITE TECHNIQUE (priorite maximale) :
             messages: messages
         })
     });
+    clearTimeout(_timer);
+    } catch (e) {
+      clearTimeout(_timer);
+      console.warn('[askAI] Timeout ou erreur : ' + e.message);
+      return '[Timeout] Service temporairement indisponible. Veuillez reessayer dans quelques instants.';
+    }
     const data = await r.json();
     if (!r.ok) throw new Error(data?.error?.message || "OpenRouter error");
     return data?.choices?.[0]?.message?.content || "";
@@ -237,7 +248,7 @@ require('./pdf-report-generator')(app, mongoose);
 
 require('./smart-answer')(app, mongoose);
 require('./memory-fix')(app, mongoose);
-require('./intelligent-router')(app, mongoose);
+// DESACTIVE (crash res.json) : require('./intelligent-router')(app, mongoose);
 require('./freshness-guard')(app, mongoose);
 
 connectMongo().finally(() => {
