@@ -1,0 +1,426 @@
+﻿<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Scholars Connect - Chat IA + QP + Excel</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif; background: #f5f7fa; color: #17202a; }
+.topbar { background: #0a2540; color: #fff; padding: 12px 24px; display: flex; justify-content: space-between; align-items: center; }
+.topbar h1 { font-size: 18px; font-weight: 700; }
+.topbar .user { font-size: 13px; opacity: 0.9; }
+.container { max-width: 1100px; margin: 0 auto; padding: 20px; }
+.tabs { display: flex; gap: 4px; margin-bottom: 16px; border-bottom: 2px solid #e5e7eb; flex-wrap: wrap; }
+.tab { padding: 12px 18px; background: none; border: none; font-size: 14px; font-weight: 600; color: #6b7280; cursor: pointer; border-bottom: 3px solid transparent; margin-bottom: -2px; }
+.tab.active { color: #0a2540; border-bottom-color: #1e5aa8; }
+.tab:hover:not(.active) { color: #1e5aa8; }
+.panel { display: none; }
+.panel.active { display: block; }
+.card { background: #fff; border-radius: 12px; box-shadow: 0 2px 12px rgba(0,0,0,0.06); padding: 24px; margin-bottom: 16px; }
+.card h2 { color: #0a2540; font-size: 17px; margin-bottom: 16px; }
+.option-row { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
+.option-btn { padding: 8px 16px; border: 1px solid #cbd5e1; background: #fff; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; color: #374151; }
+.option-btn.active { background: #1e5aa8; color: #fff; border-color: #1e5aa8; }
+.option-btn:hover:not(.active) { background: #f0f7ff; border-color: #1e5aa8; }
+label { display: block; font-weight: 600; font-size: 13px; color: #374151; margin-bottom: 6px; margin-top: 12px; }
+textarea, input[type="url"], input[type="text"], input[type="email"], input[type="password"] { width: 100%; padding: 12px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 14px; font-family: inherit; margin-bottom: 12px; }
+textarea { min-height: 160px; resize: vertical; font-family: monospace; font-size: 12px; }
+.file-zone { border: 2px dashed #cbd5e1; border-radius: 8px; padding: 20px; text-align: center; cursor: pointer; transition: all 0.2s; margin-bottom: 12px; }
+.file-zone:hover { border-color: #1e5aa8; background: #f0f7ff; }
+.file-zone.has-file { border-color: #16a34a; background: #f0fdf4; }
+button.primary { background: #0a2540; color: #fff; border: 0; padding: 14px 28px; border-radius: 8px; font-size: 15px; font-weight: 700; cursor: pointer; }
+button.primary:hover { background: #1e5aa8; }
+button.primary:disabled { opacity: 0.5; cursor: not-allowed; }
+.chat-messages { background: #f9fafb; border-radius: 10px; padding: 16px; max-height: 500px; overflow-y: auto; margin-bottom: 16px; }
+.msg { margin-bottom: 12px; padding: 12px 16px; border-radius: 10px; font-size: 14px; line-height: 1.6; }
+.msg.user { background: #e0f2fe; color: #0c4a6e; margin-left: auto; max-width: 80%; }
+.msg.bot { background: #fff; border: 1px solid #e5e7eb; color: #17202a; max-width: 90%; }
+.result { margin-top: 20px; padding: 16px; border-radius: 10px; font-size: 13px; line-height: 1.6; display: none; }
+.result.ok { background: #dcfce7; border-left: 4px solid #16a34a; color: #14532d; display: block; }
+.result.ko { background: #fee2e2; border-left: 4px solid #dc2626; color: #7f1d1d; display: block; }
+.result a { background: #0a2540; color: #fff; text-decoration: none; padding: 10px 18px; border-radius: 6px; display: inline-block; margin: 6px 6px 0 0; font-weight: 700; }
+.result a:hover { background: #1e5aa8; }
+.auth-box { background: #fff; border: 2px solid #1e5aa8; border-radius: 10px; padding: 20px; margin-bottom: 16px; }
+.auth-box h2 { color: #0a2540; font-size: 15px; margin-bottom: 12px; }
+.status { font-size: 13px; margin-top: 8px; }
+.status.ok { color: #16a34a; }
+.status.ko { color: #dc2626; }
+.hidden { display: none !important; }
+</style>
+</head>
+<body>
+<div class="topbar">
+  <h1>Scholars Connect - MBA-CONSULT AI CORE</h1>
+  <div class="user" id="userLabel">Non connecte</div>
+</div>
+<div class="container">
+  <div class="auth-box" id="authBox">
+    <h2>1. Connexion</h2>
+    <label>Email</label>
+    <input type="email" id="authEmail" value="demo_0@test.tn">
+    <label>Mot de passe</label>
+    <input type="password" id="authPassword" value="Test123!">
+    <button class="primary" id="btnAuth" type="button">Se connecter</button>
+    <div class="status" id="authStatus"></div>
+  </div>
+
+  <div id="mainArea" class="hidden">
+    <div class="tabs">
+      <button class="tab active" data-tab="analyze">Analyser un document</button>
+      <button class="tab" data-tab="excel">Excel (liste de WO)</button>
+      <button class="tab" data-tab="qp">Generer un Plan Qualite</button>
+      <button class="tab" data-tab="chat">Chat IA</button>
+    </div>
+
+    <!-- ONGLET 1 : ANALYSER -->
+    <div class="panel active" id="panel-analyze">
+      <div class="card">
+        <h2>Analyser un contenu</h2>
+        <div class="option-row">
+          <button class="option-btn active" data-mode="text">Coller du texte</button>
+          <button class="option-btn" data-mode="url">Coller une URL</button>
+          <button class="option-btn" data-mode="file">PDF / DOCX</button>
+        </div>
+        <div id="mode-text">
+          <label>Colle le contenu a analyser (max 20 000 caracteres) :</label>
+          <textarea id="analyzeText" placeholder="Colle ici le contenu du document..."></textarea>
+        </div>
+        <div id="mode-url" class="hidden">
+          <label>URL du document a analyser :</label>
+          <input type="url" id="analyzeUrl" placeholder="https://exemple.com/document.pdf">
+        </div>
+        <div id="mode-file" class="hidden">
+          <label>Choisir un fichier PDF ou DOCX :</label>
+          <div class="file-zone" id="fileZone">
+            <div style="font-size:28px">+</div>
+            <div style="margin-top:8px;font-size:13px">Cliquez ou glissez un fichier ici</div>
+            <input type="file" id="analyzeFile" accept=".pdf,.docx,.txt,.doc" style="display:none">
+          </div>
+        </div>
+        <label>Question specifique (optionnel) :</label>
+        <input type="text" id="analyzeQuestion" placeholder="Ex: Quelles sont les tolerances du seal bore API 14L ?">
+        <button class="primary" id="btnAnalyze" type="button">Analyser</button>
+        <div class="result" id="analyzeResult"></div>
+      </div>
+    </div>
+
+    <!-- ONGLET 2 : EXCEL DEDIE -->
+    <div class="panel" id="panel-excel">
+      <div class="card">
+        <h2>Charger un fichier Excel (liste de Work Orders)</h2>
+        <p style="color:#6b7280;font-size:13px;margin-bottom:16px">Glissez votre fichier Excel / CSV / TSV contenant les colonnes PO, WO, Client, Description, Date, Qty. Le separateur est detecte automatiquement.</p>
+        <label>Fichier Excel / CSV / TSV :</label>
+        <div class="file-zone" id="excelOnlyZone" style="padding:40px">
+          <div style="font-size:40px">XLS</div>
+          <div style="margin-top:10px;font-size:14px;font-weight:600">Cliquez ou glissez votre fichier Excel ici</div>
+          <div style="margin-top:4px;font-size:12px;color:#6b7280">.xlsx, .csv, .tsv, .tab</div>
+          <input type="file" id="excelOnlyFile" accept=".csv,.tsv,.txt,.tab,.xlsx,.xls" style="display:none">
+        </div>
+        <label>Ou coller directement depuis Excel (Ctrl+C / Ctrl+V) :</label>
+        <textarea id="excelOnlyText" placeholder="Collez ici votre tableau Excel (colonnes PO, WO, Client, Description, Date, Qty)..."></textarea>
+        <button class="primary" id="btnExcelOnly" type="button">Generer les QP depuis Excel</button>
+        <div class="result" id="excelOnlyResult"></div>
+      </div>
+    </div>
+
+    <!-- ONGLET 3 : QP MULTI -->
+    <div class="panel" id="panel-qp">
+      <div class="card">
+        <h2>Generer un Plan Qualite (QP STANDARD 01)</h2>
+        <label>Fichier Excel / CSV / TSV :</label>
+        <div class="file-zone" id="qpExcelZone">
+          <div style="font-size:28px">XLS</div>
+          <div style="margin-top:8px;font-size:13px">Cliquez ou glissez un fichier Excel ici</div>
+          <input type="file" id="qpExcelFile" accept=".csv,.tsv,.txt,.tab" style="display:none">
+        </div>
+        <label>Ou fichier PDF (ARC) :</label>
+        <div class="file-zone" id="qpPdfZone">
+          <div style="font-size:28px">PDF</div>
+          <div style="margin-top:8px;font-size:13px">Cliquez ou glissez un PDF ici</div>
+          <input type="file" id="qpPdfFile" accept=".pdf" style="display:none">
+        </div>
+        <button class="primary" id="btnGenerateQP" type="button">Generer le QP</button>
+        <div class="result" id="qpResult"></div>
+      </div>
+    </div>
+
+    <!-- ONGLET 4 : CHAT -->
+    <div class="panel" id="panel-chat">
+      <div class="card">
+        <h2>Chat IA</h2>
+        <div class="chat-messages" id="chatMessages">
+          <div class="msg bot">Bonjour ! Posez-moi n'importe quelle question technique, scientifique ou generale.</div>
+        </div>
+        <div style="display:flex;gap:8px">
+          <input type="text" id="chatInput" placeholder="Posez votre question..." style="flex:1">
+          <button class="primary" id="btnSend" type="button" style="padding:12px 24px">Envoyer</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function() {
+  var API = 'https://scholars-connect-app.onrender.com';
+  var $ = function(id) { return document.getElementById(id); };
+  var token = '';
+
+  // Auth
+  $('btnAuth').addEventListener('click', async function() {
+    var email = $('authEmail').value.trim();
+    var password = $('authPassword').value;
+    if (!email || !password) { showAuthStatus('Email et mot de passe requis', false); return; }
+    $('btnAuth').disabled = true;
+    showAuthStatus('Connexion...', null);
+    try {
+      var resp = await fetch(API + '/api/auth/register', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({email:email,password:password,name:email}) });
+      if (!resp.ok) resp = await fetch(API + '/api/auth/login', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({email:email,password:password}) });
+      if (!resp.ok) throw new Error('HTTP ' + resp.status);
+      var data = await resp.json();
+      if (!data.token) throw new Error('Token manquant');
+      token = data.token;
+      localStorage.setItem('token', token);
+      $('userLabel').textContent = email;
+      $('authBox').classList.add('hidden');
+      $('mainArea').classList.remove('hidden');
+      $('btnAuth').disabled = false;
+    } catch(e) {
+      showAuthStatus('Erreur : ' + e.message, false);
+      $('btnAuth').disabled = false;
+    }
+  });
+  function showAuthStatus(msg, ok) {
+    var el = $('authStatus');
+    el.textContent = msg;
+    el.className = 'status ' + (ok===true ? 'ok' : (ok===false ? 'ko' : ''));
+  }
+  // Auto-login
+  try {
+    var t = localStorage.getItem('token');
+    if (t) { token = t; $('authBox').classList.add('hidden'); $('mainArea').classList.remove('hidden'); $('userLabel').textContent = 'Connecte'; }
+  } catch(e) {}
+
+  // Tabs
+  document.querySelectorAll('.tab').forEach(function(tab) {
+    tab.addEventListener('click', function() {
+      document.querySelectorAll('.tab').forEach(function(t){ t.classList.remove('active'); });
+      document.querySelectorAll('.panel').forEach(function(p){ p.classList.remove('active'); });
+      tab.classList.add('active');
+      $('panel-' + tab.dataset.tab).classList.add('active');
+    });
+  });
+
+  // Modes analyse
+  document.querySelectorAll('.option-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      document.querySelectorAll('.option-btn').forEach(function(b){ b.classList.remove('active'); });
+      btn.classList.add('active');
+      ['text','url','file'].forEach(function(m){ $('mode-'+m).classList.add('hidden'); });
+      $('mode-'+btn.dataset.mode).classList.remove('hidden');
+    });
+  });
+
+  // Upload analyse
+  $('fileZone').addEventListener('click', function(){ $('analyzeFile').click(); });
+  $('analyzeFile').addEventListener('change', function() {
+    var f = this.files[0];
+    if (f) { $('fileZone').classList.add('has-file'); $('fileZone').innerHTML = '<div style="font-size:28px">OK</div><div style="margin-top:8px;font-size:13px;color:#16a34a;font-weight:700">'+f.name+'</div>'; }
+  });
+
+  // Analyser
+  $('btnAnalyze').addEventListener('click', async function() {
+    $('btnAnalyze').disabled = true;
+    var result = $('analyzeResult'); result.className = 'result'; result.style.display = 'none';
+    try {
+      var mode = document.querySelector('.option-btn.active').dataset.mode;
+      var q = $('analyzeQuestion').value.trim();
+      var endpoint, body, ct;
+      if (mode === 'text') {
+        var text = $('analyzeText').value.trim();
+        if (!text) throw new Error('Collez du texte');
+        endpoint = '/api/analyze-content';
+        body = JSON.stringify({content:text, question: q || 'Analyse ce document', domain:'General', language:'fr'});
+        ct = 'application/json';
+      } else if (mode === 'url') {
+        var url = $('analyzeUrl').value.trim();
+        if (!url) throw new Error('Entrez une URL');
+        endpoint = '/api/analyze-content';
+        body = JSON.stringify({content:url, type:'url', question: q || 'Analyse', domain:'General', language:'fr'});
+        ct = 'application/json';
+      } else {
+        var f = $('analyzeFile').files[0];
+        if (!f) throw new Error('Choisissez un fichier');
+        var buf = await f.arrayBuffer();
+        endpoint = '/api/qp-generate-pdf';
+        body = buf;
+        ct = 'application/pdf';
+      }
+      var resp = await fetch(API + endpoint, {method:'POST', headers:{'Authorization':'Bearer '+token, 'Content-Type':ct}, body: body});
+      var data = await resp.json();
+      if (!resp.ok) throw new Error(data.error || ('HTTP '+resp.status));
+      var html = '';
+      if (data.answer) html = '<div style="font-weight:700">Reponse :</div><div>'+data.answer.substring(0,5000)+'</div>';
+      else if (data.ok && data.wo !== undefined) {
+        html = '<div style="font-weight:700">'+data.wo+' WO -> '+data.qpDocs+' QP</div>';
+        if (data.links) html += '<div style="margin-top:12px">'+data.links.map(function(l){return '<a href="'+API+l.url+'" target="_blank">PDF QP '+l.from+' a '+l.to+'</a>';}).join('')+'</div>';
+      } else html = '<pre style="font-size:11px">'+JSON.stringify(data,null,2).substring(0,2000)+'</pre>';
+      result.innerHTML = html;
+      result.className = 'result ok';
+    } catch(e) {
+      result.innerHTML = '<strong>Erreur :</strong> ' + e.message;
+      result.className = 'result ko';
+    }
+    $('btnAnalyze').disabled = false;
+  });
+
+  // ========== ONGLET EXCEL DEDIE ==========
+  $('excelOnlyZone').addEventListener('click', function(){ $('excelOnlyFile').click(); });
+  $('excelOnlyFile').addEventListener('change', function() {
+    var f = this.files[0];
+    if (f) { $('excelOnlyZone').classList.add('has-file'); $('excelOnlyZone').innerHTML = '<div style="font-size:40px">OK</div><div style="margin-top:10px;font-size:14px;color:#16a34a;font-weight:700">'+f.name+' ('+Math.round(f.size/1024)+' Ko)</div>'; }
+  });
+  $('excelOnlyZone').addEventListener('dragover', function(e){ e.preventDefault(); this.style.borderColor='#16a34a'; this.style.background='#f0fdf4'; });
+  $('excelOnlyZone').addEventListener('dragleave', function(e){ e.preventDefault(); this.style.borderColor=''; this.style.background=''; });
+  $('excelOnlyZone').addEventListener('drop', function(e) {
+    e.preventDefault(); this.style.borderColor=''; this.style.background='';
+    var f = e.dataTransfer.files[0];
+    if (f) {
+      $('excelOnlyFile').files = e.dataTransfer.files;
+      $('excelOnlyZone').classList.add('has-file');
+      $('excelOnlyZone').innerHTML = '<div style="font-size:40px">OK</div><div style="margin-top:10px;font-size:14px;color:#16a34a;font-weight:700">'+f.name+' ('+Math.round(f.size/1024)+' Ko)</div><div style="font-size:12px;color:#6b7280">Glisse</div>';
+    }
+  });
+
+  $('btnExcelOnly').addEventListener('click', async function() {
+    $('btnExcelOnly').disabled = true;
+    var result = $('excelOnlyResult');
+    result.className = 'result ok';
+    result.innerHTML = '<div style="color:#1e5aa8">Analyse en cours...</div>';
+    try {
+      var f = $('excelOnlyFile').files[0];
+      var text = $('excelOnlyText').value.trim();
+      var content = '';
+      if (f) content = await f.text();
+      else if (text) content = text;
+      else throw new Error('Choisissez un fichier ou collez du texte');
+      var resp = await fetch(API + '/api/qp-generate-excel', {method:'POST', headers:{'Authorization':'Bearer '+token, 'Content-Type':'text/plain; charset=utf-8'}, body: content});
+      var data = await resp.json();
+      if (!data.ok) throw new Error(data.error || 'Erreur');
+      var html = '<div style="font-weight:800;font-size:16px;color:#0a2540;margin-bottom:12px">'+data.wo+' WO -> '+data.qpDocs+' QP generes</div>';
+      html += '<table style="width:100%;font-size:13px;margin-bottom:12px">';
+      if (data.customer) html += '<tr><td style="width:150px;font-weight:700;padding:4px 0">Client :</td><td>'+data.customer+'</td></tr>';
+      if (data.po) html += '<tr><td style="font-weight:700;padding:4px 0">PO :</td><td>'+data.po+'</td></tr>';
+      if (data.avgConfidence !== undefined) html += '<tr><td style="font-weight:700;padding:4px 0">Confiance :</td><td>'+data.avgConfidence+'%</td></tr>';
+      html += '</table>';
+      if (data.excelDiag) {
+        var d = data.excelDiag;
+        html += '<div style="background:#f0f7ff;border:1px solid #cbd5e1;border-radius:8px;padding:12px;font-size:12px;margin-bottom:12px;font-family:monospace"><strong>Diagnostic Excel :</strong><br>';
+        html += 'Separateur : <b>'+d.detectedSeparator+'</b><br>';
+        html += 'Entete : <b>'+(d.headerDetected ? 'detectee' : 'non detectee')+'</b><br>';
+        html += 'Lignes donnees : <b>'+d.dataRows+'</b><br>';
+        html += 'WO valides : <b>'+d.validWOs+'</b>';
+        if (d.skippedRows && d.skippedRows.length > 0) html += '<br><span style="color:#b45309">Lignes ignorees : <b>'+d.skippedRows.length+'</b></span>';
+        if (d.columnMapping) { var m = d.columnMapping; html += '<br>Mapping : PO='+m.po+' WO='+m.wo+' Client='+m.customer+' Desc=['+(m.desc||[]).join(',')+'] Date='+m.dated+' Qty='+m.qte; }
+        html += '</div>';
+      }
+      if (data.ids && data.ids.length) {
+        html += '<div style="margin-bottom:12px"><strong>'+data.ids.length+' WO detectes :</strong><br><div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:6px">';
+        data.ids.slice(0, 60).forEach(function(id){ html += '<span style="background:#fff;border:1px solid #1e5aa8;color:#1e5aa8;padding:3px 8px;border-radius:12px;font-size:11px;font-weight:700">QP-'+id+'</span>'; });
+        if (data.ids.length > 60) html += '<span style="font-size:11px;color:#6b7280">+'+(data.ids.length-60)+'</span>';
+        html += '</div></div>';
+      }
+      if (data.links && data.links.length) {
+        html += '<div style="margin-top:14px;font-weight:700;color:#0a2540;font-size:14px">Telecharger les PDF :</div>';
+        data.links.forEach(function(l){ html += '<a href="'+API+l.url+'" target="_blank" rel="noopener">QP '+l.from+' a '+l.to+'</a>'; });
+      }
+      result.innerHTML = html;
+      result.className = 'result ok';
+    } catch(e) {
+      result.innerHTML = '<strong>Erreur :</strong> ' + e.message;
+      result.className = 'result ko';
+    }
+    $('btnExcelOnly').disabled = false;
+  });
+
+  // ========== ONGLET QP MULTI ==========
+  $('qpExcelZone').addEventListener('click', function(){ $('qpExcelFile').click(); });
+  $('qpExcelFile').addEventListener('change', function() {
+    var f = this.files[0];
+    if (f) { $('qpExcelZone').classList.add('has-file'); $('qpExcelZone').innerHTML = '<div style="font-size:28px">OK</div><div style="font-size:13px;color:#16a34a;font-weight:700">'+f.name+'</div>'; }
+  });
+  $('qpPdfZone').addEventListener('click', function(){ $('qpPdfFile').click(); });
+  $('qpPdfFile').addEventListener('change', function() {
+    var f = this.files[0];
+    if (f) { $('qpPdfZone').classList.add('has-file'); $('qpPdfZone').innerHTML = '<div style="font-size:28px">OK</div><div style="font-size:13px;color:#16a34a;font-weight:700">'+f.name+'</div>'; }
+  });
+
+  $('btnGenerateQP').addEventListener('click', async function() {
+    $('btnGenerateQP').disabled = true;
+    var result = $('qpResult');
+    result.className = 'result'; result.style.display = 'none';
+    try {
+      var excelF = $('qpExcelFile').files[0];
+      var pdfF = $('qpPdfFile').files[0];
+      var endpoint, body, ct;
+      if (pdfF) {
+        var buf = await pdfF.arrayBuffer();
+        endpoint = '/api/qp-generate-pdf'; body = buf; ct = 'application/pdf';
+      } else if (excelF) {
+        var content = await excelF.text();
+        endpoint = '/api/qp-generate-excel'; body = content; ct = 'text/plain; charset=utf-8';
+      } else throw new Error('Choisissez un fichier');
+      var resp = await fetch(API + endpoint, {method:'POST', headers:{'Authorization':'Bearer '+token, 'Content-Type':ct}, body: body});
+      var data = await resp.json();
+      if (!data.ok) throw new Error(data.error || 'Erreur');
+      var html = '<div style="font-weight:700;font-size:15px">'+data.wo+' WO -> '+data.qpDocs+' QP</div>';
+      if (data.customer) html += '<div>Client : '+data.customer+'</div>';
+      if (data.po) html += '<div>PO : '+data.po+'</div>';
+      if (data.links) html += '<div style="margin-top:14px">'+data.links.map(function(l){return '<a href="'+API+l.url+'" target="_blank">PDF QP '+l.from+' a '+l.to+'</a>';}).join('')+'</div>';
+      result.innerHTML = html;
+      result.className = 'result ok';
+    } catch(e) {
+      result.innerHTML = '<strong>Erreur :</strong> ' + e.message;
+      result.className = 'result ko';
+    }
+    $('btnGenerateQP').disabled = false;
+  });
+
+  // ========== CHAT ==========
+  $('btnSend').addEventListener('click', sendChat);
+  $('chatInput').addEventListener('keypress', function(e){ if (e.key === 'Enter') sendChat(); });
+  async function sendChat() {
+    var q = $('chatInput').value.trim();
+    if (!q) return;
+    addMsg('user', q);
+    $('chatInput').value = '';
+    $('btnSend').disabled = true;
+    try {
+      var resp = await fetch(API + '/api/ask', {method:'POST', headers:{'Authorization':'Bearer '+token, 'Content-Type':'application/json'}, body: JSON.stringify({question:q, language:'fr', domain:'General'})});
+      var data = await resp.json();
+      var answer = data.answer || data.error || 'Pas de reponse';
+      if (answer.indexOf('<') !== -1 && answer.indexOf('>') !== -1) addMsgHtml('bot', answer);
+      else addMsg('bot', answer);
+    } catch(e) { addMsg('bot', 'Erreur : ' + e.message); }
+    $('btnSend').disabled = false;
+  }
+  function addMsg(role, text) {
+    var div = document.createElement('div');
+    div.className = 'msg ' + role;
+    div.textContent = text;
+    $('chatMessages').appendChild(div);
+    $('chatMessages').scrollTop = $('chatMessages').scrollHeight;
+  }
+  function addMsgHtml(role, html) {
+    var div = document.createElement('div');
+    div.className = 'msg ' + role;
+    div.innerHTML = html;
+    $('chatMessages').appendChild(div);
+    $('chatMessages').scrollTop = $('chatMessages').scrollHeight;
+  }
+
+})();
+</script>
+</body>
+</html>
