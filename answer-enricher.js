@@ -734,7 +734,7 @@ function generateTechSheet(domain, docsUsed, semanticScore, scholars, judgeResul
   if (mode === 'document') html += '<tr><td style="opacity:0.75">Source</td><td>Document colle</td></tr>';
   else { html += '<tr><td style="opacity:0.75">Score</td><td>' + Math.round(semanticScore * 100) + ' %</td></tr>'; html += '<tr><td style="opacity:0.75">Docs</td><td>' + docsUsed + '</td></tr>'; }
   if (scholars && scholars.length) html += '<tr><td style="opacity:0.75">Scholars</td><td>' + esc(scholars.join(', ')) + '</td></tr>';
-  html += '<tr><td style="opacity:0.75">Moteur IA</td><td>MBA-CONSULT AI CORE v1.9</td></tr>';
+  html += '<tr><td style="opacity:0.75">Moteur IA</td><td>MBA-CONSULT AI CORE v1.14</td></tr>';
   html += '<tr><td style="opacity:0.75">Validation</td><td>Juge Claude</td></tr>';
   html += '<tr><td style="opacity:0.75">Date</td><td>' + new Date().toLocaleString('fr-FR') + '</td></tr>';
   html += '</table></div>';
@@ -1686,22 +1686,25 @@ module.exports = function(app, mongoose) {
 
   async function ragPreprocessAsk(req, res, next) {
     if (!req.body || !req.body.question) return next();
-    // v1.8 : ne pas injecter de RAG pour les questions non techniques
-    var _dom = req.body.domain || 'General';
-    var _techDoms = ['Plan Qualite', 'Petrole & Gaz', 'Technique', 'Sciences'];
-    if (_techDoms.indexOf(_dom) === -1) {
-      console.log('[v1.8 ragPreprocessAsk] domaine="' + _dom + '" non technique -> pas de RAG');
-      return next();
-    }
+    // v1.14 : injecter le RAG si la question a des documents pertinents (topScore >= 0.30)
+    // On NE fait PAS confiance a req.body.domain (peut etre 'General' par defaut)
+    var q = String(req.body.question || '');
+    // Extraire la vraie question si deja enrichie
+    var _hm = q.match(/Nouvelle question[^:]*:\s*([\s\S]+)$/i);
+    if (_hm) q = _hm[1].trim();
+    
     if (!AutoFeedDoc) { try { AutoFeedDoc = mongoose.model('AutoFeedDocument'); } catch (e) { return next(); } }
     try {
-      var q = req.body.question;
-      var rag = await buildRagContext(AutoFeedDoc, q, 3, 3500);
-      if (rag.context && rag.context.length > 200) {
+      var rag = await buildRagContext(AutoFeedDoc, q, 5, 4000);
+      var _topScore = rag.topScore || 0;
+      if (rag.context && rag.context.length > 200 && _topScore >= 0.30) {
         req.body.question = q + '\n\n[EXTRAITS]\n' + rag.context + '\n[FIN EXTRAITS]\n\nQuestion : ' + q;
         req._ragDocs = rag.docs;
+        console.log('[v1.14 ragPreprocessAsk] RAG INJECTE : ' + rag.docs.length + ' docs, topScore=' + _topScore.toFixed(2));
+      } else {
+        console.log('[v1.14 ragPreprocessAsk] Pas de RAG (topScore=' + _topScore.toFixed(2) + ' < 0.30) - question: ' + q.slice(0, 60));
       }
-    } catch (e) {}
+    } catch (e) { console.log('[v1.14 ragPreprocessAsk] Erreur: ' + e.message); }
     next();
   }
 
