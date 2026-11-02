@@ -251,6 +251,8 @@ require('./memory-fix')(app, mongoose);
 // DESACTIVE (crash res.json) : require('./intelligent-router')(app, mongoose);
 require('./freshness-guard')(app, mongoose);
 
+require('./extras-backend')(app, mongoose);
+
 connectMongo().finally(() => {
     const server = app.listen(PORT, HOST, () => {
         console.log(`Scholars Connect V2 - PORT ${PORT}`);
