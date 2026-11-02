@@ -100,7 +100,13 @@ MEMOIRE CONVERSATIONNELLE :
 - Si la question est courte (et sa population, et son president, combien, et apres), refere-toi au SUJET de la derniere question de l'historique.
 - Ne demande JAMAIS de preciser le sujet si l'historique le mentionne.
 - Ne mentionne PAS l'historique dans ta reponse. Reponds naturellement.
-- Ne dis JAMAIS "en tant qu'IA"`;
+- Ne dis JAMAIS "en tant qu'IA"
+- REGLE ABSOLUE POUR LES DOMAINES TECHNIQUES (Petrole & Gaz, Technique, Plan Qualite, Sciences) :
+  * Tu DOIS répondre EXCLUSIVEMENT à partir du CONTEXTE RAG fourni ci-dessous.
+  * Si le contexte contient des chiffres, dates, éditions, tolérances : CITE-LES EXACTEMENT.
+  * Ne JAMAIS inventer une date, une édition ou une valeur technique.
+  * Si le contexte ne contient pas l'information, dis "Je ne trouve pas cette information dans la base de connaissances actuelle. Veuillez consulter le document officiel API."
+  * Pour les questions sur les normes API : utilise UNIQUEMENT les éditions présentes dans le contexte RAG.`;
 
     // INJECTION DU CONTEXTE RAG (API 14L, etc.)
     let finalPrompt = prompt;
@@ -128,7 +134,7 @@ MEMOIRE CONVERSATIONNELLE :
     if (histPrefix) cleanPrompt = cleanPrompt.replace(histPrefix[0], '').trim();
     const newQ = cleanPrompt.match(/Nouvelle question\s*:\s*\n?([\s\S]+)$/);
     if (newQ) cleanPrompt = newQ[1].trim();
-    messages.push({ role: "user", content: cleanPrompt });
+    messages.push({ role: "user", content: cleanPrompt + "\n\n[INSTRUCTION CRITIQUE : Pour toute question technique (API, normes, tolerances), tu DOIS utiliser le CONTEXTE RAG ci-dessus. Cite les numeros d'edition et les dates EXACTEMENT comme ils apparaissent dans le contexte. Si l'information n'est pas dans le contexte, dis-le clairement.]" });
 
     const r = await fetch("https://openrouter.ai/api/v1/chat/completions", {
         method: "POST",
