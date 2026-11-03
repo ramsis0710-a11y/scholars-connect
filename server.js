@@ -238,13 +238,18 @@ try {
     (typeof ragMatch   !== 'undefined' && ragMatch && ragMatch[1]) ||
     (typeof docsContext!== 'undefined' && docsContext) ||
     '';
-  if (__ragCtx && String(__ragCtx).trim().length > 100) {
+  var __ragLen = __ragCtx ? String(__ragCtx).trim().length : 0;
+  if (__ragCtx && __ragLen > 100) {
+    console.log('[RAG-FALLBACK-V1] OK-UTILISE - longueur=' + __ragLen);
     var __extrait = String(__ragCtx).trim().slice(0, 1500);
     return "[Reponse generee depuis la base locale - services IA externes indisponibles]\n\n" +
            __extrait +
            "\n\n(Source : base documentaire interne. Verifier OPENROUTER_API_KEY / GEMINI_API_KEY / OPENAI_API_KEY sur Render.)";
   }
-} catch (__e) { /* ignore */ }
+  console.log('[RAG-FALLBACK-V1] NON-UTILISE - ragMatch=' + (typeof ragMatch) + ' __ragCtx_len=' + __ragLen);
+} catch (__e) {
+  console.log('[RAG-FALLBACK-V1] EXCEPTION: ' + __e.message);
+}
 // ===== fin RAG-FALLBACK-V1 =====
 
     return "[Service IA temporairement indisponible] OpenRouter/Gemini/OpenAI ont tous echoue.";
