@@ -86,43 +86,8 @@ function requireAuth(req, res, next) {
 // ============================================================
 // IA CENTRALE : RAG INJECTION + MAX TOKENS
 // ============================================================
-async function callGeminiAI(messages, system) {
-    const key = process.env.GEMINI_API_KEY;
-    if (!key) throw new Error('GEMINI_API_KEY absente');
-    const { GoogleGenAI } = require('@google/genai');
-    const ai = new GoogleGenAI({ apiKey: key });
-    const parts = [system || ''];
-    for (let i = 0; i < messages.length; i++) {
-        const m = messages[i];
-        if (m.role === 'system') continue;
-        parts.push((m.role === 'user' ? 'Utilisateur: ' : 'Assistant: ') + m.content);
-    }
-    const r = await ai.models.generateContent({
-        model: process.env.GEMINI_MODEL || 'gemini-2.5-flash',
-        contents: parts.join('\n\n')
-    });
-    return (r && r.text) || '';
-}
-
-async function callOpenAIAI(messages) {
-    const key = process.env.OPENAI_API_KEY;
-    if (!key) throw new Error('OPENAI_API_KEY absente');
-    const r = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: { 'Authorization': 'Bearer ' + key, 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            model: 'gpt-4o-mini',
-            temperature: 0.2,
-            max_tokens: 4000,
-            messages: messages
-        })
-    });
-    if (!r.ok) throw new Error('OpenAI HTTP ' + r.status);
-    const j = await r.json();
-    return (j && j.choices && j.choices[0] && j.choices[0].message) ? j.choices[0].message.content : '';
-}
 async function askAI(prompt, opts = {}) {
-    const { domain = "General", language = "fr", history = [] } = opts;
+    const { domain = "General", language = "fr" } = opts;
 
     let system = `Tu es Scholars Connect, un assistant academique chaleureux et humain, propulse par MBA-CONSULT AI CORE.
 ROLE : Aider les etudiants avec pedagogie. Corriger les exercices en detaillant CHAQUE etape.
@@ -130,24 +95,7 @@ STYLE ET TON :
 - Sois CHALEUREUX et encourageant
 - Phrases courtes et naturelles
 - Termine par une formule encourageante
-MEMOIRE CONVERSATIONNELLE :
-- Si le message contient "=== INSTRUCTIONS DE MEMOIRE ===" ou "=== HISTORIQUE DE LA CONVERSATION ===", tu DOIS utiliser cet historique.
-- Si la question est courte (et sa population, et son president, combien, et apres), refere-toi au SUJET de la derniere question de l'historique.
-- Ne demande JAMAIS de preciser le sujet si l'historique le mentionne.
-- Ne mentionne PAS l'historique dans ta reponse. Reponds naturellement.
-- Ne dis JAMAIS "en tant qu'IA"
-REGLE ABSOLUE DE FIABILITE TECHNIQUE (priorite maximale) :
-1. Pour toute question technique (API, normes, tolerances, petrole, gaz, plan qualite, soudure, acier) : tu DOIS repondre EXCLUSIVEMENT a partir du CONTEXTE RAG fourni.
-2. Tu DOIS citer les editions, dates et valeurs EXACTEMENT comme elles apparaissent dans le contexte RAG.
-3. Si le contexte RAG contient la reponse, TU DOIS l'utiliser, MEME SI ta memoire pre-entrainee dit autre chose. La base RAG est PLUS A JOUR que ta memoire interne.
-4. Si le contexte RAG ne contient PAS l'information demandee, reponds EXACTEMENT : "Cette information precise n'est pas dans ma base de connaissances actuelle. Veuillez consulter le document officiel API ou le site api.org."
-5. N'INVENTE JAMAIS une date, une edition ou une valeur technique. Une reponse fausse est PIRE qu'une absence de reponse.
-- REGLE ABSOLUE POUR LES DOMAINES TECHNIQUES (Petrole & Gaz, Technique, Plan Qualite, Sciences) :
-  * Tu DOIS répondre EXCLUSIVEMENT à partir du CONTEXTE RAG fourni ci-dessous.
-  * Si le contexte contient des chiffres, dates, éditions, tolérances : CITE-LES EXACTEMENT.
-  * Ne JAMAIS inventer une date, une édition ou une valeur technique.
-  * Si le contexte ne contient pas l'information, dis "Je ne trouve pas cette information dans la base de connaissances actuelle. Veuillez consulter le document officiel API."
-  * Pour les questions sur les normes API : utilise UNIQUEMENT les éditions présentes dans le contexte RAG.`;
+- Ne dis JAMAIS "en tant qu'IA"`;
 
     // INJECTION DU CONTEXTE RAG (API 14L, etc.)
     let finalPrompt = prompt;
@@ -159,100 +107,26 @@ REGLE ABSOLUE DE FIABILITE TECHNIQUE (priorite maximale) :
 
     if (!OPENROUTER_API_KEY) return "[Mode degrade] OPENROUTER_API_KEY non configuree.";
 
-    // v1.10 : construire messages avec historique separe (format ChatGPT)
-    const messages = [{ role: "system", content: system }];
-    if (Array.isArray(history) && history.length > 0) {
-        history.slice(-6).forEach(function(m) {
-            const role = (m.role === 'user') ? 'user' : 'assistant';
-            let content = String(m.content || m.text || '').split(/Fiche technique/i)[0].replace(/Reponse detaillee/i, '').trim();
-            if (content) messages.push({ role: role, content: content });
-        });
-        console.log('[v1.10 askAI] ' + history.length + ' messages historique ajoutes');
-    }
-    // Parser le prompt : retirer l historique eventuel (ancien format memory-fix) pour ne pas doubler
-    let cleanPrompt = finalPrompt;
-    const histPrefix = cleanPrompt.match(/=== HISTORIQUE DE LA CONVERSATION ===[\s\S]*?=== FIN HISTORIQUE ===\s*/);
-    if (histPrefix) cleanPrompt = cleanPrompt.replace(histPrefix[0], '').trim();
-    const newQ = cleanPrompt.match(/Nouvelle question\s*:\s*\n?([\s\S]+)$/);
-    if (newQ) cleanPrompt = newQ[1].trim();
-    messages.push({ role: "user", content: cleanPrompt + "\n\n[INSTRUCTION CRITIQUE : Pour toute question technique (API, normes, tolerances), tu DOIS utiliser le CONTEXTE RAG ci-dessus. Cite les numeros d'edition et les dates EXACTEMENT comme ils apparaissent dans le contexte. Si l'information n'est pas dans le contexte, dis-le clairement.]" });
-
-        // v1.24 : cascade OpenRouter -> Gemini -> OpenAI
-    let _answer = "";
-    if (OPENROUTER_API_KEY) {
-      const _ctrl = new AbortController();
-      const _timer = setTimeout(function() { _ctrl.abort(); }, 25000);
-      try {
-        const r = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-          signal: _ctrl.signal,
-          method: "POST",
-          headers: {
+    const r = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+        method: "POST",
+        headers: {
             "Authorization": `Bearer ${OPENROUTER_API_KEY}`,
             "Content-Type": "application/json",
             "HTTP-Referer": "https://scholars-connect-app.onrender.com"
-          },
-          body: JSON.stringify({
+        },
+        body: JSON.stringify({
             model: OPENROUTER_MODEL,
             temperature: 0.2,
-            max_tokens: 4000,
-            messages: messages
-          })
-        });
-        clearTimeout(_timer);
-        if (r.ok) {
-          try {
-            const data = await r.json();
-            _answer = (data && data.choices && data.choices[0] && data.choices[0].message) ? data.choices[0].message.content : "";
-          } catch(e) { console.warn('[askAI] OpenRouter json KO : ' + e.message); }
-          if (_answer && _answer.length > 20) {
-            console.log('[askAI] OpenRouter OK (' + _answer.length + ' chars)');
-            return _answer;
-          }
-        } else {
-          console.warn('[askAI] OpenRouter HTTP ' + r.status + ' - Fallback Gemini/OpenAI');
-        }
-      } catch (e) {
-        clearTimeout(_timer);
-        console.warn('[askAI] OpenRouter KO : ' + e.message);
-      }
-    }
-    try {
-      const gAnswer = await callGeminiAI(messages, system);
-      if (gAnswer && gAnswer.length > 20) {
-        console.log('[askAI] Fallback Gemini OK (' + gAnswer.length + ' chars)');
-        return gAnswer;
-      }
-    } catch(e) { console.warn('[askAI] Gemini KO : ' + e.message); }
-    try {
-      const oAnswer = await callOpenAIAI(messages);
-      if (oAnswer && oAnswer.length > 20) {
-        console.log('[askAI] Fallback OpenAI OK (' + oAnswer.length + ' chars)');
-        return oAnswer;
-      }
-    } catch(e) { console.warn('[askAI] OpenAI KO : ' + e.message); }
-// ===== RAG-FALLBACK-V1 : v1.25 - fallback local si tous les providers echouent =====
-try {
-  var __ragCtx =
-    (typeof ragContext !== 'undefined' && ragContext) ||
-    (typeof ragResult  !== 'undefined' && ragResult && ragResult.context) ||
-    (typeof ragMatch   !== 'undefined' && ragMatch && ragMatch[1]) ||
-    (typeof docsContext!== 'undefined' && docsContext) ||
-    '';
-  var __ragLen = __ragCtx ? String(__ragCtx).trim().length : 0;
-  if (__ragCtx && __ragLen > 100) {
-    console.log('[RAG-FALLBACK-V1] OK-UTILISE - longueur=' + __ragLen);
-    var __extrait = String(__ragCtx).trim().slice(0, 1500);
-    return "[Reponse generee depuis la base locale - services IA externes indisponibles]\n\n" +
-           __extrait +
-           "\n\n(Source : base documentaire interne. Verifier OPENROUTER_API_KEY / GEMINI_API_KEY / OPENAI_API_KEY sur Render.)";
-  }
-  console.log('[RAG-FALLBACK-V1] NON-UTILISE - ragMatch=' + (typeof ragMatch) + ' __ragCtx_len=' + __ragLen);
-} catch (__e) {
-  console.log('[RAG-FALLBACK-V1] EXCEPTION: ' + __e.message);
-}
-// ===== fin RAG-FALLBACK-V1 =====
-
-    return "[Service IA temporairement indisponible] OpenRouter/Gemini/OpenAI ont tous echoue.";
+            max_tokens: 4000, // CORRECTION CRITIQUE
+            messages: [
+                { role: "system", content: system },
+                { role: "user", content: finalPrompt }
+            ]
+        })
+    });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data?.error?.message || "OpenRouter error");
+    return data?.choices?.[0]?.message?.content || "";
 }
 
 app.get("/api/health", (req, res) => res.json({ ok: true, mongo: mongoReady, ai: !!OPENROUTER_API_KEY }));
@@ -296,21 +170,15 @@ app.get("/api/auth/me", requireAuth, async (req, res) => {
 require('./ultimate-bridge')(app, mongoose);
 
 app.post("/api/ask", requireAuth, async (req, res) => {
-    const { question, language, domain, history } = req.body || {};
-    if (!question) return res.status(400).json({ error: "question requise" });
-    let answer;
     try {
-        answer = await askAI(question, { domain, language, history });
-    } catch (e) {
-        console.warn("[api/ask] askAI crash : " + e.message);
-        answer = "[Erreur IA temporaire] " + (e.message || "inconnue") + ". Veuillez reessayer dans quelques instants.";
-    }
-    try {
-        if (mongoReady && answer && answer.indexOf("[Erreur") !== 0 && answer.indexOf("[Service IA") !== 0 && answer.indexOf("[Timeout") !== 0) {
+        const { question, language, domain } = req.body || {};
+        if (!question) return res.status(400).json({ error: "question requise" });
+        const answer = await askAI(question, { domain, language });
+        if (mongoReady) {
             await QA.create({ userId: req.user.id, question, answer, language: language || "fr", domain: domain || "General" });
         }
-    } catch (e) { console.warn("[api/ask] QA.create erreur : " + e.message); }
-    return res.json({ answer, language: language || "fr" });
+        res.json({ answer, language: language || "fr" });
+    } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 app.get("/api/history", requireAuth, async (req, res) => {
@@ -326,16 +194,7 @@ app.get("/login", (req, res) => res.sendFile(path.join(__dirname, "public", "log
 app.get("/admin", (req, res) => res.sendFile(path.join(__dirname, "public", "admin.html")));
 app.get("/", (req, res) => res.sendFile(path.join(__dirname, "public", "index.html")));
 
-// v1.23 : error handler global - ne jamais renvoyer 500
-app.use((err, req, res, next) => {
-    console.error("[global-error] " + (err && err.stack || err));
-    if (res.headersSent) return next(err);
-    const msg = (err && err.message) || "Erreur inconnue";
-    if (req.path === "/api/ask") return res.json({ answer: "[Erreur temporaire] " + msg });
-    return res.status(500).json({ error: msg });
-});
 
-app.use((req, res) => res.status(404).json({ error: "Endpoint introuvable" }));
 
 require('./pdf-report-generator')(app, mongoose);
 
@@ -344,15 +203,10 @@ require('./pdf-report-generator')(app, mongoose);
 
 // DESACTIVE TEMPORAIREMENT : require('./smart-router')(app, mongoose);
 
-require('./smart-answer')(app, mongoose);
-require('./memory-fix')(app, mongoose);
-// DESACTIVE (crash res.json) : require('./intelligent-router')(app, mongoose);
-require('./freshness-guard')(app, mongoose);
-
-// DESACTIVE : require('./extras-backend')(app, mongoose);
-
 connectMongo().finally(() => {
-    const server = app.listen(PORT, HOST, () => {
+    const server = app.use((req, res) => res.status(404).json({ error: "Endpoint introuvable" }));
+
+app.listen(PORT, HOST, () => {
         console.log(`Scholars Connect V2 - PORT ${PORT}`);
     });
 });
