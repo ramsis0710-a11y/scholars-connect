@@ -1,4 +1,4 @@
-Ôªø<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
@@ -80,8 +80,8 @@ textarea { min-height: 100px; resize: vertical; font-family: monospace; }
         </div>
     </div>
     <div class="user">
-        <span id="userLabel">Non connect√©</span>
-        <button id="btnLogout" onclick="logout()">D√©connexion</button>
+        <span id="userLabel">Non connectÈ</span>
+        <button id="btnLogout" onclick="logout()">DÈconnexion</button>
     </div>
 </div>
 
@@ -92,13 +92,13 @@ textarea { min-height: 100px; resize: vertical; font-family: monospace; }
             <button class="tab active" data-tab="chat">Chat</button>
             <button class="tab" data-tab="analyze">Analyser un document</button>
             <button class="tab" data-tab="excel">Excel (liste de WO)</button>
-            <button class="tab" data-tab="qp">G√©n√©rer un Plan Qualit√©</button>
+            <button class="tab" data-tab="qp">GÈnÈrer un Plan QualitÈ</button>
         </div>
 
         <!-- Panneau Chat -->
         <div class="panel active" id="panel-chat">
             <div class="chat-messages" id="chatMessages">
-                <div class="msg bot">Bonjour ! Posez-moi n'importe quelle question technique, scientifique ou g√©n√©rale.</div>
+                <div class="msg bot">Bonjour ! Posez-moi n'importe quelle question technique, scientifique ou gÈnÈrale.</div>
             </div>
         </div>
 
@@ -112,23 +112,23 @@ textarea { min-height: 100px; resize: vertical; font-family: monospace; }
                     <button class="opt-btn" data-mode="file">PDF / DOCX</button>
                 </div>
                 <div id="mode-text">
-                    <label>Colle le contenu √† analyser (max 20 000 caract√®res) :</label>
+                    <label>Colle le contenu ‡ analyser (max 20 000 caractËres) :</label>
                     <textarea id="analyzeText" placeholder="Colle ici le contenu du document..."></textarea>
                 </div>
                 <div id="mode-url" class="hidden">
-                    <label>URL du document √† analyser :</label>
+                    <label>URL du document ‡ analyser :</label>
                     <input type="url" id="analyzeUrl" placeholder="https://exemple.com/document.pdf">
                 </div>
                 <div id="mode-file" class="hidden">
                     <label>Choisir un fichier PDF ou DOCX :</label>
                     <div class="zone" id="fileZone">
-                        <div style="font-size:24px;">üìé</div>
+                        <div style="font-size:24px;">??</div>
                         <div>Cliquez ou glissez un fichier ici</div>
                         <input type="file" id="analyzeFile" accept=".pdf,.docx,.txt,.doc">
                     </div>
                 </div>
-                <label>Question sp√©cifique (optionnel) :</label>
-                <input type="text" id="analyzeQuestion" placeholder="Ex: Quelles sont les tol√©rances du seal bore API 14L ?">
+                <label>Question spÈcifique (optionnel) :</label>
+                <input type="text" id="analyzeQuestion" placeholder="Ex: Quelles sont les tolÈrances du seal bore API 14L ?">
                 <button class="btn-primary" id="btnAnalyze" type="button">Analyser</button>
                 <div class="result" id="analyzeResult"></div>
             </div>
@@ -140,14 +140,14 @@ textarea { min-height: 100px; resize: vertical; font-family: monospace; }
                 <h3>Charger un fichier Excel (liste de Work Orders)</h3>
                 <label>Fichier Excel / CSV / TSV :</label>
                 <div class="zone" id="excelZone" style="padding:30px;">
-                    <div style="font-size:32px;">üìä</div>
+                    <div style="font-size:32px;">??</div>
                     <div style="margin-top:6px;">Cliquez ou glissez votre fichier Excel ici</div>
                     <div style="margin-top:4px;font-size:11px;color:#9ca3af;">.xlsx, .csv, .tsv, .tab</div>
                     <input type="file" id="excelFile" accept=".csv,.tsv,.txt,.tab,.xlsx,.xls">
                 </div>
                 <label>Ou coller directement depuis Excel (Ctrl+C / Ctrl+V) :</label>
                 <textarea id="excelText" placeholder="Collez ici votre tableau Excel..."></textarea>
-                <button class="btn-primary btn-green" id="btnExcel" type="button">G√©n√©rer les QP depuis Excel</button>
+                <button class="btn-primary btn-green" id="btnExcel" type="button">GÈnÈrer les QP depuis Excel</button>
                 <div class="result" id="excelResult"></div>
             </div>
         </div>
@@ -155,20 +155,20 @@ textarea { min-height: 100px; resize: vertical; font-family: monospace; }
         <!-- Panneau QP -->
         <div class="panel" id="panel-qp">
             <div class="card">
-                <h3>G√©n√©rer un Plan Qualit√©</h3>
+                <h3>GÈnÈrer un Plan QualitÈ</h3>
                 <label>Fichier Excel / CSV / TSV :</label>
                 <div class="zone" id="qpExcelZone">
-                    <div style="font-size:24px;">üìä</div>
+                    <div style="font-size:24px;">??</div>
                     <div>Cliquez ou glissez un fichier Excel</div>
                     <input type="file" id="qpExcelFile" accept=".csv,.tsv,.txt,.tab">
                 </div>
                 <label>Ou fichier PDF (ARC) :</label>
                 <div class="zone" id="qpPdfZone">
-                    <div style="font-size:24px;">üìÑ</div>
+                    <div style="font-size:24px;">??</div>
                     <div>Cliquez ou glissez un PDF</div>
                     <input type="file" id="qpPdfFile" accept=".pdf">
                 </div>
-                <button class="btn-primary" id="btnQP" type="button">G√©n√©rer le QP</button>
+                <button class="btn-primary" id="btnQP" type="button">GÈnÈrer le QP</button>
                 <div class="result" id="qpResult"></div>
             </div>
         </div>
@@ -176,14 +176,14 @@ textarea { min-height: 100px; resize: vertical; font-family: monospace; }
         <!-- Barre de saisie (toujours visible) -->
         <div class="input-bar">
             <div class="options">
-                <span>Langue : <select id="langSelect"><option value="fr">Fran√ßais</option><option value="ar">Arabe</option><option value="en">Anglais</option></select></span>
+                <span>Langue : <select id="langSelect"><option value="fr">FranÁais</option><option value="ar">Arabe</option><option value="en">Anglais</option></select></span>
                 <span>Domaine : <select id="domainSelect"></select></span>
                 <label><input type="checkbox" id="voiceAuto"> Lecture vocale auto</label>
             </div>
             <div class="input-group">
-                <input type="text" id="chatInput" placeholder="Posez votre question... (dict√©e ou texte)">
-                <button class="mic-btn" id="micBtn" title="Dict√©e vocale">üé§</button>
-                <button class="attach-btn" id="attachBtn" title="Pi√®ce jointe">üìÑ</button>
+                <input type="text" id="chatInput" placeholder="Posez votre question... (dictÈe ou texte)">
+                <button class="mic-btn" id="micBtn" title="DictÈe vocale">??</button>
+                <button class="attach-btn" id="attachBtn" title="PiËce jointe">??</button>
             </div>
             <button class="send-btn" id="btnSend" type="button">Envoyer</button>
         </div>
@@ -266,7 +266,7 @@ function loadDomains() {
 loadDomains();
 
 // ============================================================
-// GESTION DU MICRO (DICT√âE VOCALE)
+// GESTION DU MICRO (DICTEE VOCALE)
 // ============================================================
 let recognition = null;
 let isListening = false;
@@ -283,7 +283,7 @@ if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
         const micBtn = $('micBtn');
         if (micBtn) {
             micBtn.style.background = '#16a34a';
-            micBtn.innerHTML = '‚èπ';
+            micBtn.innerHTML = '?';
         }
     };
 
@@ -296,7 +296,7 @@ if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
     recognition.onerror = (event) => {
         console.warn('Erreur micro :', event.error);
         if (event.error === 'not-allowed') {
-            alert('Veuillez autoriser l\'acc√®s au microphone dans votre navigateur.');
+            alert('Veuillez autoriser l\'accËs au microphone dans votre navigateur.');
         }
     };
 
@@ -305,7 +305,7 @@ if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
         const micBtn = $('micBtn');
         if (micBtn) {
             micBtn.style.background = '#dc2626';
-            micBtn.innerHTML = 'üé§';
+            micBtn.innerHTML = '??';
         }
     };
 
@@ -318,7 +318,7 @@ if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
     });
 } else {
     $('micBtn').addEventListener('click', () => {
-        alert('La dict√©e vocale n\'est pas support√©e par votre navigateur. Utilisez Chrome, Edge ou Safari.');
+        alert('La dictÈe vocale n\'est pas supportÈe par votre navigateur. Utilisez Chrome, Edge ou Safari.');
     });
 }
 
@@ -327,10 +327,10 @@ if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
 // ============================================================
 async function ensureAuth() {
     if (JWT_TOKEN) {
-        $('userLabel').textContent = 'Connect√©';
+        $('userLabel').textContent = 'ConnectÈ';
         return true;
     }
-    // Tentative de login automatique avec un compte de d√©mo
+    // Tentative de login automatique avec un compte de dÈmo
     const email = 'demo_' + Date.now() + '@test.tn';
     const password = 'Test123!';
     try {
@@ -362,7 +362,7 @@ async function ensureAuth() {
 function logout() {
     localStorage.removeItem('token');
     JWT_TOKEN = '';
-    $('userLabel').textContent = 'Non connect√©';
+    $('userLabel').textContent = 'Non connectÈ';
     window.location.reload();
 }
 
@@ -375,7 +375,7 @@ async function sendChat() {
     if (!question) return;
 
     if (!await ensureAuth()) {
-        alert('Erreur de connexion. Veuillez r√©essayer.');
+        alert('Erreur de connexion. Veuillez rÈessayer.');
         return;
     }
 
@@ -400,11 +400,11 @@ async function sendChat() {
 
         if (!resp.ok) throw new Error('HTTP ' + resp.status);
         const data = await resp.json();
-        let answer = data.answer || data.error || 'Pas de r√©ponse';
+        let answer = data.answer || data.error || 'Pas de rÈponse';
 
         addMessage('bot', answer);
 
-        // Lecture vocale si coch√©e
+        // Lecture vocale si cochÈe
         if ($('voiceAuto').checked && 'speechSynthesis' in window) {
             const utterance = new SpeechSynthesisUtterance(answer.replace(/<[^>]+>/g, ''));
             utterance.lang = lang === 'ar' ? 'ar-SA' : (lang === 'en' ? 'en-US' : 'fr-FR');
@@ -421,7 +421,7 @@ function addMessage(role, text) {
     const container = $('chatMessages');
     const div = document.createElement('div');
     div.className = 'msg ' + role;
-    // Si la r√©ponse contient du HTML (iframe PDF), on l'affiche tel quel
+    // Si la rÈponse contient du HTML (iframe PDF), on l'affiche tel quel
     if (text.includes('<') && text.includes('>')) {
         div.innerHTML = text;
     } else {
@@ -447,7 +447,7 @@ $('btnAnalyze').addEventListener('click', async () => {
 
         if (mode === 'text') {
             const text = $('analyzeText').value.trim();
-            if (!text) throw new Error('Collez du texte √† analyser');
+            if (!text) throw new Error('Collez du texte ‡ analyser');
             endpoint = '/api/analyze-content';
             body = JSON.stringify({ content: text, question, domain: 'General', language: 'fr' });
             contentType = 'application/json';
@@ -461,7 +461,7 @@ $('btnAnalyze').addEventListener('click', async () => {
             const file = $('analyzeFile').files[0];
             if (!file) throw new Error('Choisissez un fichier');
             const buf = await file.arrayBuffer();
-            endpoint = '/api/qp-generate-pdf'; // r√©utilise la route PDF
+            endpoint = '/api/qp-generate-pdf'; // rÈutilise la route PDF
             body = buf;
             contentType = 'application/pdf';
         }
@@ -477,11 +477,11 @@ $('btnAnalyze').addEventListener('click', async () => {
 
         let html = '';
         if (data.answer) {
-            html = '<div style="font-weight:700">R√©ponse :</div><div>' + data.answer.substring(0, 5000) + '</div>';
+            html = '<div style="font-weight:700">RÈponse :</div><div>' + data.answer.substring(0, 5000) + '</div>';
         } else if (data.ok && data.wo !== undefined) {
-            html = '<div style="font-weight:700">' + data.wo + ' WO ‚Üí ' + data.qpDocs + ' QP</div>';
+            html = '<div style="font-weight:700">' + data.wo + ' WO ? ' + data.qpDocs + ' QP</div>';
             if (data.links) {
-                html += '<div style="margin-top:8px">' + data.links.map(l => '<a href="' + API_BASE + l.url + '" target="_blank">PDF QP ' + l.from + ' √† ' + l.to + '</a>').join('') + '</div>';
+                html += '<div style="margin-top:8px">' + data.links.map(l => '<a href="' + API_BASE + l.url + '" target="_blank">PDF QP ' + l.from + ' ‡ ' + l.to + '</a>').join('') + '</div>';
             }
         } else {
             html = '<pre>' + JSON.stringify(data, null, 2).substring(0, 2000) + '</pre>';
@@ -495,7 +495,7 @@ $('btnAnalyze').addEventListener('click', async () => {
 });
 
 // ============================================================
-// G√âN√âRATION QP DEPUIS EXCEL
+// GENERATION QP DEPUIS EXCEL
 // ============================================================
 $('btnExcel').addEventListener('click', async () => {
     if (!await ensureAuth()) { alert('Auth error'); return; }
@@ -521,13 +521,13 @@ $('btnExcel').addEventListener('click', async () => {
         const data = await resp.json();
         if (!data.ok) throw new Error(data.error || 'Erreur');
 
-        let html = '<div style="font-weight:700;font-size:15px;color:#0a2540;margin-bottom:10px">' + data.wo + ' WO ‚Üí ' + data.qpDocs + ' QP g√©n√©r√©s</div>';
+        let html = '<div style="font-weight:700;font-size:15px;color:#0a2540;margin-bottom:10px">' + data.wo + ' WO ? ' + data.qpDocs + ' QP gÈnÈrÈs</div>';
         if (data.customer) html += '<div><strong>Client :</strong> ' + data.customer + '</div>';
         if (data.po) html += '<div><strong>PO :</strong> ' + data.po + '</div>';
         if (data.avgConfidence !== undefined) html += '<div><strong>Confiance :</strong> ' + data.avgConfidence + '%</div>';
         if (data.excelDiag) {
             const d = data.excelDiag;
-            html += '<div style="background:#f0f7ff;border-radius:6px;padding:8px;margin:8px 0;font-family:monospace;font-size:11px">S√©parateur : <b>' + d.detectedSeparator + '</b> | Ent√™te : <b>' + (d.headerDetected ? 'd√©tect√©e' : 'non') + '</b> | Lignes : <b>' + d.dataRows + '</b> | WO valides : <b>' + d.validWOs + '</b></div>';
+            html += '<div style="background:#f0f7ff;border-radius:6px;padding:8px;margin:8px 0;font-family:monospace;font-size:11px">SÈparateur : <b>' + d.detectedSeparator + '</b> | EntÍte : <b>' + (d.headerDetected ? 'dÈtectÈe' : 'non') + '</b> | Lignes : <b>' + d.dataRows + '</b> | WO valides : <b>' + d.validWOs + '</b></div>';
         }
         if (data.ids && data.ids.length) {
             html += '<div style="margin:8px 0"><strong>' + data.ids.length + ' WO :</strong><br>';
@@ -535,8 +535,8 @@ $('btnExcel').addEventListener('click', async () => {
             html += '</div>';
         }
         if (data.links && data.links.length) {
-            html += '<div style="margin-top:10px;font-weight:700">üì• T√©l√©charger :</div>';
-            data.links.forEach(l => { html += '<a href="' + API_BASE + l.url + '" target="_blank">üìÑ QP ' + l.from + ' √† ' + l.to + '</a>'; });
+            html += '<div style="margin-top:10px;font-weight:700">?? TÈlÈcharger :</div>';
+            data.links.forEach(l => { html += '<a href="' + API_BASE + l.url + '" target="_blank">?? QP ' + l.from + ' ‡ ' + l.to + '</a>'; });
         }
         showResult('excelResult', html, true);
     } catch (e) {
@@ -547,7 +547,7 @@ $('btnExcel').addEventListener('click', async () => {
 });
 
 // ============================================================
-// G√âN√âRATION QP MULTI (PDF ou Excel)
+// GENERATION QP MULTI (PDF ou Excel)
 // ============================================================
 $('btnQP').addEventListener('click', async () => {
     if (!await ensureAuth()) { alert('Auth error'); return; }
@@ -583,10 +583,10 @@ $('btnQP').addEventListener('click', async () => {
         const data = await resp.json();
         if (!data.ok) throw new Error(data.error || 'Erreur');
 
-        let html = '<div style="font-weight:700">' + data.wo + ' WO ‚Üí ' + data.qpDocs + ' QP</div>';
+        let html = '<div style="font-weight:700">' + data.wo + ' WO ? ' + data.qpDocs + ' QP</div>';
         if (data.customer) html += '<div>Client : ' + data.customer + '</div>';
         if (data.po) html += '<div>PO : ' + data.po + '</div>';
-        if (data.links) html += '<div style="margin-top:10px">' + data.links.map(l => '<a href="' + API_BASE + l.url + '" target="_blank">üìÑ QP ' + l.from + ' √† ' + l.to + '</a>').join('') + '</div>';
+        if (data.links) html += '<div style="margin-top:10px">' + data.links.map(l => '<a href="' + API_BASE + l.url + '" target="_blank">?? QP ' + l.from + ' ‡ ' + l.to + '</a>').join('') + '</div>';
 
         showResult('qpResult', html, true);
     } catch (e) {
@@ -597,12 +597,12 @@ $('btnQP').addEventListener('click', async () => {
 });
 
 // ============================================================
-// √âV√âNEMENTS UI
+// EVENEMENTS UI
 // ============================================================
 $('btnSend').addEventListener('click', sendChat);
 $('chatInput').addEventListener('keypress', (e) => { if (e.key === 'Enter') sendChat(); });
 
-// Zones de d√©p√¥t de fichiers
+// Zones de dÈpÙt de fichiers
 function setupZone(zoneId, fileInputId) {
     const zone = $(zoneId);
     const input = $(fileInputId);
@@ -617,14 +617,14 @@ function setupZone(zoneId, fileInputId) {
             input.files = e.dataTransfer.files;
             const f = e.dataTransfer.files[0];
             zone.classList.add('has-file');
-            zone.innerHTML = '<div style="font-size:24px;">‚úì</div><div style="color:#16a34a;font-weight:700">' + f.name + ' (' + Math.round(f.size/1024) + ' Ko)</div>';
+            zone.innerHTML = '<div style="font-size:24px;">?</div><div style="color:#16a34a;font-weight:700">' + f.name + ' (' + Math.round(f.size/1024) + ' Ko)</div>';
         }
     });
     input.addEventListener('change', () => {
         const f = input.files[0];
         if (f) {
             zone.classList.add('has-file');
-            zone.innerHTML = '<div style="font-size:24px;">‚úì</div><div style="color:#16a34a;font-weight:700">' + f.name + ' (' + Math.round(f.size/1024) + ' Ko)</div>';
+            zone.innerHTML = '<div style="font-size:24px;">?</div><div style="color:#16a34a;font-weight:700">' + f.name + ' (' + Math.round(f.size/1024) + ' Ko)</div>';
         }
     });
 }
@@ -633,7 +633,7 @@ setupZone('excelZone', 'excelFile');
 setupZone('qpExcelZone', 'qpExcelFile');
 setupZone('qpPdfZone', 'qpPdfFile');
 
-// Bouton pi√®ce jointe (ouvre le fichier d'analyse)
+// Bouton piËce jointe (ouvre le fichier d'analyse)
 $('attachBtn').addEventListener('click', () => {
     document.querySelector('.tab[data-tab="analyze"]').click();
     setTimeout(() => $('analyzeFile').click(), 200);
@@ -643,7 +643,7 @@ $('attachBtn').addEventListener('click', () => {
 // INITIALISATION
 // ============================================================
 ensureAuth().then(ok => {
-    if (!ok) console.warn('Auth auto √©chou√©e');
+    if (!ok) console.warn('Auth auto ÈchouÈe');
 });
 </script>
 
@@ -768,7 +768,7 @@ ensureAuth().then(ok => {
             rec.onstart = () => {
                 listening = true;
                 newMic.style.background = '#16a34a';
-                newMic.innerHTML = '‚èπ';
+                newMic.innerHTML = '?';
                 console.log('[unified] Micro demarre');
             };
             
@@ -788,21 +788,21 @@ ensureAuth().then(ok => {
             rec.onerror = (ev) => {
                 console.warn('[unified] MIC ERROR:', ev.error);
                 if (ev.error === 'not-allowed') {
-                    alert('Autorisez le micro : cliquez sur üîí dans la barre d\'URL.');
+                    alert('Autorisez le micro : cliquez sur ?? dans la barre d\'URL.');
                 }
                 listening = false;
                 newMic.style.background = '#dc2626';
-                newMic.innerHTML = 'üé§';
+                newMic.innerHTML = '??';
             };
             
             rec.onend = () => {
                 listening = false;
                 newMic.style.background = '#dc2626';
-                newMic.innerHTML = 'üé§';
+                newMic.innerHTML = '??';
                 const inp = document.getElementById('chatInput');
                 const txt = inp ? inp.value.trim() : '';
                 if (txt.length > 2) {
-                    if (confirm('üìù Dictee terminee :\n\n"' + txt + '"\n\nEnvoyer ?')) {
+                    if (confirm('?? Dictee terminee :\n\n"' + txt + '"\n\nEnvoyer ?')) {
                         document.getElementById('btnSend').click();
                     }
                 }
@@ -814,7 +814,7 @@ ensureAuth().then(ok => {
         console.log('[unified] Micro pret (langue = langSelect)');
     }
 
-    // ============== 3. TTS (boutons ‚ñ∂ ‚è∏ ‚èπ) ==============
+    // ============== 3. TTS (boutons ? ? ?) ==============
     function setupTTS() {
         // Trouver la case voiceAuto par ID, sinon par label
         let voiceAuto = document.getElementById('voiceAuto');
@@ -834,9 +834,9 @@ ensureAuth().then(ok => {
         const ctrl = document.createElement('div');
         ctrl.id = 'ttsBar';
         ctrl.style.cssText = 'display:inline-flex;gap:4px;margin-left:8px;vertical-align:middle;';
-        ctrl.innerHTML = '<button id="ttsPlayBtn" title="Demarrer" style="background:#16a34a;color:#fff;border:0;border-radius:4px;padding:4px 10px;cursor:pointer;font-size:14px;">‚ñ∂</button>' +
-                         '<button id="ttsPauseBtn" title="Pause/Reprendre" style="background:#f59e0b;color:#fff;border:0;border-radius:4px;padding:4px 10px;cursor:pointer;font-size:14px;">‚è∏</button>' +
-                         '<button id="ttsStopBtn" title="Arreter" style="background:#dc2626;color:#fff;border:0;border-radius:4px;padding:4px 10px;cursor:pointer;font-size:14px;">‚èπ</button>';
+        ctrl.innerHTML = '<button id="ttsPlayBtn" title="Demarrer" style="background:#16a34a;color:#fff;border:0;border-radius:4px;padding:4px 10px;cursor:pointer;font-size:14px;">?</button>' +
+                         '<button id="ttsPauseBtn" title="Pause/Reprendre" style="background:#f59e0b;color:#fff;border:0;border-radius:4px;padding:4px 10px;cursor:pointer;font-size:14px;">?</button>' +
+                         '<button id="ttsStopBtn" title="Arreter" style="background:#dc2626;color:#fff;border:0;border-radius:4px;padding:4px 10px;cursor:pointer;font-size:14px;">?</button>';
         voiceAuto.parentNode.insertBefore(ctrl, voiceAuto.nextSibling);
         
         // Auto-lire les nouvelles reponses si la case est cochee
@@ -908,7 +908,7 @@ ensureAuth().then(ok => {
                         const a = document.createElement('a');
                         a.href = window._lastPdfLink;
                         a.target = '_blank';
-                        a.textContent = 'üìÑ Telecharger le rapport PDF';
+                        a.textContent = '?? Telecharger le rapport PDF';
                         a.style.cssText = 'display:inline-block;margin-top:8px;padding:6px 14px;background:#0a2540;color:#fff;border-radius:6px;font-size:12px;font-weight:600;text-decoration:none;';
                         n.appendChild(a);
                         window._lastPdfLink = null;
@@ -956,7 +956,7 @@ ensureAuth().then(ok => {
         c = c.split(/\uD83D\uDCCB\s*Fiche technique/i)[0];
         c = c.split(/Fiche technique/i)[0];
         // Retirer prefixe "Reponse detaillee"
-        c = c.replace(/R[√©e]ponse\s+d[√©e]taill[√©e]e\s*/gi, '');
+        c = c.replace(/R[Èe]ponse\s+d[Èe]taill[Èe]e\s*/gi, '');
         // Retirer emojis residuels en debut
         c = c.replace(/^[\uD83D\uDCCB\s]+/, '');
         return c.trim();
@@ -976,7 +976,7 @@ ensureAuth().then(ok => {
     
     // Test depuis la console : testTTSClean()
     window.testTTSClean = function(t) {
-        return cleanForTTS(t || 'Reponse detailleeBonjour.üìã Fiche techniqueDomaineGeneral');
+        return cleanForTTS(t || 'Reponse detailleeBonjour.?? Fiche techniqueDomaineGeneral');
     };
     
     console.log('[tts-clean-v2] Pret.');
@@ -1197,7 +1197,7 @@ ensureAuth().then(ok => {
         overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(10,37,64,0.95);z-index:99999;display:flex;align-items:center;justify-content:center;font-family:Arial,sans-serif;';
         overlay.innerHTML = ''
             + '<div style="background:#fff;border-radius:12px;padding:32px;max-width:420px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,0.5);">'
-            + '<h2 style="color:#0a2540;margin:0 0 8px 0;font-size:20px;">üîê Reconnexion</h2>'
+            + '<h2 style="color:#0a2540;margin:0 0 8px 0;font-size:20px;">?? Reconnexion</h2>'
             + '<p style="color:#6b7280;margin:0 0 20px 0;font-size:14px;">Votre session a expire. Veuillez vous reconnecter.</p>'
             + (errorMsg ? '<div style="background:#fee2e2;color:#991b1b;padding:10px;border-radius:6px;margin-bottom:16px;font-size:13px;">' + errorMsg + '</div>' : '')
             + '<label style="display:block;color:#374151;font-weight:600;font-size:13px;margin-bottom:6px;">Email</label>'
@@ -1253,7 +1253,7 @@ ensureAuth().then(ok => {
         if (userDiv && !document.getElementById('btnReconnect')) {
             var btn = document.createElement('button');
             btn.id = 'btnReconnect';
-            btn.textContent = 'üîÑ Reconnexion';
+            btn.textContent = '?? Reconnexion';
             btn.style.cssText = 'background:rgba(255,255,255,0.1);color:#fff;border:1px solid rgba(255,255,255,0.2);padding:8px 18px;border-radius:6px;font-weight:600;font-size:13px;cursor:pointer;margin-right:8px;';
             btn.onclick = function() {
                 localStorage.removeItem('token');
@@ -1267,5 +1267,39 @@ ensureAuth().then(ok => {
     }, 2000);
 })();
 </script>
-<script src="/chat-extras-v21.js"></script>`n</body>
+<script src="/chat-extras-v21.js"></script>`n<!-- HISTORY-FIX-V15 -->
+<script>
+(function(){
+  console.log('[history-fix-v15] Module charge');
+  function hasValidToken(){
+    var t = localStorage.getItem('token');
+    if (!t || t.length < 20) return false;
+    try { var p = JSON.parse(atob(t.split('.')[1])); return p.exp && p.exp * 1000 > Date.now(); }
+    catch(e){ return false; }
+  }
+  function reloadHistory(){
+    if (!hasValidToken()) { console.log('[history-fix-v15] Token absent/expire'); return; }
+    var c = document.getElementById('chatMessages');
+    if (!c) { setTimeout(reloadHistory, 800); return; }
+    fetch('/api/history', { headers: { 'Authorization': 'Bearer ' + localStorage.getItem('token') } })
+      .then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); })
+      .then(function(d){
+        if (!d || !d.items || d.items.length === 0) return;
+        var welcome = c.querySelector('.msg.bot');
+        var wt = welcome ? welcome.textContent : '';
+        c.innerHTML = '';
+        if (wt) { var w=document.createElement('div'); w.className='msg bot'; w.textContent=wt; c.appendChild(w); }
+        d.items.slice().reverse().forEach(function(it){
+          if (it.question) { var u=document.createElement('div'); u.className='msg user'; u.textContent=it.question; c.appendChild(u); }
+          if (it.answer)   { var b=document.createElement('div'); b.className='msg bot'; b.textContent=it.answer;   c.appendChild(b); }
+        });
+        c.scrollTop = c.scrollHeight;
+        console.log('[history-fix-v15] ' + d.items.length + ' echanges recharges');
+      })
+      .catch(function(e){ console.warn('[history-fix-v15] Erreur:', e.message); });
+  }
+  setTimeout(reloadHistory, 1500);
+})();
+</script>
+</body>
 </html>

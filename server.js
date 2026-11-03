@@ -1,4 +1,4 @@
-ï»¿require("dotenv").config();
+require("dotenv").config();
 const express  = require("express");
 const cors     = require("cors");
 const mongoose = require("mongoose");
@@ -143,17 +143,17 @@ REGLE ABSOLUE DE FIABILITE TECHNIQUE (priorite maximale) :
 4. Si le contexte RAG ne contient PAS l'information demandee, reponds EXACTEMENT : "Cette information precise n'est pas dans ma base de connaissances actuelle. Veuillez consulter le document officiel API ou le site api.org."
 5. N'INVENTE JAMAIS une date, une edition ou une valeur technique. Une reponse fausse est PIRE qu'une absence de reponse.
 - REGLE ABSOLUE POUR LES DOMAINES TECHNIQUES (Petrole & Gaz, Technique, Plan Qualite, Sciences) :
-  * Tu DOIS rÃ©pondre EXCLUSIVEMENT Ã  partir du CONTEXTE RAG fourni ci-dessous.
-  * Si le contexte contient des chiffres, dates, Ã©ditions, tolÃ©rances : CITE-LES EXACTEMENT.
-  * Ne JAMAIS inventer une date, une Ã©dition ou une valeur technique.
+  * Tu DOIS répondre EXCLUSIVEMENT à partir du CONTEXTE RAG fourni ci-dessous.
+  * Si le contexte contient des chiffres, dates, éditions, tolérances : CITE-LES EXACTEMENT.
+  * Ne JAMAIS inventer une date, une édition ou une valeur technique.
   * Si le contexte ne contient pas l'information, dis "Je ne trouve pas cette information dans la base de connaissances actuelle. Veuillez consulter le document officiel API."
-  * Pour les questions sur les normes API : utilise UNIQUEMENT les Ã©ditions prÃ©sentes dans le contexte RAG.`;
+  * Pour les questions sur les normes API : utilise UNIQUEMENT les éditions présentes dans le contexte RAG.`;
 
     // INJECTION DU CONTEXTE RAG (API 14L, etc.)
     let finalPrompt = prompt;
     const ragMatch = prompt.match(/\[EXTRAITS\]([\s\S]*?)\[FIN EXTRAITS\]/);
     if (ragMatch) {
-        system += `\n\nINSTRUCTION CRITIQUE : Tu dois rÃ©pondre en te basant EXCLUSIVEMENT sur les extraits de documents fournis ci-dessous. Si la rÃ©ponse exacte (chiffres, tolÃ©rances) s'y trouve, tu DOIS la citer. Ne rÃ©ponds pas avec des gÃ©nÃ©ralitÃ©s.\n\nCONTEXTE :\n${ragMatch[1]}`;
+        system += `\n\nINSTRUCTION CRITIQUE : Tu dois répondre en te basant EXCLUSIVEMENT sur les extraits de documents fournis ci-dessous. Si la réponse exacte (chiffres, tolérances) s'y trouve, tu DOIS la citer. Ne réponds pas avec des généralités.\n\nCONTEXTE :\n${ragMatch[1]}`;
         finalPrompt = prompt.replace(/\[EXTRAITS\][\s\S]*?\[FIN EXTRAITS\]/, '').trim();
     }
 
@@ -230,6 +230,23 @@ REGLE ABSOLUE DE FIABILITE TECHNIQUE (priorite maximale) :
         return oAnswer;
       }
     } catch(e) { console.warn('[askAI] OpenAI KO : ' + e.message); }
+// ===== RAG-FALLBACK-V1 : v1.25 - fallback local si tous les providers echouent =====
+try {
+  var __ragCtx =
+    (typeof ragContext !== 'undefined' && ragContext) ||
+    (typeof ragResult  !== 'undefined' && ragResult && ragResult.context) ||
+    (typeof ragMatch   !== 'undefined' && ragMatch && ragMatch[1]) ||
+    (typeof docsContext!== 'undefined' && docsContext) ||
+    '';
+  if (__ragCtx && String(__ragCtx).trim().length > 100) {
+    var __extrait = String(__ragCtx).trim().slice(0, 1500);
+    return "[Reponse generee depuis la base locale - services IA externes indisponibles]\n\n" +
+           __extrait +
+           "\n\n(Source : base documentaire interne. Verifier OPENROUTER_API_KEY / GEMINI_API_KEY / OPENAI_API_KEY sur Render.)";
+  }
+} catch (__e) { /* ignore */ }
+// ===== fin RAG-FALLBACK-V1 =====
+
     return "[Service IA temporairement indisponible] OpenRouter/Gemini/OpenAI ont tous echoue.";
 }
 
