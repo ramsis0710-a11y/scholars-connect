@@ -1,4 +1,4 @@
-﻿require("dotenv").config();
+require("dotenv").config();
 const express  = require("express");
 const cors     = require("cors");
 const mongoose = require("mongoose");
@@ -21,6 +21,8 @@ app.use(express.json({ limit: "20mb" }));
 
 require('./language-fix')(app);
 require('./auto-feed')(app, mongoose);
+app.use(require('./clean-fallback-answer')());
+
 require('./answer-enricher')(app, mongoose);
 
 app.use(express.static("public"));
