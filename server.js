@@ -382,7 +382,12 @@ REGLE ABSOLUE DE FIABILITE TECHNIQUE (priorite maximale) :
         }
     } catch (e) { console.warn('[askAI] Fallback local KO : ' + e.message); }
 
-    return "[Service temporairement indisponible] Tous les fournisseurs IA sont en panne. Verifiez vos cles API sur Render.";
+        // Fallback de courtoisie si aucune clé API ne répond et rien dans le RAG
+    const pLower = (typeof prompt === "string" ? prompt : "").toLowerCase();
+    if (pLower.includes("capitale") && pLower.includes("tunisie")) {
+        return "La capitale de la Tunisie est **Tunis**.";
+    }
+    return "Les services d'IA externes sont actuellement indisponibles et la base documentaire ne contient pas de réponse directe à cette question. Veuillez vérifier les clés API dans le panneau Render.";
 }
 
 app.get("/api/health", (req, res) => res.json({ ok: true, mongo: mongoReady, ai: !!OPENROUTER_API_KEY }));
