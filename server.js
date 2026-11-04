@@ -100,7 +100,7 @@ async function callGeminiAI(messages, system) {
         parts.push((m.role === 'user' ? 'Utilisateur: ' : 'Assistant: ') + m.content);
     }
     const r = await ai.models.generateContent({
-        model: process.env.GEMINI_MODEL || 'gemini-2.5-flash',
+        model: process.env.GEMINI_MODEL || 'gemini-2.0-flash',
         contents: parts.join('\n\n')
     });
     return (r && r.text) || '';
@@ -330,7 +330,59 @@ REGLE ABSOLUE DE FIABILITE TECHNIQUE (priorite maximale) :
     } catch (e) { console.warn('[askAI] Fallback v1.33 KO : ' + e.message); }
     return "[Services IA temporairement indisponibles] Tous les fournisseurs (Groq, Gemini, Mistral, OpenRouter, Bailian) sont en panne. Verifiez les cles API sur Render.";
 
-    return "[Service temporairement indisponible] Tous les fournisseurs IA sont en panne. Verifiez GROQ_API_KEY / GEMINI_API_KEY / MISTRAL_API_KEY / OPENROUTER_API_KEY / BAILIAN_API_KEY sur Render.";
+        // v1.31 : Cascade Groq -> Gemini -> Mistral -> OpenRouter -> Bailian -> Fallback local
+    let _answer31 = "";
+
+    try {
+        _answer31 = await callGroq(messages, system);
+        if (_answer31 && _answer31.length > 20) {
+            console.log('[askAI] Groq OK (' + _answer31.length + ' chars)');
+            return _answer31;
+        }
+    } catch (e) { console.warn('[askAI] Groq KO : ' + e.message); }
+
+    try {
+        _answer31 = await callGeminiAI(messages, system);
+        if (_answer31 && _answer31.length > 20) {
+            console.log('[askAI] Gemini OK (' + _answer31.length + ' chars)');
+            return _answer31;
+        }
+    } catch (e) { console.warn('[askAI] Gemini KO : ' + e.message); }
+
+    try {
+        _answer31 = await callMistral(messages, system);
+        if (_answer31 && _answer31.length > 20) {
+            console.log('[askAI] Mistral OK (' + _answer31.length + ' chars)');
+            return _answer31;
+        }
+    } catch (e) { console.warn('[askAI] Mistral KO : ' + e.message); }
+
+    try {
+        _answer31 = await callOpenRouter(messages, system);
+        if (_answer31 && _answer31.length > 20) {
+            console.log('[askAI] OpenRouter OK (' + _answer31.length + ' chars)');
+            return _answer31;
+        }
+    } catch (e) { console.warn('[askAI] OpenRouter KO : ' + e.message); }
+
+    try {
+        _answer31 = await callBailian(messages, system);
+        if (_answer31 && _answer31.length > 20) {
+            console.log('[askAI] Bailian OK (' + _answer31.length + ' chars)');
+            return _answer31;
+        }
+    } catch (e) { console.warn('[askAI] Bailian KO : ' + e.message); }
+
+    try {
+        const _ragSource = (typeof finalPrompt === 'string' && finalPrompt.length > 200) ? finalPrompt : '';
+        if (_ragSource) {
+            const _extrait = _ragSource.trim().slice(0, 3000);
+            console.log('[askAI] Fallback local RAG (' + _extrait.length + ' chars)');
+            return "[Reponse extraite de la base documentaire locale - les services IA externes sont temporairement indisponibles]\n\n" + _extrait;
+        }
+    } catch (e) { console.warn('[askAI] Fallback local KO : ' + e.message); }
+
+    return "[Service temporairement indisponible] Tous les fournisseurs IA sont en panne. Verifiez vos cles API sur Render.";
 }
 
 app.get("/api/health", (req, res) => res.json({ ok: true, mongo: mongoReady, ai: !!OPENROUTER_API_KEY }));
