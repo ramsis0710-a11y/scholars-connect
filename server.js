@@ -100,7 +100,7 @@ async function callGeminiAI(messages, system) {
         parts.push((m.role === 'user' ? 'Utilisateur: ' : 'Assistant: ') + m.content);
     }
     const r = await ai.models.generateContent({
-        model: process.env.GEMINI_MODEL || 'gemini-2.5-flash',
+        model: process.env.GEMINI_MODEL || 'gemini-2.0-flash',
         contents: parts.join('\n\n')
     });
     return (r && r.text) || '';
@@ -124,6 +124,7 @@ async function callOpenAIAI(messages) {
     return (j && j.choices && j.choices[0] && j.choices[0].message) ? j.choices[0].message.content : '';
 }
 async function callGroq(messages, system) {
+    var safeMessages = truncateMessagesForGroq(messages, 4000);
     const key = process.env.GROQ_API_KEY;
     if (!key) throw new Error('GROQ_API_KEY absente');
     const r = await fetch('https://api.groq.com/openai/v1/chat/completions', {
@@ -160,6 +161,62 @@ async function callMistral(messages, system) {
         const txt = await r.text();
         throw new Error('Mistral HTTP ' + r.status + ' : ' + txt.slice(0, 200));
     }
+    const j = await r.json();
+    return (j && j.choices && j.choices[0] && j.choices[0].message) ? j.choices[0].message.content : '';
+}
+async function callBailian(messages, system) {
+    const key = process.env.BAILIAN_API_KEY;
+    if (!key) throw new Error('BAILIAN_API_KEY absente');
+    const r = await fetch('https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + key, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            model: process.env.BAILIAN_MODEL || 'qwen-plus',
+            messages: [{ role: 'system', content: system || '' }, ...messages],
+            max_tokens: 4000
+        })
+    });
+    if (!r.ok) { const t = await r.text(); throw new Error('Bailian HTTP ' + r.status + ' : ' + t.slice(0, 200)); }
+    const j = await r.json();
+    return (j && j.choices && j.choices[0] && j.choices[0].message) ? j.choices[0].message.content : '';
+}
+function truncateMessagesForGroq(messages, maxTokens) {
+    maxTokens = maxTokens || 4000;
+    function estimate(m) { return Math.ceil((String(m.role || '') + ' ' + String(m.content || '')).length / 4); }
+    var total = 0, kept = [];
+    for (var i = messages.length - 1; i >= 0; i--) {
+        var n = estimate(messages[i]);
+        if (total + n > maxTokens && kept.length > 0) break;
+        total += n; kept.unshift(messages[i]);
+    }
+    if (kept.length === 0 && messages.length > 0) {
+        var last = messages[messages.length - 1];
+        var c = String(last.content || '');
+        var maxChars = maxTokens * 4;
+        if (c.length > maxChars) c = c.slice(-maxChars);
+        kept = [{ role: last.role, content: c }];
+    }
+    return kept;
+}
+async function callOpenRouter(messages, system) {
+    const key = process.env.OPENROUTER_API_KEY;
+    if (!key) throw new Error('OPENROUTER_API_KEY absente');
+    const r = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+            'Authorization': 'Bearer ' + key,
+            'Content-Type': 'application/json',
+            'HTTP-Referer': 'https://scholars-connect-app.onrender.com',
+            'X-Title': 'Scholars Connect'
+        },
+        body: JSON.stringify({
+            model: process.env.OPENROUTER_MODEL || 'meta-llama/llama-3.3-70b-instruct:free',
+            messages: [{ role: 'system', content: system || '' }, ...messages],
+            max_tokens: 4000,
+            temperature: 0.2
+        })
+    });
+    if (!r.ok) { const t = await r.text(); throw new Error('OpenRouter HTTP ' + r.status + ' : ' + t.slice(0, 200)); }
     const j = await r.json();
     return (j && j.choices && j.choices[0] && j.choices[0].message) ? j.choices[0].message.content : '';
 }
@@ -219,51 +276,25 @@ REGLE ABSOLUE DE FIABILITE TECHNIQUE (priorite maximale) :
     if (newQ) cleanPrompt = newQ[1].trim();
     messages.push({ role: "user", content: cleanPrompt + "\n\n[INSTRUCTION CRITIQUE : Pour toute question technique (API, normes, tolerances), tu DOIS utiliser le CONTEXTE RAG ci-dessus. Cite les numeros d'edition et les dates EXACTEMENT comme ils apparaissent dans le contexte. Si l'information n'est pas dans le contexte, dis-le clairement.]" });
 
-            // v1.29 : Cascade Groq -> Gemini -> Mistral -> Bailian -> Fallback local
-    let _answer29 = "";
+                // v1.31 : Groq -> Gemini -> Mistral -> OpenRouter -> Bailian -> Fallback local
+    let _a31 = "";
+
+    try { _a31 = await callGroq(messages, system); if (_a31 && _a31.length > 20) { console.log('[askAI] Groq OK (' + _a31.length + ' chars)'); return _a31; } } catch (e) { console.warn('[askAI] Groq KO : ' + e.message); }
+    try { _a31 = await callGeminiAI(messages, system); if (_a31 && _a31.length > 20) { console.log('[askAI] Gemini OK (' + _a31.length + ' chars)'); return _a31; } } catch (e) { console.warn('[askAI] Gemini KO : ' + e.message); }
+    try { _a31 = await callMistral(messages, system); if (_a31 && _a31.length > 20) { console.log('[askAI] Mistral OK (' + _a31.length + ' chars)'); return _a31; } } catch (e) { console.warn('[askAI] Mistral KO : ' + e.message); }
+    try { _a31 = await callOpenRouter(messages, system); if (_a31 && _a31.length > 20) { console.log('[askAI] OpenRouter OK (' + _a31.length + ' chars)'); return _a31; } } catch (e) { console.warn('[askAI] OpenRouter KO : ' + e.message); }
+    try { _a31 = await callBailian(messages, system); if (_a31 && _a31.length > 20) { console.log('[askAI] Bailian OK (' + _a31.length + ' chars)'); return _a31; } } catch (e) { console.warn('[askAI] Bailian KO : ' + e.message); }
 
     try {
-        _answer29 = await callGroq(messages, system);
-        if (_answer29 && _answer29.length > 20) {
-            console.log('[askAI] Groq OK (' + _answer29.length + ' chars)');
-            return _answer29;
-        }
-    } catch (e) { console.warn('[askAI] Groq KO : ' + e.message); }
-
-    try {
-        _answer29 = await callGeminiAI(messages, system);
-        if (_answer29 && _answer29.length > 20) {
-            console.log('[askAI] Gemini OK (' + _answer29.length + ' chars)');
-            return _answer29;
-        }
-    } catch (e) { console.warn('[askAI] Gemini KO : ' + e.message); }
-
-    try {
-        _answer29 = await callMistral(messages, system);
-        if (_answer29 && _answer29.length > 20) {
-            console.log('[askAI] Mistral OK (' + _answer29.length + ' chars)');
-            return _answer29;
-        }
-    } catch (e) { console.warn('[askAI] Mistral KO : ' + e.message); }
-
-    try {
-        _answer29 = await callBailian(messages, system);
-        if (_answer29 && _answer29.length > 20) {
-            console.log('[askAI] Bailian OK (' + _answer29.length + ' chars)');
-            return _answer29;
-        }
-    } catch (e) { console.warn('[askAI] Bailian KO : ' + e.message); }
-
-    try {
-        const _ragSource = (typeof finalPrompt === 'string' && finalPrompt.length > 100) ? finalPrompt : '';
-        if (_ragSource) {
-            const _extrait = _ragSource.trim().slice(0, 1500);
-            console.log('[askAI] Fallback local RAG (' + _extrait.length + ' chars)');
-            return "[Reponse extraite de la base documentaire locale - les services IA externes sont temporairement indisponibles]\n\n" + _extrait;
+        const _src = (typeof finalPrompt === 'string' && finalPrompt.length > 500) ? finalPrompt : '';
+        if (_src) {
+            const _ext = _src.trim().slice(0, 3000);
+            console.log('[askAI] Fallback local RAG (' + _ext.length + ' chars)');
+            return "[Reponse extraite de la base documentaire locale - services IA externes indisponibles]\n\n" + _ext;
         }
     } catch (e) { console.warn('[askAI] Fallback local KO : ' + e.message); }
 
-    return "[Service temporairement indisponible] Verifiez GROQ_API_KEY / GEMINI_API_KEY / MISTRAL_API_KEY sur Render.";
+    return "[Service temporairement indisponible] Tous les fournisseurs IA sont en panne. Verifiez GROQ_API_KEY / GEMINI_API_KEY / MISTRAL_API_KEY / OPENROUTER_API_KEY / BAILIAN_API_KEY sur Render.";
 }
 
 app.get("/api/health", (req, res) => res.json({ ok: true, mongo: mongoReady, ai: !!OPENROUTER_API_KEY }));
