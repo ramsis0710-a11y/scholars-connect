@@ -123,6 +123,46 @@ async function callOpenAIAI(messages) {
     const j = await r.json();
     return (j && j.choices && j.choices[0] && j.choices[0].message) ? j.choices[0].message.content : '';
 }
+async function callGroq(messages, system) {
+    const key = process.env.GROQ_API_KEY;
+    if (!key) throw new Error('GROQ_API_KEY absente');
+    const r = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + key, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            model: process.env.GROQ_MODEL || 'openai/gpt-oss-120b',
+            messages: [{ role: 'system', content: system || '' }, ...messages],
+            max_tokens: 4000,
+            temperature: 0.2
+        })
+    });
+    if (!r.ok) {
+        const txt = await r.text();
+        throw new Error('Groq HTTP ' + r.status + ' : ' + txt.slice(0, 200));
+    }
+    const j = await r.json();
+    return (j && j.choices && j.choices[0] && j.choices[0].message) ? j.choices[0].message.content : '';
+}
+async function callMistral(messages, system) {
+    const key = process.env.MISTRAL_API_KEY;
+    if (!key) throw new Error('MISTRAL_API_KEY absente');
+    const r = await fetch('https://api.mistral.ai/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + key, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            model: process.env.MISTRAL_MODEL || 'mistral-small-latest',
+            messages: [{ role: 'system', content: system || '' }, ...messages],
+            max_tokens: 4000,
+            temperature: 0.2
+        })
+    });
+    if (!r.ok) {
+        const txt = await r.text();
+        throw new Error('Mistral HTTP ' + r.status + ' : ' + txt.slice(0, 200));
+    }
+    const j = await r.json();
+    return (j && j.choices && j.choices[0] && j.choices[0].message) ? j.choices[0].message.content : '';
+}
 async function askAI(prompt, opts = {}) {
     const { domain = "General", language = "fr", history = [] } = opts;
 
@@ -179,82 +219,51 @@ REGLE ABSOLUE DE FIABILITE TECHNIQUE (priorite maximale) :
     if (newQ) cleanPrompt = newQ[1].trim();
     messages.push({ role: "user", content: cleanPrompt + "\n\n[INSTRUCTION CRITIQUE : Pour toute question technique (API, normes, tolerances), tu DOIS utiliser le CONTEXTE RAG ci-dessus. Cite les numeros d'edition et les dates EXACTEMENT comme ils apparaissent dans le contexte. Si l'information n'est pas dans le contexte, dis-le clairement.]" });
 
-        // v1.24 : cascade OpenRouter -> Gemini -> OpenAI
-    let _answer = "";
-    if (OPENROUTER_API_KEY) {
-      const _ctrl = new AbortController();
-      const _timer = setTimeout(function() { _ctrl.abort(); }, 25000);
-      try {
-        const r = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-          signal: _ctrl.signal,
-          method: "POST",
-          headers: {
-            "Authorization": `Bearer ${OPENROUTER_API_KEY}`,
-            "Content-Type": "application/json",
-            "HTTP-Referer": "https://scholars-connect-app.onrender.com"
-          },
-          body: JSON.stringify({
-            model: OPENROUTER_MODEL,
-            temperature: 0.2,
-            max_tokens: 4000,
-            messages: messages
-          })
-        });
-        clearTimeout(_timer);
-        if (r.ok) {
-          try {
-            const data = await r.json();
-            _answer = (data && data.choices && data.choices[0] && data.choices[0].message) ? data.choices[0].message.content : "";
-          } catch(e) { console.warn('[askAI] OpenRouter json KO : ' + e.message); }
-          if (_answer && _answer.length > 20) {
-            console.log('[askAI] OpenRouter OK (' + _answer.length + ' chars)');
-            return _answer;
-          }
-        } else {
-          console.warn('[askAI] OpenRouter HTTP ' + r.status + ' - Fallback Gemini/OpenAI');
-        }
-      } catch (e) {
-        clearTimeout(_timer);
-        console.warn('[askAI] OpenRouter KO : ' + e.message);
-      }
-    }
-    try {
-      const gAnswer = await callGeminiAI(messages, system);
-      if (gAnswer && gAnswer.length > 20) {
-        console.log('[askAI] Fallback Gemini OK (' + gAnswer.length + ' chars)');
-        return gAnswer;
-      }
-    } catch(e) { console.warn('[askAI] Gemini KO : ' + e.message); }
-    try {
-      const oAnswer = await callOpenAIAI(messages);
-      if (oAnswer && oAnswer.length > 20) {
-        console.log('[askAI] Fallback OpenAI OK (' + oAnswer.length + ' chars)');
-        return oAnswer;
-      }
-    } catch(e) { console.warn('[askAI] OpenAI KO : ' + e.message); }
-// ===== RAG-FALLBACK-V1 : v1.25 - fallback local si tous les providers echouent =====
-try {
-  var __ragCtx =
-    (typeof ragContext !== 'undefined' && ragContext) ||
-    (typeof ragResult  !== 'undefined' && ragResult && ragResult.context) ||
-    (typeof ragMatch   !== 'undefined' && ragMatch && ragMatch[1]) ||
-    (typeof docsContext!== 'undefined' && docsContext) ||
-    '';
-  var __ragLen = __ragCtx ? String(__ragCtx).trim().length : 0;
-  if (__ragCtx && __ragLen > 100) {
-    console.log('[RAG-FALLBACK-V1] OK-UTILISE - longueur=' + __ragLen);
-    var __extrait = String(__ragCtx).trim().slice(0, 1500);
-    return "[Reponse generee depuis la base locale - services IA externes indisponibles]\n\n" +
-           __extrait +
-           "\n\n(Source : base documentaire interne. Verifier OPENROUTER_API_KEY / GEMINI_API_KEY / OPENAI_API_KEY sur Render.)";
-  }
-  console.log('[RAG-FALLBACK-V1] NON-UTILISE - ragMatch=' + (typeof ragMatch) + ' __ragCtx_len=' + __ragLen);
-} catch (__e) {
-  console.log('[RAG-FALLBACK-V1] EXCEPTION: ' + __e.message);
-}
-// ===== fin RAG-FALLBACK-V1 =====
+            // v1.29 : Cascade Groq -> Gemini -> Mistral -> Bailian -> Fallback local
+    let _answer29 = "";
 
-    return "[Service IA temporairement indisponible] OpenRouter/Gemini/OpenAI ont tous echoue.";
+    try {
+        _answer29 = await callGroq(messages, system);
+        if (_answer29 && _answer29.length > 20) {
+            console.log('[askAI] Groq OK (' + _answer29.length + ' chars)');
+            return _answer29;
+        }
+    } catch (e) { console.warn('[askAI] Groq KO : ' + e.message); }
+
+    try {
+        _answer29 = await callGeminiAI(messages, system);
+        if (_answer29 && _answer29.length > 20) {
+            console.log('[askAI] Gemini OK (' + _answer29.length + ' chars)');
+            return _answer29;
+        }
+    } catch (e) { console.warn('[askAI] Gemini KO : ' + e.message); }
+
+    try {
+        _answer29 = await callMistral(messages, system);
+        if (_answer29 && _answer29.length > 20) {
+            console.log('[askAI] Mistral OK (' + _answer29.length + ' chars)');
+            return _answer29;
+        }
+    } catch (e) { console.warn('[askAI] Mistral KO : ' + e.message); }
+
+    try {
+        _answer29 = await callBailian(messages, system);
+        if (_answer29 && _answer29.length > 20) {
+            console.log('[askAI] Bailian OK (' + _answer29.length + ' chars)');
+            return _answer29;
+        }
+    } catch (e) { console.warn('[askAI] Bailian KO : ' + e.message); }
+
+    try {
+        const _ragSource = (typeof finalPrompt === 'string' && finalPrompt.length > 100) ? finalPrompt : '';
+        if (_ragSource) {
+            const _extrait = _ragSource.trim().slice(0, 1500);
+            console.log('[askAI] Fallback local RAG (' + _extrait.length + ' chars)');
+            return "[Reponse extraite de la base documentaire locale - les services IA externes sont temporairement indisponibles]\n\n" + _extrait;
+        }
+    } catch (e) { console.warn('[askAI] Fallback local KO : ' + e.message); }
+
+    return "[Service temporairement indisponible] Verifiez GROQ_API_KEY / GEMINI_API_KEY / MISTRAL_API_KEY sur Render.";
 }
 
 app.get("/api/health", (req, res) => res.json({ ok: true, mongo: mongoReady, ai: !!OPENROUTER_API_KEY }));
