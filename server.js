@@ -8,9 +8,16 @@ app.use(express.json());
 // Connexion MongoDB sécurisée (évite les plantages si l'URI est absente)
 const MONGO_URI = process.env.MONGO_URI || '';
 if (MONGO_URI) {
-    mongoose.connect(MONGO_URI)
-        .then(() => console.log('MongoDB CONNECTE'))
-        .catch(err => console.error('Erreur MongoDB :', err.message));
+    try {
+    var _mongoValid = (typeof MONGO_URI !== 'undefined' && MONGO_URI && MONGO_URI.indexOf('localhost') === -1 && MONGO_URI.indexOf('127.0.0.1') === -1);
+    if (!_mongoValid) {
+        console.log('[MongoDB] Pas de MONGO_URI valide - mode sans persistance DB');
+    } else {
+        mongoose.connect(MONGO_URI, { useNewUrlParser: true, useUnifiedTopology: true })
+            .then(function() { console.log('[MongoDB] Connecte a Atlas'); })
+            .catch(function(err) { console.warn('[MongoDB] Echec (non bloquant) : ' + err.message); });
+    }
+} catch(e) { console.warn('[MongoDB] Bloc KO (non bloquant) : ' + e.message); }
 } else {
     console.log('MongoDB non configure (mode local sans persistance DB)');
 }
@@ -141,6 +148,20 @@ app.get('/', (req, res) => {
 });
 
 const PORT = process.env.PORT || 3000;
+
+// v1.41 : Route /admin - sert admin.html ou message
+app.get('/admin', function(req, res) {
+    try {
+        var _adminPath = require('path').join(__dirname, 'public', 'admin.html');
+        if (require('fs').existsSync(_adminPath)) {
+            res.sendFile(_adminPath);
+        } else {
+            res.status(200).send('<h1>Admin</h1><p>Interface admin non trouvee. Placez admin.html dans /public/.</p>');
+        }
+    } catch(e) {
+        res.status(200).send('<h1>Admin</h1><p>Erreur : ' + e.message + '</p>');
+    }
+});
 app.listen(PORT, () => {
     console.log('Scholars Connect V2 - PORT ' + PORT);
 });
