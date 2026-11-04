@@ -210,7 +210,7 @@ async function callOpenRouter(messages, system) {
             'X-Title': 'Scholars Connect'
         },
         body: JSON.stringify({
-            model: process.env.OPENROUTER_MODEL || 'meta-llama/llama-3.3-70b-instruct:free',
+            model: process.env.OPENROUTER_MODEL || 'google/gemini-2.0-flash-exp:free',
             messages: [{ role: 'system', content: system || '' }, ...messages],
             max_tokens: 4000,
             temperature: 0.2
@@ -286,7 +286,7 @@ REGLE ABSOLUE DE FIABILITE TECHNIQUE (priorite maximale) :
     try { _a31 = await callBailian(messages, system); if (_a31 && _a31.length > 20) { console.log('[askAI] Bailian OK (' + _a31.length + ' chars)'); return _a31; } } catch (e) { console.warn('[askAI] Bailian KO : ' + e.message); }
 
     try {
-        const _src = (typeof finalPrompt === 'string' && finalPrompt.length > 500) ? finalPrompt : '';
+        const _src = (typeof finalPrompt === 'string' && finalPrompt.length > 200) ? finalPrompt : '';
         if (_src) {
             const _ext = _src.trim().slice(0, 3000);
             console.log('[askAI] Fallback local RAG (' + _ext.length + ' chars)');
