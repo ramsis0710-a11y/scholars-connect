@@ -124,7 +124,7 @@ async function callOpenAIAI(messages) {
     return (j && j.choices && j.choices[0] && j.choices[0].message) ? j.choices[0].message.content : '';
 }
 async function callGroq(messages, system) {
-    var safeMessages = truncateMessagesForGroq(messages, 4000);
+    var safeMessages = truncateMessagesForGroq(messages, 2500);
     const key = process.env.GROQ_API_KEY;
     if (!key) throw new Error('GROQ_API_KEY absente');
     const r = await fetch('https://api.groq.com/openai/v1/chat/completions', {
@@ -133,7 +133,7 @@ async function callGroq(messages, system) {
         body: JSON.stringify({
             model: process.env.GROQ_MODEL || 'openai/gpt-oss-120b',
             messages: [{ role: 'system', content: system || '' }, ...messages],
-            max_tokens: 4000,
+            max_tokens: 2000,
             temperature: 0.2
         })
     });
@@ -181,20 +181,27 @@ async function callBailian(messages, system) {
     return (j && j.choices && j.choices[0] && j.choices[0].message) ? j.choices[0].message.content : '';
 }
 function truncateMessagesForGroq(messages, maxTokens) {
-    maxTokens = maxTokens || 4000;
-    function estimate(m) { return Math.ceil((String(m.role || '') + ' ' + String(m.content || '')).length / 4); }
-    var total = 0, kept = [];
-    for (var i = messages.length - 1; i >= 0; i--) {
-        var n = estimate(messages[i]);
-        if (total + n > maxTokens && kept.length > 0) break;
-        total += n; kept.unshift(messages[i]);
+    maxTokens = maxTokens || 2500;
+    var CHARS_PER_TOKEN = 4;
+    function estimateTok(m) { return Math.ceil((String(m.role || '') + ' ' + String(m.content || '')).length / CHARS_PER_TOKEN); }
+    if (!messages || !messages.length) return [];
+    var lastMsg = messages[messages.length - 1];
+    var lastTokens = estimateTok(lastMsg);
+    var kept = [];
+    if (lastTokens > maxTokens) {
+        var maxChars = maxTokens * CHARS_PER_TOKEN;
+        var content = String(lastMsg.content || '');
+        var truncated = content.slice(-maxChars);
+        console.log('[truncate] last message trop long (' + lastTokens + ' tok) -> tronque a ' + maxTokens + ' tok');
+        return [{ role: lastMsg.role, content: truncated }];
     }
-    if (kept.length === 0 && messages.length > 0) {
-        var last = messages[messages.length - 1];
-        var c = String(last.content || '');
-        var maxChars = maxTokens * 4;
-        if (c.length > maxChars) c = c.slice(-maxChars);
-        kept = [{ role: last.role, content: c }];
+    kept.unshift(lastMsg);
+    var total = lastTokens;
+    for (var i = messages.length - 2; i >= 0; i--) {
+        var n = estimateTok(messages[i]);
+        if (total + n > maxTokens) break;
+        total += n;
+        kept.unshift(messages[i]);
     }
     return kept;
 }
@@ -210,7 +217,7 @@ async function callOpenRouter(messages, system) {
             'X-Title': 'Scholars Connect'
         },
         body: JSON.stringify({
-            model: process.env.OPENROUTER_MODEL || 'google/gemini-2.0-flash-exp:free',
+            model: process.env.OPENROUTER_MODEL || 'qwen/qwen-2.5-72b-instruct:free',
             messages: [{ role: 'system', content: system || '' }, ...messages],
             max_tokens: 4000,
             temperature: 0.2
@@ -285,14 +292,30 @@ REGLE ABSOLUE DE FIABILITE TECHNIQUE (priorite maximale) :
     try { _a31 = await callOpenRouter(messages, system); if (_a31 && _a31.length > 20) { console.log('[askAI] OpenRouter OK (' + _a31.length + ' chars)'); return _a31; } } catch (e) { console.warn('[askAI] OpenRouter KO : ' + e.message); }
     try { _a31 = await callBailian(messages, system); if (_a31 && _a31.length > 20) { console.log('[askAI] Bailian OK (' + _a31.length + ' chars)'); return _a31; } } catch (e) { console.warn('[askAI] Bailian KO : ' + e.message); }
 
+    // v1.33 : Fallback intelligent - filtre par pertinence au lieu de dump brut
     try {
-        const _src = (typeof finalPrompt === 'string' && finalPrompt.length > 200) ? finalPrompt : '';
+        var _src = (typeof finalPrompt === 'string' && finalPrompt.length > 200) ? finalPrompt : '';
         if (_src) {
-            const _ext = _src.trim().slice(0, 3000);
-            console.log('[askAI] Fallback local RAG (' + _ext.length + ' chars)');
-            return "[Reponse extraite de la base documentaire locale - services IA externes indisponibles]\n\n" + _ext;
+            var _qOrig = _src.split('[EXTRAITS]')[0].replace(/^\[Document\][^:]*:\s*/i, '').trim();
+            var _stop = ['quelle','quels','quel','quelles','est','sont','les','des','une','dans','pour','avec','plus','moins','cette','etre','avoir','fait','faire','peut','peuvent','comment','pourquoi','quand','combien','qui','que','quoi','dont','vers','sous','sur','entre','aussi','tres','tout','tous','toute','toutes','bien','meme','autre','autres','donc','alors','ainsi','selon','lors','apres','avant','pendant','depuis','jusque','chez','sans','the','and','for','with','this','that','from','have','has','was','were','are','what','where'];
+            var _qw = String(_qOrig).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^\p{L}\p{N}\s]/gu, ' ').split(/\s+/).filter(function(w){ return w.length >= 4 && _stop.indexOf(w) === -1; });
+            var _docs = _src.split(/=== DOCUMENT SOURCE \d+ :/).slice(1);
+            var _bestDoc = null, _bestScore = 0;
+            for (var _i = 0; _i < _docs.length; _i++) {
+                var _d = _docs[_i].toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+                var _s = 0;
+                for (var _j = 0; _j < _qw.length; _j++) { if (_d.indexOf(_qw[_j]) !== -1) _s++; }
+                if (_s > _bestScore) { _bestScore = _s; _bestDoc = _docs[_i]; }
+            }
+            console.log('[askAI] Fallback v1.33: ' + _qw.length + ' mots-cles, best=' + _bestScore + '/' + _qw.length);
+            if (_bestScore >= 2 && _bestDoc) {
+                var _clean = _bestDoc.replace(/^[^=]*===/, '').replace(/=== FIN DOCUMENT.*$/s, '').trim().slice(0, 2000);
+                return "[Reponse extraite de la base documentaire locale - les services IA externes sont temporairement indisponibles]\n\n" + _clean + "\n\n(Source : base documentaire interne)";
+            }
+            return "Je n'ai pas trouve d'information pertinente dans ma base documentaire pour cette question. Les services IA externes (Groq, Gemini, Mistral, OpenRouter, Bailian) sont temporairement indisponibles.\n\nVerifiez les cles API sur Render ou reessayez dans quelques minutes.";
         }
-    } catch (e) { console.warn('[askAI] Fallback local KO : ' + e.message); }
+    } catch (e) { console.warn('[askAI] Fallback v1.33 KO : ' + e.message); }
+    return "[Services IA temporairement indisponibles] Tous les fournisseurs (Groq, Gemini, Mistral, OpenRouter, Bailian) sont en panne. Verifiez les cles API sur Render.";
 
     return "[Service temporairement indisponible] Tous les fournisseurs IA sont en panne. Verifiez GROQ_API_KEY / GEMINI_API_KEY / MISTRAL_API_KEY / OPENROUTER_API_KEY / BAILIAN_API_KEY sur Render.";
 }
