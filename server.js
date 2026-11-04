@@ -5,16 +5,35 @@ const app = express();
 
 app.use(express.json());
 
-// Connexion MongoDB (avec fallback local si URI absente)
-const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/scholars-connect';
-mongoose.connect(MONGO_URI, { useNewUrlParser: true, useUnifiedTopology: true })
-    .then(() => console.log('MongoDB CONNECTE'))
-    .catch(err => console.error('Erreur MongoDB :', err.message));
+// Connexion MongoDB sécurisée (évite les plantages si l'URI est absente)
+const MONGO_URI = process.env.MONGO_URI || '';
+if (MONGO_URI) {
+    mongoose.connect(MONGO_URI)
+        .then(() => console.log('MongoDB CONNECTE'))
+        .catch(err => console.error('Erreur MongoDB :', err.message));
+} else {
+    console.log('MongoDB non configure (mode local sans persistance DB)');
+}
 
-// Fonctions d'appel des LLM externes
+// Troncature intelligente pour éviter l'erreur 413 de Groq (max ~3000 tokens)
+function truncateMessages(messages, maxChars) {
+    maxChars = maxChars || 12000;
+    let total = 0;
+    const kept = [];
+    for (let i = messages.length - 1; i >= 0; i--) {
+        const len = (messages[i].content || '').length;
+        if (total + len > maxChars && kept.length > 0) break;
+        total += len;
+        kept.unshift(messages[i]);
+    }
+    return kept;
+}
+
+// Fonctions d'appel des LLM sécurisées
 async function callOpenRouter(messages, system) {
     const key = process.env.OPENROUTER_API_KEY;
     if (!key) throw new Error('OPENROUTER_API_KEY absente');
+    const safeMessages = truncateMessages(messages, 8000);
     const r = await fetch('https://openrouter.ai/api/v1/chat/completions', {
         method: 'POST',
         headers: {
@@ -24,9 +43,9 @@ async function callOpenRouter(messages, system) {
             'X-Title': 'Scholars Connect'
         },
         body: JSON.stringify({
-            model: process.env.OPENROUTER_MODEL || 'meta-llama/llama-3.3-70b-instruct:free',
-            messages: [{ role: 'system', content: system || '' }, ...messages],
-            max_tokens: 4000,
+            model: process.env.OPENROUTER_MODEL || 'qwen/qwen-2.5-72b-instruct',
+            messages: [{ role: 'system', content: system || '' }, ...safeMessages],
+            max_tokens: 2000,
             temperature: 0.2
         })
     });
@@ -39,7 +58,8 @@ async function callGeminiAI(messages, system) {
     const key = process.env.GEMINI_API_KEY;
     if (!key) throw new Error('GEMINI_API_KEY absente');
     const url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=' + key;
-    const contents = messages.map(m => ({
+    const safeMessages = truncateMessages(messages, 8000);
+    const contents = safeMessages.map(m => ({
         role: m.role === 'assistant' ? 'model' : 'user',
         parts: [{ text: m.content }]
     }));
@@ -56,13 +76,14 @@ async function callGeminiAI(messages, system) {
 async function callGroq(messages, system) {
     const key = process.env.GROQ_API_KEY;
     if (!key) throw new Error('GROQ_API_KEY absente');
+    const safeMessages = truncateMessages(messages, 4000); // Troncature stricte pour Groq
     const r = await fetch('https://api.groq.com/openai/v1/chat/completions', {
         method: 'POST',
         headers: { 'Authorization': 'Bearer ' + key, 'Content-Type': 'application/json' },
         body: JSON.stringify({
-            model: process.env.GROQ_MODEL || 'openai/gpt-oss-120b',
-            messages: [{ role: 'system', content: system || '' }, ...messages],
-            max_tokens: 4000,
+            model: process.env.GROQ_MODEL || 'llama-3.3-70b-versatile',
+            messages: [{ role: 'system', content: system || '' }, ...safeMessages],
+            max_tokens: 2000,
             temperature: 0.2
         })
     });
@@ -71,67 +92,33 @@ async function callGroq(messages, system) {
     return (j && j.choices && j.choices[0] && j.choices[0].message) ? j.choices[0].message.content : '';
 }
 
-async function callMistral(messages, system) {
-    const key = process.env.MISTRAL_API_KEY;
-    if (!key) throw new Error('MISTRAL_API_KEY absente');
-    const r = await fetch('https://api.mistral.ai/v1/chat/completions', {
-        method: 'POST',
-        headers: { 'Authorization': 'Bearer ' + key, 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            model: process.env.MISTRAL_MODEL || 'mistral-small-latest',
-            messages: [{ role: 'system', content: system || '' }, ...messages],
-            max_tokens: 4000
-        })
-    });
-    if (!r.ok) { const t = await r.text(); throw new Error('Mistral HTTP ' + r.status + ' : ' + t.slice(0, 200)); }
-    const j = await r.json();
-    return (j && j.choices && j.choices[0] && j.choices[0].message) ? j.choices[0].message.content : '';
-}
-
-// Fonction askAI unifiée avec cascade robuste v1.38
+// Fonction askAI principale avec cascade de secours
 async function askAI(messages, system) {
     let _answer = "";
 
     try {
-        _answer = await callOpenRouter(messages, system);
-        if (_answer && _answer.length > 20) {
-            console.log('[askAI] OpenRouter OK (' + _answer.length + ' chars)');
-            return _answer;
-        }
-    } catch (e) { console.warn('[askAI] OpenRouter KO : ' + e.message); }
-
-    try {
         _answer = await callGeminiAI(messages, system);
-        if (_answer && _answer.length > 20) {
-            console.log('[askAI] Gemini OK (' + _answer.length + ' chars)');
-            return _answer;
-        }
+        if (_answer && _answer.length > 10) return _answer;
     } catch (e) { console.warn('[askAI] Gemini KO : ' + e.message); }
 
     try {
-        _answer = await callGroq(messages, system);
-        if (_answer && _answer.length > 20) {
-            console.log('[askAI] Groq OK (' + _answer.length + ' chars)');
-            return _answer;
-        }
-    } catch (e) { console.warn('[askAI] Groq KO : ' + e.message); }
+        _answer = await callOpenRouter(messages, system);
+        if (_answer && _answer.length > 10) return _answer;
+    } catch (e) { console.warn('[askAI] OpenRouter KO : ' + e.message); }
 
     try {
-        _answer = await callMistral(messages, system);
-        if (_answer && _answer.length > 20) {
-            console.log('[askAI] Mistral OK (' + _answer.length + ' chars)');
-            return _answer;
-        }
-    } catch (e) { console.warn('[askAI] Mistral KO : ' + e.message); }
+        _answer = await callGroq(messages, system);
+        if (_answer && _answer.length > 10) return _answer;
+    } catch (e) { console.warn('[askAI] Groq KO : ' + e.message); }
 
-    // Fallback intelligent pour les questions générales
+    // Fallback intelligent pour les questions générales et de secours
     const lastMsg = messages && messages.length > 0 ? messages[messages.length - 1].content : "";
     const pLower = (typeof lastMsg === "string" ? lastMsg : "").toLowerCase();
     if (pLower.includes("capitale") && pLower.includes("tunisie")) {
         return "La capitale de la Tunisie est **Tunis**.";
     }
 
-    return "Les services d'IA externes sont actuellement indisponibles. Veuillez vérifier la configuration de vos clés API dans le tableau de bord Render.";
+    return "Les services d'IA externes sont actuellement indisponibles ou en surcharge. Veuillez vérifier vos clés API dans le tableau de bord Render.";
 }
 
 // Route principale chat
@@ -150,7 +137,7 @@ app.post('/api/chat', async (req, res) => {
 
 // Route de santé
 app.get('/', (req, res) => {
-    res.send('Scholars Connect V2 - Serveur Actif (v1.38)');
+    res.send('Scholars Connect V2 - Serveur Actif (v1.39)');
 });
 
 const PORT = process.env.PORT || 3000;
