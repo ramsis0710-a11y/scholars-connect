@@ -100,7 +100,7 @@ async function callGeminiAI(messages, system) {
         parts.push((m.role === 'user' ? 'Utilisateur: ' : 'Assistant: ') + m.content);
     }
     const r = await ai.models.generateContent({
-        model: process.env.GEMINI_MODEL || 'gemini-2.0-flash',
+        model: process.env.GEMINI_MODEL || 'gemini-2.5-flash',
         contents: parts.join('\n\n')
     });
     return (r && r.text) || '';
@@ -124,7 +124,7 @@ async function callOpenAIAI(messages) {
     return (j && j.choices && j.choices[0] && j.choices[0].message) ? j.choices[0].message.content : '';
 }
 async function callGroq(messages, system) {
-    var safeMessages = truncateMessagesForGroq(messages, 2500);
+    var safeMessages = truncateMessagesForGroq(messages, 1500);
     const key = process.env.GROQ_API_KEY;
     if (!key) throw new Error('GROQ_API_KEY absente');
     const r = await fetch('https://api.groq.com/openai/v1/chat/completions', {
@@ -181,7 +181,7 @@ async function callBailian(messages, system) {
     return (j && j.choices && j.choices[0] && j.choices[0].message) ? j.choices[0].message.content : '';
 }
 function truncateMessagesForGroq(messages, maxTokens) {
-    maxTokens = maxTokens || 2500;
+    maxTokens = maxTokens || 1500;
     var CHARS_PER_TOKEN = 4;
     function estimateTok(m) { return Math.ceil((String(m.role || '') + ' ' + String(m.content || '')).length / CHARS_PER_TOKEN); }
     if (!messages || !messages.length) return [];
@@ -287,7 +287,20 @@ REGLE ABSOLUE DE FIABILITE TECHNIQUE (priorite maximale) :
     let _a31 = "";
 
     try { _a31 = await callGroq(messages, system); if (_a31 && _a31.length > 20) { console.log('[askAI] Groq OK (' + _a31.length + ' chars)'); return _a31; } } catch (e) { console.warn('[askAI] Groq KO : ' + e.message); }
-    try { _a31 = await callGeminiAI(messages, system); if (_a31 && _a31.length > 20) { console.log('[askAI] Gemini OK (' + _a31.length + ' chars)'); return _a31; } } catch (e) { console.warn('[askAI] Gemini KO : ' + e.message); }
+    try { _a31 = await callGeminiAI(messages, system); if (_a31 && _a31.length > 20) { console.log('[askAI] Gemini OK (' + _a31.length + ' chars)'); return _a31; } } catch (e) {
+        console.warn('[askAI] Gemini KO : ' + e.message);
+        if (e.message.indexOf('503') !== -1 || e.message.indexOf('429') !== -1) {
+            console.warn('[askAI] Gemini surcharge - retry apres 5s');
+            await new Promise(function(res) { setTimeout(res, 5000); });
+            try {
+                var _gemRetry = await callGeminiAI(messages, system);
+                if (_gemRetry && _gemRetry.length > 20) {
+                    console.log('[askAI] Gemini retry OK (' + _gemRetry.length + ' chars)');
+                    return _gemRetry;
+                }
+            } catch (e2) { console.warn('[askAI] Gemini retry KO : ' + e2.message); }
+        }
+    }
     try { _a31 = await callMistral(messages, system); if (_a31 && _a31.length > 20) { console.log('[askAI] Mistral OK (' + _a31.length + ' chars)'); return _a31; } } catch (e) { console.warn('[askAI] Mistral KO : ' + e.message); }
     try { _a31 = await callOpenRouter(messages, system); if (_a31 && _a31.length > 20) { console.log('[askAI] OpenRouter OK (' + _a31.length + ' chars)'); return _a31; } } catch (e) { console.warn('[askAI] OpenRouter KO : ' + e.message); }
     try { _a31 = await callBailian(messages, system); if (_a31 && _a31.length > 20) { console.log('[askAI] Bailian OK (' + _a31.length + ' chars)'); return _a31; } } catch (e) { console.warn('[askAI] Bailian KO : ' + e.message); }
@@ -309,7 +322,7 @@ REGLE ABSOLUE DE FIABILITE TECHNIQUE (priorite maximale) :
             }
             console.log('[askAI] Fallback v1.33: ' + _qw.length + ' mots-cles, best=' + _bestScore + '/' + _qw.length);
             if (_bestScore >= 2 && _bestDoc) {
-                var _clean = _bestDoc.replace(/^[^=]*===/, '').replace(/=== FIN DOCUMENT.*$/s, '').trim().slice(0, 2000);
+                var _clean = _bestDoc.replace(/^[^=]*===/, '').replace(/=== FIN DOCUMENT.*$/s, '').trim().slice(0, 1500);
                 return "[Reponse extraite de la base documentaire locale - les services IA externes sont temporairement indisponibles]\n\n" + _clean + "\n\n(Source : base documentaire interne)";
             }
             return "Je n'ai pas trouve d'information pertinente dans ma base documentaire pour cette question. Les services IA externes (Groq, Gemini, Mistral, OpenRouter, Bailian) sont temporairement indisponibles.\n\nVerifiez les cles API sur Render ou reessayez dans quelques minutes.";
