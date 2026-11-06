@@ -211,3 +211,8 @@ connectMongo().finally(() => {
 
 app.get('/upload-qp', (req, res) => res.sendFile(require('path').join(__dirname, 'public', 'upload-qp.html')));
 
+app.use((err, req, res, next) => {
+    console.error('[ERREUR GLOBALE]', err.stack);
+    if (res.headersSent) return next(err);
+    res.status(500).json({ error: err.message || 'Erreur interne du serveur' });
+});
