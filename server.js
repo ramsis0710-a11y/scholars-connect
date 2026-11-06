@@ -182,9 +182,9 @@ app.post("/api/ask", requireAuth, async (req, res) => {
     try {
         const { question, language, domain } = req.body || {};
         if (!question) return res.status(400).json({ error: "question requise" });
-        const answer = await askAI(question, { domain, language });
+        let answer; try { answer = await askAI(question, { domain, language }); } catch (e) { console.error("Erreur askAI:", e); return res.status(500).json({ error: "Erreur IA: " + e.message }); }
         if (mongoReady) {
-            await QA.create({ userId: req.user.id, question, answer, language: language || "fr", domain: domain || "General" });
+            try { await QA.create({ userId: req.user.id, question, answer, language: language || "fr", domain: domain || "General" }); } catch (e) { console.warn("Erreur QA.create:", e.message); }
         }
         res.json({ answer, language: language || "fr" });
     } catch (e) { res.status(500).json({ error: e.message }); }
@@ -213,7 +213,18 @@ require('./pdf-report-generator')(app, mongoose);
 // DESACTIVE TEMPORAIREMENT : require('./smart-router')(app, mongoose);
 
 connectMongo().finally(() => {
-    const server = app.listen(PORT, HOST, () => {
+    const server = 
+// === AJOUT : GESTIONNAIRE D'ERREURS GLOBAL ===
+app.use((err, req, res, next) => {
+    console.error("\n=== ERREUR 500 DETECTEE ===");
+    console.error(err.stack || err);
+    console.error("===========================\n");
+    if (res.headersSent) return next(err);
+    res.status(500).json({ error: err.message || "Erreur interne du serveur", details: err.stack });
+});
+// ==============================================
+
+app.listen(PORT, HOST, () => {
         console.log(`Scholars Connect V2 - PORT ${PORT}`);
     });
 });
