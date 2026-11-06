@@ -126,7 +126,7 @@ STYLE ET TON :
         body: JSON.stringify({
             model: OPENROUTER_MODEL,
             temperature: 0.2,
-            max_tokens: 4000, // CORRECTION CRITIQUE
+            max_tokens: 1500, // CORRECTION CRITIQUE
             messages: [
                 { role: "system", content: system },
                 { role: "user", content: finalPrompt }
@@ -182,7 +182,7 @@ app.post("/api/ask", requireAuth, async (req, res) => {
     try {
         const { question, language, domain } = req.body || {};
         if (!question) return res.status(400).json({ error: "question requise" });
-        let answer; try { answer = await askAI(question, { domain, language }); } catch (e) { console.error("Erreur askAI:", e); return res.status(500).json({ error: "Erreur IA: " + e.message }); }
+        let answer; try { answer = await askAI(question, { domain, language }); } catch (e) { console.error("Erreur askAI:", e); return res.status(200).json({ answer: "[Erreur temporaire] Le service IA est indisponible : " + e.message + ". Veuillez reessayer dans quelques minutes.", error: e.message }); }
         if (mongoReady) {
             try { await QA.create({ userId: req.user.id, question, answer, language: language || "fr", domain: domain || "General" }); } catch (e) { console.warn("Erreur QA.create:", e.message); }
         }
