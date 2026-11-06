@@ -16,6 +16,15 @@ const MONGODB_URI = process.env.MONGODB_URI || "";
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY || "";
 const OPENROUTER_MODEL = process.env.OPENROUTER_MODEL || "openai/gpt-4o-mini";
 
+// === AJOUT : GESTIONNAIRE D'ERREURS GLOBAL (Pour voir les vrais crashs) ===
+app.use((err, req, res, next) => {
+    console.error("\n=== ERREUR 500 DETECTEE ===");
+    console.error(err.stack || err);
+    console.error("===========================\n");
+    if (res.headersSent) return next(err);
+    res.status(500).json({ error: err.message || "Erreur interne du serveur", details: err.stack });
+});
+// =========================================================================
 app.use(cors({ origin: true, credentials: true }));
 app.use(express.json({ limit: "20mb" }));
 
@@ -210,9 +219,3 @@ connectMongo().finally(() => {
 });
 
 app.get('/upload-qp', (req, res) => res.sendFile(require('path').join(__dirname, 'public', 'upload-qp.html')));
-
-app.use((err, req, res, next) => {
-    console.error('[ERREUR GLOBALE]', err.stack);
-    if (res.headersSent) return next(err);
-    res.status(500).json({ error: err.message || 'Erreur interne du serveur' });
-});
