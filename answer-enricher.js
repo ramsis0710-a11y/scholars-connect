@@ -1,4 +1,4 @@
-﻿// ============================================================
+// ============================================================
 // ANSWER-ENRICHER.JS
 // Version v16.21 - FIABILISATION SECTION E + SECURITE ROUTES
 // BASE : v16.20 + route Excel du 17-10-2026 (SHA-256 397bde89...80f4)
@@ -1675,7 +1675,7 @@ module.exports = function(app, mongoose) {
   qpIntercept('/api/ask', true);
 
   async function ragPreprocessAsk(req, res, next) {
-    if (!req.body || !req.body.question) return next();
+    if (!req.body || !req.body.question || req._skipRag) return next();
     if (!AutoFeedDoc) { try { AutoFeedDoc = mongoose.model('AutoFeedDocument'); } catch (e) { return next(); } }
     try {
       var q = req.body.question;

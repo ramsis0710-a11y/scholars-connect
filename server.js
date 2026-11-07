@@ -1,4 +1,4 @@
-﻿require("dotenv").config();
+require("dotenv").config();
 const express  = require("express");
 const cors     = require("cors");
 const mongoose = require("mongoose");
@@ -30,6 +30,7 @@ app.use(express.json({ limit: "20mb" }));
 
 require('./language-fix')(app);
 require('./auto-feed')(app, mongoose);
+require('./continuity')(app, mongoose);
 require('./answer-enricher')(app, mongoose);
 
 app.use(express.static("public"));
@@ -95,8 +96,33 @@ function requireAuth(req, res, next) {
 // ============================================================
 // IA CENTRALE : RAG INJECTION + MAX TOKENS
 // ============================================================
+function computeMaxTokens(prompt) {
+    var s = String(prompt || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    var t = 1500;
+    if (/(detail|rapport|analys|expliqu|developp|etape|correct|exercice|compar|synthes|tableau)/i.test(s)) t = 2500;
+    if (s.length > 1500 || /(exhaustif|approfondi|tres detaille|rapport technique|rapport complet)/i.test(s)) t = 3500;
+    if (s.length > 4000) t = 4000;
+    return Math.max(1500, Math.min(4000, t));
+}
+
+async function loadHistory(userId, threadStart) {
+    if (!mongoReady) return [];
+    try {
+        var since = Date.now() - 3 * 3600 * 1000;
+        var ts = parseInt(threadStart, 10);
+        if (ts > 0) since = ts;
+        var items = await QA.find({ userId: userId, createdAt: { $gte: new Date(since) } }).sort({ createdAt: -1 }).limit(6).lean();
+        var msgs = [];
+        items.reverse().forEach(function (i) {
+            var q = String(i.question || "").split("[EXTRAITS]")[0].trim().slice(0, 1200);
+            var a = String(i.answer || "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().slice(0, 1500);
+            if (q && a) { msgs.push({ role: "user", content: q }); msgs.push({ role: "assistant", content: a }); }
+        });
+        return msgs;
+    } catch (e) { return []; }
+}
 async function askAI(prompt, opts = {}) {
-    const { domain = "General", language = "fr" } = opts;
+    const { domain = "General", language = "fr", history = [] } = opts;
 
     let system = `Tu es Scholars Connect, un assistant academique chaleureux et humain, propulse par MBA-CONSULT AI CORE.
 ROLE : Aider les etudiants avec pedagogie. Corriger les exercices en detaillant CHAQUE etape.
@@ -126,10 +152,9 @@ STYLE ET TON :
         body: JSON.stringify({
             model: OPENROUTER_MODEL,
             temperature: 0.2,
-            max_tokens: 1500, // CORRECTION CRITIQUE
+            max_tokens: computeMaxTokens(finalPrompt),
             messages: [
-                { role: "system", content: system },
-                { role: "user", content: finalPrompt }
+                { role: "system", content: system }, ...history, { role: "user", content: finalPrompt }
             ]
         })
     });
@@ -182,7 +207,7 @@ app.post("/api/ask", requireAuth, async (req, res) => {
     try {
         const { question, language, domain } = req.body || {};
         if (!question) return res.status(400).json({ error: "question requise" });
-        let answer; try { answer = await askAI(question, { domain, language }); } catch (e) { console.error("Erreur askAI:", e); return res.status(200).json({ answer: "[Erreur temporaire] Le service IA est indisponible : " + e.message + ". Veuillez reessayer dans quelques minutes.", error: e.message }); }
+        let answer; try { answer = await askAI(question, { domain, language, history: await loadHistory(req.user.id, req.headers["x-thread-start"]) }); } catch (e) { console.error("Erreur askAI:", e); return res.status(200).json({ answer: "[Erreur temporaire] Le service IA est indisponible : " + e.message + ". Veuillez reessayer dans quelques minutes.", error: e.message }); }
         if (mongoReady) {
             try { await QA.create({ userId: req.user.id, question, answer, language: language || "fr", domain: domain || "General" }); } catch (e) { console.warn("Erreur QA.create:", e.message); }
         }
