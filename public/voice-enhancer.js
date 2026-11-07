@@ -1,4 +1,4 @@
-﻿// ============================================================
+// ============================================================
 // VOICE-ENHANCER.JS - v4.0
 // Auto-detection AR/FR parallele + historique persistant
 // NE TOUCHE PAS au backend (answer-enricher.js intact)
@@ -230,7 +230,7 @@
                 }
 
                 clearTimeout(state.silenceTimer);
-                state.silenceTimer = setTimeout(finishRecognition, 4000); // 4 sec de silence
+                state.silenceTimer = setTimeout(finishRecognition, 10000); // 4 sec de silence
             };
             rec.onerror = (e) => {
                 console.warn('[voice-enhancer] ' + lang + ' err :', e.error);
