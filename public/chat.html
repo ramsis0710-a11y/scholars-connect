@@ -70,6 +70,45 @@ textarea { min-height: 100px; resize: vertical; font-family: monospace; }
 </style>
 </head>
 <body>
+<!-- SC_AUTH_GUARD : Vérification de session et rôle -->
+<script>
+(function() {
+    var token = localStorage.getItem('token');
+    if (!token) {
+        window.location.replace('/login');
+        return;
+    }
+    fetch('/api/auth/me', { headers: { 'Authorization': 'Bearer ' + token } })
+        .then(r => {
+            if (r.status === 403) {
+                localStorage.removeItem('token');
+                alert('Votre compte a été bloqué par l\'administrateur.');
+                window.location.replace('/login');
+            } else if (!r.ok) {
+                localStorage.removeItem('token');
+                window.location.replace('/login');
+            } else {
+                return r.json();
+            }
+        })
+        .then(data => {
+            if (data && data.user) {
+                localStorage.setItem('role', data.user.role);
+                if (data.user.role === 'admin') {
+                    var topbar = document.querySelector('.topbar .user');
+                    if (topbar && !document.getElementById('adminBtn')) {
+                        var a = document.createElement('a');
+                        a.id = 'adminBtn';
+                        a.href = '/admin';
+                        a.textContent = '⚙️ Admin';
+                        a.style.cssText = 'background:#D4AF37;color:#0a2540;padding:8px 12px;border-radius:6px;font-weight:700;text-decoration:none;font-size:13px;margin-right:10px;';
+                        topbar.insertBefore(a, topbar.firstChild);
+                    }
+                }
+            }
+        }).catch(() => {});
+})();
+</script>
 
 <div class="topbar">
     <div class="brand">

@@ -1,98 +1,143 @@
-﻿<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Admin - Scholars Connect</title><link rel="stylesheet" href="/style.css">
-<style>
-table{width:100%;border-collapse:collapse;margin-top:10px;font-size:.9rem}
-th,td{padding:10px;text-align:left;border-bottom:1px solid #e5e7eb}
-th{background:#f5f7fa;color:#0a2540;font-weight:600}
-tr:hover{background:#f9fafb}
-.tabs{display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap}
-.tab{padding:10px 18px;border-radius:10px;cursor:pointer;background:#f5f7fa;font-weight:600;font-size:.9rem}
-.tab.active{background:linear-gradient(135deg,#0a2540,#1e5aa8);color:white}
-</style></head><body>
-<div class="header">
-  <div class="logo"><div class="mark">SC</div><div><h1>Scholars Connect</h1><p>Admin Dashboard</p></div></div>
-  <div class="nav" id="nav-user"></div>
-</div>
-<div class="container">
-  <div class="tabs">
-    <div class="tab active" onclick="showTab('users', this)">Utilisateurs</div>
-    <div class="tab" onclick="showTab('history', this)">Questions & Reponses</div>
-    <div class="tab" onclick="showTab('docs', this)">Documents</div>
-    <div class="tab" onclick="showTab('chat', this)">Chat Admin IA</div>
-  </div>
-  <div class="card" id="content">
-    <h2>Chargement...</h2>
-  </div>
-</div>
-<script src="/app.js"></script>
-<script>
-if (!requireLogin()) throw new Error();
-if (!USER || USER.role !== 'admin') { alert('Acces reserve aux admins'); window.location.href = '/chat'; }
-updateNav();
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Administration | Scholars Connect</title>
+    <style>
+        body { font-family: 'Inter', sans-serif; background: #0a2540; color: #fff; margin: 0; padding: 20px; }
+        .container { max-width: 1000px; margin: 0 auto; background: #fff; color: #17202a; border-radius: 16px; padding: 30px; box-shadow: 0 10px 30px rgba(0,0,0,0.3); }
+        h1 { color: #0a2540; font-size: 24px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 14px; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #e5e7eb; }
+        th { background: #f9fafb; font-weight: 600; color: #374151; }
+        .badge { padding: 4px 8px; border-radius: 12px; font-size: 12px; font-weight: bold; }
+        .badge-admin { background: #fef3c7; color: #b45309; }
+        .badge-user { background: #e0f2fe; color: #0369a1; }
+        .badge-active { background: #dcfce7; color: #166534; }
+        .badge-blocked { background: #fee2e2; color: #991b1b; }
+        .btn { padding: 6px 12px; border: 0; border-radius: 6px; cursor: pointer; font-weight: 600; margin-right: 4px; font-size: 12px; }
+        .btn-block { background: #f59e0b; color: #fff; }
+        .btn-unblock { background: #10b981; color: #fff; }
+        .btn-delete { background: #ef4444; color: #fff; }
+        .btn-logout { background: #6b7280; color: #fff; padding: 8px 16px; border-radius: 8px; text-decoration: none; font-size: 13px; }
+        .btn-chat { background: #0a2540; color: #fff; padding: 8px 16px; border-radius: 8px; text-decoration: none; font-size: 13px; margin-right: 10px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>
+            ⚙️ Gestion des Utilisateurs
+            <div>
+                <a href="/chat" class="btn-chat">💬 Aller au Chat</a>
+                <a href="#" class="btn-logout" onclick="logout()">Déconnexion</a>
+            </div>
+        </h1>
+        
+        <table>
+            <thead>
+                <tr>
+                    <th>Nom</th>
+                    <th>Email</th>
+                    <th>Rôle</th>
+                    <th>Statut</th>
+                    <th>Date d'inscription</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody id="usersTable">
+                <tr><td colspan="6" style="text-align:center;">Chargement...</td></tr>
+            </tbody>
+        </table>
+    </div>
 
-async function showTab(name, el) {
-  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-  el.classList.add('active');
-  const c = document.getElementById('content');
-  c.innerHTML = '<h2>Chargement...</h2>';
-  try {
-    if (name === 'users') {
-      const r = await apiCall('/admin/users');
-      c.innerHTML = `<h2>Utilisateurs (${r.items.length})</h2>
-        <table><thead><tr><th>Email</th><th>Nom</th><th>Role</th><th>Inscription</th></tr></thead><tbody>
-        ${r.items.map(u => `<tr><td>${u.email}</td><td>${u.name}</td><td>${u.role}</td><td>${new Date(u.createdAt).toLocaleString('fr')}</td></tr>`).join('')}
-        </tbody></table>`;
-    } else if (name === 'history') {
-      const r = await apiCall('/admin/history');
-      c.innerHTML = `<h2>Questions & Reponses (${r.items.length})</h2>
-        <input id="searchH" placeholder="Rechercher..." oninput="filterHistory()" style="margin-bottom:10px">
-        <table id="histTable"><thead><tr><th>Date</th><th>Utilisateur</th><th>Question</th><th>Reponse</th><th>Scholar</th><th>Actions</th></tr></thead><tbody>
-        ${r.items.map(it => `<tr data-q="${(it.question||'').toLowerCase()}"><td>${new Date(it.createdAt).toLocaleString('fr')}</td><td>${it.userId?.email || '-'}</td><td>${escapeHtml(it.question).slice(0,80)}</td><td>${escapeHtml(it.answer).slice(0,80)}...</td><td>${it.scholar || '-'}</td><td><button onclick="translateRow('${it._id}')">ðŸŒ</button></td></tr>`).join('')}
-        </tbody></table>`;
-    } else if (name === 'docs') {
-      const r = await apiCall('/admin/documents');
-      c.innerHTML = `<h2>Documents (${r.items.length})</h2>
-        <table><thead><tr><th>Date</th><th>Utilisateur</th><th>Fichier</th><th>Taille</th><th>Lien</th></tr></thead><tbody>
-        ${r.items.map(d => `<tr><td>${new Date(d.createdAt).toLocaleString('fr')}</td><td>${d.userId?.email || '-'}</td><td>${d.original}</td><td>${(d.size/1024).toFixed(1)} Ko</td><td><a href="/uploads/${d.filename}" target="_blank">Ouvrir</a></td></tr>`).join('')}
-        </tbody></table>`;
-    } else if (name === 'chat') {
-      c.innerHTML = `<h2>Chat Admin IA</h2>
-        <div id="admin-chat" style="min-height:300px;max-height:500px;overflow-y:auto;background:#f9fafb;padding:15px;border-radius:10px;margin-bottom:15px"></div>
-        <div class="row">
-          <input id="admin-input" placeholder="Question a l'IA..." style="flex:1" onkeydown="if(event.key==='Enter')adminSend()">
-          <button class="primary" onclick="adminSend()">Envoyer</button>
-        </div>`;
-    }
-  } catch (e) { c.innerHTML = `<div class="error">Erreur : ${e.message}</div>`; }
-}
+    <script>
+        const API_BASE = 'https://scholars-connect-app.onrender.com';
+        const token = localStorage.getItem('token');
 
-function escapeHtml(s) { return String(s||'').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
-function filterHistory() {
-  const q = document.getElementById('searchH').value.toLowerCase();
-  document.querySelectorAll('#histTable tbody tr').forEach(tr => {
-    tr.style.display = tr.dataset.q.includes(q) ? '' : 'none';
-  });
-}
-async function translateRow(id) {
-  const target = prompt('Traduire en quelle langue ?', 'en');
-  if (!target) return;
-  alert('Fonction a connecter. Id : ' + id + ' -> ' + target);
-}
-async function adminSend() {
-  const inp = document.getElementById('admin-input');
-  const text = inp.value.trim();
-  if (!text) return;
-  const box = document.getElementById('admin-chat');
-  box.innerHTML += `<div style="margin-bottom:10px"><strong>Vous :</strong> ${escapeHtml(text)}</div>`;
-  inp.value = '';
-  box.scrollTop = box.scrollHeight;
-  try {
-    const r = await apiCall('/admin/chat', { method:'POST', body: JSON.stringify({ message: text }) });
-    box.innerHTML += `<div style="margin-bottom:10px;padding:10px;background:white;border-radius:8px"><strong>IA :</strong> ${escapeHtml(r.answer)}</div>`;
-    box.scrollTop = box.scrollHeight;
-  } catch (e) {
-    box.innerHTML += `<div class="error">Erreur : ${e.message}</div>`;
-  }
-}
-showTab('users', document.querySelector('.tab'));
-</script></body></html>
+        if (!token || localStorage.getItem('role') !== 'admin') {
+            window.location.href = '/login';
+        }
+
+        async function loadUsers() {
+            try {
+                const resp = await fetch(API_BASE + '/api/admin/users', {
+                    headers: { 'Authorization': 'Bearer ' + token }
+                });
+                if (resp.status === 403) {
+                    alert('Accès refusé.');
+                    window.location.href = '/login';
+                    return;
+                }
+                const data = await resp.json();
+                const tbody = document.getElementById('usersTable');
+                tbody.innerHTML = '';
+
+                if (!data.users || data.users.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;">Aucun utilisateur.</td></tr>';
+                    return;
+                }
+
+                data.users.forEach(u => {
+                    const tr = document.createElement('tr');
+                    const isAdmin = u.role === 'admin';
+                    const isActive = u.status === 'active';
+                    const date = new Date(u.createdAt).toLocaleDateString();
+
+                    tr.innerHTML = `
+                        <td>${u.name || '-'}</td>
+                        <td>${u.email}</td>
+                        <td><span class="badge ${isAdmin ? 'badge-admin' : 'badge-user'}">${isAdmin ? 'Admin' : 'Utilisateur'}</span></td>
+                        <td><span class="badge ${isActive ? 'badge-active' : 'badge-blocked'}">${isActive ? 'Actif' : 'Bloqué'}</span></td>
+                        <td>${date}</td>
+                        <td>
+                            ${!isAdmin ? `
+                                <button class="btn ${isActive ? 'btn-block' : 'btn-unblock'}" onclick="toggleStatus('${u._id}', '${isActive ? 'blocked' : 'active'}')">
+                                    ${isActive ? 'Bloquer' : 'Débloquer'}
+                                </button>
+                                <button class="btn btn-delete" onclick="deleteUser('${u._id}')">Supprimer</button>
+                            ` : '<span style="color:#9ca3af;font-size:12px;">Protégé</span>'}
+                        </td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            } catch (e) {
+                document.getElementById('usersTable').innerHTML = `<tr><td colspan="6" style="color:red;">Erreur : ${e.message}</td></tr>`;
+            }
+        }
+
+        async function toggleStatus(id, newStatus) {
+            if (!confirm(`Voulez-vous vraiment ${newStatus === 'blocked' ? 'bloquer' : 'débloquer'} cet utilisateur ?`)) return;
+            try {
+                const resp = await fetch(API_BASE + '/api/admin/users/' + id + '/status', {
+                    method: 'POST',
+                    headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ status: newStatus })
+                });
+                if (resp.ok) loadUsers();
+                else alert('Erreur lors de la modification.');
+            } catch (e) { alert(e.message); }
+        }
+
+        async function deleteUser(id) {
+            if (!confirm('Voulez-vous vraiment SUPPRIMER cet utilisateur ? Cette action est irréversible.')) return;
+            try {
+                const resp = await fetch(API_BASE + '/api/admin/users/' + id, {
+                    method: 'DELETE',
+                    headers: { 'Authorization': 'Bearer ' + token }
+                });
+                if (resp.ok) loadUsers();
+                else alert('Erreur lors de la suppression.');
+            } catch (e) { alert(e.message); }
+        }
+
+        function logout() {
+            localStorage.removeItem('token');
+            localStorage.removeItem('role');
+            window.location.href = '/login';
+        }
+
+        loadUsers();
+    </script>
+</body>
+</html>
