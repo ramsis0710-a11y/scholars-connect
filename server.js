@@ -228,6 +228,10 @@ app.get("/api/history", requireAuth, async (req, res) => {
 // ============================================================
 // ROUTES ADMIN
 // ============================================================
+function requireAdmin(req, res, next) {
+    if (req.user && req.user.role === 'admin') return next();
+    return res.status(403).json({ error: "Accès réservé à l'administrateur." });
+}
 app.get("/api/admin/users", requireAuth, requireAdmin, async (req, res) => {
     try {
         const users = await User.find().select('-password').sort({ createdAt: -1 }).lean();
