@@ -304,7 +304,18 @@
   };
 
   function addVoiceButton() {
-    if (document.getElementById('sc-voice-btn') || !document.getElementById('messages')) return;
+    if (document.getElementById('sc-voice-btn')) return;
+    // Attendre que #messages apparaisse
+    if (!document.getElementById('messages')) {
+        var obs = new MutationObserver(function() {
+            if (document.getElementById('messages')) {
+                obs.disconnect();
+                addVoiceButton();
+            }
+        });
+        obs.observe(document.body, { childList: true, subtree: true });
+        return;
+    }
     var b = document.createElement('button');
     b.id = 'sc-voice-btn';
     b.type = 'button';
