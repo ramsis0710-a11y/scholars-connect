@@ -1,4 +1,4 @@
-require("dotenv").config();
+﻿require("dotenv").config();
 const express  = require("express");
 const cors     = require("cors");
 const mongoose = require("mongoose");
@@ -238,8 +238,7 @@ require('./pdf-report-generator')(app, mongoose);
 // DESACTIVE TEMPORAIREMENT : require('./smart-router')(app, mongoose);
 
 connectMongo().finally(() => {
-    const server = 
-// === AJOUT : GESTIONNAIRE D'ERREURS GLOBAL ===
+    // === AJOUT : GESTIONNAIRE D'ERREURS GLOBAL ===
 app.use((err, req, res, next) => {
     console.error("\n=== ERREUR 500 DETECTEE ===");
     console.error(err.stack || err);
