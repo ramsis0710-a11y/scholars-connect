@@ -85,6 +85,15 @@
     var k = s.search(/Fiche technique/i);
     if (k > 20) s = s.slice(0, k);
     s = s.replace(/^\s*Reponse detaillee\s*/i, '');
+    // v4.1 : retirer les boutons Traduire / Partager / Reposer / Continuer
+    s = s.replace(/\uD83C\uDF10\s*Traduire/gi, ' ');
+    s = s.replace(/\uD83D\uDD17\s*Partager/gi, ' ');
+    s = s.replace(/\uD83D\uDD01\s*Reposer cette question/gi, ' ');
+    s = s.replace(/\uD83D\uDCAC\s*Continuer la discussion/gi, ' ');
+    s = s.replace(/\bTraduire\b/gi, ' ');
+    s = s.replace(/\bPartager\b/gi, ' ');
+    s = s.replace(/Reposer cette question/gi, ' ');
+    s = s.replace(/Continuer la discussion/gi, ' ');
     s = s.replace(/<[^>]*>/g, ' ')
          .replace(/[\u{1F000}-\u{1FFFF}\u2600-\u27BF\uFE0F]/gu, ' ')
          .replace(/https?:\/\/\S+/g, ' ')
@@ -229,8 +238,8 @@
           armedAt = 0;
           setTimeout(function () {
             var c = n.cloneNode(true);
-            var a = c.querySelector('.msg-actions'); if (a) a.remove();
-            var mt = c.querySelector('.meta'); if (mt) mt.remove();
+            // v4.1 : retirer tous les boutons et actions avant lecture
+            c.querySelectorAll('.msg-actions, .sc-trad, .sc-translation, .meta, .msg-meta, button, a').forEach(function(el) { el.remove(); });
             scSpeak(c.textContent, null, null);
           }, 500);
         });
