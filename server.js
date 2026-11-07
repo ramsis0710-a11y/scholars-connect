@@ -43,6 +43,7 @@ const userSchema = new mongoose.Schema({
     password: { type: String, required: true },
     name: { type: String, default: "" },
     role: { type: String, default: "user" },
+    status: { type: String, default: "active" },
     createdAt: { type: Date, default: Date.now }
 });
 const qaSchema = new mongoose.Schema({
@@ -223,6 +224,32 @@ app.get("/api/history", requireAuth, async (req, res) => {
     } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+
+// ============================================================
+// ROUTES ADMIN
+// ============================================================
+app.get("/api/admin/users", requireAuth, requireAdmin, async (req, res) => {
+    try {
+        const users = await User.find().select('-password').sort({ createdAt: -1 }).lean();
+        res.json({ users });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post("/api/admin/users/:id/status", requireAuth, requireAdmin, async (req, res) => {
+    try {
+        const { status } = req.body;
+        if (!['active', 'blocked'].includes(status)) throw new Error("Statut invalide");
+        await User.findByIdAndUpdate(req.params.id, { status });
+        res.json({ ok: true });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.delete("/api/admin/users/:id", requireAuth, requireAdmin, async (req, res) => {
+    try {
+        await User.findByIdAndDelete(req.params.id);
+        res.json({ ok: true });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
 app.get("/chat", (req, res) => res.sendFile(path.join(__dirname, "public", "chat.html")));
 app.get("/register", (req, res) => res.sendFile(path.join(__dirname, "public", "register.html")));
 app.get("/login", (req, res) => res.sendFile(path.join(__dirname, "public", "login.html")));
