@@ -224,6 +224,7 @@ app.get("/api/history", requireAuth, async (req, res) => {
 });
 
 app.get("/chat", (req, res) => res.sendFile(path.join(__dirname, "public", "chat.html")));
+app.get("/register", (req, res) => res.sendFile(path.join(__dirname, "public", "register.html")));
 app.get("/login", (req, res) => res.sendFile(path.join(__dirname, "public", "login.html")));
 app.get("/admin", (req, res) => res.sendFile(path.join(__dirname, "public", "admin.html")));
 app.get("/", (req, res) => res.sendFile(path.join(__dirname, "public", "index.html")));
