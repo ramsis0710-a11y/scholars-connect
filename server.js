@@ -122,46 +122,102 @@ async function loadHistory(userId, threadStart) {
         return msgs;
     } catch (e) { return []; }
 }
+
+// ============================================================
+// FONCTIONS DE SECOURS (FALLBACK IA)
+// ============================================================
+async function callGroq(messages, system) {
+    const key = process.env.GROQ_API_KEY;
+    if (!key) throw new Error('GROQ_API_KEY absente');
+    const r = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + key, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            model: process.env.GROQ_MODEL || 'llama-3.3-70b-versatile',
+            messages: [{ role: 'system', content: system || '' }, ...messages],
+            max_tokens: 1500,
+            temperature: 0.2
+        })
+    });
+    if (!r.ok) { const t = await r.text(); throw new Error('Groq HTTP ' + r.status + ' : ' + t.slice(0, 200)); }
+    const j = await r.json();
+    return (j && j.choices && j.choices[0] && j.choices[0].message) ? j.choices[0].message.content : '';
+}
+
+async function callGeminiAI(messages, system) {
+    const key = process.env.GEMINI_API_KEY;
+    if (!key) throw new Error('GEMINI_API_KEY absente');
+    const url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=' + key;
+    const contents = messages.map(m => ({
+        role: m.role === 'assistant' ? 'model' : 'user',
+        parts: [{ text: m.content }]
+    }));
+    const r = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contents, systemInstruction: system ? { parts: [{ text: system }] } : undefined })
+    });
+    if (!r.ok) { const t = await r.text(); throw new Error('Gemini HTTP ' + r.status + ' : ' + t.slice(0, 200)); }
+    const j = await r.json();
+    return (j && j.candidates && j.candidates[0] && j.candidates[0].content && j.candidates[0].content.parts[0]) ? j.candidates[0].content.parts[0].text : '';
+}
 async function askAI(prompt, opts = {}) {
     const { domain = "General", language = "fr", history = [] } = opts;
 
     let system = `Tu es Scholars Connect, un assistant academique chaleureux et humain, propulse par MBA-CONSULT AI CORE.
 ROLE : Aider les etudiants avec pedagogie. Corriger les exercices en detaillant CHAQUE etape.
-STYLE ET TON :
-- Sois CHALEUREUX et encourageant
-- Phrases courtes et naturelles
-- Termine par une formule encourageante
-- Ne dis JAMAIS "en tant qu'IA"`;
+STYLE ET TON : Sois CHALEUREUX et encourageant. Phrases courtes et naturelles. Termine par une formule encourageante.`;
 
-    // INJECTION DU CONTEXTE RAG (API 14L, etc.)
     let finalPrompt = prompt;
     const ragMatch = prompt.match(/\[EXTRAITS\]([\s\S]*?)\[FIN EXTRAITS\]/);
     if (ragMatch) {
-        system += `\n\nINSTRUCTION CRITIQUE : Tu dois répondre en te basant EXCLUSIVEMENT sur les extraits de documents fournis ci-dessous. Si la réponse exacte (chiffres, tolérances) s'y trouve, tu DOIS la citer. Ne réponds pas avec des généralités.\n\nCONTEXTE :\n${ragMatch[1]}`;
+        system += `\n\nINSTRUCTION CRITIQUE : Tu dois répondre en te basant EXCLUSIVEMENT sur les extraits de documents fournis ci-dessous.\n\nCONTEXTE :\n${ragMatch[1]}`;
         finalPrompt = prompt.replace(/\[EXTRAITS\][\s\S]*?\[FIN EXTRAITS\]/, '').trim();
     }
 
-    if (!OPENROUTER_API_KEY) return "[Mode degrade] OPENROUTER_API_KEY non configuree.";
+    const messages = [{ role: "system", content: system }];
+    if (Array.isArray(history) && history.length > 0) {
+        history.slice(-6).forEach(function(m) {
+            const role = (m.role === 'user') ? 'user' : 'assistant';
+            let content = String(m.content || m.text || '').split(/Fiche technique/i)[0].replace(/Reponse detaillee/i, '').trim();
+            if (content) messages.push({ role: role, content: content });
+        });
+    }
+    messages.push({ role: "user", content: finalPrompt });
 
-    const r = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-        method: "POST",
-        headers: {
-            "Authorization": `Bearer ${OPENROUTER_API_KEY}`,
-            "Content-Type": "application/json",
-            "HTTP-Referer": "https://scholars-connect-app.onrender.com"
-        },
-        body: JSON.stringify({
-            model: OPENROUTER_MODEL,
-            temperature: 0.2,
-            max_tokens: computeMaxTokens(finalPrompt),
-            messages: [
-                { role: "system", content: system }, ...history, { role: "user", content: finalPrompt }
-            ]
-        })
-    });
-    const data = await r.json();
-    if (!r.ok) throw new Error(data?.error?.message || "OpenRouter error");
-    return data?.choices?.[0]?.message?.content || "";
+    // --- CASCADE 1 : OpenRouter (si crédits suffisants) ---
+    if (OPENROUTER_API_KEY) {
+        try {
+            const r = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+                method: "POST",
+                headers: { "Authorization": `Bearer ${OPENROUTER_API_KEY}`, "Content-Type": "application/json", "HTTP-Referer": "https://scholars-connect-app.onrender.com" },
+                body: JSON.stringify({ model: OPENROUTER_MODEL, temperature: 0.2, max_tokens: 800, messages: messages })
+            });
+            const data = await r.json();
+            if (r.ok && data?.choices?.[0]?.message?.content) {
+                console.log('[askAI] OpenRouter OK');
+                return data.choices[0].message.content;
+            }
+            throw new Error(data?.error?.message || 'OpenRouter error');
+        } catch (e) {
+            console.warn('[askAI] OpenRouter KO :', e.message);
+        }
+    }
+
+    // --- CASCADE 2 : Groq (Gratuit, Rapide) ---
+    try {
+        const ans = await callGroq(messages, system);
+        if (ans && ans.length > 20) { console.log('[askAI] Groq OK'); return ans; }
+    } catch (e) { console.warn('[askAI] Groq KO :', e.message); }
+
+    // --- CASCADE 3 : Gemini (Gratuit) ---
+    try {
+        const ans = await callGeminiAI(messages, system);
+        if (ans && ans.length > 20) { console.log('[askAI] Gemini OK'); return ans; }
+    } catch (e) { console.warn('[askAI] Gemini KO :', e.message); }
+
+    // --- CASCADE 4 : Fallback Final ---
+    return "[Service temporairement indisponible] Tous les fournisseurs IA sont en panne. Veuillez vérifier vos clés API sur Render.";
 }
 
 app.get("/api/health", (req, res) => res.json({ ok: true, mongo: mongoReady, ai: !!OPENROUTER_API_KEY }));
