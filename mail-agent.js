@@ -114,8 +114,38 @@ async function sendReply(acc, original, text) {
   await t.sendMail(buildReply(acc, original, text));
 }
 
+// ---------- Anti-doublons : lecture des brouillons existants ----------
+async function loadDraftReplies(acc, since) {
+  const ids = new Set();
+  const c = new ImapFlow({
+    host: acc.imapHost, port: acc.imapPort, secure: true,
+    auth: { user: acc.user, pass: acc.pass }, logger: false
+  });
+  c.on('error', () => {});
+  await c.connect();
+  try {
+    const boxes = await c.list();
+    const d = boxes.find(b => b.specialUse === '\\Drafts')
+      || boxes.find(b => /^(drafts|draft|brouillons)$/i.test(b.name))
+      || boxes.find(b => /draft|brouillon/i.test(b.path));
+    if (!d) return ids;
+    const lock = await c.getMailboxLock(d.path);
+    try {
+      const uids = (await c.search({ since: new Date(since.getTime() - 5 * 86400000) }, { uid: true })) || [];
+      if (uids.length) {
+        for await (const m of c.fetch(uids.join(','), { headers: ['in-reply-to'] }, { uid: true })) {
+          const h = m.headers ? m.headers.toString() : '';
+          const r = h.match(/in-reply-to:\s*(<[^>]+>)/i);
+          if (r) ids.add(r[1]);
+        }
+      }
+    } finally { lock.release(); }
+  } finally { try { await c.logout(); } catch (e) {} }
+  return ids;
+}
+
 // ---------- Traitement ----------
-async function processMessage(acc, client, uid) {
+async function processMessage(acc, client, uid, draftSet) {
   const msg = await client.fetchOne(uid, { source: true }, { uid: true });
   if (!msg || !msg.source) return;
   const parsed = await simpleParser(msg.source);
@@ -124,6 +154,7 @@ async function processMessage(acc, client, uid) {
   if (ALL_USERS.includes(from.toLowerCase())) return;
   if (/no-?reply|mailer-daemon|notification|newsletter/i.test(from)) return;
   if (parsed.headers && parsed.headers.has('list-unsubscribe')) return;
+  if (parsed.messageId && draftSet && draftSet.has(parsed.messageId)) return;
 
   const subject = parsed.subject || '(sans sujet)';
   const content = (parsed.text || (parsed.html ? String(parsed.html).replace(/<[^>]+>/g, ' ') : '')).replace(/\s+/g, ' ').trim();
@@ -146,6 +177,7 @@ async function processMessage(acc, client, uid) {
       console.log(`[${acc.id}] Brouillon enregistre dans "${p}"`);
     }
     s.drafts++;
+    if (parsed.messageId && draftSet) draftSet.add(parsed.messageId);
   }
 }
 
@@ -161,9 +193,12 @@ async function watchAccount(acc) {
       const since = new Date(Date.now() - LOOKBACK_DAYS * 86400000);
       const uids = (await client.search({ seen: false, since }, { uid: true })) || [];
       const fresh = uids.filter(u => !done.has(u)).slice(-MAX_PER_CYCLE);
+      const draftSet = fresh.length
+        ? await loadDraftReplies(acc, since).catch(e => { console.error(`[${acc.id}] Lecture brouillons:`, e.message); return new Set(); })
+        : new Set();
       for (const uid of fresh) {
         done.add(uid);
-        try { await processMessage(acc, client, uid); }
+        try { await processMessage(acc, client, uid, draftSet); }
         catch (e) { state[acc.id].lastError = e.message; console.error(`[${acc.id}] Erreur:`, e.message); }
       }
       state[acc.id].lastCheck = new Date().toISOString();
