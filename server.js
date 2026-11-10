@@ -43,6 +43,11 @@ const BRAND_PAGES = {
     "/admin": "admin.html", "/admin.html": "admin.html",
     "/upload-qp": "upload-qp.html", "/upload-qp.html": "upload-qp.html"
 };
+// === BRAND v1.3 : logo dans le navigateur (icone d'onglet, apercu de partage) ===
+app.get("/favicon.ico", (req, res) => {
+    res.set("Cache-Control", "public, max-age=86400");
+    res.sendFile(path.join(__dirname, "public", "logo-mba.png"));
+});
 app.get("/api/brand/role", (req, res) => {
     let role = "public";
     const h = req.headers.authorization || "";
@@ -67,7 +72,21 @@ app.get(Object.keys(BRAND_PAGES), (req, res, next) => {
     brandFs.readFile(file, "utf8", (err, html) => {
         if (err) return next();
         const tag = '<script src="/brand.js" defer></script>';
-        if (html.indexOf("/brand.js") === -1) {
+        const brandBase = String(process.env.PUBLIC_URL || ("https://" + req.get("host"))).replace(/[^\w:\/\.\-]/g, "");
+        let headTags = "";
+        if (!/rel=["'](?:shortcut )?icon["']/i.test(html)) {
+            headTags += '<link rel="icon" type="image/png" href="/logo-mba.png"><link rel="apple-touch-icon" href="/logo-mba.png">';
+        }
+        if (html.indexOf("og:image") === -1) {
+            headTags += '<meta property="og:type" content="website"><meta property="og:site_name" content="MBA-CONSULT">' +
+                '<meta property="og:title" content="Scholars Connect - MBA-CONSULT">' +
+                '<meta property="og:description" content="Assistant acad&eacute;mique propuls&eacute; par MBA-CONSULT AI CORE">' +
+                '<meta property="og:image" content="' + brandBase + '/logo-share.jpg">' +
+                '<meta property="og:image:width" content="1200"><meta property="og:image:height" content="630">' +
+                '<meta property="og:url" content="' + brandBase + req.path + '"><meta name="twitter:card" content="summary_large_image">' +
+                '<meta name="theme-color" content="#000000">';
+        }
+        if (headTags && /<\/head>/i.test(html)) html = html.replace(/<\/head>/i, function () { return headTags + "</head>"; });        if (html.indexOf("/brand.js") === -1) {
             html = /<\/body>/i.test(html) ? html.replace(/<\/body>/i, tag + "</body>") : html + tag;
         }
         res.set("Content-Type", "text/html; charset=utf-8");
