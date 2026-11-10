@@ -1,116 +1,222 @@
-<!doctype html>
-<html><head><meta charset="utf-8"><title>MBA-CONSULT</title>
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MBA-CONSULT | Intelligence Commerciale & IA</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #003366;
+            --accent: #00A8E8;
+            --gold: #D4AF37;
+            --navy: #0A1128;
+            --bg: #f4f7f9;
+            --text: #2c3e50;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); line-height: 1.7; overflow-x: hidden; }
+        
+        /* Barre de langue */
+        .lang-bar { background: var(--navy); padding: 10px 40px; text-align: right; border-bottom: 2px solid var(--gold); }
+        .lang-bar button { background: transparent; border: 1px solid var(--gold); color: var(--gold); padding: 5px 15px; margin-left: 5px; border-radius: 4px; cursor: pointer; font-weight: bold; transition: 0.3s; }
+        .lang-bar button.active, .lang-bar button:hover { background: var(--gold); color: var(--navy); }
+        
+        /* Header */
+        header { background: linear-gradient(rgba(0, 51, 102, 0.9), rgba(0, 26, 51, 0.9)), url('/Strategic Warning.png') center/cover; color: white; padding: 4rem 1rem; text-align: center; position: relative; }
+        .profile-img { width: 150px; height: 150px; border-radius: 50%; border: 4px solid var(--gold); margin-bottom: 20px; object-fit: cover; box-shadow: 0 0 20px rgba(212,175,55,0.5); }
+        header h1 { font-size: 3.5rem; letter-spacing: 5px; font-weight: 900; margin-bottom: 10px; }
+        header .subtitle { font-size: 1.4rem; color: var(--gold); font-weight: 600; margin-bottom: 15px; }
+        header .desc { font-size: 1rem; opacity: 0.9; max-width: 800px; margin: 0 auto; }
+        
+        /* Container */
+        .container { max-width: 1100px; margin: -50px auto 40px; padding: 0 20px; }
+        .card { background: white; border-radius: 15px; padding: 40px; box-shadow: 0 20px 40px rgba(0,0,0,0.1); border-top: 5px solid var(--gold); margin-bottom: 30px; }
+        .card h2 { color: var(--primary); font-size: 2rem; margin-bottom: 20px; text-align: center; }
+        .card p { font-size: 1.1rem; color: #555; margin-bottom: 20px; text-align: center; }
+        
+        /* Grille de réalisations */
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; margin-top: 30px; }
+        .grid-item { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 10px; padding: 20px; text-align: center; transition: 0.3s; }
+        .grid-item:hover { transform: translateY(-5px); border-color: var(--gold); box-shadow: 0 10px 20px rgba(0,0,0,0.05); }
+        .grid-item h3 { color: var(--primary); font-size: 1.2rem; margin-bottom: 10px; }
+        .grid-item p { font-size: 0.95rem; color: #666; margin-bottom: 0; }
+        
+        /* Boutons Scholars Connect */
+        .actions-box { text-align: center; margin-top: 40px; padding-top: 30px; border-top: 2px dashed #e5e7eb; }
+        .btn-scholars { display: inline-block; background: var(--primary); color: white; padding: 18px 40px; font-size: 1.2rem; font-weight: 700; text-decoration: none; border-radius: 50px; box-shadow: 0 10px 20px rgba(0,51,102,0.3); transition: 0.3s; margin: 10px; }
+        .btn-scholars:hover { background: var(--gold); color: var(--navy); transform: translateY(-3px); }
+        
+        .btn-admin-access { display: none; background: var(--gold); color: var(--navy); padding: 18px 40px; font-size: 1.2rem; font-weight: 700; text-decoration: none; border-radius: 50px; box-shadow: 0 10px 20px rgba(212,175,55,0.4); transition: 0.3s; margin: 10px; }
+        .btn-admin-access:hover { background: #b5952f; transform: translateY(-3px); }
+        
+        /* Footer */
+        footer { background: var(--navy); color: white; text-align: center; padding: 40px 20px; border-top: 4px solid var(--gold); margin-top: 40px; }
+        footer p { opacity: 0.7; font-size: 0.9rem; margin-bottom: 5px; }
+        
+        /* Langues cachées */
+        .lang-content { display: none; }
+        .lang-content.active { display: block; }
+        
+        @media (max-width: 768px) {
+            header h1 { font-size: 2.5rem; }
+            .card { padding: 25px; }
+        }
+    </style>
+</head>
+<body>
+
+<!-- Barre de sélection de langue -->
+<div class="lang-bar">
+    <button onclick="setLang('fr')" id="btn-fr" class="active">FR</button>
+    <button onclick="setLang('en')" id="btn-en">EN</button>
+    <button onclick="setLang('ar')" id="btn-ar">AR</button>
+</div>
+
+<!-- Header -->
+<header>
+    <img src="/logo-mba.png" alt="MBA-CONSULT" class="profile-img" onerror="this.style.display='none'">
+    <h1>MBA-CONSULT</h1>
+    <div class="subtitle" id="header-sub">Intelligence Commerciale & Global Business Development</div>
+    <div class="desc" id="header-desc">Expertise de 33 ans | Oil, Gas & Banking | Lead Architect Semantic AI<br>Dirigé par Mohamed Ben Abdallah</div>
+</header>
+
+<!-- Contenu -->
+<div class="container">
+    <div class="card">
+        
+        <!-- FRANCAIS -->
+        <div id="content-fr" class="lang-content active">
+            <h2>Bienvenue chez MBA-CONSULT</h2>
+            <p>Cabinet d'expertise en Intelligence Commerciale, KMS et Transformation Digitale, dirigé par <strong>Mohamed Ben Abdallah</strong>.</p>
+            <div class="grid">
+                <div class="grid-item">
+                    <h3>QP Generator</h3>
+                    <p>Génération automatisée de plans qualité (API, ISO) avec validation sémantique.</p>
+                </div>
+                <div class="grid-item">
+                    <h3>Scholars Connect</h3>
+                    <p>Assistant académique et technique propulsé par MBA-CONSULT AI CORE.</p>
+                </div>
+                <div class="grid-item">
+                    <h3>Titanium Protocol</h3>
+                    <p>Évaluation des compétences techniques via audit sémantique Delta.</p>
+                </div>
+            </div>
+            
+            <div class="actions-box">
+                <a href="/chat" class="btn-scholars">Accéder à Scholars Connect (Public)</a>
+                <a href="/admin" id="btn-admin-link" class="btn-admin-access">⚙️ Accès Administrateur</a>
+            </div>
+        </div>
+
+        <!-- ENGLISH -->
+        <div id="content-en" class="lang-content">
+            <h2>Welcome to MBA-CONSULT</h2>
+            <p>Consulting firm specialized in Commercial Intelligence, KMS and Digital Transformation, led by <strong>Mohamed Ben Abdallah</strong>.</p>
+            <div class="grid">
+                <div class="grid-item">
+                    <h3>QP Generator</h3>
+                    <p>Automated quality plan generation (API, ISO) with semantic validation.</p>
+                </div>
+                <div class="grid-item">
+                    <h3>Scholars Connect</h3>
+                    <p>Academic and technical assistant powered by MBA-CONSULT AI CORE.</p>
+                </div>
+                <div class="grid-item">
+                    <h3>Titanium Protocol</h3>
+                    <p>Technical skills assessment via Delta semantic audit.</p>
+                </div>
+            </div>
+            
+            <div class="actions-box">
+                <a href="/chat" class="btn-scholars">Access Scholars Connect (Public)</a>
+                <a href="/admin" id="btn-admin-link-en" class="btn-admin-access">⚙️ Administrator Access</a>
+            </div>
+        </div>
+
+        <!-- ARABE -->
+        <div id="content-ar" class="lang-content" dir="rtl">
+            <h2>مرحبًا بكم في MBA-CONSULT</h2>
+            <p>شركة استشارات متخصصة في الذكاء التجاري وإدارة المعرفة والتحول الرقمي، بقيادة <strong>محمد بن عبد الله</strong>.</p>
+            <div class="grid">
+                <div class="grid-item">
+                    <h3>QP Generator</h3>
+                    <p>توليد خطط الجودة الآلية (API، ISO) مع التحقق الدلالي.</p>
+                </div>
+                <div class="grid-item">
+                    <h3>Scholars Connect</h3>
+                    <p>مساعد أكاديمي وتقني مدعوم بـ MBA-CONSULT AI CORE.</p>
+                </div>
+                <div class="grid-item">
+                    <h3>Titanium Protocol</h3>
+                    <p>تقييم المهارات التقنية عبر التدقيق الدلالي Delta.</p>
+                </div>
+            </div>
+            
+            <div class="actions-box">
+                <a href="/chat" class="btn-scholars">ادخل إلى Scholars Connect (عام)</a>
+                <a href="/admin" id="btn-admin-link-ar" class="btn-admin-access">⚙️ دخول المسؤول</a>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<!-- Footer -->
+<footer>
+    <p><strong>MBA-CONSULT TUNISIA</strong></p>
+    <p>Sfax & Tunis | +216 29.205.260 | contact@mba.consult.tn</p>
+    <p style="margin-top:15px; opacity:0.5;">&copy; 2026 OMNI-GENESIS PROTOCOL. SÉCURISÉ & SCELLÉ.</p>
+</footer>
+
+<!-- Script de gestion des langues et du rôle Admin -->
 <script>
-var lang = (navigator.language || 'fr').slice(0,2).toLowerCase();
-if (lang === 'ar') { location.href = '/ar'; }
-else if (lang === 'en') { location.href = '/en'; }
-else { location.href = '/fr'; }
-</script></head><body>
-<!-- ============================================================ -->
-<!-- SECTION APPLICATIONS MBA-CONSULT + QR CODE - AJOUT AUTOMATIQUE -->
-<!-- ============================================================ -->
+// 1. Gestion des langues
+function setLang(lang) {
+    document.querySelectorAll('.lang-content').forEach(el => el.classList.remove('active'));
+    document.querySelectorAll('.lang-bar button').forEach(el => el.classList.remove('active'));
+    document.getElementById('content-' + lang).classList.add('active');
+    document.getElementById('btn-' + lang).classList.add('active');
+    
+    const headerSub = document.getElementById('header-sub');
+    const headerDesc = document.getElementById('header-desc');
+    
+    if (lang === 'fr') {
+        headerSub.innerHTML = "Intelligence Commerciale & Global Business Development";
+        headerDesc.innerHTML = "Expertise de 33 ans | Oil, Gas & Banking | Lead Architect Semantic AI<br>Dirigé par Mohamed Ben Abdallah";
+        document.documentElement.dir = "ltr";
+    } else if (lang === 'en') {
+        headerSub.innerHTML = "Commercial Intelligence & Global Business Development";
+        headerDesc.innerHTML = "33 years of expertise | Oil, Gas & Banking | Lead Architect Semantic AI<br>Led by Mohamed Ben Abdallah";
+        document.documentElement.dir = "ltr";
+    } else if (lang === 'ar') {
+        headerSub.innerHTML = "الذكاء التجاري وتطوير الأعمال العالمي";
+        headerDesc.innerHTML = "خبرة 33 عامًا | النفط والغاز والبنوك | المهندس الرئيسي للذكاء الاصطناعي الدلالي<br>بقيادة محمد بن عبد الله";
+        document.documentElement.dir = "rtl";
+    }
+}
 
-<!-- ============================================================ -->
-<!-- FIN SECTION APPLICATIONS MBA-CONSULT -->
-<!-- ============================================================ -->
+// 2. Vérification du rôle Admin
+(function() {
+    var token = localStorage.getItem('token') || localStorage.getItem('authToken');
+    if (token) {
+        fetch('/api/brand/role', {
+            headers: { 'Authorization': 'Bearer ' + token }
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data && data.role === 'admin') {
+                // Afficher tous les boutons admin (un par langue)
+                document.querySelectorAll('.btn-admin-access').forEach(btn => {
+                    btn.style.display = 'inline-block';
+                });
+            }
+        })
+        .catch(e => console.warn('Erreur vérification admin:', e));
+    }
+})();
+</script>
 
-<section id="section-apps-mba" style="margin: 50px auto; padding: 40px 20px; max-width: 1400px;">
-  
-  <!-- TITRE SECTION -->
-  <div style="text-align: center; margin-bottom: 40px;">
-    <h2 style="color: #0A1128; font-size: 2.2rem; font-weight: 900; letter-spacing: 3px; margin-bottom: 10px;">
-      NOS APPLICATIONS
-    </h2>
-    <p style="color: #4b5563; font-size: 1.05rem;">
-      Toutes les plateformes MBA-CONSULT operationnelles
-    </p>
-  </div>
-
-  <!-- 4 APPLICATIONS EN 2x2 -->
-  <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 25px; max-width: 1000px; margin: 0 auto 50px;">
-
-    <a href="https://scholars-connect-app.onrender.com/register" target="_blank" style="text-decoration: none; background: linear-gradient(135deg, #0A1128, #003366); border: 2px solid #D4AF37; border-radius: 20px; padding: 35px; display: block; text-align: center; box-shadow: 0 15px 40px rgba(0,0,0,0.15);">
-      <div style="font-size: 4rem; margin-bottom: 20px;">🎓</div>
-      <h3 style="color: #D4AF37; font-size: 1.4rem; margin-bottom: 12px; font-weight: 800;">Scholars Connect</h3>
-      <p style="color: rgba(255,255,255,0.85); font-size: 0.95rem; margin-bottom: 20px; line-height: 1.5;">Assistant IA academique multilingue</p>
-      <span style="display: inline-block; background: #D4AF37; color: #0A1128; padding: 10px 25px; border-radius: 25px; font-weight: 800; font-size: 0.9rem; letter-spacing: 1px;">Acceder</span>
-    </a>
-
-    <a href="https://mba-consult-qp-generator.streamlit.app/" target="_blank" style="text-decoration: none; background: linear-gradient(135deg, #0A1128, #003366); border: 2px solid #D4AF37; border-radius: 20px; padding: 35px; display: block; text-align: center; box-shadow: 0 15px 40px rgba(0,0,0,0.15);">
-      <div style="font-size: 4rem; margin-bottom: 20px;">📝</div>
-      <h3 style="color: #D4AF37; font-size: 1.4rem; margin-bottom: 12px; font-weight: 800;">QP Generator</h3>
-      <p style="color: rgba(255,255,255,0.85); font-size: 0.95rem; margin-bottom: 20px; line-height: 1.5;">Generateur de questions semantiques</p>
-      <span style="display: inline-block; background: #D4AF37; color: #0A1128; padding: 10px 25px; border-radius: 25px; font-weight: 800; font-size: 0.9rem; letter-spacing: 1px;">Acceder</span>
-    </a>
-
-    <a href="https://mba-consult-finance.streamlit.app/" target="_blank" style="text-decoration: none; background: linear-gradient(135deg, #0A1128, #003366); border: 2px solid #D4AF37; border-radius: 20px; padding: 35px; display: block; text-align: center; box-shadow: 0 15px 40px rgba(0,0,0,0.15);">
-      <div style="font-size: 4rem; margin-bottom: 20px;">📊</div>
-      <h3 style="color: #D4AF37; font-size: 1.4rem; margin-bottom: 12px; font-weight: 800;">Finance Analytics</h3>
-      <p style="color: rgba(255,255,255,0.85); font-size: 0.95rem; margin-bottom: 20px; line-height: 1.5;">Analyse financiere et gestion du risque</p>
-      <span style="display: inline-block; background: #D4AF37; color: #0A1128; padding: 10px 25px; border-radius: 25px; font-weight: 800; font-size: 0.9rem; letter-spacing: 1px;">Acceder</span>
-    </a>
-
-    <a href="https://mba-consult.tn" target="_blank" style="text-decoration: none; background: linear-gradient(135deg, #0A1128, #003366); border: 2px solid #D4AF37; border-radius: 20px; padding: 35px; display: block; text-align: center; box-shadow: 0 15px 40px rgba(0,0,0,0.15);">
-      <div style="font-size: 4rem; margin-bottom: 20px;">🌐</div>
-      <h3 style="color: #D4AF37; font-size: 1.4rem; margin-bottom: 12px; font-weight: 800;">Site Principal</h3>
-      <p style="color: rgba(255,255,255,0.85); font-size: 0.95rem; margin-bottom: 20px; line-height: 1.5;">MBA-CONSULT Tunisia</p>
-      <span style="display: inline-block; background: #D4AF37; color: #0A1128; padding: 10px 25px; border-radius: 25px; font-weight: 800; font-size: 0.9rem; letter-spacing: 1px;">Visiter</span>
-    </a>
-
-  </div>
-
-  <!-- SEPARATEUR -->
-  <div style="text-align: center; margin: 50px 0 40px;">
-    <h2 style="color: #0A1128; font-size: 2.2rem; font-weight: 900; letter-spacing: 3px; margin-bottom: 10px;">
-      NOS ACTIVITES
-    </h2>
-    <p style="color: #4b5563; font-size: 1.05rem;">
-      Domaines d'expertise MBA-CONSULT
-    </p>
-  </div>
-
-  <!-- 4 ACTIVITES EN 2x2 -->
-  <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 25px; max-width: 1000px; margin: 0 auto 50px;">
-
-    <div style="background: linear-gradient(135deg, #003366, #0A1128); border: 2px solid #D4AF37; border-radius: 20px; padding: 35px; text-align: center; box-shadow: 0 15px 40px rgba(0,0,0,0.15);">
-      <div style="font-size: 4rem; margin-bottom: 20px;">🎯</div>
-      <h3 style="color: #D4AF37; font-size: 1.4rem; margin-bottom: 12px; font-weight: 800;">Strategie</h3>
-      <p style="color: rgba(255,255,255,0.85); font-size: 0.95rem; line-height: 1.5;">Diagnostic, business plan, feuille de route a 3-5 ans</p>
-    </div>
-
-    <div style="background: linear-gradient(135deg, #003366, #0A1128); border: 2px solid #D4AF37; border-radius: 20px; padding: 35px; text-align: center; box-shadow: 0 15px 40px rgba(0,0,0,0.15);">
-      <div style="font-size: 4rem; margin-bottom: 20px;">🚀</div>
-      <h3 style="color: #D4AF37; font-size: 1.4rem; margin-bottom: 12px; font-weight: 800;">Transformation digitale</h3>
-      <p style="color: rgba(255,255,255,0.85); font-size: 0.95rem; line-height: 1.5;">Audit des processus, conduite du changement, formation</p>
-    </div>
-
-    <div style="background: linear-gradient(135deg, #003366, #0A1128); border: 2px solid #D4AF37; border-radius: 20px; padding: 35px; text-align: center; box-shadow: 0 15px 40px rgba(0,0,0,0.15);">
-      <div style="font-size: 4rem; margin-bottom: 20px;">✅</div>
-      <h3 style="color: #D4AF37; font-size: 1.4rem; margin-bottom: 12px; font-weight: 800;">Qualite et normes</h3>
-      <p style="color: rgba(255,255,255,0.85); font-size: 0.95rem; line-height: 1.5;">ISO 9001, ISO 27001, HACCP, audit interne</p>
-    </div>
-
-    <div style="background: linear-gradient(135deg, #003366, #0A1128); border: 2px solid #D4AF37; border-radius: 20px; padding: 35px; text-align: center; box-shadow: 0 15px 40px rgba(0,0,0,0.15);">
-      <div style="font-size: 4rem; margin-bottom: 20px;">🤖</div>
-      <h3 style="color: #D4AF37; font-size: 1.4rem; margin-bottom: 12px; font-weight: 800;">Intelligence artificielle</h3>
-      <p style="color: rgba(255,255,255,0.85); font-size: 0.95rem; line-height: 1.5;">Solutions IA sur mesure, integration, formation</p>
-    </div>
-
-  </div>
-
-  <!-- QR CODE INSCRIPTION -->
-  <div style="text-align: center; background: linear-gradient(135deg, #0A1128, #003366); border: 3px solid #D4AF37; border-radius: 25px; padding: 45px 30px; max-width: 600px; margin: 50px auto 0; box-shadow: 0 20px 60px rgba(0,0,0,0.3);">
-    <h3 style="color: #D4AF37; font-size: 1.6rem; margin-bottom: 12px; font-weight: 800;">📱 Scannez pour vous inscrire</h3>
-    <p style="color: rgba(255,255,255,0.9); font-size: 1rem; margin-bottom: 25px;">Inscription directe a Scholars Connect</p>
-    <div style="background: white; padding: 15px; border-radius: 15px; display: inline-block; border: 3px solid #D4AF37;">
-      <img src="https://api.qrserver.com/v1/create-qr-code/?size=280x280&data=https://scholars-connect-app.onrender.com/register" 
-           alt="QR Code Scholars Connect" 
-           style="width: 280px; height: 280px; display: block;">
-    </div>
-    <p style="color: #D4AF37; margin-top: 20px; font-weight: 700; font-size: 0.95rem; word-break: break-all;">
-      https://scholars-connect-app.onrender.com/register
-    </p>
-  </div>
-
-</section>
-</body></html>
+</body>
+</html>
