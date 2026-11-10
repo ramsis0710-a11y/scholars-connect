@@ -1,4 +1,4 @@
-﻿require("dotenv").config();
+require("dotenv").config();
 const express  = require("express");
 const cors     = require("cors");
 const mongoose = require("mongoose");
@@ -33,6 +33,48 @@ require('./auto-feed')(app, mongoose);
 require('./continuity')(app, mongoose);
 require('./answer-enricher')(app, mongoose);
 
+// === BRAND v1.2 : bouton rond MBA-CONSULT (logo public / mode admin) ===
+const brandFs = require("fs");
+const BRAND_PAGES = {
+    "/": "index.html", "/index.html": "index.html",
+    "/chat": "chat.html", "/chat.html": "chat.html",
+    "/login": "login.html", "/login.html": "login.html",
+    "/register": "register.html", "/register.html": "register.html",
+    "/admin": "admin.html", "/admin.html": "admin.html",
+    "/upload-qp": "upload-qp.html", "/upload-qp.html": "upload-qp.html"
+};
+app.get("/api/brand/role", (req, res) => {
+    let role = "public";
+    const h = req.headers.authorization || "";
+    if (h.startsWith("Bearer ")) {
+        try {
+            const u = jwt.verify(h.slice(7), JWT_SECRET);
+            role = (u && u.role === "admin") ? "admin" : "user";
+        } catch (e) { role = "public"; }
+    }
+    const out = { role: role };
+    if (role === "admin") {
+        out.links = [
+            { label: "Administration", href: "/admin" },
+            { label: "Mes fichiers (OneDrive)", href: process.env.ADMIN_FILES_URL || "https://onedrive.live.com" }
+        ];
+    }
+    res.set("Cache-Control", "no-store");
+    res.json(out);
+});
+app.get(Object.keys(BRAND_PAGES), (req, res, next) => {
+    const file = path.join(__dirname, "public", BRAND_PAGES[req.path]);
+    brandFs.readFile(file, "utf8", (err, html) => {
+        if (err) return next();
+        const tag = '<script src="/brand.js" defer></script>';
+        if (html.indexOf("/brand.js") === -1) {
+            html = /<\/body>/i.test(html) ? html.replace(/<\/body>/i, tag + "</body>") : html + tag;
+        }
+        res.set("Content-Type", "text/html; charset=utf-8");
+        res.send(html);
+    });
+});
+// === FIN BRAND v1.2 ===
 app.use(express.static("public"));
 app.use("/uploads", express.static("uploads"));
 
