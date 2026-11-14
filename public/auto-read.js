@@ -200,7 +200,7 @@
   function construireUI() {
     const style = document.createElement('style');
     style.textContent = `
-      #mba-player { position: fixed; left: 18px; bottom: 18px; z-index: 999999; background: rgba(20,20,20,0.95); color: #fff; padding: 12px; border-radius: 12px; width: 340px; box-shadow: 0 4px 16px rgba(0,0,0,0.6); font-family: system-ui, Arial, sans-serif; display: none; flex-direction: column; gap: 8px; }
+      #mba-player { position: fixed; right: 18px; top: 80px; z-index: 99998; background: rgba(20,20,20,0.95); color: #fff; padding: 12px; border-radius: 12px; width: 300px; box-shadow: 0 4px 16px rgba(0,0,0,0.6); font-family: system-ui, Arial, sans-serif; display: none; flex-direction: column; gap: 8px; }
       #mba-player select { width: 100%; padding: 6px; border-radius: 6px; border: 1px solid #444; background: #222; color: #fff; font-size: 13px; }
       #mba-player .mba-row { display: flex; align-items: center; gap: 8px; }
       #mba-player input[type=range] { flex: 1; cursor: pointer; accent-color: #F5B800; height: 6px; }
