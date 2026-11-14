@@ -1,4 +1,4 @@
-require("dotenv").config();
+﻿require("dotenv").config();
 const express  = require("express");
 const cors     = require("cors");
 const mongoose = require("mongoose");
@@ -232,7 +232,7 @@ STYLE ET TON : Sois CHALEUREUX et encourageant. Phrases courtes et naturelles. T
     let finalPrompt = prompt;
     const ragMatch = prompt.match(/\[EXTRAITS\]([\s\S]*?)\[FIN EXTRAITS\]/);
     if (ragMatch) {
-        system += `\n\nINSTRUCTION CRITIQUE : Tu dois répondre en te basant EXCLUSIVEMENT sur les extraits de documents fournis ci-dessous.\n\nCONTEXTE :\n${ragMatch[1]}`;
+        system += `\n\nINSTRUCTION CRITIQUE : Tu dois rÃ©pondre en te basant EXCLUSIVEMENT sur les extraits de documents fournis ci-dessous.\n\nCONTEXTE :\n${ragMatch[1]}`;
         finalPrompt = prompt.replace(/\[EXTRAITS\][\s\S]*?\[FIN EXTRAITS\]/, '').trim();
     }
 
@@ -246,13 +246,13 @@ STYLE ET TON : Sois CHALEUREUX et encourageant. Phrases courtes et naturelles. T
     }
     messages.push({ role: "user", content: finalPrompt });
 
-    // --- CASCADE 1 : OpenRouter (si crédits suffisants) ---
+    // --- CASCADE 1 : OpenRouter (si crÃ©dits suffisants) ---
     if (OPENROUTER_API_KEY) {
         try {
             const r = await fetch("https://openrouter.ai/api/v1/chat/completions", {
                 method: "POST",
                 headers: { "Authorization": `Bearer ${OPENROUTER_API_KEY}`, "Content-Type": "application/json", "HTTP-Referer": "https://scholars-connect-app.onrender.com" },
-                body: JSON.stringify({ model: OPENROUTER_MODEL, temperature: 0.2, max_tokens: 800, messages: messages })
+                body: JSON.stringify({ model: OPENROUTER_MODEL, temperature: 0.2, max_tokens: 500, messages: messages })
             });
             const data = await r.json();
             if (r.ok && data?.choices?.[0]?.message?.content) {
@@ -278,7 +278,7 @@ STYLE ET TON : Sois CHALEUREUX et encourageant. Phrases courtes et naturelles. T
     } catch (e) { console.warn('[askAI] Gemini KO :', e.message); }
 
     // --- CASCADE 4 : Fallback Final ---
-    return "[Service temporairement indisponible] Tous les fournisseurs IA sont en panne. Veuillez vérifier vos clés API sur Render.";
+    return "[Service temporairement indisponible] Tous les fournisseurs IA sont en panne. Veuillez vÃ©rifier vos clÃ©s API sur Render.";
 }
 
 app.get("/api/health", (req, res) => res.json({ ok: true, mongo: mongoReady, ai: !!OPENROUTER_API_KEY }));
@@ -347,7 +347,7 @@ app.get("/api/history", requireAuth, async (req, res) => {
 // ============================================================
 function requireAdmin(req, res, next) {
     if (req.user && req.user.role === 'admin') return next();
-    return res.status(403).json({ error: "Accès réservé à l'administrateur." });
+    return res.status(403).json({ error: "AccÃ¨s rÃ©servÃ© Ã  l'administrateur." });
 }
 app.get("/api/admin/users", requireAuth, requireAdmin, async (req, res) => {
     try {
