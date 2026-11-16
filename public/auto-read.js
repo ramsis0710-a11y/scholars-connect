@@ -1,4 +1,4 @@
-﻿/* auto-read.js - Lecteur vocal SANS répétition, ponctuation respectée */
+/* auto-read.js - Lecteur vocal SANS répétition, ponctuation respectée */
 (function () {
   'use strict';
   if (window.__mbaAutoRead) return;
@@ -26,6 +26,10 @@
   let ui = {};
 
   function nettoyerTexte(t) {
+    // FILTRE STRICT : Exclusion des boutons et de la fiche technique
+    t = String(t).replace(/🌐?\s*Traduire/gi, '').replace(/🔗?\s*Partager/gi, '');
+    var match = String(t).match(/fiche\s+technique/i);
+    if (match) t = String(t).substring(0, match.index);
     let s = String(t);
     const match = s.match(/fiche\s+technique/i);
     if (match) s = s.substring(0, match.index);
