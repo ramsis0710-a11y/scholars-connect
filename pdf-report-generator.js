@@ -1,11 +1,6 @@
 // ============================================================
-// PDF-REPORT-GENERATOR.JS
-// Module autonome - ne modifie AUCUNE ligne existante.
-// GÈnËre un PDF pour chaque rÈponse avec en-tÍte :
-//   - Nom et email de l'utilisateur (extraits du JWT)
-//   - Date et heure de sa visite
-//   - Sujet de la demande
-//   - RÈponse complËte
+// PDF-REPORT-GENERATOR.JS (Version 2.0 - Design Professionnel)
+// G√©n√®re un PDF √©l√©gant avec pdfkit (g√®re parfaitement l'arabe)
 // ============================================================
 'use strict';
 const PDFDocument = require('pdfkit');
@@ -13,44 +8,36 @@ const crypto = require('crypto');
 const PDF_CACHE = {};
 
 module.exports = function(app, mongoose) {
-  console.log('[pdf-report] Module PDF autonome chargÈ.');
+  console.log('[pdf-report] Module PDF autonome charg√© (v2.0).');
 
-  // ============================================================
-  // ROUTE : SERVIR LE PDF
-  // ============================================================
   app.get('/api/pdf-report/:token', function(req, res) {
     const data = PDF_CACHE[req.params.token];
     if (!data || data.exp < Date.now()) {
-      return res.status(404).send('Rapport expirÈ ou introuvable.');
+      return res.status(404).send('Rapport expir√© ou introuvable.');
     }
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', 'inline; filename="rapport_expertise.pdf"');
     res.send(data.buffer);
   });
 
-  // ============================================================
-  // EXTRACTION DE L'UTILISATEUR (JWT)
-  // ============================================================
   function getUserFromToken(req) {
     try {
       const authHeader = req.headers.authorization || '';
       const token = authHeader.replace('Bearer ', '').trim();
-      if (!token) return { name: 'InvitÈ', email: 'inconnu@localhost' };
+      if (!token) return { name: 'Invit√©', email: 'inconnu@localhost' };
       const parts = token.split('.');
-      if (parts.length !== 3) return { name: 'InvitÈ', email: 'inconnu@localhost' };
+      if (parts.length !== 3) return { name: 'Invit√©', email: 'inconnu@localhost' };
       const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString('utf8'));
       return {
         name: payload.name || 'Utilisateur',
         email: payload.email || 'inconnu@localhost'
       };
     } catch (e) {
-      return { name: 'InvitÈ', email: 'inconnu@localhost' };
+      return { name: 'Invit√©', email: 'inconnu@localhost' };
     }
   }
 
-  // ============================================================
-  // NETTOYAGE DU TEXTE (retire HTML, liens claude-max, etc.)
-  // ============================================================
+  // Nettoyage du texte pour retirer le HTML
   function extractPureText(answer) {
     if (!answer) return '';
     let text = String(answer);
@@ -63,83 +50,122 @@ module.exports = function(app, mongoose) {
     text = text.replace(/&amp;/g, '&');
     text = text.replace(/&lt;/g, '<');
     text = text.replace(/&gt;/g, '>');
-    // Retire l'ancien message "Le rapport technique..." de claude-max
-    text = text.replace(/Le rapport technique a ÈtÈ gÈnÈrÈ avec succËs\.[\s\S]*?---\s*/i, '');
     text = text.replace(/[ \t]+/g, ' ');
     text = text.replace(/\n{3,}/g, '\n\n');
     return text.trim();
   }
 
-  // ============================================================
-  // GENERATION DU PDF
-  // ============================================================
+  // G√©n√©ration du PDF
   function generatePDF(question, answer, user, dateHeure) {
     return new Promise((resolve, reject) => {
       try {
-        const doc = new PDFDocument({ margin: 50, size: 'A4' });
+        const doc = new PDFDocument({ margin: 50, size: 'A4', bufferPages: true });
         const chunks = [];
         doc.on('data', c => chunks.push(c));
         doc.on('end', () => resolve(Buffer.concat(chunks)));
 
-        // EN-TETE
-        doc.font('Helvetica-Bold').fontSize(20).fillColor('#0a2540')
-           .text('RAPPORT TECHNIQUE D\'EXPERTISE', { align: 'center' });
-        doc.moveDown(0.5);
-        doc.font('Helvetica').fontSize(9).fillColor('#666666')
-           .text(`Demandeur : ${user.name}`, { align: 'right' });
-        doc.text(`Email : ${user.email}`, { align: 'right' });
-        doc.text(`Date de visite : ${dateHeure}`, { align: 'right' });
-        doc.moveDown(1);
-        doc.moveTo(50, doc.y).lineTo(545, doc.y).strokeColor('#cccccc').stroke();
-        doc.moveDown(1);
+        const isArabic = /[\u0600-\u06FF]/.test(question + answer);
 
-        // SUJET
-        doc.font('Helvetica-Bold').fontSize(11).fillColor('#333333')
-           .text('Sujet de la demande :');
-        doc.font('Helvetica-Oblique').fontSize(10).fillColor('#555555')
-           .text(question || '(non spÈcifiÈ)');
+        // --- PAGE DE GARDE (Design) ---
+        doc.rect(0, 0, doc.page.width, doc.page.height).fill('#f8fafc'); // Fond gris tr√®s clair
+        
+        // Bandeau sup√©rieur
+        doc.rect(0, 0, doc.page.width, 150).fill('#0a2540');
+        doc.font('Helvetica-Bold').fontSize(28).fillColor('#ffffff')
+           .text('RAPPORT D\'EXPERTISE', 50, 60, { align: 'center' });
+        doc.font('Helvetica').fontSize(14).fillColor('#F5B800')
+           .text('MBA-CONSULT AI CORE', 50, 100, { align: 'center' });
+
+        // Bloc d'informations utilisateur
+        doc.moveDown(5);
+        const boxY = 250;
+        doc.roundedRect(50, boxY, doc.page.width - 100, 200, 10).fillAndStroke('#ffffff', '#e2e8f0');
+        
+        doc.font('Helvetica-Bold').fontSize(14).fillColor('#1e5aa8')
+           .text('INFORMATIONS DE LA SESSION', 70, boxY + 20);
+        
+        doc.font('Helvetica').fontSize(12).fillColor('#333333');
+        doc.text(`Utilisateur : `, 70, boxY + 60, { continued: true }).font('Helvetica-Bold').text(user.name);
+        doc.font('Helvetica').text(`Email : `, 70, boxY + 85, { continued: true }).font('Helvetica-Bold').text(user.email);
+        doc.font('Helvetica').text(`Date de la demande : `, 70, boxY + 110, { continued: true }).font('Helvetica-Bold').text(dateHeure);
+        
+        // Pied de page de la page de garde
+        doc.font('Helvetica').fontSize(10).fillColor('#94a3b8')
+           .text('Document confidentiel g√©n√©r√© par Scholars Connect', 50, 750, { align: 'center' });
+
+        // --- PAGE 2 : CONTENU ---
+        doc.addPage();
+        
+        // En-t√™te de page
+        doc.font('Helvetica-Bold').fontSize(18).fillColor('#0a2540')
+           .text('D√©tail de l\'√©change', 50, 50);
+        doc.moveTo(50, 80).lineTo(doc.page.width - 50, 80).strokeColor('#1e5aa8').lineWidth(2).stroke();
         doc.moveDown(1.5);
-        doc.moveTo(50, doc.y).lineTo(545, doc.y).strokeColor('#cccccc').stroke();
-        doc.moveDown(1);
 
-        // CORPS
+        // Titre Question
+        doc.font('Helvetica-Bold').fontSize(12).fillColor('#1e5aa8').text('SUJET DE LA DEMANDE');
+        doc.moveDown(0.5);
+
+        // Bo√Æte Question
+        const qText = extractPureText(question) || '(non sp√©cifi√©)';
+        const qOptions = { width: doc.page.width - 100, align: isArabic ? 'right' : 'left' };
+        if (isArabic) doc.font('Tahoma');
+        else doc.font('Helvetica-Oblique');
+        
+        doc.fontSize(11).fillColor('#333333');
+        const qHeight = doc.heightOfString(qText, qOptions);
+        doc.roundedRect(50, doc.y, doc.page.width - 100, qHeight + 20, 6).fill('#e0f2fe');
+        doc.fillColor('#0c4a6e').text(qText, 60, doc.y + 10, qOptions);
+        
+        doc.moveDown(2);
+
+        // Titre R√©ponse
+        doc.font('Helvetica-Bold').fontSize(12).fillColor('#1e5aa8').text('R√âPONSE DE L\'EXPERT');
+        doc.moveDown(0.5);
+
+        // Corps de la r√©ponse
         const lines = extractPureText(answer).split('\n');
+        doc.font('Helvetica').fontSize(11).fillColor('#1e293b');
+
         for (let line of lines) {
           line = line.trim();
           if (line === '') { doc.moveDown(0.5); continue; }
-          if (line.startsWith('## ')) {
-            doc.moveDown(0.5).font('Helvetica-Bold').fontSize(14).fillColor('#1e5aa8')
-               .text(line.replace('## ', ''));
-          } else if (line.startsWith('### ')) {
-            doc.moveDown(0.5).font('Helvetica-Bold').fontSize(12).fillColor('#0a2540')
-               .text(line.replace('### ', ''));
+
+          if (line.startsWith('### ')) {
+            doc.moveDown(1).font('Helvetica-Bold').fontSize(13).fillColor('#0a2540')
+               .text(line.replace('### ', ''), { align: isArabic ? 'right' : 'left' });
+            doc.moveDown(0.3);
+          } else if (line.startsWith('## ')) {
+            doc.moveDown(1).font('Helvetica-Bold').fontSize(15).fillColor('#1e5aa8')
+               .text(line.replace('## ', ''), { align: isArabic ? 'right' : 'left' });
+            doc.moveDown(0.5);
           } else if (line.startsWith('- ') || line.startsWith('* ')) {
-            doc.font('Helvetica').fontSize(10).fillColor('#333333')
-               .text('ï ' + line.substring(2), { indent: 15 });
+            doc.font('Helvetica').fontSize(11).fillColor('#333333')
+               .text('‚Ä¢ ' + line.substring(2), { indent: 15, align: isArabic ? 'right' : 'left' });
+          } else if (line.startsWith('**') && line.endsWith('**')) {
+            doc.font('Helvetica-Bold').fontSize(11).fillColor('#0a2540')
+               .text(line.replace(/\*\*/g, ''), { align: isArabic ? 'right' : 'left' });
           } else {
-            doc.font('Helvetica').fontSize(10).fillColor('#333333')
-               .text(line, { align: 'justify' });
+            doc.font('Helvetica').fontSize(11).fillColor('#334155')
+               .text(line, { align: isArabic ? 'right' : 'left', lineGap: 3 });
           }
         }
 
-        // PIED DE PAGE
+        // Pied de page (sur toutes les pages)
         const pages = doc.bufferedPageRange();
         for (let i = pages.start; i < pages.start + pages.count; i++) {
           doc.switchToPage(i);
-          doc.font('Helvetica').fontSize(8).fillColor('#999999')
-             .text(
-               `Document confidentiel - MBA-CONSULT AI CORE - Page ${i - pages.start + 1} / ${pages.count}`,
-               50, doc.page.height - 40, { align: 'center' }
-             );
+          if (i === 0) continue; // On saute la page de garde
+          doc.font('Helvetica').fontSize(9).fillColor('#94a3b8')
+             .text(`Scholars Connect - MBA-CONSULT | Page ${i} / ${pages.count - 1}`, 50, doc.page.height - 40, { align: 'center', width: doc.page.width - 100 });
         }
+
         doc.end();
       } catch (e) { reject(e); }
     });
   }
 
-  // ============================================================
-  // MIDDLEWARE D'INTERCEPTION
-  // ============================================================
+  // Interception de la route /api/ask
   app.use(['/api/ask', '/api/analyze-content'], function(req, res, next) {
     if (req.method !== 'POST' || !req.body) return next();
     
@@ -148,8 +174,6 @@ module.exports = function(app, mongoose) {
 
     res.json = async function(data) {
       if (processed) return originalJson(data);
-      
-      // Ne pas toucher aux rÈponses QP (dÈj‡ en HTML structurÈ)
       if (data && data.qpStandard01) return originalJson(data);
       
       const answer = (data && (data.answer || data.answerRaw)) || '';
@@ -158,28 +182,26 @@ module.exports = function(app, mongoose) {
       try {
         processed = true;
         
-        const question = req.body.question || '(non spÈcifiÈ)';
+        const question = req.body.question || '(non sp√©cifi√©)';
         const user = getUserFromToken(req);
         const dateHeure = new Date().toLocaleString('fr-FR', {
           weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
-          hour: '2-digit', minute: '2-digit', second: '2-digit'
+          hour: '2-digit', minute: '2-digit'
         });
         
         const pdfBuffer = await generatePDF(question, answer, user, dateHeure);
         const token = crypto.randomBytes(16).toString('hex');
         PDF_CACHE[token] = { buffer: pdfBuffer, exp: Date.now() + 2 * 60 * 60 * 1000 };
         
-        console.log(`[pdf-report] PDF gÈnÈrÈ pour ${user.email} (${pdfBuffer.length} octets)`);
+        console.log(`[pdf-report] PDF design g√©n√©r√© pour ${user.email}`);
         
-        // Remplace la rÈponse par un lien texte propre
-        data.answer = `?? Le rapport d'expertise a ÈtÈ gÈnÈrÈ pour ${user.name} (${user.email}) le ${dateHeure}.\n\n?? Cliquez sur ce lien pour ouvrir et tÈlÈcharger le PDF :\nhttps://scholars-connect-app.onrender.com/api/pdf-report/${token}\n\n_(Le PDF contient la rÈponse complËte ‡ votre question.)_`;
-        data.answerRaw = answer;
+        // On ajoute le lien du PDF dans la r√©ponse
+        data.pdfUrl = `https://scholars-connect-app.onrender.com/api/pdf-report/${token}`;
         data.pdfReport = true;
-        data.enriched = true;
         
         return originalJson(data);
       } catch (e) {
-        console.error('[pdf-report] Erreur gÈnÈration PDF :', e.message);
+        console.error('[pdf-report] Erreur :', e.message);
         return originalJson(data);
       }
     };
