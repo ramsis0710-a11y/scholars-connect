@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
@@ -22,8 +22,8 @@
 </head>
 <body>
     <div class="card">
-        <h1>CrÃ©er un compte</h1>
-        <p class="sub">Rejoignez Scholars Connect et accÃ©dez Ã  l'audit sÃ©mantique V390.</p>
+        <h1>Créer un compte</h1>
+        <p class="sub">Rejoignez Scholars Connect et accédez À  l'audit sémantique V390.</p>
         
         <label for="name">Nom complet</label>
         <input type="text" id="name" placeholder="Votre nom" required>
@@ -38,7 +38,7 @@
         <div id="error" class="error"></div>
         <div id="success" class="success"></div>
 
-        <div class="link">DÃ©jÃ  un compte ? <a href="/login">Connectez-vous</a></div>
+        <div class="link">DéjÀ  un compte ? <a href="/login">Connectez-vous</a></div>
     </div>
 
     <script>
@@ -79,11 +79,11 @@
 
                 if (data.token) {
                     localStorage.setItem('token', data.token);
-                    succEl.textContent = 'Compte crÃ©Ã© avec succÃ¨s ! Redirection...';
+                    succEl.textContent = 'Compte créé avec succès ! Redirection...';
                     succEl.style.display = 'block';
                     setTimeout(() => { window.location.href = '/chat'; }, 1200);
                 } else {
-                    throw new Error('Token manquant dans la rÃ©ponse.');
+                    throw new Error('Token manquant dans la réponse.');
                 }
             } catch (e) {
                 errEl.textContent = e.message;

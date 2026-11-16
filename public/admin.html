@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
@@ -30,7 +30,7 @@
             âš™ï¸ Gestion des Utilisateurs
             <div>
                 <a href="/chat" class="btn-chat">ðŸ’¬ Aller au Chat</a>
-                <a href="#" class="btn-logout" onclick="logout()">DÃ©connexion</a>
+                <a href="#" class="btn-logout" onclick="logout()">Déconnexion</a>
             </div>
         </h1>
         
@@ -39,7 +39,7 @@
                 <tr>
                     <th>Nom</th>
                     <th>Email</th>
-                    <th>RÃ´le</th>
+                    <th>Rôle</th>
                     <th>Statut</th>
                     <th>Date d'inscription</th>
                     <th>Actions</th>
@@ -65,7 +65,7 @@
                     headers: { 'Authorization': 'Bearer ' + token }
                 });
                 if (resp.status === 403) {
-                    alert('AccÃ¨s refusÃ©.');
+                    alert('Accès refusé.');
                     window.location.href = '/login';
                     return;
                 }
@@ -88,15 +88,15 @@
                         <td>${u.name || '-'}</td>
                         <td>${u.email}</td>
                         <td><span class="badge ${isAdmin ? 'badge-admin' : 'badge-user'}">${isAdmin ? 'Admin' : 'Utilisateur'}</span></td>
-                        <td><span class="badge ${isActive ? 'badge-active' : 'badge-blocked'}">${isActive ? 'Actif' : 'BloquÃ©'}</span></td>
+                        <td><span class="badge ${isActive ? 'badge-active' : 'badge-blocked'}">${isActive ? 'Actif' : 'Bloqué'}</span></td>
                         <td>${date}</td>
                         <td>
                             ${!isAdmin ? `
                                 <button class="btn ${isActive ? 'btn-block' : 'btn-unblock'}" onclick="toggleStatus('${u._id}', '${isActive ? 'blocked' : 'active'}')">
-                                    ${isActive ? 'Bloquer' : 'DÃ©bloquer'}
+                                    ${isActive ? 'Bloquer' : 'Débloquer'}
                                 </button>
                                 <button class="btn btn-delete" onclick="deleteUser('${u._id}')">Supprimer</button>
-                            ` : '<span style="color:#9ca3af;font-size:12px;">ProtÃ©gÃ©</span>'}
+                            ` : '<span style="color:#9ca3af;font-size:12px;">Protégé</span>'}
                         </td>
                     `;
                     tbody.appendChild(tr);
@@ -107,7 +107,7 @@
         }
 
         async function toggleStatus(id, newStatus) {
-            if (!confirm(`Voulez-vous vraiment ${newStatus === 'blocked' ? 'bloquer' : 'dÃ©bloquer'} cet utilisateur ?`)) return;
+            if (!confirm(`Voulez-vous vraiment ${newStatus === 'blocked' ? 'bloquer' : 'débloquer'} cet utilisateur ?`)) return;
             try {
                 const resp = await fetch(API_BASE + '/api/admin/users/' + id + '/status', {
                     method: 'POST',
@@ -120,7 +120,7 @@
         }
 
         async function deleteUser(id) {
-            if (!confirm('Voulez-vous vraiment SUPPRIMER cet utilisateur ? Cette action est irrÃ©versible.')) return;
+            if (!confirm('Voulez-vous vraiment SUPPRIMER cet utilisateur ? Cette action est irréversible.')) return;
             try {
                 const resp = await fetch(API_BASE + '/api/admin/users/' + id, {
                     method: 'DELETE',
