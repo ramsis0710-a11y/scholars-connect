@@ -22,8 +22,6 @@ app.use((err, req, res, next) => {
     console.error(err.stack || err);
     console.error("===========================\n");
     if (res.headersSent) return next(err);
-    res.status(500).json({ error: err.message || "Erreur interne du serveur", details: err.stack });
-});
 // =========================================================================
 app.use(cors({ origin: true, credentials: true }));
 app.use(express.json({ limit: "20mb" }));
@@ -47,7 +45,6 @@ const BRAND_PAGES = {
 app.get("/favicon.ico", (req, res) => {
     res.set("Cache-Control", "public, max-age=86400");
     res.sendFile(path.join(__dirname, "public", "logo-mba.png"));
-});
 app.get("/api/brand/role", (req, res) => {
     let role = "public";
     const h = req.headers.authorization || "";
@@ -66,7 +63,6 @@ app.get("/api/brand/role", (req, res) => {
     }
     res.set("Cache-Control", "no-store");
     res.json(out);
-});
 app.get(Object.keys(BRAND_PAGES), (req, res, next) => {
     const file = path.join(__dirname, "public", BRAND_PAGES[req.path]);
     brandFs.readFile(file, "utf8", (err, html) => {
@@ -91,8 +87,6 @@ app.get(Object.keys(BRAND_PAGES), (req, res, next) => {
         }
         res.set("Content-Type", "text/html; charset=utf-8");
         res.send(html);
-    });
-});
 // === FIN BRAND v1.2 ===
 app.use(express.static("public"));
 app.use("/uploads", express.static("uploads"));
@@ -106,7 +100,6 @@ const userSchema = new mongoose.Schema({
     role: { type: String, default: "user" },
     status: { type: String, default: "active" },
     createdAt: { type: Date, default: Date.now }
-});
 const qaSchema = new mongoose.Schema({
     userId: { type: mongoose.Schema.Types.ObjectId, ref: "User", index: true },
     question: { type: String, required: true },
@@ -114,7 +107,6 @@ const qaSchema = new mongoose.Schema({
     language: { type: String, default: "fr" },
     domain: { type: String, default: "General" },
     createdAt: { type: Date, default: Date.now }
-});
 const documentSchema = new mongoose.Schema({
     userId: { type: mongoose.Schema.Types.ObjectId, ref: "User", index: true },
     filename: { type: String, required: true },
@@ -123,7 +115,6 @@ const documentSchema = new mongoose.Schema({
     size: { type: Number },
     extracted: { type: String, default: "" },
     createdAt: { type: Date, default: Date.now }
-});
 
 const User = mongoose.model("User", userSchema);
 const QA   = mongoose.model("QA", qaSchema);
@@ -132,7 +123,6 @@ const Doc  = mongoose.model("Doc", documentSchema);
 async function connectMongo() {
     if (!MONGODB_URI) { console.warn("MONGODB_URI absente"); return; }
     try {
-        await mongoose.connect(MONGODB_URI, { serverSelectionTimeoutMS: 8000 });
         mongoReady = true;
         console.log("MongoDB CONNECTE");
     } catch (e) { console.warn("MongoDB KO:", e.message); }
@@ -141,16 +131,12 @@ async function connectMongo() {
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
         const dir = path.join(__dirname, "uploads");
-        require("fs").mkdirSync(dir, { recursive: true });
         cb(null, dir);
     },
     filename: (req, file, cb) => cb(null, Date.now() + "_" + file.originalname.replace(/[^a-zA-Z0-9._-]/g, "_"))
-});
-const upload = multer({ storage, limits: { fileSize: 20 * 1024 * 1024 } });
 
 function requireAuth(req, res, next) {
     const h = req.headers.authorization || "";
-    if (!h.startsWith("Bearer ")) return res.status(401).json({ error: "Auth requise" });
     try { req.user = jwt.verify(h.slice(7), JWT_SECRET); next(); }
     catch { return res.status(401).json({ error: "Token invalide" }); }
 }
@@ -179,7 +165,6 @@ async function loadHistory(userId, threadStart) {
             var q = String(i.question || "").split("[EXTRAITS]")[0].trim().slice(0, 1200);
             var a = String(i.answer || "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().slice(0, 1500);
             if (q && a) { msgs.push({ role: "user", content: q }); msgs.push({ role: "assistant", content: a }); }
-        });
         return msgs;
     } catch (e) { return []; }
 }
@@ -199,7 +184,6 @@ async function callGroq(messages, system) {
             max_tokens: 1500,
             temperature: 0.2
         })
-    });
     if (!r.ok) { const t = await r.text(); throw new Error('Groq HTTP ' + r.status + ' : ' + t.slice(0, 200)); }
     const j = await r.json();
     return (j && j.choices && j.choices[0] && j.choices[0].message) ? j.choices[0].message.content : '';
@@ -217,7 +201,6 @@ async function callGeminiAI(messages, system) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ contents, systemInstruction: system ? { parts: [{ text: system }] } : undefined })
-    });
     if (!r.ok) { const t = await r.text(); throw new Error('Gemini HTTP ' + r.status + ' : ' + t.slice(0, 200)); }
     const j = await r.json();
     return (j && j.candidates && j.candidates[0] && j.candidates[0].content && j.candidates[0].content.parts[0]) ? j.candidates[0].content.parts[0].text : '';
@@ -241,10 +224,7 @@ STYLE ET TON : Sois CHALEUREUX et encourageant. Phrases courtes et naturelles. T
         history.slice(-6).forEach(function(m) {
             const role = (m.role === 'user') ? 'user' : 'assistant';
             let content = String(m.content || m.text || '').split(/Fiche technique/i)[0].replace(/Reponse detaillee/i, '').trim();
-            if (content) messages.push({ role: role, content: content });
-        });
     }
-    messages.push({ role: "user", content: finalPrompt });
 
     // --- CASCADE 1 : OpenRouter (si crÃ©dits suffisants) ---
     if (OPENROUTER_API_KEY) {
@@ -253,7 +233,6 @@ STYLE ET TON : Sois CHALEUREUX et encourageant. Phrases courtes et naturelles. T
                 method: "POST",
                 headers: { "Authorization": `Bearer ${OPENROUTER_API_KEY}`, "Content-Type": "application/json", "HTTP-Referer": "https://scholars-connect-app.onrender.com" },
                 body: JSON.stringify({ model: OPENROUTER_MODEL, temperature: 0.2, max_tokens: 500, messages: messages })
-            });
             const data = await r.json();
             if (r.ok && data?.choices?.[0]?.message?.content) {
                 console.log('[askAI] OpenRouter OK');
@@ -286,60 +265,30 @@ app.get("/api/health", (req, res) => res.json({ ok: true, mongo: mongoReady, ai:
 app.post("/api/auth/register", async (req, res) => {
     try {
         const { email, password, name } = req.body || {};
-        if (!email || !password) return res.status(400).json({ error: "email et password requis" });
-        if (!mongoReady) return res.status(503).json({ error: "MongoDB non connecte" });
-        const exists = await User.findOne({ email });
-        if (exists) return res.status(409).json({ error: "Utilisateur deja existant" });
         const hash = await bcrypt.hash(password, 10);
-        const user = await User.create({ email, password: hash, name: name || email, role: "user" });
-        const token = jwt.sign({ id: user._id, email: user.email, role: user.role }, JWT_SECRET, { expiresIn: "30d" });
-        res.status(201).json({ token, user: { id: user._id, email: user.email, name: user.name, role: user.role } });
-    } catch (e) { res.status(500).json({ error: e.message }); }
-});
 
 app.post("/api/auth/login", async (req, res) => {
     try {
         const { email, password } = req.body || {};
-        if (!email || !password) return res.status(400).json({ error: "email et password requis" });
-        if (!mongoReady) return res.status(503).json({ error: "MongoDB non connecte" });
-        const user = await User.findOne({ email });
-        if (!user) return res.status(401).json({ error: "Identifiants invalides" });
         const ok = await bcrypt.compare(password, user.password);
-        if (!ok) return res.status(401).json({ error: "Identifiants invalides" });
-        const token = jwt.sign({ id: user._id, email: user.email, role: user.role }, JWT_SECRET, { expiresIn: "30d" });
-        res.json({ token, user: { id: user._id, email: user.email, name: user.name, role: user.role } });
-    } catch (e) { res.status(500).json({ error: e.message }); }
-});
 
 app.get("/api/auth/me", requireAuth, async (req, res) => {
     try {
         const user = await User.findById(req.user.id).lean();
-        if (!user) return res.status(404).json({ error: "Utilisateur introuvable" });
-        res.json({ user: { id: user._id, email: user.email, name: user.name, role: user.role } });
-    } catch (e) { res.status(500).json({ error: e.message }); }
-});
 
 require('./ultimate-bridge')(app, mongoose);
 
 app.post("/api/ask", requireAuth, async (req, res) => {
     try {
         const { question, language, domain } = req.body || {};
-        if (!question) return res.status(400).json({ error: "question requise" });
         let answer; try { answer = await askAI(question, { domain, language, history: await loadHistory(req.user.id, req.headers["x-thread-start"]) }); } catch (e) { console.error("Erreur askAI:", e); return res.status(200).json({ answer: "[Erreur temporaire] Le service IA est indisponible : " + e.message + ". Veuillez reessayer dans quelques minutes.", error: e.message }); }
         if (mongoReady) {
             try { await QA.create({ userId: req.user.id, question, answer, language: language || "fr", domain: domain || "General" }); } catch (e) { console.warn("Erreur QA.create:", e.message); }
         }
-        res.json({ answer, language: language || "fr" });
-    } catch (e) { res.status(500).json({ error: e.message }); }
-});
 
 app.get("/api/history", requireAuth, async (req, res) => {
     try {
-        if (!mongoReady) return res.json({ items: [] });
         const items = await QA.find({ userId: req.user.id }).sort({ createdAt: -1 }).limit(200).lean();
-        res.json({ items });
-    } catch (e) { res.status(500).json({ error: e.message }); }
-});
 
 
 // ============================================================
@@ -347,30 +296,19 @@ app.get("/api/history", requireAuth, async (req, res) => {
 // ============================================================
 function requireAdmin(req, res, next) {
     if (req.user && req.user.role === 'admin') return next();
-    return res.status(403).json({ error: "AccÃ¨s rÃ©servÃ© Ã  l'administrateur." });
 }
 app.get("/api/admin/users", requireAuth, requireAdmin, async (req, res) => {
     try {
         const users = await User.find().select('-password').sort({ createdAt: -1 }).lean();
-        res.json({ users });
-    } catch (e) { res.status(500).json({ error: e.message }); }
-});
 
 app.post("/api/admin/users/:id/status", requireAuth, requireAdmin, async (req, res) => {
     try {
         const { status } = req.body;
         if (!['active', 'blocked'].includes(status)) throw new Error("Statut invalide");
-        await User.findByIdAndUpdate(req.params.id, { status });
-        res.json({ ok: true });
-    } catch (e) { res.status(500).json({ error: e.message }); }
-});
 
 app.delete("/api/admin/users/:id", requireAuth, requireAdmin, async (req, res) => {
     try {
         await User.findByIdAndDelete(req.params.id);
-        res.json({ ok: true });
-    } catch (e) { res.status(500).json({ error: e.message }); }
-});
 app.get("/chat", (req, res) => res.sendFile(path.join(__dirname, "public", "chat.html")));
 app.get("/register", (req, res) => res.sendFile(path.join(__dirname, "public", "register.html")));
 app.get("/login", (req, res) => res.sendFile(path.join(__dirname, "public", "login.html")));
@@ -394,13 +332,9 @@ app.use((err, req, res, next) => {
     console.error(err.stack || err);
     console.error("===========================\n");
     if (res.headersSent) return next(err);
-    res.status(500).json({ error: err.message || "Erreur interne du serveur", details: err.stack });
-});
 // ==============================================
 
 app.listen(PORT, HOST, () => {
         console.log(`Scholars Connect V2 - PORT ${PORT}`);
-    });
-});
 
 app.get('/upload-qp', (req, res) => res.sendFile(require('path').join(__dirname, 'public', 'upload-qp.html')));

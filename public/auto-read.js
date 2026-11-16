@@ -198,13 +198,42 @@
   }
 
   // --- GENERATION PDF PAR IMPRESSION NATIVE (Fix 100% Arabe) ---
-      function genererPDFQuestion(botNode) {
-      // On cherche le lien PDF stocké lors de la réception de la réponse
-      if (botNode.dataset.pdfUrl) {
-          window.open(botNode.dataset.pdfUrl, '_blank');
-      } else {
-          alert("Le PDF est en cours de génération par le serveur. Veuillez patienter quelques secondes ou reposer la question.");
-      }
+        function genererPDFQuestion(botNode) {
+      const clone = botNode.cloneNode(true);
+      const ctrls = clone.querySelector('.mba-bubble-controls');
+      if (ctrls) ctrls.remove();
+      const answerText = clone.innerText.trim();
+
+      let userNode = botNode.previousElementSibling;
+      while (userNode && !userNode.classList.contains('user')) { userNode = userNode.previousElementSibling; }
+      const questionText = userNode ? userNode.innerText.trim() : "Question";
+
+      // On affiche un indicateur de chargement
+      const btn = botNode.querySelector('.mba-bubble-controls button:last-child');
+      const originalText = btn.innerHTML;
+      btn.innerHTML = '⏳...';
+      btn.disabled = true;
+
+      fetch(API_BASE + '/api/pdf-report/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ question: questionText, answer: answerText })
+      })
+      .then(res => res.json())
+      .then(data => {
+          btn.innerHTML = originalText;
+          btn.disabled = false;
+          if (data.pdfUrl) {
+              window.open(data.pdfUrl, '_blank');
+          } else {
+              alert("Erreur lors de la génération du PDF.");
+          }
+      })
+      .catch(err => {
+          btn.innerHTML = originalText;
+          btn.disabled = false;
+          alert("Erreur réseau : " + err.message);
+      });
   }
 
   function injecterBoutonsMessage(node) {
