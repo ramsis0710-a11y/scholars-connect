@@ -1,6 +1,5 @@
 // ============================================================
-// PDF-REPORT-GENERATOR.JS (Version 2.0 - Design Professionnel)
-// Génère un PDF élégant avec pdfkit (gère parfaitement l'arabe)
+// PDF-REPORT-GENERATOR.JS (Version 3.0 - Design Pro)
 // ============================================================
 'use strict';
 const PDFDocument = require('pdfkit');
@@ -8,7 +7,7 @@ const crypto = require('crypto');
 const PDF_CACHE = {};
 
 module.exports = function(app, mongoose) {
-  console.log('[pdf-report] Module PDF autonome chargé (v2.0).');
+  console.log('[pdf-report] Module PDF autonome chargé (v3.0).');
 
   app.get('/api/pdf-report/:token', function(req, res) {
     const data = PDF_CACHE[req.params.token];
@@ -67,9 +66,7 @@ module.exports = function(app, mongoose) {
         const isArabic = /[\u0600-\u06FF]/.test(question + answer);
 
         // --- PAGE DE GARDE (Design) ---
-        doc.rect(0, 0, doc.page.width, doc.page.height).fill('#f8fafc'); // Fond gris très clair
-        
-        // Bandeau supérieur
+        // Fond blanc par défaut, on ajoute une touche de bleu en haut
         doc.rect(0, 0, doc.page.width, 150).fill('#0a2540');
         doc.font('Helvetica-Bold').fontSize(28).fillColor('#ffffff')
            .text('RAPPORT D\'EXPERTISE', 50, 60, { align: 'center' });
@@ -77,10 +74,8 @@ module.exports = function(app, mongoose) {
            .text('MBA-CONSULT AI CORE', 50, 100, { align: 'center' });
 
         // Bloc d'informations utilisateur
-        doc.moveDown(5);
         const boxY = 250;
-        doc.roundedRect(50, boxY, doc.page.width - 100, 200, 10).fillAndStroke('#ffffff', '#e2e8f0');
-        
+        doc.roundedRect(50, boxY, doc.page.width - 100, 180, 10).fillAndStroke('#f8fafc', '#e2e8f0');
         doc.font('Helvetica-Bold').fontSize(14).fillColor('#1e5aa8')
            .text('INFORMATIONS DE LA SESSION', 70, boxY + 20);
         
@@ -89,7 +84,6 @@ module.exports = function(app, mongoose) {
         doc.font('Helvetica').text(`Email : `, 70, boxY + 85, { continued: true }).font('Helvetica-Bold').text(user.email);
         doc.font('Helvetica').text(`Date de la demande : `, 70, boxY + 110, { continued: true }).font('Helvetica-Bold').text(dateHeure);
         
-        // Pied de page de la page de garde
         doc.font('Helvetica').fontSize(10).fillColor('#94a3b8')
            .text('Document confidentiel généré par Scholars Connect', 50, 750, { align: 'center' });
 
@@ -97,20 +91,17 @@ module.exports = function(app, mongoose) {
         doc.addPage();
         
         // En-tête de page
-        doc.font('Helvetica-Bold').fontSize(18).fillColor('#0a2540')
-           .text('Détail de l\'échange', 50, 50);
+        doc.font('Helvetica-Bold').fontSize(18).fillColor('#0a2540').text('Détail de l\'échange', 50, 50);
         doc.moveTo(50, 80).lineTo(doc.page.width - 50, 80).strokeColor('#1e5aa8').lineWidth(2).stroke();
         doc.moveDown(1.5);
 
-        // Titre Question
+        // Boîte Question
         doc.font('Helvetica-Bold').fontSize(12).fillColor('#1e5aa8').text('SUJET DE LA DEMANDE');
         doc.moveDown(0.5);
 
-        // Boîte Question
         const qText = extractPureText(question) || '(non spécifié)';
         const qOptions = { width: doc.page.width - 100, align: isArabic ? 'right' : 'left' };
-        if (isArabic) doc.font('Tahoma');
-        else doc.font('Helvetica-Oblique');
+        if (isArabic) doc.font('Helvetica'); else doc.font('Helvetica-Oblique'); // Helvetica est plus sûr sur Render
         
         doc.fontSize(11).fillColor('#333333');
         const qHeight = doc.heightOfString(qText, qOptions);
@@ -123,7 +114,7 @@ module.exports = function(app, mongoose) {
         doc.font('Helvetica-Bold').fontSize(12).fillColor('#1e5aa8').text('RÉPONSE DE L\'EXPERT');
         doc.moveDown(0.5);
 
-        // Corps de la réponse
+        // Corps de la réponse (Texte aéré)
         const lines = extractPureText(answer).split('\n');
         doc.font('Helvetica').fontSize(11).fillColor('#1e293b');
 
@@ -142,20 +133,17 @@ module.exports = function(app, mongoose) {
           } else if (line.startsWith('- ') || line.startsWith('* ')) {
             doc.font('Helvetica').fontSize(11).fillColor('#333333')
                .text('• ' + line.substring(2), { indent: 15, align: isArabic ? 'right' : 'left' });
-          } else if (line.startsWith('**') && line.endsWith('**')) {
-            doc.font('Helvetica-Bold').fontSize(11).fillColor('#0a2540')
-               .text(line.replace(/\*\*/g, ''), { align: isArabic ? 'right' : 'left' });
           } else {
             doc.font('Helvetica').fontSize(11).fillColor('#334155')
-               .text(line, { align: isArabic ? 'right' : 'left', lineGap: 3 });
+               .text(line, { align: isArabic ? 'right' : 'left', lineGap: 4 }); // lineGap aère les paragraphes
           }
         }
 
-        // Pied de page (sur toutes les pages)
+        // Pied de page
         const pages = doc.bufferedPageRange();
         for (let i = pages.start; i < pages.start + pages.count; i++) {
           doc.switchToPage(i);
-          if (i === 0) continue; // On saute la page de garde
+          if (i === 0) continue;
           doc.font('Helvetica').fontSize(9).fillColor('#94a3b8')
              .text(`Scholars Connect - MBA-CONSULT | Page ${i} / ${pages.count - 1}`, 50, doc.page.height - 40, { align: 'center', width: doc.page.width - 100 });
         }
@@ -165,7 +153,7 @@ module.exports = function(app, mongoose) {
     });
   }
 
-  // Interception de la route /api/ask
+  // Interception
   app.use(['/api/ask', '/api/analyze-content'], function(req, res, next) {
     if (req.method !== 'POST' || !req.body) return next();
     
@@ -181,7 +169,6 @@ module.exports = function(app, mongoose) {
 
       try {
         processed = true;
-        
         const question = req.body.question || '(non spécifié)';
         const user = getUserFromToken(req);
         const dateHeure = new Date().toLocaleString('fr-FR', {
@@ -195,7 +182,7 @@ module.exports = function(app, mongoose) {
         
         console.log(`[pdf-report] PDF design généré pour ${user.email}`);
         
-        // On ajoute le lien du PDF dans la réponse
+        // Ajout du lien pour le client
         data.pdfUrl = `https://scholars-connect-app.onrender.com/api/pdf-report/${token}`;
         data.pdfReport = true;
         
