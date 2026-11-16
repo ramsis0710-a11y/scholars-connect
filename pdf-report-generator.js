@@ -17,7 +17,7 @@ module.exports = function(app, mongoose) {
     res.send(data.buffer);
   });
 
-  // Nouvelle route pour générer le PDF à la volée
+  // Route pour générer le PDF à la volée depuis le client
   app.post('/api/pdf-report/generate', async function(req, res) {
     try {
       const { question, answer } = req.body;
