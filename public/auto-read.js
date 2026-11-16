@@ -1,4 +1,4 @@
-/* auto-read.js - Timeline toujours visible, filtre TTS strict, historique */
+/* auto-read.js - Timeline permanente + Boutons par réponse */
 (function () {
   'use strict';
   if (window.__mbaAutoRead) return;
@@ -29,20 +29,12 @@
     let s = String(t);
     // FILTRE STRICT : Exclusion des boutons Traduire/Partager
     s = s.replace(/🌐?\s*Traduire/gi, '').replace(/🔗?\s*Partager/gi, '');
-    // Exclusion de la fiche technique et de tout ce qui suit
     const match = s.match(/fiche\s+technique/i);
     if (match) s = s.substring(0, match.index);
     
-    s = s.replace(/[“”«»]/g, '"')
-         .replace(/[‘’]/g, "'")
-         .replace(/[—–]/g, " - ")
-         .replace(/https?:\/\/\S+/g, ' ')
-         .replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}\u{200D}]/gu, ' ')
-         .replace(/[*_`#>~|\[\]{}<>]+/g, ' ')
-         .replace(/[ \t\u00A0]+/g, ' ')
-         .replace(/ *\n */g, '\n')
-         .replace(/\n{2,}/g, '\n')
-         .trim();
+    s = s.replace(/[“”«»]/g, '"').replace(/[‘’]/g, "'").replace(/[—–]/g, " - ")
+         .replace(/https?:\/\/\S+/g, ' ').replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}\u{200D}]/gu, ' ')
+         .replace(/[*_`#>~|\[\]{}<>]+/g, ' ').replace(/[ \t\u00A0]+/g, ' ').replace(/ *\n */g, '\n').replace(/\n{2,}/g, '\n').trim();
     return s;
   }
 
@@ -51,20 +43,14 @@
     const out = [];
     const phrases = texte.match(/[^.!?…]+[.!?…]+[\s]*|[^.!?…]+$/g) || [texte];
     for (let p of phrases) {
-      p = p.trim();
-      if (!p) continue;
-      if (p.length <= MAX) {
-        out.push(p);
-      } else {
+      p = p.trim(); if (!p) continue;
+      if (p.length <= MAX) { out.push(p); } 
+      else {
         const morceaux = p.split(/(?<=[,;:])\s+/);
         let buf = '';
         for (const m of morceaux) {
-          if ((buf + ' ' + m).trim().length > MAX) {
-            if (buf) out.push(buf.trim());
-            buf = m;
-          } else {
-            buf = buf ? buf + ' ' + m : m;
-          }
+          if ((buf + ' ' + m).trim().length > MAX) { if (buf) out.push(buf.trim()); buf = m; } 
+          else { buf = buf ? buf + ' ' + m : m; }
         }
         if (buf.trim()) out.push(buf.trim());
       }
@@ -90,11 +76,8 @@
 
   function arreterLecture() {
     if (timerSecours) clearTimeout(timerSecours);
-    forceAction = true;
-    try { origCancel(); } catch(e) {}
-    forceAction = false;
-    currentJob = null; currentChunkIndex = 0; isPaused = false;
-    lectureEnCours = false;
+    forceAction = true; try { origCancel(); } catch(e) {} forceAction = false;
+    currentJob = null; currentChunkIndex = 0; isPaused = false; lectureEnCours = false;
     mettreAJourUI();
   }
 
@@ -117,10 +100,7 @@
     const go = () => {
       if (done) return; done = true;
       if (timerSecours) clearTimeout(timerSecours);
-      setTimeout(() => {
-        if (currentJob === null) return;
-        lireChunk(i + 1);
-      }, 300);
+      setTimeout(() => { if (currentJob === null) return; lireChunk(i + 1); }, 300);
     };
 
     u.onend = go;
@@ -142,8 +122,23 @@
     timeTotal = Math.ceil(mots / 3);
 
     currentJob = { texte: item.texte, chunks, lang: 'fr-FR', voice: null };
-    currentChunkIndex = 0; isPaused = false;
-    lectureEnCours = true;
+    currentChunkIndex = 0; isPaused = false; lectureEnCours = true;
+    mettreAJourUI();
+    lireChunk(0);
+  }
+
+  function lireTexteDirect(txt) {
+    arreterLecture();
+    const texteNettoye = nettoyerTexte(txt);
+    if (!texteNettoye) return;
+    const chunks = decouperEnChunks(texteNettoye);
+    if (!chunks.length) return;
+
+    const mots = texteNettoye.split(/\s+/).length;
+    timeTotal = Math.ceil(mots / 3);
+
+    currentJob = { texte: txt, chunks, lang: 'fr-FR', voice: null };
+    currentChunkIndex = 0; isPaused = false; lectureEnCours = true;
     mettreAJourUI();
     lireChunk(0);
   }
@@ -151,21 +146,13 @@
   function ajouterReponse(html) {
     const texte = nettoyerTexte(htmlToText(html));
     if (!texte) return;
-    const id = Date.now() + Math.random();
-    const extrait = texte.substring(0, 50) + '...';
-    historique.push({ id, texte, extrait, date: new Date() });
+    historique.push({ id: Date.now() + Math.random(), texte, extrait: texte.substring(0, 50) + '...', date: new Date() });
     majSelect();
-    if (lectureAuto) {
-      setTimeout(() => {
-        if (lectureEnCours) return;
-        lireReponse(historique.length - 1);
-      }, 800);
-    }
+    if (lectureAuto) setTimeout(() => { if (!lectureEnCours) lireReponse(historique.length - 1); }, 800);
   }
 
   function htmlToText(html) {
-    const div = document.createElement('div');
-    div.innerHTML = html;
+    const div = document.createElement('div'); div.innerHTML = html;
     div.querySelectorAll('script,style,noscript').forEach(el => el.remove());
     return div.textContent || '';
   }
@@ -188,8 +175,7 @@
 
   function mettreAJourUI() {
     if (!ui.container) return;
-    // Force l'affichage de la timeline si une lecture est en cours ou si on a un historique
-    ui.container.style.display = 'flex';
+    ui.container.style.display = 'flex'; // Affichage forcé permanent
     if (ui.playBtn) ui.playBtn.textContent = isPaused ? '▶' : '⏸';
     if (ui.status) ui.status.textContent = lectureEnCours ? 'Lecture en cours' : 'Prêt';
     const hasHistory = historique.length > 0;
@@ -200,6 +186,67 @@
     if (ui.nextBtn) ui.nextBtn.disabled = !hasHistory;
   }
 
+  // --- INJECTION DES BOUTONS SOUS CHAQUE MESSAGE ---
+  function injecterBoutonsMessage(node) {
+    if (node.querySelector('.mba-bubble-controls')) return;
+    if (node.textContent.includes("Bonjour ! Posez-moi n'importe quelle question")) return; // Ignorer msg d'accueil
+
+    const div = document.createElement('div');
+    div.className = 'mba-bubble-controls';
+    div.style.cssText = 'margin-top: 10px; display: flex; gap: 8px; align-items: center; border-top: 1px solid #e5e7eb; padding-top: 8px;';
+    
+    const btnPlay = document.createElement('button');
+    btnPlay.innerHTML = '▶ Lire';
+    btnPlay.style.cssText = 'background: transparent; color: #0a2540; border: 1px solid #0a2540; padding: 4px 10px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600;';
+    btnPlay.onclick = (e) => {
+        e.stopPropagation();
+        const clone = node.cloneNode(true);
+        const ctrls = clone.querySelector('.mba-bubble-controls');
+        if (ctrls) ctrls.remove();
+        lireTexteDirect(clone.textContent.trim());
+    };
+    
+    const btnPause = document.createElement('button');
+    btnPause.innerHTML = '⏸ Pause';
+    btnPause.style.cssText = 'background: transparent; color: #d97706; border: 1px solid #d97706; padding: 4px 10px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600;';
+    btnPause.onclick = (e) => {
+        e.stopPropagation();
+        if (!currentJob) return;
+        forceAction = true;
+        if (isPaused) { isPaused = false; origResume(); } else { isPaused = true; origPause(); }
+        forceAction = false;
+        mettreAJourUI();
+    };
+
+    const btnStop = document.createElement('button');
+    btnStop.innerHTML = '⏹ Arrêter';
+    btnStop.style.cssText = 'background: transparent; color: #dc2626; border: 1px solid #dc2626; padding: 4px 10px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600;';
+    btnStop.onclick = (e) => {
+        e.stopPropagation();
+        arreterLecture();
+    };
+    
+    div.appendChild(btnPlay);
+    div.appendChild(btnPause);
+    div.appendChild(btnStop);
+    node.appendChild(div);
+  }
+
+  function observerMessages() {
+    const c = document.getElementById('chatMessages');
+    if (!c) { setTimeout(observerMessages, 1000); return; }
+    
+    // Observer pour les nouveaux messages
+    new MutationObserver(muts => {
+        muts.forEach(m => m.addedNodes.forEach(n => {
+            if (n.nodeType === 1 && n.classList.contains('msg') && n.classList.contains('bot')) {
+                injecterBoutonsMessage(n);
+            }
+        }));
+    }).observe(c, { childList: true, subtree: true });
+  }
+
+  // --- UI FLOTTANTE (TIMELINE) ---
   function construireUI() {
     const style = document.createElement('style');
     style.textContent = `
@@ -209,7 +256,7 @@
       #mba-player input[type=range] { flex: 1; cursor: pointer; accent-color: #F5B800; height: 6px; }
       #mba-player .mba-time { font-size: 12px; color: #ccc; min-width: 70px; text-align: right; }
       #mba-player .mba-controls { display: flex; gap: 8px; justify-content: center; }
-      #mba-player button { width: 36px; height: 36px; border-radius: 50%; border: 2px solid #F5B800; background: #111; color: #fff; font-size: 16px; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0; transition: background 0.2s; }
+      #mba-player button { width: 36px; height: 36px; border-radius: 50%; border: 2px solid #F5B800; background: #111; color: #fff; font-size: 16px; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0; }
       #mba-player button:hover:not(:disabled) { background: #333; }
       #mba-player button:disabled { opacity: 0.3; cursor: not-allowed; }
       #mba-player .mba-status { font-size: 11px; color: #aaa; text-align: center; }
@@ -218,10 +265,8 @@
     document.head.appendChild(style);
 
     const container = document.createElement('div'); container.id = 'mba-player';
-
     const select = document.createElement('select');
     select.addEventListener('change', () => { const idx = parseInt(select.value, 10); if (!isNaN(idx)) lireReponse(idx); });
-
     const row = document.createElement('div'); row.className = 'mba-row';
     const slider = document.createElement('input'); slider.type = 'range'; slider.min = 0; slider.max = 100; slider.value = 0;
     slider.addEventListener('input', () => {
@@ -238,8 +283,7 @@
 
     const controls = document.createElement('div'); controls.className = 'mba-controls';
     const prevBtn = document.createElement('button'); prevBtn.textContent = '⏮';
-    prevBtn.addEventListener('click', () => { const idx = parseInt(select.value, 10); if (idx > 0) { select.value = idx - 1; lectureEnCours = false; lireReponse(idx - 1); } });
-    
+    prevBtn.addEventListener('click', () => { const idx = parseInt(select.value, 10); if (idx > 0) { select.value = idx - 1; lireReponse(idx - 1); } });
     const playBtn = document.createElement('button'); playBtn.textContent = '⏸';
     playBtn.addEventListener('click', () => {
       if (!currentJob) return;
@@ -248,17 +292,13 @@
       else { isPaused = true; origPause(); playBtn.textContent = '▶'; }
       forceAction = false;
     });
-
     const stopBtn = document.createElement('button'); stopBtn.textContent = '⏹';
     stopBtn.addEventListener('click', arreterLecture);
-
     const nextBtn = document.createElement('button'); nextBtn.textContent = '⏭';
-    nextBtn.addEventListener('click', () => { const idx = parseInt(select.value, 10); if (idx < historique.length - 1) { select.value = idx + 1; lectureEnCours = false; lireReponse(idx + 1); } });
-
+    nextBtn.addEventListener('click', () => { const idx = parseInt(select.value, 10); if (idx < historique.length - 1) { select.value = idx + 1; lireReponse(idx + 1); } });
     controls.appendChild(prevBtn); controls.appendChild(playBtn); controls.appendChild(stopBtn); controls.appendChild(nextBtn);
 
     const status = document.createElement('div'); status.className = 'mba-status'; status.textContent = 'Prêt';
-
     const labelAuto = document.createElement('label');
     const checkbox = document.createElement('input'); checkbox.type = 'checkbox'; checkbox.checked = lectureAuto;
     checkbox.addEventListener('change', () => { lectureAuto = checkbox.checked; });
@@ -267,10 +307,8 @@
 
     container.appendChild(select); container.appendChild(row); container.appendChild(controls); container.appendChild(status); container.appendChild(labelAuto);
     document.body.appendChild(container);
-
     ui = { container, select, slider, time: timeLabel, playBtn, stopBtn, prevBtn, nextBtn, status };
-    majSelect();
-    mettreAJourUI();
+    majSelect(); mettreAJourUI();
   }
 
   function intercepterReponses() {
@@ -288,45 +326,16 @@
         return p;
       };
     }
-    if (window.XMLHttpRequest) {
-      const origOpen = XMLHttpRequest.prototype.open;
-      XMLHttpRequest.prototype.open = function(method, url) {
-        try {
-          if (urlPattern.test(String(url))) {
-            this.addEventListener('load', function() {
-              try { const data = JSON.parse(this.responseText); if (data && typeof data.answer === 'string') ajouterReponse(data.answer); } catch(e) {}
-            });
-          }
-        } catch(e) {}
-        return origOpen.apply(this, arguments);
-      };
-    }
-  }
-
-  function surchargerSynthese() {
-    synth.speak = function(u) {
-      try {
-        if (!u || u.__mba) return origSpeak(u);
-        if (lectureEnCours) return;
-        const texte = String(u.text || '');
-        if (texte.length > 10) ajouterReponse(texte);
-      } catch(e) { return origSpeak(u); }
-    };
-    synth.cancel = function() {
-      if (forceAction) { origCancel(); return; }
-      if (currentJob) arreterLecture(); else origCancel();
-    };
   }
 
   function init() {
     construireUI();
     intercepterReponses();
-    surchargerSynthese();
+    observerMessages(); // Lance l'injection des boutons dans les bulles
     document.addEventListener('pointerdown', function unlock() {
       try { const u = new SpeechSynthesisUtterance(' '); u.volume = 0; u.__mba = true; origSpeak(u); } catch(e) {}
       document.removeEventListener('pointerdown', unlock);
     }, { once: true, capture: true });
-    synth.onvoiceschanged = () => { voixChoisie = null; getVoix('fr-FR'); };
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
