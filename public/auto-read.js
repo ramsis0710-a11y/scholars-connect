@@ -1,4 +1,4 @@
-/* auto-read.js - Lecteur natif, Timeline, Boutons, Export PDF individuel (Fix) */
+/* auto-read.js - Lecteur natif, Timeline, Boutons, Export PDF individuel (Fix Arabe) */
 (function () {
   'use strict';
   if (window.__mbaAutoRead) return;
@@ -203,7 +203,7 @@
     if (ui.nextBtn) ui.nextBtn.disabled = !hasHistory;
   }
 
-  // --- GENERATION PDF POUR UNE SEULE REPONSE ---
+  // --- GENERATION PDF POUR UNE SEULE REPONSE (FIX ARABE) ---
   function genererPDFQuestion(botNode) {
       if (!window.html2pdf) { alert("Chargement du PDF..."); return; }
 
@@ -231,18 +231,17 @@
       const dateAcces = new Date(sessionStartTime).toLocaleString('fr-FR');
       const dateSortie = new Date().toLocaleString('fr-FR');
 
-      // 1. Écran de chargement
       const overlay = document.createElement('div');
       overlay.style.cssText = 'position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.85); z-index: 9999999; display: flex; align-items: center; justify-content: center; color: white; font-size: 20px; font-family: sans-serif; font-weight: bold;';
       overlay.textContent = 'Génération du PDF en cours...';
       document.body.appendChild(overlay);
 
-      // 2. Conteneur PDF (visible dans le DOM, mais caché par l'overlay)
+      // Conteneur visible mais derrière l'overlay (z-index négatif mais présent dans le DOM)
       const container = document.createElement('div');
-      container.style.cssText = 'position: absolute; top: 0; left: 0; width: 800px; background: white; padding: 40px; font-family: Arial, sans-serif; z-index: 9999998;';
+      container.style.cssText = 'position: absolute; top: 0; left: 0; width: 800px; background: white; padding: 40px; font-family: Tahoma, Arial, sans-serif; z-index: -1;';
       
       container.innerHTML = `
-            <div style="page-break-after: always; text-align: center; padding-top: 100px; min-height: 1000px;">
+            <div style="page-break-after: always; text-align: center; padding-top: 100px; min-height: 900px;">
                 <h1 style="color: #0a2540; font-size: 32px; margin-bottom: 10px;">Scholars Connect</h1>
                 <h2 style="color: #1e5aa8; font-size: 24px; margin-bottom: 40px;">Rapport de Session</h2>
                 <div style="background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 30px; display: inline-block; text-align: left; width: 80%;">
@@ -256,15 +255,15 @@
                 <h2 style="color: #0a2540; border-bottom: 2px solid #1e5aa8; padding-bottom: 10px; margin-bottom: 20px;">Détail de l'échange</h2>
                 
                 <div style="margin-bottom: 30px;">
-                    <h4 style="margin: 0 0 10px 0; color: #1e5aa8; font-size: 16px;">Question (Utilisateur) :</h4>
-                    <div style="background: #e0f2fe; border: 1px solid #bae6fd; padding: 15px; border-radius: 8px; font-size: 14px; line-height: 1.5;">
+                    <h4 style="margin: 0 0 10px 0; color: #1e5aa8; font-size: 16px;">Question :</h4>
+                    <div style="background: #e0f2fe; border: 1px solid #bae6fd; padding: 15px; border-radius: 8px; font-size: 16px; line-height: 1.6;">
                         ${userText}
                     </div>
                 </div>
 
                 <div style="margin-bottom: 30px;">
-                    <h4 style="margin: 0 0 10px 0; color: #1e5aa8; font-size: 16px;">Réponse (Scholars Connect IA) :</h4>
-                    <div style="background: #f3f4f6; border: 1px solid #d1d5db; padding: 15px; border-radius: 8px; font-size: 14px; line-height: 1.5;">
+                    <h4 style="margin: 0 0 10px 0; color: #1e5aa8; font-size: 16px;">Réponse :</h4>
+                    <div style="background: #f3f4f6; border: 1px solid #d1d5db; padding: 15px; border-radius: 8px; font-size: 16px; line-height: 1.6;">
                         ${botText}
                     </div>
                 </div>
@@ -273,23 +272,31 @@
       
       document.body.appendChild(container);
 
-      const opt = {
-          margin:       10,
-          filename:     `Scholars_Connect_${new Date().toISOString().slice(0,10)}.pdf`,
-          image:        { type: 'jpeg', quality: 0.98 },
-          html2canvas:  { scale: 2, useCORS: true, scrollY: 0 },
-          jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
-      };
+      // Attendre un peu que le DOM se stabilise avant la capture (important pour l'arabe)
+      setTimeout(() => {
+          const opt = {
+              margin:       10,
+              filename:     `Scholars_Connect_${new Date().toISOString().slice(0,10)}.pdf`,
+              image:        { type: 'jpeg', quality: 0.98 },
+              html2canvas:  { 
+                  scale: 2, 
+                  useCORS: true, 
+                  scrollY: 0,
+                  letterRendering: true // CRUCIAL pour l'arabe
+              },
+              jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+          };
 
-      window.html2pdf().set(opt).from(container).save().then(() => {
-          document.body.removeChild(container);
-          document.body.removeChild(overlay);
-      }).catch(err => {
-          console.error(err);
-          document.body.removeChild(container);
-          document.body.removeChild(overlay);
-          alert("Erreur lors de la génération du PDF.");
-      });
+          window.html2pdf().set(opt).from(container).save().then(() => {
+              document.body.removeChild(container);
+              document.body.removeChild(overlay);
+          }).catch(err => {
+              console.error(err);
+              document.body.removeChild(container);
+              document.body.removeChild(overlay);
+              alert("Erreur PDF : " + err.message);
+          });
+      }, 500);
   }
 
   function injecterBoutonsMessage(node) {
