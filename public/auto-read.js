@@ -130,7 +130,6 @@
   }
 
   function lireReponse(index) {
-    if (lectureEnCours) return;
     arreterLecture();
     if (index < 0 || index >= historique.length) return;
     const item = historique[index];
