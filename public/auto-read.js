@@ -1,4 +1,4 @@
-/* auto-read.js - VERSION 1.8 - Lecteur natif, Timeline, Boutons, Export PDF individuel (Fix Arabe) */
+/* auto-read.js - VERSION 2.0 - Lecteur natif, Timeline, Boutons, Export PDF (Fix définitif) */
 (function () {
   'use strict';
   if (window.__mbaAutoRead) return;
@@ -203,7 +203,7 @@
     if (ui.nextBtn) ui.nextBtn.disabled = !hasHistory;
   }
 
-  // --- GENERATION PDF POUR UNE SEULE REPONSE (FIX ARABE) ---
+  // --- GENERATION PDF POUR UNE SEULE REPONSE (FIX DEFINITIF) ---
   function genererPDFQuestion(botNode) {
       if (!window.html2pdf) { alert("Chargement du PDF..."); return; }
 
@@ -232,40 +232,37 @@
       const dateAcces = new Date(sessionStartTime).toLocaleString('fr-FR');
       const dateSortie = new Date().toLocaleString('fr-FR');
 
-      const overlay = document.createElement('div');
-      overlay.style.cssText = 'position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.85); z-index: 9999999; display: flex; align-items: center; justify-content: center; color: white; font-size: 20px; font-family: sans-serif; font-weight: bold;';
-      overlay.textContent = 'Génération du PDF en cours...';
-      document.body.appendChild(overlay);
-
+      // 1. On crée le conteneur et on l'affiche en plein écran
       const container = document.createElement('div');
-      // z-index 9999998 place le conteneur juste sous l'overlay, ce qui le rend visible pour html2canvas
-      container.style.cssText = 'position: fixed; top: 0; left: 0; width: 800px; min-height: 1000px; background: white; padding: 40px; font-family: Tahoma, Arial, sans-serif; z-index: 9999998;';
+      container.style.cssText = 'position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; overflow: auto; background: white; z-index: 9999999; padding: 50px; box-sizing: border-box;';
       
       container.innerHTML = `
-            <div style="page-break-after: always; text-align: center; padding-top: 100px; min-height: 900px;">
-                <h1 style="color: #0a2540; font-size: 32px; margin-bottom: 10px;">Scholars Connect</h1>
-                <h2 style="color: #1e5aa8; font-size: 24px; margin-bottom: 40px;">Rapport de Session</h2>
-                <div style="background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 30px; display: inline-block; text-align: left; width: 80%;">
-                    <p><strong>Utilisateur :</strong> ${email}</p>
-                    <p><strong>Date d'accès :</strong> ${dateAcces}</p>
-                    <p><strong>Date d'extraction :</strong> ${dateSortie}</p>
-                </div>
-            </div>
-            
-            <div style="padding-top: 20px;">
-                <h2 style="color: #0a2540; border-bottom: 2px solid #1e5aa8; padding-bottom: 10px; margin-bottom: 20px;">Détail de l'échange</h2>
-                
-                <div style="margin-bottom: 30px;">
-                    <h4 style="margin: 0 0 10px 0; color: #1e5aa8; font-size: 16px;">Question :</h4>
-                    <div ${isArabic ? 'dir="rtl"' : ''} style="background: #e0f2fe; border: 1px solid #bae6fd; padding: 15px; border-radius: 8px; font-size: 16px; line-height: 1.6; text-align: ${isArabic ? 'right' : 'left'};">
-                        ${userText}
+            <div style="max-width: 800px; margin: 0 auto; font-family: Tahoma, Arial, sans-serif;">
+                <div style="page-break-after: always; text-align: center; padding-top: 100px; min-height: 900px;">
+                    <h1 style="color: #0a2540; font-size: 32px; margin-bottom: 10px;">Scholars Connect</h1>
+                    <h2 style="color: #1e5aa8; font-size: 24px; margin-bottom: 40px;">Rapport de Session</h2>
+                    <div style="background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 30px; display: inline-block; text-align: left; width: 80%;">
+                        <p><strong>Utilisateur :</strong> ${email}</p>
+                        <p><strong>Date d'accès :</strong> ${dateAcces}</p>
+                        <p><strong>Date d'extraction :</strong> ${dateSortie}</p>
                     </div>
                 </div>
+                
+                <div style="padding-top: 20px;">
+                    <h2 style="color: #0a2540; border-bottom: 2px solid #1e5aa8; padding-bottom: 10px; margin-bottom: 20px;">Détail de l'échange</h2>
+                    
+                    <div style="margin-bottom: 30px;">
+                        <h4 style="margin: 0 0 10px 0; color: #1e5aa8; font-size: 16px;">Question :</h4>
+                        <div ${isArabic ? 'dir="rtl"' : ''} style="background: #e0f2fe; border: 1px solid #bae6fd; padding: 15px; border-radius: 8px; font-size: 16px; line-height: 1.6; text-align: ${isArabic ? 'right' : 'left'};">
+                            ${userText}
+                        </div>
+                    </div>
 
-                <div style="margin-bottom: 30px;">
-                    <h4 style="margin: 0 0 10px 0; color: #1e5aa8; font-size: 16px;">Réponse :</h4>
-                    <div ${isArabic ? 'dir="rtl"' : ''} style="background: #f3f4f6; border: 1px solid #d1d5db; padding: 15px; border-radius: 8px; font-size: 16px; line-height: 1.6; text-align: ${isArabic ? 'right' : 'left'};">
-                        ${botText}
+                    <div style="margin-bottom: 30px;">
+                        <h4 style="margin: 0 0 10px 0; color: #1e5aa8; font-size: 16px;">Réponse :</h4>
+                        <div ${isArabic ? 'dir="rtl"' : ''} style="background: #f3f4f6; border: 1px solid #d1d5db; padding: 15px; border-radius: 8px; font-size: 16px; line-height: 1.6; text-align: ${isArabic ? 'right' : 'left'};">
+                            ${botText}
+                        </div>
                     </div>
                 </div>
             </div>
@@ -273,6 +270,7 @@
       
       document.body.appendChild(container);
 
+      // 2. On attend 1 seconde que le DOM se stabilise
       setTimeout(() => {
           const opt = {
               margin:       10,
@@ -282,21 +280,21 @@
                   scale: 2, 
                   useCORS: true, 
                   scrollY: 0,
-                  letterRendering: true 
+                  letterRendering: true,
+                  windowWidth: 1024 // Force une largeur de fenêtre
               },
               jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
           };
 
+          // 3. On génère et on supprime le conteneur une fois terminé
           window.html2pdf().set(opt).from(container).save().then(() => {
               document.body.removeChild(container);
-              document.body.removeChild(overlay);
           }).catch(err => {
               console.error(err);
               document.body.removeChild(container);
-              document.body.removeChild(overlay);
               alert("Erreur PDF : " + err.message);
           });
-      }, 500);
+      }, 1000);
   }
 
   function injecterBoutonsMessage(node) {
