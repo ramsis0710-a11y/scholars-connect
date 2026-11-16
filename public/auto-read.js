@@ -1,4 +1,4 @@
-/* auto-read.js - Timeline permanente + Boutons par réponse */
+/* auto-read.js - Lecteur natif + Boutons par message + Générateur PDF */
 (function () {
   'use strict';
   if (window.__mbaAutoRead) return;
@@ -23,16 +23,29 @@
   let forceAction = false;
   let lectureEnCours = false;
 
+  // --- GESTION DU TEMPS ET DE LA SESSION ---
+  if (!localStorage.getItem('sc_login_time')) {
+      localStorage.setItem('sc_login_time', new Date().toISOString());
+  }
+  let sessionStartTime = localStorage.getItem('sc_login_time');
+
   let ui = {};
 
+  // --- CHARGEMENT DE LA LIBRAIRIE PDF ---
+  if (!window.html2pdf) {
+      const script = document.createElement('script');
+      script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js';
+      document.head.appendChild(script);
+  }
+
+  // --- LECTEUR TTS ---
   function nettoyerTexte(t) {
     let s = String(t);
-    // FILTRE STRICT : Exclusion des boutons Traduire/Partager
     s = s.replace(/🌐?\s*Traduire/gi, '').replace(/🔗?\s*Partager/gi, '');
     const match = s.match(/fiche\s+technique/i);
     if (match) s = s.substring(0, match.index);
     
-    s = s.replace(/[“”«»]/g, '"').replace(/[‘’]/g, "'").replace(/[—–]/g, " - ")
+    s = s.replace(/[""«»]/g, '"').replace(/[‘’]/g, "'").replace(/[--]/g, " - ")
          .replace(/https?:\/\/\S+/g, ' ').replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}\u{200D}]/gu, ' ')
          .replace(/[*_`#>~|\[\]{}<>]+/g, ' ').replace(/[ \t\u00A0]+/g, ' ').replace(/ *\n */g, '\n').replace(/\n{2,}/g, '\n').trim();
     return s;
@@ -118,9 +131,7 @@
     const chunks = decouperEnChunks(texteNettoye);
     if (!chunks.length) return;
 
-    const mots = texteNettoye.split(/\s+/).length;
-    timeTotal = Math.ceil(mots / 3);
-
+    timeTotal = Math.ceil(texteNettoye.split(/\s+/).length / 3);
     currentJob = { texte: item.texte, chunks, lang: 'fr-FR', voice: null };
     currentChunkIndex = 0; isPaused = false; lectureEnCours = true;
     mettreAJourUI();
@@ -134,9 +145,7 @@
     const chunks = decouperEnChunks(texteNettoye);
     if (!chunks.length) return;
 
-    const mots = texteNettoye.split(/\s+/).length;
-    timeTotal = Math.ceil(mots / 3);
-
+    timeTotal = Math.ceil(texteNettoye.split(/\s+/).length / 3);
     currentJob = { texte: txt, chunks, lang: 'fr-FR', voice: null };
     currentChunkIndex = 0; isPaused = false; lectureEnCours = true;
     mettreAJourUI();
@@ -175,7 +184,7 @@
 
   function mettreAJourUI() {
     if (!ui.container) return;
-    ui.container.style.display = 'flex'; // Affichage forcé permanent
+    ui.container.style.display = 'flex';
     if (ui.playBtn) ui.playBtn.textContent = isPaused ? '▶' : '⏸';
     if (ui.status) ui.status.textContent = lectureEnCours ? 'Lecture en cours' : 'Prêt';
     const hasHistory = historique.length > 0;
@@ -189,7 +198,7 @@
   // --- INJECTION DES BOUTONS SOUS CHAQUE MESSAGE ---
   function injecterBoutonsMessage(node) {
     if (node.querySelector('.mba-bubble-controls')) return;
-    if (node.textContent.includes("Bonjour ! Posez-moi n'importe quelle question")) return; // Ignorer msg d'accueil
+    if (node.textContent.includes("Bonjour ! Posez-moi n'importe quelle question")) return;
 
     const div = document.createElement('div');
     div.className = 'mba-bubble-controls';
@@ -226,17 +235,13 @@
         arreterLecture();
     };
     
-    div.appendChild(btnPlay);
-    div.appendChild(btnPause);
-    div.appendChild(btnStop);
+    div.appendChild(btnPlay); div.appendChild(btnPause); div.appendChild(btnStop);
     node.appendChild(div);
   }
 
   function observerMessages() {
     const c = document.getElementById('chatMessages');
     if (!c) { setTimeout(observerMessages, 1000); return; }
-    
-    // Observer pour les nouveaux messages
     new MutationObserver(muts => {
         muts.forEach(m => m.addedNodes.forEach(n => {
             if (n.nodeType === 1 && n.classList.contains('msg') && n.classList.contains('bot')) {
@@ -244,6 +249,95 @@
             }
         }));
     }).observe(c, { childList: true, subtree: true });
+  }
+
+  // --- GENERATION DU PDF ---
+  function genererPDF() {
+      if (!window.html2pdf) {
+          alert("Chargement du module PDF en cours... Veuillez patienter 2 secondes et réessayer.");
+          return;
+      }
+      
+      const chatMessages = document.querySelectorAll('.msg');
+      if (chatMessages.length === 0) { alert("Aucun message à exporter."); return; }
+
+      // Récupération des infos utilisateur
+      let email = "Utilisateur inconnu";
+      try {
+          const token = localStorage.getItem('token');
+          if (token) {
+              const payload = JSON.parse(atob(token.split('.')[1]));
+              email = payload.email || payload.name || email;
+          }
+      } catch(e) {}
+      
+      const dateAcces = new Date(sessionStartTime).toLocaleString('fr-FR');
+      const dateSortie = new Date().toLocaleString('fr-FR');
+
+      // Création de la structure HTML du PDF
+      let htmlContent = `
+        <div style="font-family: Arial, sans-serif; color: #333; line-height: 1.6; padding: 20px;">
+            <!-- PAGE DE GARDE -->
+            <div style="page-break-after: always; text-align: center; padding-top: 100px;">
+                <h1 style="color: #0a2540; font-size: 32px; margin-bottom: 10px;">Scholars Connect</h1>
+                <h2 style="color: #1e5aa8; font-size: 24px; margin-bottom: 40px;">Rapport de Session</h2>
+                <div style="background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 30px; display: inline-block; text-align: left; width: 80%;">
+                    <p><strong>Utilisateur :</strong> ${email}</p>
+                    <p><strong>Date d'accès :</strong> ${dateAcces}</p>
+                    <p><strong>Date d'extraction (sortie) :</strong> ${dateSortie}</p>
+                    <p><strong>Nombre de messages :</strong> ${chatMessages.length}</p>
+                </div>
+            </div>
+            <h2 style="color: #0a2540; border-bottom: 2px solid #1e5aa8; padding-bottom: 10px; margin-bottom: 20px;">Contenu de la discussion</h2>
+      `;
+
+      // Ajout des messages avec séparation de chapitre
+      chatMessages.forEach((msg) => {
+          const isBot = msg.classList.contains('bot');
+          const text = msg.innerText.trim();
+          if (!text) return;
+
+          // Si c'est une réponse de l'IA, on ajoute un saut de page (chapitre)
+          if (isBot) {
+              htmlContent += `<div style="page-break-before: always; padding-top: 20px;">`;
+          }
+
+          const bgColor = isBot ? '#f3f4f6' : '#e0f2fe';
+          const borderColor = isBot ? '#d1d5db' : '#bae6fd';
+          const title = isBot ? 'Scholars Connect IA' : 'Utilisateur';
+
+          htmlContent += `
+            <div style="margin-bottom: 20px;">
+                <h4 style="margin: 0 0 10px 0; color: #1e5aa8; font-size: 14px;">${title}</h4>
+                <div style="background: ${bgColor}; border: 1px solid ${borderColor}; padding: 15px; border-radius: 8px; font-size: 14px; white-space: pre-wrap;">
+                    ${text.replace(/\n/g, '<br>')}
+                </div>
+            </div>
+          `;
+
+          if (isBot) {
+              htmlContent += `</div>`; // Fermeture du chapitre
+          }
+      });
+
+      htmlContent += `</div>`;
+
+      // Création d'un élément temporaire pour html2pdf
+      const element = document.createElement('div');
+      element.innerHTML = htmlContent;
+      element.style.width = '210mm'; // Format A4
+
+      // Options du PDF
+      const opt = {
+          margin:       15,
+          filename:     `Rapport_Scholars_Connect_${new Date().toISOString().slice(0,10)}.pdf`,
+          image:        { type: 'jpeg', quality: 0.98 },
+          html2canvas:  { scale: 2, useCORS: true },
+          jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+      };
+
+      // Lancement de la génération
+      window.html2pdf().set(opt).from(element).save();
   }
 
   // --- UI FLOTTANTE (TIMELINE) ---
@@ -261,6 +355,8 @@
       #mba-player button:disabled { opacity: 0.3; cursor: not-allowed; }
       #mba-player .mba-status { font-size: 11px; color: #aaa; text-align: center; }
       #mba-player label { font-size: 12px; display: flex; align-items: center; gap: 4px; cursor: pointer; }
+      .btn-pdf { background: #dc2626; color: white; border: none; padding: 8px; border-radius: 6px; cursor: pointer; font-weight: bold; margin-top: 5px; width: 100%; display: flex; justify-content: center; gap: 5px; }
+      .btn-pdf:hover { background: #b91c1c; }
     `;
     document.head.appendChild(style);
 
@@ -305,7 +401,13 @@
     labelAuto.appendChild(checkbox);
     labelAuto.appendChild(document.createTextNode(' Lecture auto'));
 
-    container.appendChild(select); container.appendChild(row); container.appendChild(controls); container.appendChild(status); container.appendChild(labelAuto);
+    // Bouton PDF
+    const btnPDF = document.createElement('button');
+    btnPDF.className = 'btn-pdf';
+    btnPDF.innerHTML = '📄 Sauvegarder en PDF';
+    btnPDF.onclick = genererPDF;
+
+    container.appendChild(select); container.appendChild(row); container.appendChild(controls); container.appendChild(status); container.appendChild(labelAuto); container.appendChild(btnPDF);
     document.body.appendChild(container);
     ui = { container, select, slider, time: timeLabel, playBtn, stopBtn, prevBtn, nextBtn, status };
     majSelect(); mettreAJourUI();
@@ -331,7 +433,7 @@
   function init() {
     construireUI();
     intercepterReponses();
-    observerMessages(); // Lance l'injection des boutons dans les bulles
+    observerMessages();
     document.addEventListener('pointerdown', function unlock() {
       try { const u = new SpeechSynthesisUtterance(' '); u.volume = 0; u.__mba = true; origSpeak(u); } catch(e) {}
       document.removeEventListener('pointerdown', unlock);
