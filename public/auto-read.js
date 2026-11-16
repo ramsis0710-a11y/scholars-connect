@@ -198,84 +198,28 @@
   }
 
   // --- GENERATION PDF PAR IMPRESSION NATIVE (Fix 100% Arabe) ---
-  function genererPDFQuestion(botNode) {
+    function genererPDFQuestion(botNode) {
       let userNode = botNode.previousElementSibling;
       while (userNode && !userNode.classList.contains('user')) { userNode = userNode.previousElementSibling; }
       
-      const userClone = userNode ? userNode.cloneNode(true) : null;
-      const botClone = botNode.cloneNode(true);
-      
-      const ctrls = botClone.querySelector('.mba-bubble-controls');
-      if (ctrls) ctrls.remove();
+      const questionText = userNode ? userNode.innerText.trim() : "Question non trouvée";
+      const answerText = botNode.innerText.trim();
 
-      const userText = userClone ? userClone.innerHTML : "Question non trouvée";
-      const botText = botClone.innerHTML;
-      const isArabic = /[\u0600-\u06FF]/.test(userText + botText);
-
-      let email = "Utilisateur inconnu";
-      try {
-          const token = localStorage.getItem('token');
-          if (token) {
-              const payload = JSON.parse(atob(token.split('.')[1]));
-              email = payload.email || payload.name || email;
+      // On demande au serveur de générer le PDF avec le design pro
+      fetch(API_BASE + '/api/generate-pdf-custom', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + localStorage.getItem('token') },
+          body: JSON.stringify({ question: questionText, answer: answerText })
+      })
+      .then(res => res.json())
+      .then(data => {
+          if (data.pdfUrl) {
+              window.open(data.pdfUrl, '_blank'); // Ouvre le PDF élégant
+          } else {
+              alert("Erreur lors de la génération du PDF.");
           }
-      } catch(e) {}
-      
-      const dateAcces = new Date(sessionStartTime).toLocaleString('fr-FR');
-      const dateSortie = new Date().toLocaleString('fr-FR');
-
-      // On ouvre une nouvelle fenêtre et on écrit le HTML propre dedans
-      const printWindow = window.open('', '_blank');
-      
-      printWindow.document.write(`
-        <html>
-        <head>
-            <title>Rapport Scholars Connect</title>
-            <meta charset="UTF-8">
-            <style>
-                body { font-family: Tahoma, Arial, sans-serif; color: #333; line-height: 1.6; padding: 20px; }
-                .page-garde { page-break-after: always; text-align: center; padding-top: 150px; min-height: 800px; }
-                .header-box { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 30px; display: inline-block; text-align: left; width: 80%; }
-                .section { margin-bottom: 30px; }
-                .box-question { background: #e0f2fe; border: 1px solid #bae6fd; padding: 15px; border-radius: 8px; }
-                .box-reponse { background: #f3f4f6; border: 1px solid #d1d5db; padding: 15px; border-radius: 8px; }
-                @media print { body { -webkit-print-color-adjust: exact; } }
-            </style>
-        </head>
-        <body>
-            <div class="page-garde">
-                <h1 style="color: #0a2540; font-size: 32px; margin-bottom: 10px;">Scholars Connect</h1>
-                <h2 style="color: #1e5aa8; font-size: 24px; margin-bottom: 40px;">Rapport de Session</h2>
-                <div class="header-box">
-                    <p><strong>Utilisateur :</strong> ${email}</p>
-                    <p><strong>Date d'accès :</strong> ${dateAcces}</p>
-                    <p><strong>Date d'extraction :</strong> ${dateSortie}</p>
-                </div>
-            </div>
-            
-            <div>
-                <h2 style="color: #0a2540; border-bottom: 2px solid #1e5aa8; padding-bottom: 10px; margin-bottom: 20px;">Détail de l'échange</h2>
-                <div class="section">
-                    <h4 style="color: #1e5aa8;">Question :</h4>
-                    <div ${isArabic ? 'dir="rtl"' : ''} class="box-question">
-                        ${userText}
-                    </div>
-                </div>
-                <div class="section">
-                    <h4 style="color: #1e5aa8;">Réponse :</h4>
-                    <div ${isArabic ? 'dir="rtl"' : ''} class="box-reponse">
-                        ${botText}
-                    </div>
-                </div>
-            </div>
-            <script>
-                // Ouvre directement la fenêtre d'impression
-                window.onload = function() { window.print(); }
-            </script>
-        </body>
-        </html>
-      `);
-      printWindow.document.close();
+      })
+      .catch(err => alert("Erreur réseau : " + err.message));
   }
 
   function injecterBoutonsMessage(node) {
