@@ -198,28 +198,13 @@
   }
 
   // --- GENERATION PDF PAR IMPRESSION NATIVE (Fix 100% Arabe) ---
-    function genererPDFQuestion(botNode) {
-      let userNode = botNode.previousElementSibling;
-      while (userNode && !userNode.classList.contains('user')) { userNode = userNode.previousElementSibling; }
-      
-      const questionText = userNode ? userNode.innerText.trim() : "Question non trouvée";
-      const answerText = botNode.innerText.trim();
-
-      // On demande au serveur de générer le PDF avec le design pro
-      fetch(API_BASE + '/api/generate-pdf-custom', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + localStorage.getItem('token') },
-          body: JSON.stringify({ question: questionText, answer: answerText })
-      })
-      .then(res => res.json())
-      .then(data => {
-          if (data.pdfUrl) {
-              window.open(data.pdfUrl, '_blank'); // Ouvre le PDF élégant
-          } else {
-              alert("Erreur lors de la génération du PDF.");
-          }
-      })
-      .catch(err => alert("Erreur réseau : " + err.message));
+      function genererPDFQuestion(botNode) {
+      // On cherche le lien PDF stocké lors de la réception de la réponse
+      if (botNode.dataset.pdfUrl) {
+          window.open(botNode.dataset.pdfUrl, '_blank');
+      } else {
+          alert("Le PDF est en cours de génération par le serveur. Veuillez patienter quelques secondes ou reposer la question.");
+      }
   }
 
   function injecterBoutonsMessage(node) {
@@ -359,7 +344,7 @@
         try {
           const url = typeof input === 'string' ? input : (input && input.url) || '';
           if (urlPattern.test(url)) {
-            p.then(res => { try { res.clone().json().then(data => { if (data && typeof data.answer === 'string') ajouterReponse(data.answer); }).catch(()=>{}); } catch(e) {} }).catch(()=>{});
+            p.then(res => { try { res.clone().json().then(data => { if (data && typeof data.answer === 'string') { ajouterReponse(data.answer); window._lastPdfUrl = data.pdfUrl; } }).catch(()=>{}); } catch(e) {} }).catch(()=>{});
           }
         } catch(e) {}
         return p;
