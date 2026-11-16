@@ -1,4 +1,4 @@
-﻿/* auto-read.js - Lecteur vocal professionnel avec historique et timeline */
+﻿/* auto-read.js - Lecteur vocal SANS répétition, ponctuation respectée */
 (function () {
   'use strict';
   if (window.__mbaAutoRead) return;
@@ -7,15 +7,13 @@
   const synth = window.speechSynthesis;
   if (!synth) return;
 
-  // Sauvegarde des méthodes originales
   const origSpeak = synth.speak.bind(synth);
   const origCancel = synth.cancel.bind(synth);
   const origPause = synth.pause.bind(synth);
   const origResume = synth.resume.bind(synth);
 
-  // État
-  let historique = []; // { id, texte, date, extrait }
-  let currentJob = null; // { texte, chunks, lang, voice }
+  let historique = [];
+  let currentJob = null;
   let currentChunkIndex = 0;
   let isPaused = false;
   let voixChoisie = null;
@@ -23,20 +21,17 @@
   let timeTotal = 0;
   let timerSecours = null;
   let forceAction = false;
+  let lectureEnCours = false; // VERROU anti-répétition
 
-  // Éléments UI
   let ui = {};
 
-  // ---------- Nettoyage ----------
   function nettoyerTexte(t) {
     let s = String(t);
-    // Coupe AVANT "fiche technique"
     const match = s.match(/fiche\s+technique/i);
     if (match) s = s.substring(0, match.index);
-
-    s = s.replace(/[“”«»]/g, '"')
+    s = s.replace(/[""«»]/g, '"')
          .replace(/[‘’]/g, "'")
-         .replace(/[—–]/g, "-")
+         .replace(/[--]/g, " - ")
          .replace(/https?:\/\/\S+/g, ' ')
          .replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}\u{200D}]/gu, ' ')
          .replace(/[*_`#>~|\[\]{}<>]+/g, ' ')
@@ -47,42 +42,41 @@
     return s;
   }
 
+  // Découpage par PHRASES COMPLÈTES (pas par mots), avec ponctuation conservée
   function decouperEnChunks(texte) {
-    const MAX = 120;
+    const MAX = 200; // Plus long = phrases plus naturelles
     const out = [];
-    let buf = '';
-    const flush = () => { if (buf.trim()) out.push(buf.trim()); buf = ''; };
-    texte.split('\n').forEach(ligne => {
-      const parts = ligne.match(/[^.!?\u061F\u06D4\u3002\uFF01\uFF1F\u2026:;]+[.!?\u061F\u06D4\u3002\uFF01\uFF1F\u2026:;]*/g) || [];
-      parts.forEach(p => {
-        p = p.trim(); if (!p) return;
-        if (p.length > MAX) {
-          let s = p;
-          while (s.length > MAX) {
-            let cut = s.lastIndexOf(' ', MAX);
-            if (cut < MAX * 0.4) cut = MAX;
-            out.push(s.slice(0, cut).trim());
-            s = s.slice(cut).trim();
+    // On découpe par phrases (ponctuation forte ou fin de ligne)
+    const phrases = texte.match(/[^.!?…]+[.!?…]+[\s]*|[^.!?…]+$/g) || [texte];
+    for (let p of phrases) {
+      p = p.trim();
+      if (!p) continue;
+      if (p.length <= MAX) {
+        out.push(p);
+      } else {
+        // Phrase trop longue : on coupe aux virgules
+        const morceaux = p.split(/(?<=[,;:])\s+/);
+        let buf = '';
+        for (const m of morceaux) {
+          if ((buf + ' ' + m).trim().length > MAX) {
+            if (buf) out.push(buf.trim());
+            buf = m;
+          } else {
+            buf = buf ? buf + ' ' + m : m;
           }
-          if (s) out.push(s);
-        } else {
-          if ((buf + ' ' + p).trim().length > MAX) flush();
-          buf = buf ? buf + ' ' + p : p;
         }
-      });
-      flush();
-    });
-    flush();
+        if (buf.trim()) out.push(buf.trim());
+      }
+    }
     return out;
   }
 
-  // ---------- Voix ----------
   function choisirVoix(lang) {
     const vs = synth.getVoices() || [];
     const base = lang.slice(0, 2).toLowerCase();
     const candidates = vs.filter(v => String(v.lang || '').toLowerCase().replace('_','-').startsWith(base));
     if (!candidates.length) return null;
-    const male = candidates.filter(v => /(male|homme|masculin|david|mark|paul|thomas|pierre|jean|guy|daniel)/i.test(v.name) && !/(female|femme|feminin)/i.test(v.name));
+    const male = candidates.filter(v => /(male|homme|masculin|david|mark|paul|thomas|pierre|jean|guy|daniel|hamed)/i.test(v.name) && !/(female|femme|feminin)/i.test(v.name));
     const pool = male.length ? male : candidates.filter(v => !/(female|femme|feminin)/i.test(v.name));
     return (pool.length ? pool : candidates)[0];
   }
@@ -93,19 +87,22 @@
     return voixChoisie;
   }
 
-  // ---------- Lecture ----------
   function arreterLecture() {
     if (timerSecours) clearTimeout(timerSecours);
     forceAction = true;
     try { origCancel(); } catch(e) {}
     forceAction = false;
     currentJob = null; currentChunkIndex = 0; isPaused = false;
+    lectureEnCours = false;
     mettreAJourUI();
   }
 
   function lireChunk(i) {
     if (!currentJob) return;
-    if (i >= currentJob.chunks.length) { arreterLecture(); return; }
+    if (i >= currentJob.chunks.length) {
+      arreterLecture();
+      return;
+    }
     currentChunkIndex = i;
 
     const pourcent = Math.floor((i / currentJob.chunks.length) * 100);
@@ -114,24 +111,36 @@
     if (ui.time) ui.time.textContent = formatTime(ecoule) + ' / ' + formatTime(timeTotal);
 
     const u = new SpeechSynthesisUtterance(currentJob.chunks[i]);
-    u.__mba = true; u.lang = currentJob.lang;
+    u.__mba = true;
+    u.lang = currentJob.lang;
     const voix = getVoix(currentJob.lang);
     if (voix) u.voice = voix;
 
     let done = false;
     const go = () => {
-      if (done) return; done = true;
+      if (done) return;
+      done = true;
       if (timerSecours) clearTimeout(timerSecours);
-      lireChunk(i + 1);
+      // Petit délai entre phrases pour la respiration (300ms)
+      setTimeout(() => {
+        if (currentJob === null) return; // a été arrêté
+        lireChunk(i + 1);
+      }, 300);
     };
 
     u.onend = go;
-    u.onerror = (e) => { if (e.error !== 'not-allowed') go(); };
-    timerSecours = setTimeout(go, Math.max(15000, currentJob.chunks[i].length * 300));
+    u.onerror = (e) => {
+      if (e.error === 'not-allowed') { arreterLecture(); return; }
+      go();
+    };
+
+    // Timeout de secours large (30s minimum)
+    timerSecours = setTimeout(go, Math.max(30000, currentJob.chunks[i].length * 400));
     try { origSpeak(u); } catch(e) { go(); }
   }
 
   function lireReponse(index) {
+    if (lectureEnCours) return; // ANTI-RÉPÉTITION
     arreterLecture();
     if (index < 0 || index >= historique.length) return;
     const item = historique[index];
@@ -145,11 +154,11 @@
 
     currentJob = { texte: item.texte, chunks, lang: 'fr-FR', voice: null };
     currentChunkIndex = 0; isPaused = false;
+    lectureEnCours = true;
     mettreAJourUI();
     lireChunk(0);
   }
 
-  // ---------- Historique ----------
   function ajouterReponse(html) {
     const texte = nettoyerTexte(htmlToText(html));
     if (!texte) return;
@@ -157,7 +166,12 @@
     const extrait = texte.substring(0, 50) + '...';
     historique.push({ id, texte, extrait, date: new Date() });
     majSelect();
-    if (lectureAuto) setTimeout(() => { if (historique.length) lireReponse(historique.length - 1); }, 500);
+    if (lectureAuto) {
+      setTimeout(() => {
+        if (lectureEnCours) return; // ANTI-RÉPÉTITION
+        lireReponse(historique.length - 1);
+      }, 800);
+    }
   }
 
   function htmlToText(html) {
@@ -167,7 +181,6 @@
     return div.textContent || '';
   }
 
-  // ---------- UI ----------
   function formatTime(sec) {
     const m = Math.floor(sec / 60), s = Math.floor(sec % 60);
     return m + ':' + (s < 10 ? '0' : '') + s;
@@ -188,7 +201,7 @@
     if (!ui.container) return;
     ui.container.style.display = historique.length ? 'flex' : 'none';
     if (ui.playBtn) ui.playBtn.textContent = isPaused ? '▶' : '⏸';
-    if (ui.status) ui.status.textContent = currentJob ? 'Lecture en cours' : 'Prêt';
+    if (ui.status) ui.status.textContent = lectureEnCours ? 'Lecture en cours' : 'Prêt';
     const hasHistory = historique.length > 0;
     if (ui.select) ui.select.disabled = !hasHistory;
     if (ui.playBtn) ui.playBtn.disabled = !currentJob;
@@ -227,7 +240,7 @@
       const idx = Math.floor((pourcent / 100) * currentJob.chunks.length);
       if (idx >= 0 && idx < currentJob.chunks.length) {
         forceAction = true; try { origCancel(); } catch(e) {} forceAction = false;
-        lireChunk(idx);
+        setTimeout(() => lireChunk(idx), 100);
       }
     });
     const timeLabel = document.createElement('span'); timeLabel.className = 'mba-time'; timeLabel.textContent = '0:00 / 0:00';
@@ -235,7 +248,7 @@
 
     const controls = document.createElement('div'); controls.className = 'mba-controls';
     const prevBtn = document.createElement('button'); prevBtn.textContent = '⏮';
-    prevBtn.addEventListener('click', () => { const idx = parseInt(select.value, 10); if (idx > 0) { select.value = idx - 1; lireReponse(idx - 1); } });
+    prevBtn.addEventListener('click', () => { const idx = parseInt(select.value, 10); if (idx > 0) { select.value = idx - 1; lectureEnCours = false; lireReponse(idx - 1); } });
     
     const playBtn = document.createElement('button'); playBtn.textContent = '⏸';
     playBtn.addEventListener('click', () => {
@@ -250,7 +263,7 @@
     stopBtn.addEventListener('click', arreterLecture);
 
     const nextBtn = document.createElement('button'); nextBtn.textContent = '⏭';
-    nextBtn.addEventListener('click', () => { const idx = parseInt(select.value, 10); if (idx < historique.length - 1) { select.value = idx + 1; lireReponse(idx + 1); } });
+    nextBtn.addEventListener('click', () => { const idx = parseInt(select.value, 10); if (idx < historique.length - 1) { select.value = idx + 1; lectureEnCours = false; lireReponse(idx + 1); } });
 
     controls.appendChild(prevBtn); controls.appendChild(playBtn); controls.appendChild(stopBtn); controls.appendChild(nextBtn);
 
@@ -270,7 +283,6 @@
     mettreAJourUI();
   }
 
-  // ---------- Interception ----------
   function intercepterReponses() {
     const urlPattern = /\/api\/(ask|analyze-content)(\?|$)/;
     if (window.fetch) {
@@ -305,7 +317,7 @@
     synth.speak = function(u) {
       try {
         if (!u || u.__mba) return origSpeak(u);
-        if (currentJob) return;
+        if (lectureEnCours) return; // ANTI-RÉPÉTITION
         const texte = String(u.text || '');
         if (texte.length > 10) ajouterReponse(texte);
       } catch(e) { return origSpeak(u); }
