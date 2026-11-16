@@ -1,4 +1,4 @@
-/* auto-read.js - Lecteur vocal SANS répétition, ponctuation respectée */
+﻿/* auto-read.js - Timeline toujours visible, filtre TTS strict, historique */
 (function () {
   'use strict';
   if (window.__mbaAutoRead) return;
@@ -21,21 +21,21 @@
   let timeTotal = 0;
   let timerSecours = null;
   let forceAction = false;
-  let lectureEnCours = false; // VERROU anti-répétition
+  let lectureEnCours = false;
 
   let ui = {};
 
   function nettoyerTexte(t) {
-    // FILTRE STRICT : Exclusion des boutons et de la fiche technique
-    t = String(t).replace(/🌐?\s*Traduire/gi, '').replace(/🔗?\s*Partager/gi, '');
-    var match = String(t).match(/fiche\s+technique/i);
-    if (match) t = String(t).substring(0, match.index);
     let s = String(t);
+    // FILTRE STRICT : Exclusion des boutons Traduire/Partager
+    s = s.replace(/🌐?\s*Traduire/gi, '').replace(/🔗?\s*Partager/gi, '');
+    // Exclusion de la fiche technique et de tout ce qui suit
     const match = s.match(/fiche\s+technique/i);
     if (match) s = s.substring(0, match.index);
-    s = s.replace(/[""«»]/g, '"')
+    
+    s = s.replace(/[“”«»]/g, '"')
          .replace(/[‘’]/g, "'")
-         .replace(/[--]/g, " - ")
+         .replace(/[—–]/g, " - ")
          .replace(/https?:\/\/\S+/g, ' ')
          .replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}\u{200D}]/gu, ' ')
          .replace(/[*_`#>~|\[\]{}<>]+/g, ' ')
@@ -46,11 +46,9 @@
     return s;
   }
 
-  // Découpage par PHRASES COMPLÈTES (pas par mots), avec ponctuation conservée
   function decouperEnChunks(texte) {
-    const MAX = 200; // Plus long = phrases plus naturelles
+    const MAX = 200;
     const out = [];
-    // On découpe par phrases (ponctuation forte ou fin de ligne)
     const phrases = texte.match(/[^.!?…]+[.!?…]+[\s]*|[^.!?…]+$/g) || [texte];
     for (let p of phrases) {
       p = p.trim();
@@ -58,7 +56,6 @@
       if (p.length <= MAX) {
         out.push(p);
       } else {
-        // Phrase trop longue : on coupe aux virgules
         const morceaux = p.split(/(?<=[,;:])\s+/);
         let buf = '';
         for (const m of morceaux) {
@@ -103,10 +100,7 @@
 
   function lireChunk(i) {
     if (!currentJob) return;
-    if (i >= currentJob.chunks.length) {
-      arreterLecture();
-      return;
-    }
+    if (i >= currentJob.chunks.length) { arreterLecture(); return; }
     currentChunkIndex = i;
 
     const pourcent = Math.floor((i / currentJob.chunks.length) * 100);
@@ -115,36 +109,28 @@
     if (ui.time) ui.time.textContent = formatTime(ecoule) + ' / ' + formatTime(timeTotal);
 
     const u = new SpeechSynthesisUtterance(currentJob.chunks[i]);
-    u.__mba = true;
-    u.lang = currentJob.lang;
+    u.__mba = true; u.lang = currentJob.lang;
     const voix = getVoix(currentJob.lang);
     if (voix) u.voice = voix;
 
     let done = false;
     const go = () => {
-      if (done) return;
-      done = true;
+      if (done) return; done = true;
       if (timerSecours) clearTimeout(timerSecours);
-      // Petit délai entre phrases pour la respiration (300ms)
       setTimeout(() => {
-        if (currentJob === null) return; // a été arrêté
+        if (currentJob === null) return;
         lireChunk(i + 1);
       }, 300);
     };
 
     u.onend = go;
-    u.onerror = (e) => {
-      if (e.error === 'not-allowed') { arreterLecture(); return; }
-      go();
-    };
-
-    // Timeout de secours large (30s minimum)
+    u.onerror = (e) => { if (e.error !== 'not-allowed') go(); };
     timerSecours = setTimeout(go, Math.max(30000, currentJob.chunks[i].length * 400));
     try { origSpeak(u); } catch(e) { go(); }
   }
 
   function lireReponse(index) {
-    if (lectureEnCours) return; // ANTI-RÉPÉTITION
+    if (lectureEnCours) return;
     arreterLecture();
     if (index < 0 || index >= historique.length) return;
     const item = historique[index];
@@ -172,7 +158,7 @@
     majSelect();
     if (lectureAuto) {
       setTimeout(() => {
-        if (lectureEnCours) return; // ANTI-RÉPÉTITION
+        if (lectureEnCours) return;
         lireReponse(historique.length - 1);
       }, 800);
     }
@@ -203,7 +189,8 @@
 
   function mettreAJourUI() {
     if (!ui.container) return;
-    ui.container.style.display = historique.length ? 'flex' : 'none';
+    // Force l'affichage de la timeline si une lecture est en cours ou si on a un historique
+    ui.container.style.display = (historique.length > 0) ? 'flex' : 'none';
     if (ui.playBtn) ui.playBtn.textContent = isPaused ? '▶' : '⏸';
     if (ui.status) ui.status.textContent = lectureEnCours ? 'Lecture en cours' : 'Prêt';
     const hasHistory = historique.length > 0;
@@ -321,7 +308,7 @@
     synth.speak = function(u) {
       try {
         if (!u || u.__mba) return origSpeak(u);
-        if (lectureEnCours) return; // ANTI-RÉPÉTITION
+        if (lectureEnCours) return;
         const texte = String(u.text || '');
         if (texte.length > 10) ajouterReponse(texte);
       } catch(e) { return origSpeak(u); }
