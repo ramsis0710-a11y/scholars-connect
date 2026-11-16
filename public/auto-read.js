@@ -1,4 +1,4 @@
-/* auto-read.js - Lecteur natif + Boutons par message + Générateur PDF */
+/* auto-read.js - Lecteur natif, Timeline, Boutons, PDF et Support Multilingue */
 (function () {
   'use strict';
   if (window.__mbaAutoRead) return;
@@ -23,29 +23,39 @@
   let forceAction = false;
   let lectureEnCours = false;
 
-  // --- GESTION DU TEMPS ET DE LA SESSION ---
   if (!localStorage.getItem('sc_login_time')) {
       localStorage.setItem('sc_login_time', new Date().toISOString());
   }
   let sessionStartTime = localStorage.getItem('sc_login_time');
-
   let ui = {};
 
-  // --- CHARGEMENT DE LA LIBRAIRIE PDF ---
   if (!window.html2pdf) {
       const script = document.createElement('script');
       script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js';
       document.head.appendChild(script);
   }
 
-  // --- LECTEUR TTS ---
+  // --- DÉTECTION AUTOMATIQUE DE LA LANGUE ---
+  function detecterLangue(texte) {
+      if (/[\u0600-\u06FF]/.test(texte)) return 'ar-SA';
+      if (/[\u4E00-\u9FFF]/.test(texte)) return 'zh-CN';
+      if (/[\u0400-\u04FF]/.test(texte)) return 'ru-RU';
+      if (/[\u3040-\u30FF]/.test(texte)) return 'ja-JP';
+      if (/[\uAC00-\uD7AF]/.test(texte)) return 'ko-KR';
+      if (/[\u0900-\u097F]/.test(texte)) return 'hi-IN';
+      if (/[\u0590-\u05FF]/.test(texte)) return 'he-IL';
+      if (/[\u0370-\u03FF]/.test(texte)) return 'el-GR';
+      if (/[\u0E00-\u0E7F]/.test(texte)) return 'th-TH';
+      // Par défaut, si c'est de l'alphabet latin, on laisse le navigateur décider (fr, en, es, de, etc.)
+      return 'fr-FR';
+  }
+
   function nettoyerTexte(t) {
     let s = String(t);
     s = s.replace(/🌐?\s*Traduire/gi, '').replace(/🔗?\s*Partager/gi, '');
     const match = s.match(/fiche\s+technique/i);
     if (match) s = s.substring(0, match.index);
-    
-    s = s.replace(/[""«»]/g, '"').replace(/[‘’]/g, "'").replace(/[--]/g, " - ")
+    s = s.replace(/[“”«»]/g, '"').replace(/[‘’]/g, "'").replace(/[—–]/g, " - ")
          .replace(/https?:\/\/\S+/g, ' ').replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}\u{200D}]/gu, ' ')
          .replace(/[*_`#>~|\[\]{}<>]+/g, ' ').replace(/[ \t\u00A0]+/g, ' ').replace(/ *\n */g, '\n').replace(/\n{2,}/g, '\n').trim();
     return s;
@@ -74,11 +84,10 @@
   function choisirVoix(lang) {
     const vs = synth.getVoices() || [];
     const base = lang.slice(0, 2).toLowerCase();
+    // Trouve une voix correspondant à la langue détectée
     const candidates = vs.filter(v => String(v.lang || '').toLowerCase().replace('_','-').startsWith(base));
     if (!candidates.length) return null;
-    const male = candidates.filter(v => /(male|homme|masculin|david|mark|paul|thomas|pierre|jean|guy|daniel|hamed)/i.test(v.name) && !/(female|femme|feminin)/i.test(v.name));
-    const pool = male.length ? male : candidates.filter(v => !/(female|femme|feminin)/i.test(v.name));
-    return (pool.length ? pool : candidates)[0];
+    return candidates[0]; // Retourne la première voix trouvée pour cette langue
   }
 
   function getVoix(lang) {
@@ -132,7 +141,9 @@
     if (!chunks.length) return;
 
     timeTotal = Math.ceil(texteNettoye.split(/\s+/).length / 3);
-    currentJob = { texte: item.texte, chunks, lang: 'fr-FR', voice: null };
+    // DÉTECTION DE LA LANGUE
+    const langueDetectee = detecterLangue(texteNettoye);
+    currentJob = { texte: item.texte, chunks, lang: langueDetectee, voice: null };
     currentChunkIndex = 0; isPaused = false; lectureEnCours = true;
     mettreAJourUI();
     lireChunk(0);
@@ -146,7 +157,9 @@
     if (!chunks.length) return;
 
     timeTotal = Math.ceil(texteNettoye.split(/\s+/).length / 3);
-    currentJob = { texte: txt, chunks, lang: 'fr-FR', voice: null };
+    // DÉTECTION DE LA LANGUE
+    const langueDetectee = detecterLangue(texteNettoye);
+    currentJob = { texte: txt, chunks, lang: langueDetectee, voice: null };
     currentChunkIndex = 0; isPaused = false; lectureEnCours = true;
     mettreAJourUI();
     lireChunk(0);
@@ -186,7 +199,7 @@
     if (!ui.container) return;
     ui.container.style.display = 'flex';
     if (ui.playBtn) ui.playBtn.textContent = isPaused ? '▶' : '⏸';
-    if (ui.status) ui.status.textContent = lectureEnCours ? 'Lecture en cours' : 'Prêt';
+    if (ui.status) ui.status.textContent = lectureEnCours ? 'Lecture' : 'Prêt';
     const hasHistory = historique.length > 0;
     if (ui.select) ui.select.disabled = !hasHistory;
     if (ui.playBtn) ui.playBtn.disabled = !currentJob;
@@ -195,7 +208,6 @@
     if (ui.nextBtn) ui.nextBtn.disabled = !hasHistory;
   }
 
-  // --- INJECTION DES BOUTONS SOUS CHAQUE MESSAGE ---
   function injecterBoutonsMessage(node) {
     if (node.querySelector('.mba-bubble-controls')) return;
     if (node.textContent.includes("Bonjour ! Posez-moi n'importe quelle question")) return;
@@ -251,7 +263,6 @@
     }).observe(c, { childList: true, subtree: true });
   }
 
-  // --- GENERATION DU PDF ---
   function genererPDF() {
       if (!window.html2pdf) {
           alert("Chargement du module PDF en cours... Veuillez patienter 2 secondes et réessayer.");
@@ -261,7 +272,6 @@
       const chatMessages = document.querySelectorAll('.msg');
       if (chatMessages.length === 0) { alert("Aucun message à exporter."); return; }
 
-      // Récupération des infos utilisateur
       let email = "Utilisateur inconnu";
       try {
           const token = localStorage.getItem('token');
@@ -274,10 +284,8 @@
       const dateAcces = new Date(sessionStartTime).toLocaleString('fr-FR');
       const dateSortie = new Date().toLocaleString('fr-FR');
 
-      // Création de la structure HTML du PDF
       let htmlContent = `
         <div style="font-family: Arial, sans-serif; color: #333; line-height: 1.6; padding: 20px;">
-            <!-- PAGE DE GARDE -->
             <div style="page-break-after: always; text-align: center; padding-top: 100px;">
                 <h1 style="color: #0a2540; font-size: 32px; margin-bottom: 10px;">Scholars Connect</h1>
                 <h2 style="color: #1e5aa8; font-size: 24px; margin-bottom: 40px;">Rapport de Session</h2>
@@ -291,16 +299,12 @@
             <h2 style="color: #0a2540; border-bottom: 2px solid #1e5aa8; padding-bottom: 10px; margin-bottom: 20px;">Contenu de la discussion</h2>
       `;
 
-      // Ajout des messages avec séparation de chapitre
       chatMessages.forEach((msg) => {
           const isBot = msg.classList.contains('bot');
           const text = msg.innerText.trim();
           if (!text) return;
 
-          // Si c'est une réponse de l'IA, on ajoute un saut de page (chapitre)
-          if (isBot) {
-              htmlContent += `<div style="page-break-before: always; padding-top: 20px;">`;
-          }
+          if (isBot) { htmlContent += `<div style="page-break-before: always; padding-top: 20px;">`; }
 
           const bgColor = isBot ? '#f3f4f6' : '#e0f2fe';
           const borderColor = isBot ? '#d1d5db' : '#bae6fd';
@@ -315,19 +319,15 @@
             </div>
           `;
 
-          if (isBot) {
-              htmlContent += `</div>`; // Fermeture du chapitre
-          }
+          if (isBot) { htmlContent += `</div>`; }
       });
 
       htmlContent += `</div>`;
 
-      // Création d'un élément temporaire pour html2pdf
       const element = document.createElement('div');
       element.innerHTML = htmlContent;
-      element.style.width = '210mm'; // Format A4
+      element.style.width = '210mm';
 
-      // Options du PDF
       const opt = {
           margin:       15,
           filename:     `Rapport_Scholars_Connect_${new Date().toISOString().slice(0,10)}.pdf`,
@@ -336,11 +336,9 @@
           jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
       };
 
-      // Lancement de la génération
       window.html2pdf().set(opt).from(element).save();
   }
 
-  // --- UI FLOTTANTE (TIMELINE) ---
   function construireUI() {
     const style = document.createElement('style');
     style.textContent = `
@@ -401,7 +399,6 @@
     labelAuto.appendChild(checkbox);
     labelAuto.appendChild(document.createTextNode(' Lecture auto'));
 
-    // Bouton PDF
     const btnPDF = document.createElement('button');
     btnPDF.className = 'btn-pdf';
     btnPDF.innerHTML = '📄 Sauvegarder en PDF';
