@@ -1,4 +1,4 @@
-/* auto-read.js - Lecteur natif, Timeline, Boutons par message, Export PDF individuel */
+/* auto-read.js - Lecteur natif, Timeline, Boutons, Export PDF individuel (Fix) */
 (function () {
   'use strict';
   if (window.__mbaAutoRead) return;
@@ -207,17 +207,12 @@
   function genererPDFQuestion(botNode) {
       if (!window.html2pdf) { alert("Chargement du PDF..."); return; }
 
-      // Trouver la question de l'utilisateur juste avant
       let userNode = botNode.previousElementSibling;
-      while (userNode && !userNode.classList.contains('user')) {
-          userNode = userNode.previousElementSibling;
-      }
+      while (userNode && !userNode.classList.contains('user')) { userNode = userNode.previousElementSibling; }
       
-      // Cloner les noeuds pour ne pas altérer l'écran
       const userClone = userNode ? userNode.cloneNode(true) : null;
       const botClone = botNode.cloneNode(true);
       
-      // Nettoyer les boutons de contrôle pour ne pas les avoir dans le PDF
       const ctrls = botClone.querySelector('.mba-bubble-controls');
       if (ctrls) ctrls.remove();
 
@@ -236,23 +231,28 @@
       const dateAcces = new Date(sessionStartTime).toLocaleString('fr-FR');
       const dateSortie = new Date().toLocaleString('fr-FR');
 
-      // Structure HTML du PDF (attachée au DOM pour que html2canvas fonctionne)
+      // 1. Écran de chargement
+      const overlay = document.createElement('div');
+      overlay.style.cssText = 'position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.85); z-index: 9999999; display: flex; align-items: center; justify-content: center; color: white; font-size: 20px; font-family: sans-serif; font-weight: bold;';
+      overlay.textContent = 'Génération du PDF en cours...';
+      document.body.appendChild(overlay);
+
+      // 2. Conteneur PDF (visible dans le DOM, mais caché par l'overlay)
       const container = document.createElement('div');
-      // On le place hors de l'écran mais dans le DOM pour que html2canvas puisse le lire
-      container.style.cssText = 'position: fixed; left: -9999px; top: 0; width: 210mm; background: white; padding: 20px; font-family: Arial, sans-serif;';
+      container.style.cssText = 'position: absolute; top: 0; left: 0; width: 800px; background: white; padding: 40px; font-family: Arial, sans-serif; z-index: 9999998;';
       
       container.innerHTML = `
-            <div style="page-break-after: always; text-align: center; padding-top: 100px;">
+            <div style="page-break-after: always; text-align: center; padding-top: 100px; min-height: 1000px;">
                 <h1 style="color: #0a2540; font-size: 32px; margin-bottom: 10px;">Scholars Connect</h1>
                 <h2 style="color: #1e5aa8; font-size: 24px; margin-bottom: 40px;">Rapport de Session</h2>
                 <div style="background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 30px; display: inline-block; text-align: left; width: 80%;">
                     <p><strong>Utilisateur :</strong> ${email}</p>
                     <p><strong>Date d'accès :</strong> ${dateAcces}</p>
-                    <p><strong>Date d'extraction (sortie) :</strong> ${dateSortie}</p>
+                    <p><strong>Date d'extraction :</strong> ${dateSortie}</p>
                 </div>
             </div>
             
-            <div style="page-break-before: always; padding-top: 20px;">
+            <div style="padding-top: 20px;">
                 <h2 style="color: #0a2540; border-bottom: 2px solid #1e5aa8; padding-bottom: 10px; margin-bottom: 20px;">Détail de l'échange</h2>
                 
                 <div style="margin-bottom: 30px;">
@@ -274,15 +274,21 @@
       document.body.appendChild(container);
 
       const opt = {
-          margin:       15,
-          filename:     `Scholars_Connect_Reponse_${new Date().toISOString().slice(0,10)}.pdf`,
+          margin:       10,
+          filename:     `Scholars_Connect_${new Date().toISOString().slice(0,10)}.pdf`,
           image:        { type: 'jpeg', quality: 0.98 },
-          html2canvas:  { scale: 2, useCORS: true },
+          html2canvas:  { scale: 2, useCORS: true, scrollY: 0 },
           jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
       };
 
       window.html2pdf().set(opt).from(container).save().then(() => {
-          document.body.removeChild(container); // Nettoyage
+          document.body.removeChild(container);
+          document.body.removeChild(overlay);
+      }).catch(err => {
+          console.error(err);
+          document.body.removeChild(container);
+          document.body.removeChild(overlay);
+          alert("Erreur lors de la génération du PDF.");
       });
   }
 
