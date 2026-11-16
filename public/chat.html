@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
@@ -444,11 +444,7 @@ async function sendChat() {
         addMessage('bot', answer);
 
         // Lecture vocale si cochée
-        if ($('voiceAuto').checked && 'speechSynthesis' in window) {
-            const utterance = new SpeechSynthesisUtterance(answer.replace(/<[^>]+>/g, ''));
-            utterance.lang = lang === 'ar' ? 'ar-SA' : (lang === 'en' ? 'en-US' : 'fr-FR');
-            speechSynthesis.speak(utterance);
-        }
+        // TTS géré par auto-read.js
     } catch (e) {
         addMessage('bot', 'Erreur : ' + e.message);
     } finally {
@@ -696,7 +692,27 @@ ensureAuth().then(ok => {
     console.log('[unified] ================================');
     console.log('[unified] Module charge');
     const API = 'https://scholars-connect-app.onrender.com';
-    const HIST_KEY = 'scholars_hist_v3';
+        const HIST_KEY = 'scholars_hist_v3';
+    async function loadServerHistory() {
+        try {
+            const token = localStorage.getItem('token');
+            if (!token) return;
+            const res = await fetch(API_BASE + '/api/history', { headers: { 'Authorization': 'Bearer ' + token } });
+            if (res.ok) {
+                const data = await res.json();
+                if (data.items && data.items.length > 0) {
+                    const h = [];
+                    data.items.reverse().forEach(i => {
+                        h.push({ role: 'user', text: i.question, ts: new Date(i.createdAt).getTime() });
+                        h.push({ role: 'bot', text: i.answer, ts: new Date(i.createdAt).getTime() });
+                    });
+                    localStorage.setItem(HIST_KEY, JSON.stringify(h));
+                    if (typeof restoreHistory === 'function') restoreHistory();
+                }
+            }
+        } catch(e) { console.warn('Sync err', e); }
+    }
+    setTimeout(loadServerHistory, 1000);
 
     // ============== 1. HISTORIQUE ==============
     function saveMsg(role, text) {
