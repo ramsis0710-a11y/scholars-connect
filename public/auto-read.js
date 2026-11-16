@@ -1,4 +1,4 @@
-/* auto-read.js - Lecteur natif, Timeline, Boutons, Export PDF individuel (Fix Arabe) */
+/* auto-read.js - VERSION 1.8 - Lecteur natif, Timeline, Boutons, Export PDF individuel (Fix Arabe) */
 (function () {
   'use strict';
   if (window.__mbaAutoRead) return;
@@ -218,6 +218,7 @@
 
       const userText = userClone ? userClone.innerHTML : "Question non trouvée";
       const botText = botClone.innerHTML;
+      const isArabic = /[\u0600-\u06FF]/.test(userText + botText);
 
       let email = "Utilisateur inconnu";
       try {
@@ -236,9 +237,9 @@
       overlay.textContent = 'Génération du PDF en cours...';
       document.body.appendChild(overlay);
 
-      // Conteneur visible mais derrière l'overlay (z-index négatif mais présent dans le DOM)
       const container = document.createElement('div');
-      container.style.cssText = 'position: absolute; top: 0; left: 0; width: 800px; background: white; padding: 40px; font-family: Tahoma, Arial, sans-serif; z-index: -1;';
+      // z-index 9999998 place le conteneur juste sous l'overlay, ce qui le rend visible pour html2canvas
+      container.style.cssText = 'position: fixed; top: 0; left: 0; width: 800px; min-height: 1000px; background: white; padding: 40px; font-family: Tahoma, Arial, sans-serif; z-index: 9999998;';
       
       container.innerHTML = `
             <div style="page-break-after: always; text-align: center; padding-top: 100px; min-height: 900px;">
@@ -256,14 +257,14 @@
                 
                 <div style="margin-bottom: 30px;">
                     <h4 style="margin: 0 0 10px 0; color: #1e5aa8; font-size: 16px;">Question :</h4>
-                    <div style="background: #e0f2fe; border: 1px solid #bae6fd; padding: 15px; border-radius: 8px; font-size: 16px; line-height: 1.6;">
+                    <div ${isArabic ? 'dir="rtl"' : ''} style="background: #e0f2fe; border: 1px solid #bae6fd; padding: 15px; border-radius: 8px; font-size: 16px; line-height: 1.6; text-align: ${isArabic ? 'right' : 'left'};">
                         ${userText}
                     </div>
                 </div>
 
                 <div style="margin-bottom: 30px;">
                     <h4 style="margin: 0 0 10px 0; color: #1e5aa8; font-size: 16px;">Réponse :</h4>
-                    <div style="background: #f3f4f6; border: 1px solid #d1d5db; padding: 15px; border-radius: 8px; font-size: 16px; line-height: 1.6;">
+                    <div ${isArabic ? 'dir="rtl"' : ''} style="background: #f3f4f6; border: 1px solid #d1d5db; padding: 15px; border-radius: 8px; font-size: 16px; line-height: 1.6; text-align: ${isArabic ? 'right' : 'left'};">
                         ${botText}
                     </div>
                 </div>
@@ -272,7 +273,6 @@
       
       document.body.appendChild(container);
 
-      // Attendre un peu que le DOM se stabilise avant la capture (important pour l'arabe)
       setTimeout(() => {
           const opt = {
               margin:       10,
@@ -282,7 +282,7 @@
                   scale: 2, 
                   useCORS: true, 
                   scrollY: 0,
-                  letterRendering: true // CRUCIAL pour l'arabe
+                  letterRendering: true 
               },
               jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
           };
