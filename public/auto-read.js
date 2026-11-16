@@ -1,4 +1,4 @@
-/* auto-read.js - Lecteur natif, Timeline, Boutons, PDF et Support Multilingue */
+/* auto-read.js - Lecteur natif, Timeline, Boutons par message, Export PDF individuel */
 (function () {
   'use strict';
   if (window.__mbaAutoRead) return;
@@ -35,7 +35,6 @@
       document.head.appendChild(script);
   }
 
-  // --- DÉTECTION AUTOMATIQUE DE LA LANGUE ---
   function detecterLangue(texte) {
       if (/[\u0600-\u06FF]/.test(texte)) return 'ar-SA';
       if (/[\u4E00-\u9FFF]/.test(texte)) return 'zh-CN';
@@ -46,7 +45,6 @@
       if (/[\u0590-\u05FF]/.test(texte)) return 'he-IL';
       if (/[\u0370-\u03FF]/.test(texte)) return 'el-GR';
       if (/[\u0E00-\u0E7F]/.test(texte)) return 'th-TH';
-      // Par défaut, si c'est de l'alphabet latin, on laisse le navigateur décider (fr, en, es, de, etc.)
       return 'fr-FR';
   }
 
@@ -84,10 +82,9 @@
   function choisirVoix(lang) {
     const vs = synth.getVoices() || [];
     const base = lang.slice(0, 2).toLowerCase();
-    // Trouve une voix correspondant à la langue détectée
     const candidates = vs.filter(v => String(v.lang || '').toLowerCase().replace('_','-').startsWith(base));
     if (!candidates.length) return null;
-    return candidates[0]; // Retourne la première voix trouvée pour cette langue
+    return candidates[0];
   }
 
   function getVoix(lang) {
@@ -141,7 +138,6 @@
     if (!chunks.length) return;
 
     timeTotal = Math.ceil(texteNettoye.split(/\s+/).length / 3);
-    // DÉTECTION DE LA LANGUE
     const langueDetectee = detecterLangue(texteNettoye);
     currentJob = { texte: item.texte, chunks, lang: langueDetectee, voice: null };
     currentChunkIndex = 0; isPaused = false; lectureEnCours = true;
@@ -157,7 +153,6 @@
     if (!chunks.length) return;
 
     timeTotal = Math.ceil(texteNettoye.split(/\s+/).length / 3);
-    // DÉTECTION DE LA LANGUE
     const langueDetectee = detecterLangue(texteNettoye);
     currentJob = { texte: txt, chunks, lang: langueDetectee, voice: null };
     currentChunkIndex = 0; isPaused = false; lectureEnCours = true;
@@ -208,13 +203,96 @@
     if (ui.nextBtn) ui.nextBtn.disabled = !hasHistory;
   }
 
+  // --- GENERATION PDF POUR UNE SEULE REPONSE ---
+  function genererPDFQuestion(botNode) {
+      if (!window.html2pdf) { alert("Chargement du PDF..."); return; }
+
+      // Trouver la question de l'utilisateur juste avant
+      let userNode = botNode.previousElementSibling;
+      while (userNode && !userNode.classList.contains('user')) {
+          userNode = userNode.previousElementSibling;
+      }
+      
+      // Cloner les noeuds pour ne pas altérer l'écran
+      const userClone = userNode ? userNode.cloneNode(true) : null;
+      const botClone = botNode.cloneNode(true);
+      
+      // Nettoyer les boutons de contrôle pour ne pas les avoir dans le PDF
+      const ctrls = botClone.querySelector('.mba-bubble-controls');
+      if (ctrls) ctrls.remove();
+
+      const userText = userClone ? userClone.innerHTML : "Question non trouvée";
+      const botText = botClone.innerHTML;
+
+      let email = "Utilisateur inconnu";
+      try {
+          const token = localStorage.getItem('token');
+          if (token) {
+              const payload = JSON.parse(atob(token.split('.')[1]));
+              email = payload.email || payload.name || email;
+          }
+      } catch(e) {}
+      
+      const dateAcces = new Date(sessionStartTime).toLocaleString('fr-FR');
+      const dateSortie = new Date().toLocaleString('fr-FR');
+
+      // Structure HTML du PDF (attachée au DOM pour que html2canvas fonctionne)
+      const container = document.createElement('div');
+      // On le place hors de l'écran mais dans le DOM pour que html2canvas puisse le lire
+      container.style.cssText = 'position: fixed; left: -9999px; top: 0; width: 210mm; background: white; padding: 20px; font-family: Arial, sans-serif;';
+      
+      container.innerHTML = `
+            <div style="page-break-after: always; text-align: center; padding-top: 100px;">
+                <h1 style="color: #0a2540; font-size: 32px; margin-bottom: 10px;">Scholars Connect</h1>
+                <h2 style="color: #1e5aa8; font-size: 24px; margin-bottom: 40px;">Rapport de Session</h2>
+                <div style="background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 30px; display: inline-block; text-align: left; width: 80%;">
+                    <p><strong>Utilisateur :</strong> ${email}</p>
+                    <p><strong>Date d'accès :</strong> ${dateAcces}</p>
+                    <p><strong>Date d'extraction (sortie) :</strong> ${dateSortie}</p>
+                </div>
+            </div>
+            
+            <div style="page-break-before: always; padding-top: 20px;">
+                <h2 style="color: #0a2540; border-bottom: 2px solid #1e5aa8; padding-bottom: 10px; margin-bottom: 20px;">Détail de l'échange</h2>
+                
+                <div style="margin-bottom: 30px;">
+                    <h4 style="margin: 0 0 10px 0; color: #1e5aa8; font-size: 16px;">Question (Utilisateur) :</h4>
+                    <div style="background: #e0f2fe; border: 1px solid #bae6fd; padding: 15px; border-radius: 8px; font-size: 14px; line-height: 1.5;">
+                        ${userText}
+                    </div>
+                </div>
+
+                <div style="margin-bottom: 30px;">
+                    <h4 style="margin: 0 0 10px 0; color: #1e5aa8; font-size: 16px;">Réponse (Scholars Connect IA) :</h4>
+                    <div style="background: #f3f4f6; border: 1px solid #d1d5db; padding: 15px; border-radius: 8px; font-size: 14px; line-height: 1.5;">
+                        ${botText}
+                    </div>
+                </div>
+            </div>
+      `;
+      
+      document.body.appendChild(container);
+
+      const opt = {
+          margin:       15,
+          filename:     `Scholars_Connect_Reponse_${new Date().toISOString().slice(0,10)}.pdf`,
+          image:        { type: 'jpeg', quality: 0.98 },
+          html2canvas:  { scale: 2, useCORS: true },
+          jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+      };
+
+      window.html2pdf().set(opt).from(container).save().then(() => {
+          document.body.removeChild(container); // Nettoyage
+      });
+  }
+
   function injecterBoutonsMessage(node) {
     if (node.querySelector('.mba-bubble-controls')) return;
     if (node.textContent.includes("Bonjour ! Posez-moi n'importe quelle question")) return;
 
     const div = document.createElement('div');
     div.className = 'mba-bubble-controls';
-    div.style.cssText = 'margin-top: 10px; display: flex; gap: 8px; align-items: center; border-top: 1px solid #e5e7eb; padding-top: 8px;';
+    div.style.cssText = 'margin-top: 10px; display: flex; gap: 8px; align-items: center; border-top: 1px solid #e5e7eb; padding-top: 8px; flex-wrap: wrap;';
     
     const btnPlay = document.createElement('button');
     btnPlay.innerHTML = '▶ Lire';
@@ -246,8 +324,16 @@
         e.stopPropagation();
         arreterLecture();
     };
+
+    const btnPDF = document.createElement('button');
+    btnPDF.innerHTML = '📄 PDF';
+    btnPDF.style.cssText = 'background: transparent; color: #4f46e5; border: 1px solid #4f46e5; padding: 4px 10px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600;';
+    btnPDF.onclick = (e) => {
+        e.stopPropagation();
+        genererPDFQuestion(node);
+    };
     
-    div.appendChild(btnPlay); div.appendChild(btnPause); div.appendChild(btnStop);
+    div.appendChild(btnPlay); div.appendChild(btnPause); div.appendChild(btnStop); div.appendChild(btnPDF);
     node.appendChild(div);
   }
 
@@ -263,82 +349,7 @@
     }).observe(c, { childList: true, subtree: true });
   }
 
-  function genererPDF() {
-      if (!window.html2pdf) {
-          alert("Chargement du module PDF en cours... Veuillez patienter 2 secondes et réessayer.");
-          return;
-      }
-      
-      const chatMessages = document.querySelectorAll('.msg');
-      if (chatMessages.length === 0) { alert("Aucun message à exporter."); return; }
-
-      let email = "Utilisateur inconnu";
-      try {
-          const token = localStorage.getItem('token');
-          if (token) {
-              const payload = JSON.parse(atob(token.split('.')[1]));
-              email = payload.email || payload.name || email;
-          }
-      } catch(e) {}
-      
-      const dateAcces = new Date(sessionStartTime).toLocaleString('fr-FR');
-      const dateSortie = new Date().toLocaleString('fr-FR');
-
-      let htmlContent = `
-        <div style="font-family: Arial, sans-serif; color: #333; line-height: 1.6; padding: 20px;">
-            <div style="page-break-after: always; text-align: center; padding-top: 100px;">
-                <h1 style="color: #0a2540; font-size: 32px; margin-bottom: 10px;">Scholars Connect</h1>
-                <h2 style="color: #1e5aa8; font-size: 24px; margin-bottom: 40px;">Rapport de Session</h2>
-                <div style="background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 30px; display: inline-block; text-align: left; width: 80%;">
-                    <p><strong>Utilisateur :</strong> ${email}</p>
-                    <p><strong>Date d'accès :</strong> ${dateAcces}</p>
-                    <p><strong>Date d'extraction (sortie) :</strong> ${dateSortie}</p>
-                    <p><strong>Nombre de messages :</strong> ${chatMessages.length}</p>
-                </div>
-            </div>
-            <h2 style="color: #0a2540; border-bottom: 2px solid #1e5aa8; padding-bottom: 10px; margin-bottom: 20px;">Contenu de la discussion</h2>
-      `;
-
-      chatMessages.forEach((msg) => {
-          const isBot = msg.classList.contains('bot');
-          const text = msg.innerText.trim();
-          if (!text) return;
-
-          if (isBot) { htmlContent += `<div style="page-break-before: always; padding-top: 20px;">`; }
-
-          const bgColor = isBot ? '#f3f4f6' : '#e0f2fe';
-          const borderColor = isBot ? '#d1d5db' : '#bae6fd';
-          const title = isBot ? 'Scholars Connect IA' : 'Utilisateur';
-
-          htmlContent += `
-            <div style="margin-bottom: 20px;">
-                <h4 style="margin: 0 0 10px 0; color: #1e5aa8; font-size: 14px;">${title}</h4>
-                <div style="background: ${bgColor}; border: 1px solid ${borderColor}; padding: 15px; border-radius: 8px; font-size: 14px; white-space: pre-wrap;">
-                    ${text.replace(/\n/g, '<br>')}
-                </div>
-            </div>
-          `;
-
-          if (isBot) { htmlContent += `</div>`; }
-      });
-
-      htmlContent += `</div>`;
-
-      const element = document.createElement('div');
-      element.innerHTML = htmlContent;
-      element.style.width = '210mm';
-
-      const opt = {
-          margin:       15,
-          filename:     `Rapport_Scholars_Connect_${new Date().toISOString().slice(0,10)}.pdf`,
-          image:        { type: 'jpeg', quality: 0.98 },
-          html2canvas:  { scale: 2, useCORS: true },
-          jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
-      };
-
-      window.html2pdf().set(opt).from(element).save();
-  }
-
+  // --- UI FLOTTANTE (TIMELINE) ---
   function construireUI() {
     const style = document.createElement('style');
     style.textContent = `
@@ -353,8 +364,6 @@
       #mba-player button:disabled { opacity: 0.3; cursor: not-allowed; }
       #mba-player .mba-status { font-size: 11px; color: #aaa; text-align: center; }
       #mba-player label { font-size: 12px; display: flex; align-items: center; gap: 4px; cursor: pointer; }
-      .btn-pdf { background: #dc2626; color: white; border: none; padding: 8px; border-radius: 6px; cursor: pointer; font-weight: bold; margin-top: 5px; width: 100%; display: flex; justify-content: center; gap: 5px; }
-      .btn-pdf:hover { background: #b91c1c; }
     `;
     document.head.appendChild(style);
 
@@ -399,12 +408,7 @@
     labelAuto.appendChild(checkbox);
     labelAuto.appendChild(document.createTextNode(' Lecture auto'));
 
-    const btnPDF = document.createElement('button');
-    btnPDF.className = 'btn-pdf';
-    btnPDF.innerHTML = '📄 Sauvegarder en PDF';
-    btnPDF.onclick = genererPDF;
-
-    container.appendChild(select); container.appendChild(row); container.appendChild(controls); container.appendChild(status); container.appendChild(labelAuto); container.appendChild(btnPDF);
+    container.appendChild(select); container.appendChild(row); container.appendChild(controls); container.appendChild(status); container.appendChild(labelAuto);
     document.body.appendChild(container);
     ui = { container, select, slider, time: timeLabel, playBtn, stopBtn, prevBtn, nextBtn, status };
     majSelect(); mettreAJourUI();
