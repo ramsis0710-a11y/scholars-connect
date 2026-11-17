@@ -1,4 +1,4 @@
-/* auto-read.js - VERSION 3.0 - PDF par impression native (Fix définitif Arabe) */
+/* auto-read.js - VERSION 4.0 - PDF Haute Qualité (Impression Native) */
 (function () {
   'use strict';
   if (window.__mbaAutoRead) return;
@@ -197,43 +197,110 @@
     if (ui.nextBtn) ui.nextBtn.disabled = !hasHistory;
   }
 
-  // --- GENERATION PDF PAR IMPRESSION NATIVE (Fix 100% Arabe) ---
-        function genererPDFQuestion(botNode) {
-      const clone = botNode.cloneNode(true);
-      const ctrls = clone.querySelector('.mba-bubble-controls');
-      if (ctrls) ctrls.remove();
-      const answerText = clone.innerText.trim();
-
+  // --- IMPRESSION PDF AVEC DESIGN PROFESSIONNEL ---
+  function genererPDFQuestion(botNode) {
       let userNode = botNode.previousElementSibling;
       while (userNode && !userNode.classList.contains('user')) { userNode = userNode.previousElementSibling; }
-      const questionText = userNode ? userNode.innerText.trim() : "Question";
+      
+      const userClone = userNode ? userNode.cloneNode(true) : null;
+      const botClone = botNode.cloneNode(true);
+      
+      // On retire les boutons du PDF
+      const ctrls = botClone.querySelector('.mba-bubble-controls');
+      if (ctrls) ctrls.remove();
 
-      // On affiche un indicateur de chargement
-      const btn = botNode.querySelector('.mba-bubble-controls button:last-child');
-      const originalText = btn.innerHTML;
-      btn.innerHTML = '⏳...';
-      btn.disabled = true;
+      const userText = userClone ? userClone.innerHTML : "Question non trouvée";
+      const botText = botClone.innerHTML;
+      const isArabic = /[\u0600-\u06FF]/.test(userText + botText);
 
-      fetch(API_BASE + '/api/pdf-report/generate', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ question: questionText, answer: answerText })
-      })
-      .then(res => res.json())
-      .then(data => {
-          btn.innerHTML = originalText;
-          btn.disabled = false;
-          if (data.pdfUrl) {
-              window.open(data.pdfUrl, '_blank');
-          } else {
-              alert("Erreur lors de la génération du PDF.");
+      let email = "Utilisateur connecté";
+      try {
+          const token = localStorage.getItem('token');
+          if (token) {
+              const payload = JSON.parse(atob(token.split('.')[1]));
+              email = payload.email || payload.name || email;
           }
-      })
-      .catch(err => {
-          btn.innerHTML = originalText;
-          btn.disabled = false;
-          alert("Erreur réseau : " + err.message);
-      });
+      } catch(e) {}
+      
+      const dateAcces = new Date(sessionStartTime).toLocaleString('fr-FR');
+      const dateSortie = new Date().toLocaleString('fr-FR');
+
+      // Ouverture d'une fenêtre d'impression propre
+      const printWindow = window.open('', '_blank');
+      printWindow.document.write(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Rapport Scholars Connect</title>
+            <meta charset="UTF-8">
+            <style>
+                @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;700&display=swap');
+                body { font-family: 'Roboto', Tahoma, Arial, sans-serif; color: #334155; line-height: 1.7; margin: 0; padding: 0; background: #fff; }
+                .page { padding: 50px; max-width: 900px; margin: 0 auto; }
+                
+                /* PAGE DE GARDE */
+                .cover { page-break-after: always; height: 95vh; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; margin: 20px; }
+                .logo { font-size: 40px; font-weight: 800; color: #0a2540; margin-bottom: 10px; }
+                .subtitle { font-size: 20px; color: #1e5aa8; margin-bottom: 50px; font-weight: 300; }
+                .info-box { background: #fff; border: 1px solid #cbd5e1; border-radius: 8px; padding: 30px; width: 70%; text-align: left; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); }
+                .info-box p { margin: 10px 0; font-size: 15px; }
+                .info-box strong { color: #0a2540; display: inline-block; width: 130px; }
+                .footer-cover { margin-top: 50px; font-size: 12px; color: #94a3b8; }
+
+                /* CONTENU */
+                .section-title { font-size: 22px; color: #0a2540; border-bottom: 2px solid #1e5aa8; padding-bottom: 10px; margin-bottom: 30px; margin-top: 40px; }
+                .label { font-size: 14px; color: #1e5aa8; font-weight: bold; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 1px; }
+                .box-user { background: #f1f5f9; border-left: 4px solid #64748b; padding: 20px; border-radius: 0 8px 8px 0; margin-bottom: 30px; font-style: italic; }
+                .box-bot { background: #f0f7ff; border-left: 4px solid #1e5aa8; padding: 25px; border-radius: 0 8px 8px 0; }
+                
+                /* Typographie du texte */
+                .content h2, .content h3 { color: #0a2540; margin-top: 25px; margin-bottom: 15px; }
+                .content p { margin-bottom: 15px; }
+                .content ul, .content ol { margin-bottom: 20px; padding-left: 20px; }
+                .content li { margin-bottom: 8px; }
+                .content strong { color: #0f172a; }
+                
+                @media print {
+                    body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+                    .page { padding: 0; margin: 0; }
+                    .cover { height: 100vh; margin: 0; border: none; border-radius: 0; }
+                }
+            </style>
+        </head>
+        <body>
+            <div class="cover">
+                <div class="logo">MBA-CONSULT</div>
+                <div class="subtitle">Scholars Connect AI Core</div>
+                <div class="info-box">
+                    <p><strong>Utilisateur :</strong> ${email}</p>
+                    <p><strong>Date de connexion :</strong> ${dateAcces}</p>
+                    <p><strong>Date d'extraction :</strong> ${dateSortie}</p>
+                </div>
+                <div class="footer-cover">Document confidentiel généré automatiquement</div>
+            </div>
+
+            <div class="page content" ${isArabic ? 'dir="rtl"' : ''}>
+                <div class="section-title">Détail de l'échange</div>
+                
+                <div class="label">Sujet de la demande</div>
+                <div class="box-user">
+                    ${userText}
+                </div>
+
+                <div class="label">Réponse de l'expert</div>
+                <div class="box-bot">
+                    ${botText}
+                </div>
+            </div>
+
+            <script>
+                // Petit délai pour laisser les polices se charger avant d'ouvrir l'impression
+                setTimeout(function() { window.print(); }, 800);
+            </script>
+        </body>
+        </html>
+      `);
+      printWindow.document.close();
   }
 
   function injecterBoutonsMessage(node) {
@@ -373,7 +440,7 @@
         try {
           const url = typeof input === 'string' ? input : (input && input.url) || '';
           if (urlPattern.test(url)) {
-            p.then(res => { try { res.clone().json().then(data => { if (data && typeof data.answer === 'string') { ajouterReponse(data.answer); window._lastPdfUrl = data.pdfUrl; } }).catch(()=>{}); } catch(e) {} }).catch(()=>{});
+            p.then(res => { try { res.clone().json().then(data => { if (data && typeof data.answer === 'string') ajouterReponse(data.answer); }).catch(()=>{}); } catch(e) {} }).catch(()=>{});
           }
         } catch(e) {}
         return p;
