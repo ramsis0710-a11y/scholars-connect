@@ -1,4 +1,4 @@
-/* auto-read.js - VERSION 4.0 - PDF Haute Qualité (Impression Native) */
+/* auto-read.js - VERSION 5.0 - Rapport Analytique PDF */
 (function () {
   'use strict';
   if (window.__mbaAutoRead) return;
@@ -36,9 +36,6 @@
       if (/[\u3040-\u30FF]/.test(texte)) return 'ja-JP';
       if (/[\uAC00-\uD7AF]/.test(texte)) return 'ko-KR';
       if (/[\u0900-\u097F]/.test(texte)) return 'hi-IN';
-      if (/[\u0590-\u05FF]/.test(texte)) return 'he-IL';
-      if (/[\u0370-\u03FF]/.test(texte)) return 'el-GR';
-      if (/[\u0E00-\u0E7F]/.test(texte)) return 'th-TH';
       return 'fr-FR';
   }
 
@@ -197,7 +194,7 @@
     if (ui.nextBtn) ui.nextBtn.disabled = !hasHistory;
   }
 
-  // --- IMPRESSION PDF AVEC DESIGN PROFESSIONNEL ---
+  // --- GENERATION DU RAPPORT PDF ANALYTIQUE ---
   function genererPDFQuestion(botNode) {
       let userNode = botNode.previousElementSibling;
       while (userNode && !userNode.classList.contains('user')) { userNode = userNode.previousElementSibling; }
@@ -205,12 +202,26 @@
       const userClone = userNode ? userNode.cloneNode(true) : null;
       const botClone = botNode.cloneNode(true);
       
-      // On retire les boutons du PDF
+      // Nettoyage des boutons
       const ctrls = botClone.querySelector('.mba-bubble-controls');
       if (ctrls) ctrls.remove();
+      if (userClone) {
+          const uc = userClone.querySelector('.mba-bubble-controls');
+          if (uc) uc.remove();
+      }
 
-      const userText = userClone ? userClone.innerHTML : "Question non trouvée";
-      const botText = botClone.innerHTML;
+      let userText = userClone ? userClone.innerText.trim() : "Question non trouvée";
+      let botText = botClone.innerHTML;
+
+      // Retirer les boutons Traduire/Partager du texte de la question
+      userText = userText.replace(/🌐?\s*Traduire/gi, '').replace(/🔗?\s*Partager/gi, '').trim();
+      
+      // Nettoyage du HTML de la réponse (enlever les boutons traduire/partager incrustés)
+      const tempDiv = document.createElement('div');
+      tempDiv.innerHTML = botText;
+      tempDiv.querySelectorAll('button, .translation-btn, .share-btn').forEach(el => el.remove());
+      botText = tempDiv.innerHTML.replace(/🌐?\s*Traduire/gi, '').replace(/🔗?\s*Partager/gi, '');
+
       const isArabic = /[\u0600-\u06FF]/.test(userText + botText);
 
       let email = "Utilisateur connecté";
@@ -225,77 +236,101 @@
       const dateAcces = new Date(sessionStartTime).toLocaleString('fr-FR');
       const dateSortie = new Date().toLocaleString('fr-FR');
 
-      // Ouverture d'une fenêtre d'impression propre
+      // Extraction d'un résumé automatique (premières 300 lettres)
+      const plainText = botText.replace(/<[^>]+>/g, ' ');
+      const summaryText = plainText.substring(0, 400).split('.').slice(0, -1).join('.') + '.';
+
       const printWindow = window.open('', '_blank');
       printWindow.document.write(`
         <!DOCTYPE html>
         <html>
         <head>
-            <title>Rapport Scholars Connect</title>
+            <title>Rapport Analytique - Scholars Connect</title>
             <meta charset="UTF-8">
+            <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
             <style>
-                @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;700&display=swap');
-                body { font-family: 'Roboto', Tahoma, Arial, sans-serif; color: #334155; line-height: 1.7; margin: 0; padding: 0; background: #fff; }
-                .page { padding: 50px; max-width: 900px; margin: 0 auto; }
+                @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap');
                 
-                /* PAGE DE GARDE */
-                .cover { page-break-after: always; height: 95vh; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; margin: 20px; }
-                .logo { font-size: 40px; font-weight: 800; color: #0a2540; margin-bottom: 10px; }
-                .subtitle { font-size: 20px; color: #1e5aa8; margin-bottom: 50px; font-weight: 300; }
-                .info-box { background: #fff; border: 1px solid #cbd5e1; border-radius: 8px; padding: 30px; width: 70%; text-align: left; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); }
-                .info-box p { margin: 10px 0; font-size: 15px; }
-                .info-box strong { color: #0a2540; display: inline-block; width: 130px; }
-                .footer-cover { margin-top: 50px; font-size: 12px; color: #94a3b8; }
-
-                /* CONTENU */
-                .section-title { font-size: 22px; color: #0a2540; border-bottom: 2px solid #1e5aa8; padding-bottom: 10px; margin-bottom: 30px; margin-top: 40px; }
-                .label { font-size: 14px; color: #1e5aa8; font-weight: bold; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 1px; }
-                .box-user { background: #f1f5f9; border-left: 4px solid #64748b; padding: 20px; border-radius: 0 8px 8px 0; margin-bottom: 30px; font-style: italic; }
-                .box-bot { background: #f0f7ff; border-left: 4px solid #1e5aa8; padding: 25px; border-radius: 0 8px 8px 0; }
+                body { font-family: 'Inter', Tahoma, Arial, sans-serif; background-color: #f3f4f6; color: #334155; margin: 0; padding: 40px; line-height: 1.7; }
                 
-                /* Typographie du texte */
-                .content h2, .content h3 { color: #0a2540; margin-top: 25px; margin-bottom: 15px; }
-                .content p { margin-bottom: 15px; }
-                .content ul, .content ol { margin-bottom: 20px; padding-left: 20px; }
-                .content li { margin-bottom: 8px; }
-                .content strong { color: #0f172a; }
+                /* Structure principale */
+                .report-container { background-color: #ffffff; max-width: 900px; margin: 0 auto; padding: 50px; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.05); }
+                
+                /* Couleurs et Typographie */
+                h1, h2, h3, h4 { color: #00a8cc; margin-top: 30px; margin-bottom: 15px; font-weight: 600; }
+                h1 { font-size: 28px; border-bottom: 3px solid #00a8cc; padding-bottom: 10px; }
+                h3 { font-size: 20px; }
+                
+                /* Page de garde */
+                .cover-page { text-align: center; padding: 100px 0; page-break-after: always; }
+                .logo { font-size: 48px; font-weight: 800; color: #0a2540; margin-bottom: 10px; letter-spacing: -1px; }
+                .subtitle { font-size: 22px; color: #00a8cc; margin-bottom: 60px; font-weight: 300; }
+                .meta-box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 30px; width: 70%; margin: 0 auto; text-align: left; }
+                .meta-box p { margin: 10px 0; font-size: 15px; }
+                .meta-box strong { color: #0a2540; display: inline-block; width: 150px; }
+                
+                /* Bloc Résumé Exécutif */
+                .summary-box { background: #f0f9ff; border-left: 5px solid #00a8cc; padding: 20px; border-radius: 0 8px 8px 0; margin-bottom: 40px; font-style: italic; color: #0c4a6e; }
+                .summary-title { font-weight: 700; color: #00a8cc; display: block; margin-bottom: 10px; font-style: normal; text-transform: uppercase; letter-spacing: 1px; font-size: 13px; }
+                
+                /* Bloc Question */
+                .question-box { background: #f8fafc; border: 1px solid #e2e8f0; padding: 20px; border-radius: 8px; margin-bottom: 40px; font-style: italic; }
+                .section-label { font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 1px; font-size: 12px; margin-bottom: 10px; display: block; }
+                
+                /* Style du contenu Markdown généré */
+                .markdown-content ul, .markdown-content ol { padding-left: 25px; margin-bottom: 20px; }
+                .markdown-content li { margin-bottom: 10px; }
+                .markdown-content p { margin-bottom: 20px; text-align: justify; }
+                .markdown-content strong { color: #0a2540; font-weight: 600; }
+                .markdown-content blockquote { border-left: 4px solid #e2e8f0; padding-left: 15px; color: #64748b; margin-left: 0; }
                 
                 @media print {
-                    body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-                    .page { padding: 0; margin: 0; }
-                    .cover { height: 100vh; margin: 0; border: none; border-radius: 0; }
+                    body { background-color: #ffffff; padding: 0; }
+                    .report-container { box-shadow: none; padding: 0; max-width: 100%; border-radius: 0; }
+                    .cover-page { height: 100vh; padding-top: 200px; }
+                    .meta-box, .summary-box, .question-box { page-break-inside: avoid; }
+                    .markdown-content h3 { page-break-after: avoid; }
                 }
             </style>
         </head>
         <body>
-            <div class="cover">
-                <div class="logo">MBA-CONSULT</div>
-                <div class="subtitle">Scholars Connect AI Core</div>
-                <div class="info-box">
-                    <p><strong>Utilisateur :</strong> ${email}</p>
-                    <p><strong>Date de connexion :</strong> ${dateAcces}</p>
-                    <p><strong>Date d'extraction :</strong> ${dateSortie}</p>
-                </div>
-                <div class="footer-cover">Document confidentiel généré automatiquement</div>
-            </div>
-
-            <div class="page content" ${isArabic ? 'dir="rtl"' : ''}>
-                <div class="section-title">Détail de l'échange</div>
-                
-                <div class="label">Sujet de la demande</div>
-                <div class="box-user">
-                    ${userText}
+            <div class="report-container">
+                <!-- PAGE DE GARDE -->
+                <div class="cover-page">
+                    <div class="logo">MBA-CONSULT</div>
+                    <div class="subtitle">Rapport d'Analyse & d'Expertise</div>
+                    <div class="meta-box">
+                        <p><strong>Utilisateur :</strong> ${email}</p>
+                        <p><strong>Date de connexion :</strong> ${dateAcces}</p>
+                        <p><strong>Date d'extraction :</strong> ${dateSortie}</p>
+                    </div>
                 </div>
 
-                <div class="label">Réponse de l'expert</div>
-                <div class="box-bot">
-                    ${botText}
+                <!-- CONTENU DU RAPPORT -->
+                <div ${isArabic ? 'dir="rtl" style="text-align: right;"' : ''}>
+                    
+                    <div class="summary-box">
+                        <span class="summary-title">Résumé Exécutif</span>
+                        ${summaryText}
+                    </div>
+
+                    <div class="question-box">
+                        <span class="section-label">Sujet de la demande</span>
+                        ${userText}
+                    </div>
+
+                    <h1>Analyse Détaillée</h1>
+                    <div class="markdown-content" id="md-content"></div>
                 </div>
             </div>
 
             <script>
-                // Petit délai pour laisser les polices se charger avant d'ouvrir l'impression
-                setTimeout(function() { window.print(); }, 800);
+                // Rendu du Markdown en HTML propre
+                const rawMarkdown = \`${botText.replace(/`/g, '\\`')}\`;
+                document.getElementById('md-content').innerHTML = marked.parse(rawMarkdown);
+                
+                // Lancement de l'impression après chargement
+                setTimeout(function() { window.print(); }, 1000);
             </script>
         </body>
         </html>
