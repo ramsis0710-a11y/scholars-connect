@@ -195,34 +195,31 @@
   }
 
   // --- GENERATION DU RAPPORT PDF ANALYTIQUE ---
-  function genererPDFQuestion(botNode) {
+    function genererPDFQuestion(botNode) {
       let userNode = botNode.previousElementSibling;
       while (userNode && !userNode.classList.contains('user')) { userNode = userNode.previousElementSibling; }
       
       const userClone = userNode ? userNode.cloneNode(true) : null;
       const botClone = botNode.cloneNode(true);
       
-      // Nettoyage des boutons
       const ctrls = botClone.querySelector('.mba-bubble-controls');
       if (ctrls) ctrls.remove();
-      if (userClone) {
-          const uc = userClone.querySelector('.mba-bubble-controls');
-          if (uc) uc.remove();
-      }
 
-      let userText = userClone ? userClone.innerText.trim() : "Question non trouvée";
+      let userText = userClone ? userClone.innerHTML : "Question";
       let botText = botClone.innerHTML;
-
-      // Retirer les boutons Traduire/Partager du texte de la question
-      userText = userText.replace(/🌐?\s*Traduire/gi, '').replace(/🔗?\s*Partager/gi, '').trim();
       
-      // Nettoyage du HTML de la réponse (enlever les boutons traduire/partager incrustés)
-      const tempDiv = document.createElement('div');
-      tempDiv.innerHTML = botText;
-      tempDiv.querySelectorAll('button, .translation-btn, .share-btn').forEach(el => el.remove());
-      botText = tempDiv.innerHTML.replace(/🌐?\s*Traduire/gi, '').replace(/🔗?\s*Partager/gi, '');
+      const langSelect = document.getElementById('langSelect');
+      const lang = langSelect ? langSelect.value : 'fr';
+      const isArabic = (lang === 'ar' || /[\u0600-\u06FF]/.test(userText + botText));
 
-      const isArabic = /[\u0600-\u06FF]/.test(userText + botText);
+      let titres = {};
+      if (isArabic) {
+          titres = { titre: "تقرير الجلسة", sujet: "موضوع الطلب", reponse: "إجابة الخبير", utilisateur: "المستخدم", dateAcces: "تاريخ الوصول", dateExtraction: "تاريخ الاستخراج" };
+      } else if (lang === 'en') {
+          titres = { titre: "Session Report", sujet: "Request Subject", reponse: "Expert Response", utilisateur: "User", dateAcces: "Access Date", dateExtraction: "Extraction Date" };
+      } else {
+          titres = { titre: "Rapport de Session", sujet: "Sujet de la demande", reponse: "Réponse de l'expert", utilisateur: "Utilisateur", dateAcces: "Date d'accès", dateExtraction: "Date d'extraction" };
+      }
 
       let email = "Utilisateur connecté";
       try {
@@ -233,107 +230,45 @@
           }
       } catch(e) {}
       
-      const dateAcces = new Date(sessionStartTime).toLocaleString('fr-FR');
-      const dateSortie = new Date().toLocaleString('fr-FR');
-
-      // Extraction d'un résumé automatique (premières 300 lettres)
-      const plainText = botText.replace(/<[^>]+>/g, ' ');
-      const summaryText = plainText.substring(0, 400).split('.').slice(0, -1).join('.') + '.';
-
+      const dateAcces = new Date(sessionStartTime).toLocaleString(isArabic ? 'ar-SA' : (lang === 'en' ? 'en-US' : 'fr-FR'));
+      const dateSortie = new Date().toLocaleString(isArabic ? 'ar-SA' : (lang === 'en' ? 'en-US' : 'fr-FR'));
       const printWindow = window.open('', '_blank');
+      
       printWindow.document.write(`
-        <!DOCTYPE html>
-        <html>
+        <!DOCTYPE html><html>
         <head>
-            <title>Rapport Analytique - Scholars Connect</title>
+            <title>${titres.titre}</title>
             <meta charset="UTF-8">
-            <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
             <style>
-                @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap');
-                
-                body { font-family: 'Inter', Tahoma, Arial, sans-serif; background-color: #f3f4f6; color: #334155; margin: 0; padding: 40px; line-height: 1.7; }
-                
-                /* Structure principale */
-                .report-container { background-color: #ffffff; max-width: 900px; margin: 0 auto; padding: 50px; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.05); }
-                
-                /* Couleurs et Typographie */
-                h1, h2, h3, h4 { color: #00a8cc; margin-top: 30px; margin-bottom: 15px; font-weight: 600; }
-                h1 { font-size: 28px; border-bottom: 3px solid #00a8cc; padding-bottom: 10px; }
-                h3 { font-size: 20px; }
-                
-                /* Page de garde */
-                .cover-page { text-align: center; padding: 100px 0; page-break-after: always; }
-                .logo { font-size: 48px; font-weight: 800; color: #0a2540; margin-bottom: 10px; letter-spacing: -1px; }
-                .subtitle { font-size: 22px; color: #00a8cc; margin-bottom: 60px; font-weight: 300; }
-                .meta-box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 30px; width: 70%; margin: 0 auto; text-align: left; }
-                .meta-box p { margin: 10px 0; font-size: 15px; }
-                .meta-box strong { color: #0a2540; display: inline-block; width: 150px; }
-                
-                /* Bloc Résumé Exécutif */
-                .summary-box { background: #f0f9ff; border-left: 5px solid #00a8cc; padding: 20px; border-radius: 0 8px 8px 0; margin-bottom: 40px; font-style: italic; color: #0c4a6e; }
-                .summary-title { font-weight: 700; color: #00a8cc; display: block; margin-bottom: 10px; font-style: normal; text-transform: uppercase; letter-spacing: 1px; font-size: 13px; }
-                
-                /* Bloc Question */
-                .question-box { background: #f8fafc; border: 1px solid #e2e8f0; padding: 20px; border-radius: 8px; margin-bottom: 40px; font-style: italic; }
-                .section-label { font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 1px; font-size: 12px; margin-bottom: 10px; display: block; }
-                
-                /* Style du contenu Markdown généré */
-                .markdown-content ul, .markdown-content ol { padding-left: 25px; margin-bottom: 20px; }
-                .markdown-content li { margin-bottom: 10px; }
-                .markdown-content p { margin-bottom: 20px; text-align: justify; }
-                .markdown-content strong { color: #0a2540; font-weight: 600; }
-                .markdown-content blockquote { border-left: 4px solid #e2e8f0; padding-left: 15px; color: #64748b; margin-left: 0; }
-                
-                @media print {
-                    body { background-color: #ffffff; padding: 0; }
-                    .report-container { box-shadow: none; padding: 0; max-width: 100%; border-radius: 0; }
-                    .cover-page { height: 100vh; padding-top: 200px; }
-                    .meta-box, .summary-box, .question-box { page-break-inside: avoid; }
-                    .markdown-content h3 { page-break-after: avoid; }
-                }
+                body { font-family: 'Tahoma', Arial, sans-serif; color: #333; line-height: 1.6; padding: 20px; background: #f3f4f6; }
+                .container { background: #fff; max-width: 800px; margin: 0 auto; padding: 40px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+                .cover { text-align: center; padding: 100px 0; page-break-after: always; }
+                .logo { font-size: 32px; color: #0a2540; font-weight: bold; }
+                .subtitle { font-size: 20px; color: #1e5aa8; margin-bottom: 40px; }
+                .info-box { background: #f9fafb; border: 1px solid #e5e7eb; padding: 20px; border-radius: 8px; text-align: left; display: inline-block; }
+                h2 { color: #1e5aa8; border-bottom: 2px solid #1e5aa8; padding-bottom: 10px; margin-top: 30px; }
+                .box { background: #f3f4f6; padding: 20px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #1e5aa8; }
+                @media print { body { background: #fff; padding: 0; } .container { box-shadow: none; padding: 0; } }
             </style>
         </head>
-        <body>
-            <div class="report-container">
-                <!-- PAGE DE GARDE -->
-                <div class="cover-page">
+        <body ${isArabic ? 'dir="rtl"' : ''}>
+            <div class="container">
+                <div class="cover">
                     <div class="logo">MBA-CONSULT</div>
-                    <div class="subtitle">Rapport d'Analyse & d'Expertise</div>
-                    <div class="meta-box">
-                        <p><strong>Utilisateur :</strong> ${email}</p>
-                        <p><strong>Date de connexion :</strong> ${dateAcces}</p>
-                        <p><strong>Date d'extraction :</strong> ${dateSortie}</p>
+                    <div class="subtitle">${titres.titre}</div>
+                    <div class="info-box">
+                        <p><strong>${titres.utilisateur} :</strong> ${email}</p>
+                        <p><strong>${titres.dateAcces} :</strong> ${dateAcces}</p>
+                        <p><strong>${titres.dateExtraction} :</strong> ${dateSortie}</p>
                     </div>
                 </div>
-
-                <!-- CONTENU DU RAPPORT -->
-                <div ${isArabic ? 'dir="rtl" style="text-align: right;"' : ''}>
-                    
-                    <div class="summary-box">
-                        <span class="summary-title">Résumé Exécutif</span>
-                        ${summaryText}
-                    </div>
-
-                    <div class="question-box">
-                        <span class="section-label">Sujet de la demande</span>
-                        ${userText}
-                    </div>
-
-                    <h1>Analyse Détaillée</h1>
-                    <div class="markdown-content" id="md-content"></div>
-                </div>
+                <h2>${titres.sujet}</h2>
+                <div class="box">${userText}</div>
+                <h2>${titres.reponse}</h2>
+                <div class="box" style="background:#fff; border:1px solid #e5e7eb;">${botText}</div>
             </div>
-
-            <script>
-                // Rendu du Markdown en HTML propre
-                const rawMarkdown = \`${botText.replace(/`/g, '\\`')}\`;
-                document.getElementById('md-content').innerHTML = marked.parse(rawMarkdown);
-                
-                // Lancement de l'impression après chargement
-                setTimeout(function() { window.print(); }, 1000);
-            </script>
-        </body>
-        </html>
+            <script>setTimeout(function(){ window.print(); }, 800);</script>
+        </body></html>
       `);
       printWindow.document.close();
   }
