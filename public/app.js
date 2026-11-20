@@ -1,4 +1,4 @@
-﻿const API = '/api';
+const API = '/api';
 let TOKEN = localStorage.getItem('token') || '';
 let USER = JSON.parse(localStorage.getItem('user') || 'null');
 
@@ -56,7 +56,7 @@ function speak(text, lang = 'fr-FR') {
     const voices = speechSynthesis.getVoices();
     const maleVoice = voices.find(v =>
         (v.lang.startsWith(lang.split('-')[0])) &&
-        /Thomas|Henri|Paul|Google franÃ§ais|Microsoft Paul|male|homme/i.test(v.name)
+        /Thomas|Henri|Paul|Google français|Microsoft Paul|male|homme/i.test(v.name)
     );
     if (maleVoice) u.voice = maleVoice;
 

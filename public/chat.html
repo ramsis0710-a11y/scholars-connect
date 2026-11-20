@@ -1040,5 +1040,18 @@ ensureAuth().then(ok => {
 <script src="/voice-native.js?v=20261107"></script>
 <script src="/translate-share.js?v=20261107"></script>
   <script src="/auto-read.js"></script>
+<script>
+    function updateAdminBtn() {
+        var adminBtn = document.getElementById('adminBtn');
+        if (!adminBtn) return;
+        var lang = document.getElementById('langSelect') ? document.getElementById('langSelect').value : 'fr';
+        if (lang === 'ar') adminBtn.innerHTML = '⚙️ الإدارة';
+        else if (lang === 'en') adminBtn.innerHTML = '⚙️ Admin';
+        else adminBtn.innerHTML = '⚙️ Admin';
+    }
+    document.addEventListener('DOMContentLoaded', function() {
+        setInterval(updateAdminBtn, 1000);
+    });
+</script>
 </body>
 </html>
