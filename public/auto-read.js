@@ -195,7 +195,7 @@
   }
 
   // --- GENERATION DU RAPPORT PDF ANALYTIQUE ---
-    function genererPDFQuestion(botNode) {
+      function genererPDFQuestion(botNode) {
       let userNode = botNode.previousElementSibling;
       while (userNode && !userNode.classList.contains('user')) { userNode = userNode.previousElementSibling; }
       
