@@ -1,4 +1,4 @@
-﻿require("dotenv").config();
+require("dotenv").config();
 const express  = require("express");
 const cors     = require("cors");
 const mongoose = require("mongoose");
@@ -173,7 +173,7 @@ async function loadHistory(userId, threadStart) {
         var since = Date.now() - 3 * 3600 * 1000;
         var ts = parseInt(threadStart, 10);
         if (ts > 0) since = ts;
-        var items = await QA.find({ userId: userId, createdAt: { $gte: new Date(since) } }).sort({ createdAt: -1 }).limit(6).lean();
+        var items = await QA.find({ userId: userId, createdAt: { $gte: new Date(since) } }).sort({ createdAt: -1 }).limit(2).lean();
         var msgs = [];
         items.reverse().forEach(function (i) {
             var q = String(i.question || "").split("[EXTRAITS]")[0].trim().slice(0, 1200);
