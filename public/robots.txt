@@ -1,0 +1,3 @@
+﻿User-agent: *
+Allow: /
+Sitemap: https://scholars-connect-app.onrender.com/sitemap.xml
