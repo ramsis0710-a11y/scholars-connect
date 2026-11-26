@@ -9,6 +9,7 @@ const path     = require("path");
 const crypto   = require("crypto");
 
 const app = express();
+require("./seo")(app);
 const PORT = Number(process.env.PORT || 10000);
 const HOST = process.env.HOST || "0.0.0.0";
 const JWT_SECRET = process.env.JWT_SECRET || crypto.randomBytes(32).toString("hex");
@@ -70,7 +71,7 @@ app.get("/api/brand/role", (req, res) => {
 app.get(Object.keys(BRAND_PAGES), (req, res, next) => {
     const file = path.join(__dirname, "public", BRAND_PAGES[req.path]);
     brandFs.readFile(file, "utf8", (err, html) => {
-        if (err) return next();
+        if (err) return next(); html = require("./seo").transform(html, req.path);
         const tag = '<script src="/brand.js" defer></script>';
         const brandBase = String(process.env.PUBLIC_URL || ("https://" + req.get("host"))).replace(/[^\w:\/\.\-]/g, "");
         let headTags = "";
