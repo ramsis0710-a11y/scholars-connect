@@ -5,3 +5,9 @@ node_modules/
 node_modules
 *.bak
 *.bak*
+*.pdf
+deploy-answer-enricher.txt
+force-redeploy.txt
+script pour la mise*
+_backup_*/
+server.js.backup*
